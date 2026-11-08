@@ -4,6 +4,43 @@ This project follows [Semantic Versioning](https://semver.org/). Release notes
 describe observable engine and protocol changes; migration instructions belong
 in [`docs/manual/operations/upgrading-from-2x.md`](docs/manual/operations/upgrading-from-2x.md).
 
+## 3.0.6 — 2026-11-08
+
+### Security
+
+- **`--pgwire-port 0` disables the PostgreSQL wire listener** (#429, #431).
+  Port 0 bound pgwire on an ephemeral port, while the non-loopback listen
+  guard treated it as disabled, so `--listen 0.0.0.0 --pgwire-port 0` with
+  `sql` enabled opened a cleartext pgwire listener the guard never checked,
+  also on multitenant servers. Port 0 (or `server.pgwire-port: 0`) now binds
+  nothing, as for gRPC and Bolt; the startup log reports `pgwire_port=0` and
+  SQL stays available over HTTP. A non-zero cleartext pgwire port on a
+  non-loopback multitenant listener is still refused.
+
+### Fixed
+
+- **Bolt selects the tenant the way drivers send it** (#430, #432). Neo4j
+  Bolt 5 drivers send the session database in `BEGIN` and auto-commit `RUN`,
+  not in `HELLO`, so every driver statement on a multitenant server failed
+  with `scope is required in multitenant mode`. `BEGIN` `db` now selects the
+  tenant of the transaction and `RUN` `db` that of an auto-commit statement;
+  `HELLO.db` is still accepted as the session default. A capability token
+  bound to a tenant logs in without `db` and is refused with
+  `Neo.ClientError.Security.Forbidden` for any other tenant; the bootstrap
+  token may name any tenant per transaction.
+- **`neo4j://` routing works.** `ROUTE` used the wrong message tag and table
+  shape, so routing drivers never connected; it now answers the routing table
+  drivers read (`ROUTE`, `READ` and `WRITE` on this node, `--bolt-advertised-address`).
+
+### Changed
+
+- On a single-tenant server, a Bolt `BEGIN`/`RUN` naming a database other
+  than `neo4j` is refused with `scope_mismatch`, as `HELLO.db` already was;
+  it used to be ignored and write to the one keyspace.
+- tantivy 0.27.0 (from 0.26.1; the on-disk index format is unchanged, so
+  existing text indexes open as before) and turbovec 1.1.2 (optional
+  `turbovec` vector feature, not in release builds).
+
 ## 3.0.5 — 2026-11-08
 
 ### Fixed
