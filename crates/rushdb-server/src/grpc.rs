@@ -66,6 +66,13 @@ impl EnvelopeHandler for NodeEnvelopeHandler {
         self.credentials.authenticate(credential, scope)
     }
 
+    fn authenticate_session(
+        &self,
+        credential: &str,
+    ) -> Result<(Principal, Option<String>), ProtocolError> {
+        self.credentials.authenticate_session(credential)
+    }
+
     fn execute(
         &self,
         envelope: RequestEnvelope,

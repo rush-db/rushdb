@@ -9,9 +9,18 @@
 //! Supported: HELLO (basic auth: the boot token or a tenant-bound capability
 //! as `credentials`, decided by [`EnvelopeHandler::authenticate`]), RUN/PULL
 //! (read + write Cypher), BEGIN / COMMIT / ROLLBACK (cross-service
-//! transactions), RESET / DISCARD, ROUTE, GOODBYE. With a [`BoltTls`] the
-//! listener speaks only TLS (`bolt+s://`, `neo4j+s://`): the handshake comes
-//! before the Bolt magic, as Neo4j drivers do it.
+//! transactions), RESET / DISCARD, ROUTE, GOODBYE.
+//!
+//! Tenancy follows Neo4j's per-transaction database: the `db` a driver
+//! sends in `BEGIN` (a transaction) or in an auto-commit `RUN` names the
+//! tenant that transaction runs in, and the credential is authorized for it
+//! again. HELLO's own `db` (or, when HELLO names none, the tenant a
+//! capability is bound to) is the session's tenant for a `BEGIN`/`RUN` that
+//! names none.
+//!
+//! With a [`BoltTls`] the listener speaks only TLS (`bolt+s://`,
+//! `neo4j+s://`): the handshake comes before the Bolt magic, as Neo4j
+//! drivers do it.
 
 pub mod value;
 
@@ -115,7 +124,7 @@ const COMMIT: u8 = 0x12;
 const ROLLBACK: u8 = 0x13;
 const DISCARD: u8 = 0x2F;
 const PULL: u8 = 0x3F;
-const ROUTE: u8 = 0x42;
+const ROUTE: u8 = 0x66;
 const SUCCESS: u8 = 0x70;
 const RECORD: u8 = 0x71;
 const IGNORED: u8 = 0x7E;
@@ -276,22 +285,57 @@ const FORBIDDEN_PREFIX: &str = "the session's credential does not grant ";
 struct Connection {
     stream: BoltStream,
     handler: Arc<dyn EnvelopeHandler>,
-    /// The principal HELLO logged in as; `None` until it succeeds, and no
-    /// operation is dispatched before.
-    principal: Option<Principal>,
-    /// Multitenant scope selected by the HELLO `db` field.
-    scope: Option<String>,
+    /// The credential HELLO presented: a `BEGIN` or `RUN` naming another
+    /// tenant is authorized with it again, by the server's one rule.
+    credential: String,
+    /// What HELLO logged in as; `None` until it succeeds, and no operation
+    /// is dispatched before.
+    session: Option<Target>,
     /// Pending RUN result (buffered rows + column order).
     pending: Option<PendingResult>,
     /// Cross-service transaction opened by BEGIN.
-    transaction_id: Option<String>,
+    transaction: Option<OpenTransaction>,
     /// Set by a FAILURE: until RESET, every message but GOODBYE is IGNORED.
     failed: bool,
     /// Server identity used in routing metadata.
     address: String,
 }
 
+/// Who an operation runs as, and in which tenant.
+#[derive(Clone)]
+struct Target {
+    principal: Principal,
+    /// The tenant scope; `None` names no tenant.
+    scope: Option<String>,
+}
+
+/// A transaction BEGIN opened: every statement, COMMIT and ROLLBACK in it
+/// runs as the tenant and principal BEGIN resolved.
+struct OpenTransaction {
+    id: String,
+    target: Target,
+}
+
+/// The tenant a Bolt `db` names: `None` for none, empty, or `neo4j` (the
+/// default database drivers may name).
+fn requested_tenant(db: Option<&Value>) -> Option<String> {
+    db.and_then(Value::as_str)
+        .filter(|db| !db.is_empty() && !db.eq_ignore_ascii_case("neo4j"))
+        .map(str::to_string)
+}
+
+/// The `db` of a BEGIN/RUN/ROUTE `extra` map.
+fn extra_tenant(extra: Option<&Value>) -> Option<String> {
+    requested_tenant(
+        extra
+            .and_then(Value::as_object)
+            .and_then(|extra| extra.get("db")),
+    )
+}
+
 struct PendingResult {
+    /// The tenant the RUN ran in, reported as `db` in the final summary.
+    db: Option<String>,
     fields: Vec<String>,
     rows: Vec<Map<String, Value>>,
     /// Bolt query type of the RUN (`r`, `w` or `rw`), reported again in the
@@ -357,30 +401,60 @@ fn discard_pending(pending: &mut PendingResult, window: usize) -> bool {
 }
 
 impl Connection {
-    /// Every envelope carries the HELLO-selected scope in its context too: the
+    /// Every envelope carries the target's scope in its context too: the
     /// executor requires the envelope scope to match the transport scope.
-    fn execute(&self, mut envelope: RequestEnvelope) -> Result<Value, ProtocolError> {
+    fn execute(
+        &self,
+        target: &Target,
+        mut envelope: RequestEnvelope,
+    ) -> Result<Value, ProtocolError> {
         let permission = rushdb_protocol::operation_permission(&envelope.operation);
-        if !self
-            .principal
-            .as_ref()
-            .is_some_and(|principal| principal.allows(permission))
-        {
+        if !target.principal.allows(permission) {
             return Err(ProtocolError::new(
                 ErrorCode::Unauthorized,
                 format!("{FORBIDDEN_PREFIX}`{permission}`"),
             ));
         }
-        envelope.context.scope.clone_from(&self.scope);
-        let response = self.handler.execute(envelope, self.scope.clone())?;
+        envelope.context.scope.clone_from(&target.scope);
+        let response = self.handler.execute(envelope, target.scope.clone())?;
         serde_json::to_value(response.response)
             .map_err(|e| ProtocolError::new(ErrorCode::ExecutionFailed, e.to_string()))
+    }
+
+    /// Who a `BEGIN`, auto-commit `RUN` or `ROUTE` naming `requested` runs
+    /// as. Naming no tenant, or the session's, keeps the session; another
+    /// tenant is authorized again with the HELLO credential, so a capability
+    /// bound to one tenant is forbidden every other, while the boot token may
+    /// name any.
+    fn target(&self, requested: Option<String>) -> Result<Target, ProtocolError> {
+        let session = self.session.as_ref().ok_or_else(|| {
+            ProtocolError::new(
+                ErrorCode::Unauthorized,
+                "HELLO authentication is required before this operation.",
+            )
+        })?;
+        let Some(tenant) = requested else {
+            return Ok(session.clone());
+        };
+        if session.scope.as_deref() == Some(tenant.as_str()) {
+            return Ok(session.clone());
+        }
+        match self.handler.authenticate(&self.credential, Some(&tenant)) {
+            Ok(principal) => Ok(Target {
+                principal,
+                scope: Some(tenant),
+            }),
+            Err(_) => Err(ProtocolError::new(
+                ErrorCode::Unauthorized,
+                format!("{FORBIDDEN_PREFIX}tenant `{tenant}`"),
+            )),
+        }
     }
 
     fn handle_decoded(&mut self, decoded: &Value) -> Result<MessageResponse, String> {
         let tag = value::struct_tag(decoded).ok_or("bolt: message is not a struct")?;
         let fields = value::struct_fields(decoded);
-        if tag != HELLO && tag != GOODBYE && self.principal.is_none() {
+        if tag != HELLO && tag != GOODBYE && self.session.is_none() {
             return Ok(MessageResponse::Buffered(vec![failure(
                 "Neo.ClientError.Security.Unauthorized",
                 "HELLO authentication is required before this operation.",
@@ -401,8 +475,8 @@ impl Connection {
                 // later RUN auto-commits instead of staging into an abandoned one.
                 self.failed = false;
                 self.pending = None;
-                if let Some(tx_id) = self.transaction_id.take() {
-                    if let Err(error) = self.rollback(tx_id) {
+                if let Some(transaction) = self.transaction.take() {
+                    if let Err(error) = self.rollback(transaction) {
                         return Ok(MessageResponse::Buffered(vec![failure(
                             neo_code(&error),
                             &error.message,
@@ -437,22 +511,34 @@ impl Connection {
                 .and_then(Value::as_str)
                 .unwrap_or(""),
         };
-        // The `db` field selects the tenant scope (multitenant mode); a
-        // single-tenant server refuses statements sent under one.
-        let scope = meta
-            .get("db")
-            .and_then(Value::as_str)
-            .filter(|db| !db.is_empty() && !db.eq_ignore_ascii_case("neo4j"))
-            .map(str::to_string);
-        let Ok(principal) = self.handler.authenticate(credentials, scope.as_deref()) else {
-            self.principal = None;
+        // A `db` here selects the session's tenant (multitenant mode); a
+        // single-tenant server refuses statements sent under one. Drivers
+        // name none here: a capability then logs in to the tenant it is
+        // bound to, and the boot token to none.
+        let session = match requested_tenant(meta.get("db")) {
+            Some(tenant) => {
+                self.handler
+                    .authenticate(credentials, Some(&tenant))
+                    .map(|principal| Target {
+                        principal,
+                        scope: Some(tenant),
+                    })
+            }
+            None => self
+                .handler
+                .authenticate_session(credentials)
+                .map(|(principal, scope)| Target { principal, scope }),
+        };
+        let Ok(session) = session else {
+            self.session = None;
+            self.credential.clear();
             return vec![failure(
                 "Neo.ClientError.Security.Unauthorized",
                 "The client is unauthorized due to authentication failure.",
             )];
         };
-        self.principal = Some(principal);
-        self.scope = scope;
+        self.session = Some(session);
+        self.credential = credentials.to_string();
         let mut resp = Map::new();
         resp.insert("server".into(), Value::String("RushDB/1.0".into()));
         resp.insert("connection_id".into(), Value::String("bolt-1".into()));
@@ -463,6 +549,7 @@ impl Connection {
 
     fn run_envelope(
         &self,
+        target: &Target,
         statement: &str,
         parameters: Option<Value>,
     ) -> Result<Value, ProtocolError> {
@@ -471,7 +558,8 @@ impl Connection {
         // Inside an open transaction a write is staged; its exact delta commits
         // or rolls back with the transaction. A read runs against committed
         // data, as reads in a transaction do on every other transport.
-        if let (Some(tx_id), true) = (&self.transaction_id, mutation) {
+        if let (Some(transaction), true) = (&self.transaction, mutation) {
+            let tx_id = &transaction.id;
             let envelope = RequestEnvelope {
                 protocol_version: 1,
                 request_id: None,
@@ -487,7 +575,7 @@ impl Connection {
                     },
                 },
             };
-            return self.execute(envelope);
+            return self.execute(target, envelope);
         }
         if mutation {
             let envelope = RequestEnvelope {
@@ -502,7 +590,7 @@ impl Connection {
                     },
                 },
             };
-            self.execute(envelope)
+            self.execute(target, envelope)
         } else {
             let envelope = RequestEnvelope {
                 protocol_version: 1,
@@ -516,7 +604,7 @@ impl Connection {
                     },
                 },
             };
-            self.execute(envelope)
+            self.execute(target, envelope)
         }
     }
 
@@ -527,7 +615,26 @@ impl Connection {
             .ok_or("bolt: RUN needs a statement string")?
             .to_string();
         let parameters = fields.get(1).cloned();
-        let result = self.run_envelope(&statement, parameters);
+        // An auto-commit RUN runs in the tenant its `db` names; a RUN in a
+        // transaction runs in the transaction's, and may not name another.
+        let requested = extra_tenant(fields.get(2));
+        let target = match &self.transaction {
+            Some(transaction) => {
+                if requested.is_some() && requested != transaction.target.scope {
+                    return Ok(vec![failure(
+                        "Neo.ClientError.Request.Invalid",
+                        "a RUN inside a transaction cannot name another database",
+                    )]);
+                }
+                Ok(transaction.target.clone())
+            }
+            None => self.target(requested),
+        };
+        let target = match target {
+            Ok(target) => target,
+            Err(error) => return Ok(vec![failure(neo_code(&error), &error.message)]),
+        };
+        let result = self.run_envelope(&target, &statement, parameters);
         match result {
             Ok(response) => {
                 let rows = response
@@ -579,6 +686,7 @@ impl Connection {
                     };
                 meta.insert("type".into(), Value::String(query_type.into()));
                 self.pending = Some(PendingResult {
+                    db: target.scope,
                     fields: fields_order,
                     rows: row_maps,
                     query_type,
@@ -639,11 +747,11 @@ impl Connection {
         pending.rows.drain(..count);
         let has_more = !pending.rows.is_empty();
         let mut meta = pending.summary(has_more);
+        if let Some(db) = &pending.db {
+            meta.insert("db".into(), Value::String(db.clone()));
+        }
         if has_more {
             self.pending = Some(pending);
-        }
-        if let Some(scope) = &self.scope {
-            meta.insert("db".into(), Value::String(scope.clone()));
         }
         write_message(&mut self.stream, &success(meta))
     }
@@ -670,7 +778,12 @@ impl Connection {
         vec![success(meta)]
     }
 
-    fn handle_begin(&mut self, _fields: &[Value]) -> Result<Vec<Vec<u8>>, String> {
+    fn handle_begin(&mut self, fields: &[Value]) -> Result<Vec<Vec<u8>>, String> {
+        // The whole transaction runs in the tenant BEGIN's `db` names.
+        let target = match self.target(extra_tenant(fields.first())) {
+            Ok(target) => target,
+            Err(error) => return Ok(vec![failure(neo_code(&error), &error.message)]),
+        };
         let envelope = RequestEnvelope {
             protocol_version: 1,
             request_id: None,
@@ -682,7 +795,7 @@ impl Connection {
                 },
             },
         };
-        match self.execute(envelope) {
+        match self.execute(&target, envelope) {
             Ok(response) => {
                 let tx_id = response
                     .get("transactionId")
@@ -690,7 +803,7 @@ impl Connection {
                     .and_then(Value::as_str)
                     .map(str::to_string);
                 let tx_id = tx_id.ok_or("bolt: BEGIN response missing transaction id")?;
-                self.transaction_id = Some(tx_id);
+                self.transaction = Some(OpenTransaction { id: tx_id, target });
                 Ok(vec![success(Map::new())])
             }
             Err(error) => Ok(vec![failure(neo_code(&error), &error.message)]),
@@ -698,7 +811,7 @@ impl Connection {
     }
 
     fn handle_commit(&mut self) -> Vec<Vec<u8>> {
-        let Some(tx_id) = self.transaction_id.take() else {
+        let Some(transaction) = self.transaction.take() else {
             return vec![failure(
                 "Neo.ClientError.Transaction.TransactionNotFound",
                 "COMMIT with no open transaction",
@@ -710,53 +823,73 @@ impl Connection {
             context: RequestContext::default(),
             operation: Operation::Transaction {
                 transaction: TransactionOperation::Commit {
-                    transaction_id: tx_id,
+                    transaction_id: transaction.id,
                 },
             },
         };
-        match self.execute(envelope) {
+        match self.execute(&transaction.target, envelope) {
             Ok(_) => vec![success(Map::new())],
             Err(error) => vec![failure(neo_code(&error), &error.message)],
         }
     }
 
     fn handle_rollback(&mut self) -> Vec<Vec<u8>> {
-        let Some(tx_id) = self.transaction_id.take() else {
+        let Some(transaction) = self.transaction.take() else {
             return vec![failure(
                 "Neo.ClientError.Transaction.TransactionNotFound",
                 "ROLLBACK with no open transaction",
             )];
         };
-        match self.rollback(tx_id) {
+        match self.rollback(transaction) {
             Ok(_) => vec![success(Map::new())],
             Err(error) => vec![failure(neo_code(&error), &error.message)],
         }
     }
 
-    fn rollback(&self, transaction_id: String) -> Result<Value, ProtocolError> {
-        self.execute(RequestEnvelope {
-            protocol_version: 1,
-            request_id: None,
-            context: RequestContext::default(),
-            operation: Operation::Transaction {
-                transaction: TransactionOperation::Rollback { transaction_id },
+    fn rollback(&self, transaction: OpenTransaction) -> Result<Value, ProtocolError> {
+        self.execute(
+            &transaction.target,
+            RequestEnvelope {
+                protocol_version: 1,
+                request_id: None,
+                context: RequestContext::default(),
+                operation: Operation::Transaction {
+                    transaction: TransactionOperation::Rollback {
+                        transaction_id: transaction.id,
+                    },
+                },
             },
-        })
+        )
     }
 
-    fn handle_route(&mut self, _fields: &[Value]) -> Vec<Vec<u8>> {
-        // Single node: a default routing table pointing at ourselves.
-        let mut servers = Map::new();
-        servers.insert(
-            "addresses".into(),
-            Value::Array(vec![Value::String(self.address.clone())]),
-        );
-        servers.insert("role".into(), Value::String("WRITE".into()));
-        let mut routing = Map::new();
-        routing.insert("ttl".into(), Number::from(3000).into());
-        routing.insert("servers".into(), Value::Array(vec![Value::Object(servers)]));
+    fn handle_route(&mut self, fields: &[Value]) -> Vec<Vec<u8>> {
+        // ROUTE's third field is the `extra` map (`{db, imp_user}`); the
+        // table is for the tenant it names, authorized like a BEGIN.
+        let target = match self.target(extra_tenant(fields.get(2))) {
+            Ok(target) => target,
+            Err(error) => return vec![failure(neo_code(&error), &error.message)],
+        };
+        // Single node: this server routes, reads and writes. Drivers reject a
+        // table without routers and readers.
+        let servers = ["ROUTE", "READ", "WRITE"]
+            .into_iter()
+            .map(|role| {
+                let mut server = Map::new();
+                server.insert(
+                    "addresses".into(),
+                    Value::Array(vec![Value::String(self.address.clone())]),
+                );
+                server.insert("role".into(), Value::String(role.into()));
+                Value::Object(server)
+            })
+            .collect();
+        // `rt` is the table itself: `ttl` (seconds), `db`, `servers`.
         let mut rt = Map::new();
-        rt.insert("routing".into(), Value::Object(routing));
+        rt.insert("ttl".into(), Number::from(3000).into());
+        if let Some(db) = target.scope {
+            rt.insert("db".into(), Value::String(db));
+        }
+        rt.insert("servers".into(), Value::Array(servers));
         let mut meta = Map::new();
         meta.insert("rt".into(), Value::Object(rt));
         vec![success(meta)]
@@ -967,10 +1100,10 @@ fn handle_connection_with_timeouts(
     let mut connection = Connection {
         stream,
         handler,
-        principal: None,
-        scope: None,
+        credential: String::new(),
+        session: None,
         pending: None,
-        transaction_id: None,
+        transaction: None,
         failed: false,
         address,
     };
@@ -1000,7 +1133,7 @@ fn handle_connection_with_timeouts(
                 "protocol error",
             )]),
         };
-        if connection.principal.is_some() {
+        if connection.session.is_some() {
             connection
                 .stream
                 .socket()
@@ -1078,6 +1211,7 @@ mod tests {
     #[test]
     fn discard_obeys_bounded_window_and_reports_remaining_rows() {
         let mut pending = PendingResult {
+            db: None,
             fields: vec!["x".into()],
             query_type: "r",
             contains_updates: false,
@@ -1126,6 +1260,7 @@ mod tests {
     #[test]
     fn discard_accepts_finite_windows_larger_than_internal_pull_batch() {
         let mut pending = PendingResult {
+            db: None,
             fields: vec!["x".into()],
             query_type: "r",
             contains_updates: false,
@@ -1144,6 +1279,7 @@ mod tests {
     #[test]
     fn discard_unbounded_window_consumes_more_than_internal_pull_batch() {
         let mut pending = PendingResult {
+            db: None,
             fields: vec!["x".into()],
             query_type: "r",
             contains_updates: false,
@@ -1189,9 +1325,13 @@ mod tests {
         let mut connection = Connection {
             stream: BoltStream::Plain(server),
             handler: Arc::new(NoopHandler),
-            principal: Some(Principal::Operator),
-            scope: None,
+            credential: "token".into(),
+            session: Some(Target {
+                principal: Principal::Operator,
+                scope: None,
+            }),
             pending: Some(PendingResult {
+                db: None,
                 fields: vec!["x".into()],
                 query_type: "r",
                 contains_updates: false,
@@ -1203,7 +1343,7 @@ mod tests {
                     })
                     .collect(),
             }),
-            transaction_id: None,
+            transaction: None,
             failed: false,
             address: address.to_string(),
         };

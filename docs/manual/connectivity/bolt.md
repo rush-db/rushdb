@@ -8,7 +8,7 @@ is for developers bringing Neo4j-style applications or tools to RushDB.
 
 | Property | Value |
 |---|---|
-| Status | Stable (Cypher over Bolt) |
+| Status | Release candidate, opt-in (as [openCypher](../languages/cypher.md)) |
 | Protocol version | Bolt 5.0 |
 | Language | openCypher only |
 | Authentication | `basic` scheme; the credentials are the bootstrap token or a tenant-bound [capability token](../operations/security.md#capability-tokens) |
@@ -35,10 +35,38 @@ statements over Bolt are always Cypher, so enabling only `gql` does not start
 the listener. The listener binds the `--listen` address and follows
 the [listener security](README.md#listener-security) rules.
 
-On a multitenant server, the `db` field of `HELLO` selects the tenant for the
-whole connection. On a single-tenant server, leave `db` unset (or `neo4j`):
-any other value makes every statement fail with a scope error instead of
-opening a second keyspace.
+## Tenants
+
+On a multitenant server each transaction runs in one tenant, named the way
+Neo4j names a database. A driver sends its session's database (`database=`
+in Python, `{ database }` in JavaScript) as `db` in every `BEGIN` and every
+auto-commit `RUN`, so the tenant is chosen per transaction:
+
+| Where `db` is | What it selects |
+|---|---|
+| `BEGIN` | The tenant of the whole transaction: its `RUN`s, `COMMIT` and `ROLLBACK`. A `RUN` inside it that names a different `db` fails with `Neo.ClientError.Request.Invalid`. |
+| auto-commit `RUN` | The tenant of that one statement. |
+| `ROUTE` | The tenant the routing table is for, echoed as `rt.db`. |
+| `HELLO` | The session's tenant: used by a `BEGIN`, `RUN` or `ROUTE` that names none. Drivers do not send it; hand-written clients may. |
+
+A `db` on `BEGIN` or `RUN` takes precedence over `HELLO`'s, as Neo4j's
+per-transaction database does. An empty `db` or `neo4j` names no tenant.
+
+Which tenants a session may name depends on its credential:
+
+- The **bootstrap token** may name any tenant, a different one per
+  transaction on the same connection. When it names none anywhere, a
+  statement fails with `Neo.ClientError.Security.Unauthorized`
+  (`scope is required in multitenant mode`).
+- A **capability token** is bound to one tenant. It logs in without a `db`
+  (as drivers do) to that tenant, which is then the session's tenant; naming
+  it again is allowed. A `BEGIN`, `RUN` or `ROUTE` naming any other tenant
+  fails with `Neo.ClientError.Security.Forbidden` and runs nothing.
+
+On a single-tenant server, leave `db` unset (or `neo4j`): any other value,
+in `HELLO`, `BEGIN` or `RUN`, makes the statement fail with
+`Neo.ClientError.Security.Unauthorized` (`scope_mismatch`) instead of opening
+a second keyspace.
 
 ## Connection flow
 
@@ -47,9 +75,9 @@ opening a second keyspace.
    is 5 and answers with Bolt 5.0. If no proposal is version 5, the
    connection is closed.
 2. **`HELLO`.** Authenticate with `scheme: "basic"` and `credentials` set to
-   the bootstrap token or a capability token (`principal` is ignored); `db`
-   names the tenant on a multitenant server, and a capability must be
-   bound to exactly that tenant. `scheme: "none"` is accepted only when the
+   the bootstrap token or a capability token (`principal` is ignored). An
+   optional `db` names the session's tenant (see [Tenants](#tenants)); a
+   capability must be bound to exactly that tenant. `scheme: "none"` is accepted only when the
    server token is empty. A wrong credential returns
    `Neo.ClientError.Security.Unauthorized`. Any message other than `HELLO`
    or `GOODBYE` before successful authentication is refused, and a
@@ -74,13 +102,13 @@ Supported messages:
 
 | Message | Behavior |
 |---|---|
-| `HELLO` | Authentication. |
-| `RUN` | Execute a Cypher statement (auto-commit, or staged inside `BEGIN`). |
+| `HELLO` | Authentication; optional `db` sets the session's tenant. |
+| `RUN` | Execute a Cypher statement (auto-commit, or staged inside `BEGIN`); `db` in `extra` names the auto-commit statement's tenant. |
 | `PULL` | Stream buffered rows; honors `n`. |
 | `DISCARD` | Drop buffered rows; honors `n`. |
-| `BEGIN`, `COMMIT`, `ROLLBACK` | Explicit transactions. |
+| `BEGIN`, `COMMIT`, `ROLLBACK` | Explicit transactions; `db` in `BEGIN`'s `extra` names the transaction's tenant. |
 | `RESET` | Clear the pending result and recover from a failure. |
-| `ROUTE` | Returns a single-server routing table naming `--bolt-advertised-address`, or the bound address. |
+| `ROUTE` | Returns a single-server routing table: `--bolt-advertised-address` (or the bound address) as the `ROUTE`, `READ` and `WRITE` server, with `db` set to the tenant `extra.db` names. |
 | `GOODBYE` | Close the connection. |
 
 Bolt 5.1+ messages (`LOGON`, `LOGOFF`, `TELEMETRY`) are not implemented;
@@ -91,10 +119,11 @@ clients must authenticate with `HELLO` as in Bolt 5.0.
 `BEGIN` opens a RushDB multi-request transaction, the same mechanism as the
 protocol's `transaction` operations. Each write `RUN` inside it stages the
 statement's changes; `COMMIT` publishes them atomically and `ROLLBACK`
-discards them.
+discards them. On a multitenant server, `db` in `BEGIN` names the tenant the
+whole transaction runs in (omit it on a single-tenant server).
 
 ```text
-C: BEGIN {}
+C: BEGIN {"db": "acme"}
 S: SUCCESS {}
 C: RUN "CREATE (p:Person {name: 'commit'})-[:WORKS_AT]->(:Company {name: 'Acme'})" {} {}
 S: SUCCESS {"fields": [], "type": "w"}
@@ -147,9 +176,11 @@ columns.
 
 Connect with `bolt://`, or `bolt+s://` / `neo4j+s://` when the listener has
 TLS (`+ssc` for a self-signed certificate), and pass the server token or a
-capability token as the password; the user name is ignored. With `neo4j+s://`
-the driver follows the `ROUTE` answer, so set `--bolt-advertised-address` to
-the address it can reach.
+capability token as the password; the user name is ignored. With `neo4j://`
+or `neo4j+s://` the driver follows the `ROUTE` answer, so set
+`--bolt-advertised-address` to the address it can reach. On a multitenant
+server, name the tenant as the session's database (`database="acme"`); a
+capability token may also leave it out to use its own tenant.
 
 Python (`pip install neo4j`):
 
@@ -168,6 +199,10 @@ with driver.session() as session:
 
     # Managed read transactions and execute_query read committed data.
     count = session.execute_read(lambda tx: tx.run("MATCH (a:Artist) RETURN count(a) AS n").single()["n"])
+
+# Multitenant server: each session runs in the tenant it names.
+with driver.session(database="acme") as session:
+    session.run("CREATE (:Artist {name: 'ada'})").consume()
 driver.close()
 ```
 
@@ -177,7 +212,7 @@ JavaScript (`npm install neo4j-driver`):
 import neo4j from 'neo4j-driver'
 
 const driver = neo4j.driver('bolt://127.0.0.1:7687', neo4j.auth.basic('rushdb', 'local-token'))
-const session = driver.session()
+const session = driver.session() // multitenant: driver.session({ database: 'acme' })
 try {
   await session.run('CREATE (a:Artist {name: $name})', { name: 'ada' })
   const result = await session.run('MATCH (a:Artist) RETURN a.name AS name')
@@ -205,14 +240,14 @@ What to expect from a driver:
 | Bolt failure code | Engine error codes |
 |---|---|
 | `Neo.ClientError.Security.Unauthorized` | `unauthorized`, `missing_scope`, `scope_mismatch`, failed `HELLO` |
-| `Neo.ClientError.Security.Forbidden` | the session's capability does not grant the statement |
+| `Neo.ClientError.Security.Forbidden` | the session's capability does not grant the statement, or a `BEGIN`/`RUN`/`ROUTE` names a tenant the capability is not bound to |
 | `Neo.ClientError.Statement.SyntaxError` | `invalid_request`, `protocol_violation`, `language_disabled`, `unsupported` |
 | `Neo.ClientError.Statement.EntityNotFound` | `not_found` |
 | `Neo.ClientError.Constraint.UniqueConstraintViolation` | `conflict` |
 | `Neo.TransientError.Transaction.DeadlockDetected` | `write_conflict` |
 | `Neo.ClientError.Transaction.TransactionTerminated` | `cancelled` |
 | `Neo.TransientError.General.DatabaseUnavailable` | `resource_exhausted`, `unavailable`, or a result over 100,000 rows |
-| `Neo.ClientError.Request.Invalid` | `unsupported_version`, malformed `PULL`/`DISCARD` metadata |
+| `Neo.ClientError.Request.Invalid` | `unsupported_version`, malformed `PULL`/`DISCARD` metadata, a `RUN` in a transaction naming another `db` |
 | `Neo.DatabaseError.Execution.Failed` | `execution_failed` |
 | `Neo.ClientError.Transaction.TransactionNotFound` | `COMMIT` or `ROLLBACK` without `BEGIN` |
 
@@ -233,7 +268,6 @@ After a failure, send `RESET` before continuing.
 - Cluster routing beyond a single-server table.
 - Languages other than Cypher over Bolt.
 - Vector, full-text, and native operations; use the [HTTP API](http-api.md).
-- Multitenant servers (see the warning above).
 
 ## See also
 

@@ -48,7 +48,7 @@ transport. A missing scope is refused before any data is touched.
 | HTTP | The `X-RushDB-Tenant` header **and** `context.scope` in the envelope; both must be equal |
 | PostgreSQL wire | The `database` connection parameter |
 | gRPC | The `x-rushdb-tenant` metadata entry |
-| Bolt | The `db` field of `HELLO` |
+| Bolt | The session's database: `db` in each `BEGIN` and auto-commit `RUN` (or in `HELLO`); see [Bolt](../connectivity/bolt.md#tenants) |
 
 An HTTP request in multitenant mode:
 
@@ -79,7 +79,7 @@ Failures are explicit:
 | Multitenant, header present but no `context.scope` | `missing_scope`, HTTP 403 |
 | Multitenant, `context.scope` differs from the header | `scope_mismatch`, HTTP 403 |
 | Single-tenant, `context.scope` present | `scope_mismatch`, HTTP 403 |
-| Single-tenant, gRPC `x-rushdb-tenant` or Bolt `HELLO db` set | `scope_mismatch` (gRPC `UNAUTHENTICATED`; Bolt statement failure) |
+| Single-tenant, gRPC `x-rushdb-tenant` or a Bolt `db` set | `scope_mismatch` (gRPC `UNAUTHENTICATED`; Bolt statement failure) |
 | PostgreSQL wire, multitenant, no database name | Connection refused (SQLSTATE `3D000`) |
 
 In single-tenant mode, omit tenant scopes everywhere: leave `context.scope`
@@ -94,14 +94,14 @@ The node's bootstrap token is an **operator** credential: it is accepted for
 every tenant. Anyone who holds it can name any scope. Two consequences:
 
 - For clients that should reach only their own tenant, use **signed
-  capability tokens** on HTTP. A capability carries a `read` or `write`
-  permission and is bound to exactly one tenant scope; presenting it with a
-  different `X-RushDB-Tenant` value is refused with HTTP 401. See
+  capability tokens**. A capability carries a `read` or `write` permission
+  and is bound to exactly one tenant scope; naming a different tenant is
+  refused (HTTP 401 for a different `X-RushDB-Tenant`, Bolt
+  `Neo.ClientError.Security.Forbidden` for a different `db`). See
   [Authentication](../connectivity/authentication.md).
-- The PostgreSQL wire, gRPC and Bolt listeners accept only the bootstrap
-  token. On a multitenant node they therefore refuse to bind to a
-  non-loopback address; reach them through a trusted local proxy that
-  enforces tenant identity, or use a single-tenant node.
+- On a multitenant node the PostgreSQL wire, gRPC and Bolt listeners bind a
+  non-loopback address only with TLS and `--capability-secret`; see
+  [Security](../operations/security.md#tenant-isolation).
 
 ## Fairness and resource limits
 

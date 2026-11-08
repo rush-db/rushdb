@@ -2788,6 +2788,27 @@ pub trait EnvelopeHandler: Send + Sync + 'static {
         scope: Option<&str>,
     ) -> Result<Principal, ProtocolError>;
 
+    /// The principal `credential` grants to a session that names no tenant
+    /// at login, and the tenant the credential is bound to. Bolt drivers
+    /// name the tenant per transaction, never at login: a capability logs
+    /// in to the one tenant it is bound to, and the boot token to none
+    /// (every transaction then names its tenant, checked with
+    /// [`Self::authenticate`]).
+    ///
+    /// The default is [`Self::authenticate`] without a tenant.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ErrorCode::Unauthorized`] when the credential grants
+    /// nothing.
+    fn authenticate_session(
+        &self,
+        credential: &str,
+    ) -> Result<(Principal, Option<String>), ProtocolError> {
+        self.authenticate(credential, None)
+            .map(|principal| (principal, None))
+    }
+
     /// Whether the owning service has begun shutdown and new transport work
     /// should stop. Transports use this optional lifecycle hook to drain
     /// active requests without coupling the protocol crate to storage.
