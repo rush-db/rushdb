@@ -20,7 +20,7 @@ rushdb-textsearch = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
 datafusion = { workspace = true }
-datafusion-expr = "=54.1.0"
+datafusion-expr = "=55.2.0"
 datafusion-common = "=54.1.0"
 arrow = { workspace = true }
 arrow-json = { workspace = true }
