@@ -29,7 +29,7 @@ interact and for common setups, see
 | `--listen` | `RUSHDB_LISTEN` | `server.listen-addr` | string | `127.0.0.1` | Bind address for every listener. A non-loopback address requires TLS or `--allow-insecure-listen` (see [Security](../operations/security.md)). |
 | `--tls-cert` | `RUSHDB_TLS_CERT` | `server.tls-cert` | path | none | PEM certificate chain for HTTPS. Must be set together with `--tls-key`. |
 | `--tls-key` | `RUSHDB_TLS_KEY` | `server.tls-key` | path | none | PEM private key (PKCS#8) for HTTPS. |
-| `--pgwire-port` | — | `server.pgwire-port` | u16 | `5432` | PostgreSQL wire-protocol port. The listener is bound only when the `sql` language is enabled. |
+| `--pgwire-port` | — | `server.pgwire-port` | u16 | `5432` | PostgreSQL wire-protocol port; `0` disables the listener, as for gRPC and Bolt. The listener is bound only when the `sql` language is enabled and the port is non-zero. |
 | `--grpc-port` | — | `server.grpc-port` | u16 | `0` | gRPC port; `0` disables gRPC. |
 | `--bolt-port` | — | `server.bolt-port` | u16 | `0` | Bolt (Neo4j wire) port; `0` disables Bolt. Bound only when `cypher` is enabled. |
 | `--body-limit` | `RUSHDB_BODY_LIMIT` | `server.body-limit` | bytes | `16MiB` | Maximum HTTP request body, gRPC message, and response size. An HTTP body over it is refused with 413 `payload_too_large`. |

@@ -98,7 +98,7 @@ Every listener binds the same address (`--listen`, default `127.0.0.1`).
 | Protocol | Flag | Default | Bound when |
 |---|---|---|---|
 | HTTP (Protocol v1, `/health`, `/ready`, `/metrics`) | `--port` | 3000 | always |
-| PostgreSQL wire | `--pgwire-port` | 5432 | the `sql` language is enabled |
+| PostgreSQL wire | `--pgwire-port` | 5432 (`0` = off) | the port is non-zero and `sql` is enabled |
 | gRPC | `--grpc-port` | 0 (off) | the port is non-zero |
 | Bolt (Neo4j wire) | `--bolt-port` | 0 (off) | the port is non-zero and `cypher` is enabled |
 

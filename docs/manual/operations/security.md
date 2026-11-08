@@ -110,10 +110,12 @@ All listeners bind `--listen` (default `127.0.0.1`). The startup guard:
 | Non-loopback, multitenant | requires TLS **or** `--allow-insecure-listen` | requires TLS **and** `--capability-secret` |
 
 The check counts only listeners that will actually start, on the effective
-configuration (after `config.yml`): pgwire when `sql` is enabled, Bolt when
-`cypher` is enabled, and gRPC whenever its port is set. To expose HTTPS on a
-non-loopback address without the insecure flag, keep those listeners off
-(for example `--pgwire-port 0` when `sql` is enabled).
+configuration (after `config.yml`): pgwire when `sql` is enabled and its
+port is non-zero, Bolt when `cypher` is enabled and its port is non-zero, and
+gRPC whenever its port is non-zero. Port `0` disables a listener: nothing is
+bound. To expose HTTPS on a non-loopback address without the insecure flag,
+keep those listeners off (for example `--pgwire-port 0` when `sql` is
+enabled).
 
 ## TLS
 

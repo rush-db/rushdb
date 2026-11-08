@@ -119,7 +119,7 @@ Enabling a language can also open a listener:
 
 | Setting | Effect on listeners |
 |---|---|
-| `sql` enabled | The PostgreSQL wire listener binds on `--pgwire-port` (default `5432`). |
+| `sql` enabled, and `--pgwire-port` non-zero | The PostgreSQL wire listener binds on `--pgwire-port` (default `5432`). |
 | `cypher` enabled, and `--bolt-port` set | The Bolt listener binds. |
 | `--grpc-port` set | The gRPC listener binds and serves every enabled language. |
 

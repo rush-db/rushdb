@@ -176,7 +176,8 @@ fn tls_files() -> (
     (cert_path, key_path, dir)
 }
 
-/// A port nothing listens on right now, for a non-ephemeral pgwire bind.
+/// A port nothing listens on right now: `--pgwire-port 0` disables pgwire, so
+/// an enabled listener needs a concrete port.
 fn free_port() -> u16 {
     std::net::TcpListener::bind(("0.0.0.0", 0))
         .unwrap()
@@ -234,7 +235,7 @@ fn unreadable_tls_files_fail_the_pgwire_bind() {
     sql_only(&mut config);
     config.tls_cert = Some("/nonexistent/cert.pem".into());
     config.tls_key = Some("/nonexistent/key.pem".into());
-    let Err(error) = new_gateway(config, 0) else {
+    let Err(error) = new_gateway(config, free_port()) else {
         panic!("missing TLS files must fail the bind")
     };
     assert!(error.contains("pgwire TLS"), "{error}");
@@ -266,4 +267,49 @@ fn multitenant_grpc_with_tls_but_no_capability_secret_is_refused() {
         panic!("a multitenant TLS gRPC without capabilities must be refused")
     };
     assert!(error.contains("capability-secret"), "{error}");
+}
+
+#[test]
+fn pgwire_port_zero_binds_nothing_on_a_non_loopback_multitenant_listener() {
+    // `sql` is on by default; port 0 must disable pgwire like gRPC and Bolt,
+    // not bind an ephemeral cleartext port the listen guard never counted.
+    let mut config = cfg("0.0.0.0", false, true);
+    config.multitenant = true;
+    assert!(config.languages.sql, "sql is enabled by default");
+    let (_router, _hp, _pg, pgwire_port, _grpc, grpc_port, _bolt, bolt_port) =
+        new_gateway(config.clone(), 0).unwrap_or_else(|e| panic!("must bind: {e}"));
+    assert_eq!(
+        (pgwire_port, grpc_port, bolt_port),
+        (0, 0, 0),
+        "port 0 must leave pgwire, gRPC and Bolt unbound"
+    );
+    // A real pgwire port on the same cleartext multitenant listener is
+    // still refused.
+    let Err(error) = new_gateway(config, free_port()) else {
+        panic!("a cleartext multitenant pgwire must trip the guard")
+    };
+    assert!(
+        error.contains("refusing to bind pgwire") && error.contains("tenant-bound credentials"),
+        "{error}"
+    );
+}
+
+#[test]
+fn config_yml_pgwire_port_zero_binds_nothing() {
+    // `server.pgwire-port: 0` in the data directory's config.yml is
+    // authoritative over the CLI fallback port and disables pgwire too.
+    let dir = rushdb_storage::TempPath::dir("pgwire-port-zero");
+    std::fs::create_dir_all(&dir).unwrap();
+    let stored = "version: 1\nserver:\n  port: 0\n  pgwire-port: 0\n  grpc-port: 0\n  bolt-port: 0\n  listen-addr: 0.0.0.0\ntenancy:\n  mode: multitenant\n";
+    std::fs::write(dir.join("config.yml"), stored).unwrap();
+    let mut config = cfg("0.0.0.0", false, true);
+    config.multitenant = true;
+    config.data_dir = Some(dir.to_path_buf());
+    assert!(config.languages.sql, "sql is enabled by default");
+    let (_router, _hp, _pg, pgwire_port, _grpc, _gp, _bolt, _bp) = new_gateway(config, free_port())
+        .unwrap_or_else(|e| panic!("config.yml pgwire-port 0 must bind: {e}"));
+    assert_eq!(
+        pgwire_port, 0,
+        "config.yml pgwire-port 0 must disable pgwire"
+    );
 }

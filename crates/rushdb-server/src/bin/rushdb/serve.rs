@@ -11,7 +11,7 @@ pub struct ServeArgs {
     /// HTTP protocol adapter port.
     #[arg(long, default_value_t = 3000)]
     pub port: u16,
-    /// PostgreSQL wire-protocol port.
+    /// PostgreSQL wire-protocol port (0 = disabled; requires sql).
     #[arg(long, default_value_t = 5432)]
     pub pgwire_port: u16,
     /// gRPC transport port (0 = disabled).

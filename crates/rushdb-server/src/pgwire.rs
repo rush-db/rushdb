@@ -148,6 +148,13 @@ impl PgWireServer {
         outcome
     }
 }
+/// True when the PostgreSQL wire listener binds: the `sql` language is enabled
+/// and `pgwire_port` is non-zero. Port `0` disables pgwire, exactly as it
+/// disables gRPC and Bolt; it never asks the OS for an ephemeral port.
+pub(crate) fn pgwire_enabled(cfg: &ServerConfig) -> bool {
+    cfg.pgwire_port != 0 && cfg.languages.sql
+}
+
 /// True when `listen_addr` is a loopback address (127.0.0.1, `::1`, or
 /// localhost); only loopback binds are safe for cleartext transports.
 pub(crate) fn is_loopback(addr: &str) -> bool {
@@ -171,7 +178,7 @@ fn guard_insecure_listen(cfg: &ServerConfig) -> Result<(), String> {
     }
     let tls = cfg.tls_cert.is_some() && cfg.tls_key.is_some();
     let transports = [
-        ("pgwire", cfg.pgwire_port != 0 && cfg.languages.sql),
+        ("pgwire", pgwire_enabled(cfg)),
         ("gRPC", cfg.grpc_port != 0),
         ("Bolt", crate::bolt::bolt_enabled(cfg)),
     ];
@@ -239,10 +246,10 @@ pub fn new_gateway_with_boot_listener(
         }
         None => crate::http::bind_router(cfg.clone(), node.clone())?,
     };
-    let (pgwire, pgwire_port) = if cfg.languages.sql {
+    let (pgwire, pgwire_port) = if pgwire_enabled(&cfg) {
         PgWireServer::bind(cfg.clone(), node.clone(), cfg.pgwire_port)?
     } else {
-        // `sql` language disabled: do not bind the PostgreSQL wire protocol.
+        // `sql` disabled or `--pgwire-port 0`: no PostgreSQL wire listener.
         (PgWireServer::disabled(), 0)
     };
     let (grpc, grpc_port) = crate::grpc::bind_grpc(&cfg, node.clone())?;

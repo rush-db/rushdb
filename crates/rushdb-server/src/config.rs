@@ -82,7 +82,7 @@ pub struct ServerSection {
     /// PEM private key path (PKCS#8) for TLS.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tls_key: Option<String>,
-    /// PostgreSQL wire-protocol port.
+    /// PostgreSQL wire-protocol port (`0` = disabled; requires `sql`).
     pub pgwire_port: u16,
     /// Maintenance mode: rejects writes and marks `/health` degraded.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
@@ -172,7 +172,7 @@ impl ConfigFile {
              {}\n\
              #   HTTPS PEM private key path (PKCS#8).\n\
              {}\n\
-             #   PostgreSQL wire-protocol port.\n\
+             #   PostgreSQL wire-protocol port (0 = disabled; requires sql).\n\
              {}\n\
              #   gRPC transport port (0 = disabled).\n\
              {}\n\

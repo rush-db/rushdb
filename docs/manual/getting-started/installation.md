@@ -186,7 +186,7 @@ returns the same document.
 |---|---|---|---|
 | `--data-dir <path>` | `RUSHDB_DATA_DIR` | `./.rushdb` | Persistent database directory |
 | `--port <n>` | — | `3000` | HTTP port |
-| `--pgwire-port <n>` | — | `5432` | PostgreSQL wire port; `0` picks a free port |
+| `--pgwire-port <n>` | — | `5432` | PostgreSQL wire port; `0` disables it |
 | `--token <token>` | `RUSHDB_TOKEN` | `local-token` | Token clients must present |
 | `--languages <list>` | — | `sql,gremlin,sql-pgq,mongodb` | Enabled query languages |
 | `--bolt-port <n>` | — | `0` (off) | Bolt port; needs `cypher` |
