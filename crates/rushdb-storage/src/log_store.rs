@@ -120,6 +120,19 @@ impl LogStore {
             .collect();
         paths.sort_by_key(|(first_lsn, _)| *first_lsn);
 
+        // A crash while the newest segment was being created can leave it
+        // shorter than its header. Appends are acknowledged only after the
+        // header and the record are durable, so such a segment holds nothing:
+        // remove it and resume as if it had never been started. An older
+        // segment that short is corruption, as before.
+        if let Some((_, newest)) = paths.last() {
+            if std::fs::metadata(newest)?.len() < LOG_SEGMENT_HEADER_LEN as u64 {
+                std::fs::remove_file(newest)?;
+                File::open(dir)?.sync_all()?;
+                paths.pop();
+            }
+        }
+
         let mut segments = Vec::with_capacity(paths.len());
         let mut next_lsn = 1u64;
         let last_index = paths.len().saturating_sub(1);
@@ -600,6 +613,51 @@ mod tests {
         (0..n)
             .map(|i| crate::Op::Put(format!("k{i}").into_bytes(), vec![b'x'; value_len]))
             .collect()
+    }
+
+    #[test]
+    fn a_newest_segment_torn_during_creation_holds_nothing_and_is_dropped() {
+        let dir = temp_dir();
+        {
+            let mut log = LogStore::open(&dir, 0, 1 << 30).unwrap();
+            log.append_batch(&[record(1, b"one"), record(2, b"two")])
+                .unwrap();
+            log.sync().unwrap();
+        }
+        // A crash while the next segment was being created: fewer bytes than
+        // its header.
+        std::fs::write(dir.join(format!("{:020}.seg", 3)), [0x52, 0x44]).unwrap();
+        let mut log = LogStore::open(&dir, 0, 1 << 30).unwrap();
+        assert_eq!(log.next_lsn(), 3, "the durable records are all there");
+        assert!(!dir.join(format!("{:020}.seg", 3)).exists());
+        log.append_batch(&[record(3, b"three")]).unwrap();
+        log.sync().unwrap();
+        drop(log);
+        let log = LogStore::open(&dir, 0, 1 << 30).unwrap();
+        assert_eq!(log.read_from(1).unwrap().len(), 3);
+
+        // The only segment torn: an empty log.
+        let fresh = temp_dir();
+        std::fs::create_dir_all(&fresh).unwrap();
+        std::fs::write(fresh.join(format!("{:020}.seg", 1)), []).unwrap();
+        let log = LogStore::open(&fresh, 0, 1 << 30).unwrap();
+        assert_eq!(log.next_lsn(), 1);
+    }
+
+    #[test]
+    fn an_older_segment_shorter_than_its_header_is_corrupt() {
+        let dir = temp_dir();
+        {
+            let mut log = LogStore::open(&dir, 0, 1 << 30).unwrap();
+            log.append_batch(&[record(1, b"one")]).unwrap();
+            log.sync().unwrap();
+        }
+        // A short segment ordered before the valid one, so not the newest.
+        std::fs::write(dir.join(format!("{:020}.seg", 0)), [0x52]).unwrap();
+        assert!(matches!(
+            LogStore::open(&dir, 0, 1 << 30),
+            Err(LogError::Corrupt { .. })
+        ));
     }
 
     #[test]

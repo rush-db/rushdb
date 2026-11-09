@@ -8,6 +8,12 @@ in [`docs/manual/operations/upgrading-from-2x.md`](docs/manual/operations/upgrad
 
 ### Fixed
 
+- **A crash while a write-ahead log segment was being created no longer
+  stops the next start.** The new segment could be left shorter than its
+  header, and opening the log refused it as corrupt. Such a segment holds
+  no record (an append is acknowledged only once the header and the record
+  are durable), so the newest segment in that state is removed and the log
+  resumes; an older segment that short is still reported as corrupt.
 - **Multi-hop `$relation` queries no longer check every record of the
   label.** A `$relation` block with `hops` was evaluated by a separate
   breadth-first search from every candidate record, so a neighbourhood query
