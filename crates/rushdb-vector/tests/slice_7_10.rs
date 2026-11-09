@@ -10,7 +10,7 @@ use rushdb_storage::Store;
 use rushdb_types::ids::{OwnerKind, TenantId};
 use rushdb_types::keys::*;
 use rushdb_types::occurrence::BindingStatus;
-use rushdb_vector::{SourceRef, VectorEngine, VectorError};
+use rushdb_vector::{Candidates, SourceRef, VectorEngine, VectorError};
 use serde_json::json;
 
 /// Creates an independent engine over one in-memory store; returns the
@@ -129,7 +129,7 @@ fn item10_stale_exclusion_after_source_update() {
     };
     vecs.bind("doc-space", src, &[1.0, 0.0, 0.0]).unwrap();
     assert_eq!(
-        vecs.search_exact("doc-space", &[1.0, 0.0, 0.0], 5, None)
+        vecs.search_exact("doc-space", &[1.0, 0.0, 0.0], 5, Candidates::All)
             .unwrap()
             .len(),
         1
@@ -143,7 +143,7 @@ fn item10_stale_exclusion_after_source_update() {
 
     // Bounded read without revalidation still observes lagged Ready state.
     assert_eq!(
-        vecs.search_exact("doc-space", &[1.0, 0.0, 0.0], 5, None)
+        vecs.search_exact("doc-space", &[1.0, 0.0, 0.0], 5, Candidates::All)
             .unwrap()
             .len(),
         1
@@ -152,7 +152,7 @@ fn item10_stale_exclusion_after_source_update() {
     let (stale, retired) = vecs.revalidate_bindings("doc-space").unwrap();
     assert_eq!((stale, retired), (1, 0));
     assert!(
-        vecs.search_exact("doc-space", &[1.0, 0.0, 0.0], 5, None)
+        vecs.search_exact("doc-space", &[1.0, 0.0, 0.0], 5, Candidates::All)
             .unwrap()
             .is_empty(),
         "stale binding must be ineligible"
@@ -225,7 +225,7 @@ fn items_8_9_candidate_scope_topk_and_projection() {
             "scope-space",
             &[1.0, 0.0, 0.0],
             10,
-            Some(&|src| src.owner_ord == keep_ord),
+            Candidates::Check(&|src| src.owner_ord == keep_ord),
         )
         .unwrap();
     assert_eq!(scoped.len(), 1);
@@ -233,7 +233,7 @@ fn items_8_9_candidate_scope_topk_and_projection() {
 
     // Unscoped exact top-K ranks by cosine; near duplicate ranks second.
     let all = vecs
-        .search_exact("scope-space", &[1.0, 0.0, 0.0], 3, None)
+        .search_exact("scope-space", &[1.0, 0.0, 0.0], 3, Candidates::All)
         .unwrap();
     assert_eq!(all.len(), 3);
     assert_eq!(all[0].source.owner_ord, keep_ord);

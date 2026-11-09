@@ -19,25 +19,32 @@ use rushdb_types::value::{
 use serde_json::{Map, Value as Json};
 use thiserror::Error;
 
+mod adjacency;
 mod aggregate_budget;
+mod aggregate_rows;
+mod aggregate_scan;
+mod budget;
+pub use budget::Budget;
+use budget::{Cap, WorkingSet};
 mod aggregate_catalog;
 mod aggregation;
 mod cycle;
 mod equality;
+mod expand;
 mod field_types;
+#[cfg(test)]
+use aggregation::exact_f64;
 pub use aggregation::MAX_AGGREGATE_BUCKETS;
 pub use aggregation::{
     aggregate, aggregate_in_view, aggregate_to_rows, aggregate_to_rows_in_view,
     aggregate_to_rows_in_view_with_budget, aggregate_with_cancel, aggregate_with_cancel_in_view,
 };
-#[cfg(test)]
-use aggregation::{eval_row_expr, exact_f64, minmax};
 use field_types::type_held;
 mod page;
-pub use page::effective_budget;
 mod planned;
 mod planner;
 mod point_fields;
+mod projection;
 pub use point_fields::PointFields;
 mod property_predicate;
 pub use hex::hex_decode_16;
@@ -45,8 +52,8 @@ pub use index_access::explain_index;
 pub use planned::{planned_candidates, PlannedCandidates};
 use planner::index_candidates_with_budget;
 pub use planner::{
-    explain_cardinality, explain_range_selectivity, explain_walk, unindexed_walks_total,
-    UNINDEXED_WALK_THRESHOLD,
+    explain_cardinality, explain_expansion, explain_range_selectivity, explain_walk,
+    unindexed_walks_total, UNINDEXED_WALK_THRESHOLD,
 };
 pub use property_predicate::{matches_properties, parse_property_predicate};
 pub mod datetime;
@@ -216,7 +223,7 @@ pub struct CollectSpec {
 }
 
 /// Direction of an edge traversal.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub enum Direction {
     /// Follow outgoing edges (root to target).
     Outgoing,
@@ -389,6 +396,10 @@ pub struct SearchRequest {
     /// Per-root `$collect` output shapes attached to each returned record.
     #[serde(default)]
     pub collects: Vec<CollectSpec>,
+    /// A `select` of plain field references: each page root becomes a row of
+    /// `(output name, field)` pairs instead of the whole record.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub projection: Vec<(String, String)>,
     /// Offset/limit applied after matching and ordering.
     #[serde(default)]
     pub pagination: Pagination,
@@ -573,26 +584,20 @@ fn run_matches(
         known,
         predicate,
     } = candidate_source(lmpg, req, is_cancelled, snap, known_total, &mut working)?;
-    let ctx = EvalCtx {
-        lmpg,
-        snap: snap.clone(),
-        is_cancelled: Some(is_cancelled),
-        cycles: crate::cycle::CycleGraphs::default(),
-        declared_types: std::cell::RefCell::default(),
-        record_types: std::cell::RefCell::default(),
-    };
+    let ctx = EvalCtx::at(lmpg, snap.clone(), Some(is_cancelled));
     let mut session = reconstruct::ReconstructSession::new(snap, lmpg.tenant);
     let order_fields = if req.order_by.is_empty() {
         None
     } else {
-        PointFields::resolve(
+        PointFields::resolve_in(
             snap,
             lmpg.tenant,
+            &req.labels,
             req.order_by.iter().map(|(f, _)| f.as_str()),
         )?
     };
     let predicate_fields = match &predicate {
-        Some(expr) => PointFields::for_predicate(snap, lmpg.tenant, expr)?,
+        Some(expr) => PointFields::for_predicate(snap, lmpg.tenant, &req.labels, expr)?,
         None => None,
     };
     let mut retained: Vec<u64> = Vec::new();
@@ -653,32 +658,11 @@ fn run_matches(
     })
 }
 
-/// The bytes a search holds at once, against `query-memory-max`.
-struct WorkingSet {
-    limit: Option<u64>,
-    charged: u64,
-}
-
-impl WorkingSet {
-    /// Admit `bytes`; `retained` bytes stay charged, others (a record that
-    /// only feeds the predicate) only need to fit in the remaining room.
-    fn charge(&mut self, bytes: u64, retained: bool) -> Result<(), QueryError> {
-        if let Some(limit) = self.limit {
-            if self.charged.saturating_add(bytes) > limit {
-                return Err(QueryError::ResourceLimit(format!(
-                    "query working set exceeded {limit} bytes"
-                )));
-            }
-            if retained {
-                self.charged += bytes;
-            }
-        }
-        Ok(())
-    }
-}
-
-/// Whether candidate `ord` is a live match: the record exists, `predicate`
-/// holds on it, and every relationship branch binds.
+/// Whether candidate `ord` matches: `predicate` holds on it and every
+/// relationship branch binds. Candidates are live records (a label's
+/// members, the tenant's record headers, or the index plan's owners, all
+/// written and deleted in the commit that writes and deletes the record),
+/// so the record header is not read again here.
 fn is_match(
     ctx: &EvalCtx<'_>,
     req: &SearchRequest,
@@ -689,15 +673,12 @@ fn is_match(
     ord: u64,
 ) -> Result<bool, QueryError> {
     let (snap, tenant) = (&ctx.snap, ctx.lmpg.tenant);
-    if access::record_by_ord(snap, tenant, ord)?.is_none() {
-        return Ok(false);
-    }
     if let Some(expr) = predicate {
         let obj = read_row(fields, session, snap, tenant, ord)?;
         let bytes =
             serde_json::to_vec(&obj).map_or(0, |v| u64::try_from(v.len()).unwrap_or(u64::MAX));
         working.charge(bytes, false)?;
-        if !eval_expr_ctx(ctx, expr, &obj)? {
+        if !eval_expr_ctx(ctx, expr, &obj, ord)? {
             return Ok(false);
         }
     }
@@ -885,7 +866,9 @@ fn check_walk_budget(
     let (Some(limit), Some(expr)) = (lmpg.limits().unindexed_walk_max_owners(), &req.where_) else {
         return Ok(());
     };
-    if explain_index(snap.as_ref(), lmpg.tenant, &req.labels, expr)?.is_some() {
+    if explain_index(snap.as_ref(), lmpg.tenant, &req.labels, expr)?.is_some()
+        || explain_expansion(snap.as_ref(), lmpg.tenant, &req.labels, expr)?.is_some()
+    {
         return Ok(());
     }
     let walk = explain_walk(snap.as_ref(), lmpg.tenant, &req.labels, expr)?;
@@ -1038,10 +1021,7 @@ fn find_page(
         .skip(skip)
         .take(limit)
         .collect();
-    let budget = effective_budget(
-        work_budget,
-        lmpg.limits().query_memory_max_bytes().unwrap_or(0),
-    );
+    let budget = Cap::for_response(work_budget, lmpg.limits().query_memory_max_bytes());
     let records =
         page::reconstruct_page_with_budget(lmpg, req, is_cancelled, snap, page_roots, budget)?;
     Ok(Page {
@@ -1153,22 +1133,15 @@ fn attach_collects_with_budget(
     root: u64,
     mut record: Json,
     collects: &[CollectSpec],
-    budget: Option<usize>,
+    budget: Option<Cap>,
     is_cancelled: &dyn Fn() -> bool,
 ) -> Result<Json, QueryError> {
     if collects.is_empty() {
         return Ok(record);
     }
     let mut retained = aggregate_budget::value_bytes(&record);
-    aggregate_budget::check(budget, retained)?;
-    let ctx = EvalCtx {
-        lmpg,
-        snap: snap.clone(),
-        is_cancelled: None,
-        cycles: crate::cycle::CycleGraphs::default(),
-        declared_types: std::cell::RefCell::default(),
-        record_types: std::cell::RefCell::default(),
-    };
+    Cap::check_opt(budget, retained)?;
+    let ctx = EvalCtx::at(lmpg, snap.clone(), None);
     if let Some(obj) = record.as_object_mut() {
         for spec in collects {
             // Alias-based (`from`) collects traverse the full path (multi-hop)
@@ -1182,13 +1155,13 @@ fn attach_collects_with_budget(
                 snap,
                 root,
                 spec,
-                budget.map(|limit| limit.saturating_sub(retained)),
+                budget.map(|cap| cap.after(retained).remaining()),
                 is_cancelled,
             )?;
             // (ordinal, raw record, projected record) for every matching child.
             let base_bytes = retained;
             retained = retained.saturating_add(neighbors.capacity().saturating_mul(8));
-            aggregate_budget::check(budget, retained)?;
+            Cap::check_opt(budget, retained)?;
             // A collect that projects `fields` decodes those, its filter's and
             // its ordering's properties only; one without returns whole children.
             let selected = point_fields::collect_selection(spec);
@@ -1205,20 +1178,20 @@ fn attach_collects_with_budget(
                     lmpg.tenant,
                     other,
                     selected.as_ref(),
-                    budget.map(|limit| limit.saturating_sub(retained)),
+                    budget.map(|cap| cap.after(retained).remaining()),
                 )?
                 else {
                     continue;
                 };
                 // label-based `where` filter on the collected level.
                 if let Some(filter) = &spec.filter {
-                    if !eval_expr_ctx(&ctx, filter, &child)? {
+                    if !eval_expr_ctx(&ctx, filter, &child, other)? {
                         continue;
                     }
                 }
                 retained = retained
                     .saturating_add(aggregate_budget::object_bytes(&child).saturating_mul(3));
-                aggregate_budget::check(budget, retained)?;
+                Cap::check_opt(budget, retained)?;
                 let projected = match project_fields_map(Json::Object(child.clone()), &spec.fields)
                 {
                     Json::Object(p) => p,
@@ -1246,18 +1219,18 @@ fn attach_collects_with_budget(
                     other,
                     Json::Object(child),
                     &spec.nested,
-                    budget.map(|limit| limit.saturating_sub(retained)),
+                    budget.map(|cap| cap.after(retained)),
                     is_cancelled,
                 )?;
                 retained = retained.saturating_add(aggregate_budget::value_bytes(&child));
-                aggregate_budget::check(budget, retained)?;
+                Cap::check_opt(budget, retained)?;
                 projected.push(child);
             }
             let collected = Json::Array(projected);
             retained = base_bytes
                 .saturating_add(spec.alias.len())
                 .saturating_add(aggregate_budget::value_bytes(&collected));
-            aggregate_budget::check(budget, retained)?;
+            Cap::check_opt(budget, retained)?;
             obj.insert(spec.alias.clone(), collected);
         }
     }
@@ -1390,14 +1363,7 @@ fn traverse_alias(
     if steps.is_empty() {
         return Ok(Vec::new());
     }
-    let ctx = EvalCtx {
-        lmpg,
-        snap: snap.clone(),
-        is_cancelled: Some(is_cancelled),
-        cycles: crate::cycle::CycleGraphs::default(),
-        declared_types: std::cell::RefCell::default(),
-        record_types: std::cell::RefCell::default(),
-    };
+    let ctx = EvalCtx::at(lmpg, snap.clone(), Some(is_cancelled));
     let mut cur = vec![ord];
     for step in steps {
         if is_cancelled() {
@@ -1434,11 +1400,11 @@ fn traverse_alias(
                         }),
                     );
                     let obj = filtered_row(&reader, snap, tenant, pred, other)?;
-                    if !eval_expr_ctx(&ctx, pred, &obj)? {
+                    if !eval_expr_ctx(&ctx, pred, &obj, other)? {
                         continue;
                     }
                 }
-                aggregate_budget::check(
+                Budget::WorkingSet.check(
                     budget,
                     cur.len()
                         .saturating_add(next.len())
@@ -1554,7 +1520,7 @@ fn alias_field_values(
         return Ok(None);
     };
     let mut retained = related.capacity().saturating_mul(8);
-    aggregate_budget::check(budget, retained)?;
+    Budget::WorkingSet.check(budget, retained)?;
     let mut values = Vec::new();
     // Only the named property is decoded, by either spelling.
     let selected: std::collections::HashSet<String> =
@@ -1568,7 +1534,7 @@ fn alias_field_values(
         if let Some(Json::Object(child)) = session.reconstruct_record_selected(other, &selected)? {
             if let Some(v) = resolve_field(&child, prop) {
                 retained = retained.saturating_add(aggregate_budget::value_bytes(&v));
-                aggregate_budget::check(budget, retained)?;
+                Budget::WorkingSet.check(budget, retained)?;
                 values.push(v);
             }
         }
@@ -1599,6 +1565,10 @@ pub struct GroupBucket {
     pub maxs: Map<String, Json>,
     /// Materialized derived outputs keyed by normalized name.
     pub derived_outputs: std::collections::BTreeMap<String, Json>,
+    /// The root a per-root row (a `select` without `groupBy`) belongs to,
+    /// for attaching its `$collect`s; `None` for a group.
+    #[serde(skip)]
+    pub root: Option<u64>,
 }
 
 /// Derived-output expression graph ($ref chains in document 19):
@@ -1698,9 +1668,57 @@ pub struct EvalCtx<'a> {
     /// a name is matched by the definition it holds, not the first one.
     pub(crate) record_types:
         std::cell::RefCell<std::collections::HashMap<String, Vec<(u64, LogicalType)>>>,
+    /// Adjacency opened for this query, by relationship type and direction:
+    /// a per-candidate traversal reuses it, and its storage reads are
+    /// rented toward a resident graph once, when the query ends.
+    adjacencies: std::cell::RefCell<AdjacencyByShape>,
 }
 
+type AdjacencyByShape =
+    std::collections::HashMap<(Option<String>, Direction), std::rc::Rc<adjacency::TypeAdjacency>>;
+
 impl<'a> EvalCtx<'a> {
+    /// A context reading `snap`, polling `is_cancelled` between steps.
+    pub(crate) fn at(
+        lmpg: &'a Lmpg,
+        snap: QuerySnapshot,
+        is_cancelled: Option<&'a dyn Fn() -> bool>,
+    ) -> Self {
+        EvalCtx {
+            lmpg,
+            snap,
+            is_cancelled,
+            cycles: cycle::CycleGraphs::default(),
+            declared_types: std::cell::RefCell::default(),
+            record_types: std::cell::RefCell::default(),
+            adjacencies: std::cell::RefCell::default(),
+        }
+    }
+
+    /// The adjacency of `rel_type` along `direction` for this query.
+    fn adjacency(
+        &self,
+        rel_type: Option<&str>,
+        direction: Direction,
+    ) -> Result<std::rc::Rc<adjacency::TypeAdjacency>, QueryError> {
+        let key = (rel_type.map(str::to_owned), direction);
+        if let Some(open) = self.adjacencies.borrow().get(&key) {
+            return Ok(std::rc::Rc::clone(open));
+        }
+        let cancel = || self.check_cancelled();
+        let open = std::rc::Rc::new(adjacency::TypeAdjacency::open(
+            &self.snap,
+            self.lmpg.tenant,
+            rel_type,
+            direction,
+            &cancel,
+        )?);
+        self.adjacencies
+            .borrow_mut()
+            .insert(key, std::rc::Rc::clone(&open));
+        Ok(open)
+    }
+
     /// Open a context pinned to the store's current committed view.
     ///
     /// # Errors
@@ -1708,14 +1726,7 @@ impl<'a> EvalCtx<'a> {
     /// Propagates a [`rushdb_storage::StorageError`] if the read view cannot
     /// be opened.
     pub fn new(lmpg: &'a Lmpg) -> Result<Self, QueryError> {
-        Ok(EvalCtx {
-            lmpg,
-            snap: Arc::new(lmpg.store.read_view()?),
-            is_cancelled: None,
-            cycles: cycle::CycleGraphs::default(),
-            declared_types: std::cell::RefCell::default(),
-            record_types: std::cell::RefCell::default(),
-        })
+        Ok(EvalCtx::at(lmpg, Arc::new(lmpg.store.read_view()?), None))
     }
 
     /// Poll the cancellation probe between traversal steps. A no-op when
@@ -1732,15 +1743,18 @@ impl<'a> EvalCtx<'a> {
     }
 }
 
+/// Evaluate `expr` on record `ord`, whose properties the predicate reads
+/// are in `obj`.
 fn eval_expr_ctx(
     ctx: &EvalCtx<'_>,
     expr: &Expr,
     obj: &Map<String, Json>,
+    ord: u64,
 ) -> Result<bool, QueryError> {
     match expr {
         Expr::And(items) => {
             for item in items {
-                if !eval_expr_ctx(ctx, item, obj)? {
+                if !eval_expr_ctx(ctx, item, obj, ord)? {
                     return Ok(false);
                 }
             }
@@ -1749,120 +1763,17 @@ fn eval_expr_ctx(
         Expr::Or(items) | Expr::Nor(items) => {
             let inverted = matches!(expr, Expr::Nor(_));
             for item in items {
-                if eval_expr_ctx(ctx, item, obj)? {
+                if eval_expr_ctx(ctx, item, obj, ord)? {
                     return Ok(!inverted);
                 }
             }
             Ok(inverted)
         }
-        Expr::Xor(a, b) => Ok(eval_expr_ctx(ctx, a, obj)? != eval_expr_ctx(ctx, b, obj)?),
-        Expr::Not(inner) => Ok(!eval_expr_ctx(ctx, inner, obj)?),
-        Expr::Field(pred) => eval_pred(&|name| type_held(ctx, name, obj), pred, obj),
-        Expr::Related(rel) => eval_related(ctx, obj, rel),
+        Expr::Xor(a, b) => Ok(eval_expr_ctx(ctx, a, obj, ord)? != eval_expr_ctx(ctx, b, obj, ord)?),
+        Expr::Not(inner) => Ok(!eval_expr_ctx(ctx, inner, obj, ord)?),
+        Expr::Field(pred) => eval_pred(&|name| type_held(ctx, name, ord), pred, obj),
+        Expr::Related(rel) => expand::related_holds(ctx, ord, rel),
     }
-}
-
-/// Traversal evaluation with hops + cycle support.
-///
-/// - normal (`hops`): existential reachability of an endpoint matching the
-///   filter at any depth within bounds; edges may be reused across
-///   different paths but a path never revisits a node.
-/// - `$cycle`: trail semantics — each relationship edge is used at most once
-///   per path, and the path must return to the start within bounds
-///   (answered by [`cycle::CycleGraphs`]).
-fn eval_related(
-    ctx: &EvalCtx<'_>,
-    root: &Map<String, Json>,
-    rel: &RelatedExpr,
-) -> Result<bool, QueryError> {
-    let root_id = root.get(ID_FIELD).and_then(|v| v.as_str()).unwrap_or("");
-    let start_ord = root_ord_of(ctx, root_id)?;
-    if start_ord == u64::MAX {
-        return Ok(false);
-    }
-    let (min_hops, max_hops) = rel.hops.unwrap_or((1, 1));
-
-    let neighbors = |node: u64| -> Result<Vec<(String, u64, u64)>, QueryError> {
-        Ok(match rel.direction {
-            Direction::Outgoing => {
-                access::adj_out(&ctx.snap, ctx.lmpg.tenant, node, rel.rel_type.as_deref())?
-            }
-            Direction::Incoming => {
-                access::adj_in(&ctx.snap, ctx.lmpg.tenant, node, rel.rel_type.as_deref())?
-            }
-            Direction::Both => {
-                let mut all =
-                    access::adj_out(&ctx.snap, ctx.lmpg.tenant, node, rel.rel_type.as_deref())?;
-                all.extend(access::adj_in(
-                    &ctx.snap,
-                    ctx.lmpg.tenant,
-                    node,
-                    rel.rel_type.as_deref(),
-                )?);
-                all
-            }
-        })
-    };
-
-    // endpoint label check for normal traversal
-    let endpoint_ok = |other: u64| -> Result<bool, QueryError> {
-        if rel.target_labels.is_empty() {
-            Ok(true)
-        } else {
-            Ok(access::record_by_ord(&ctx.snap, ctx.lmpg.tenant, other)?
-                .is_some_and(|h| rel.target_labels.contains(&h.label)))
-        }
-    };
-
-    if rel.cycle {
-        let cancel = || ctx.check_cancelled();
-        return ctx
-            .cycles
-            .on_cycle(&ctx.snap, ctx.lmpg.tenant, rel, start_ord, &cancel);
-    }
-
-    // normal existential traversal: BFS bounded by max_hops
-    let mut frontier: Vec<u64> = vec![start_ord];
-    let mut visited: std::collections::BTreeSet<u64> = std::collections::BTreeSet::new();
-    visited.insert(start_ord);
-    let mut depth = 0u64;
-
-    while !frontier.is_empty() && depth < max_hops {
-        ctx.check_cancelled()?;
-        depth += 1;
-        let mut next: Vec<u64> = Vec::new();
-        for node in &frontier {
-            for (_ty, other, _ro) in neighbors(*node)? {
-                if !endpoint_ok(other)? {
-                    continue;
-                }
-                if depth >= min_hops {
-                    if let Some(filter) = &rel.filter {
-                        if access::record_by_ord(&ctx.snap, ctx.lmpg.tenant, other)?.is_some() {
-                            let target_obj =
-                                filtered_row(&ctx.snap, &ctx.snap, ctx.lmpg.tenant, filter, other)?;
-                            if eval_expr_ctx(ctx, filter, &target_obj)? {
-                                return Ok(true);
-                            }
-                        }
-                    } else {
-                        return Ok(true);
-                    }
-                }
-                if depth < max_hops && visited.insert(other) {
-                    next.push(other);
-                }
-            }
-        }
-        frontier = next;
-    }
-    Ok(false)
-}
-
-fn root_ord_of(ctx: &EvalCtx<'_>, id_hex: &str) -> Result<u64, QueryError> {
-    let bytes = hex_decode_16(id_hex).unwrap_or([0u8; 16]);
-    let id = rushdb_types::ids::RecordId(bytes);
-    Ok(access::record_by_id(&ctx.snap, ctx.lmpg.tenant, &id)?.map_or(u64::MAX, |h| h.ordinal))
 }
 
 /// The declared (catalog) type of a property name, when the caller has one.
@@ -2126,71 +2037,6 @@ fn canonical_id(id: &str) -> String {
         .collect()
 }
 
-/// Distinct root ordinals feeding every perspective and aggregate.
-fn binding_roots_with_cancel(
-    lmpg: &Lmpg,
-    req: &SearchRequest,
-    is_cancelled: &dyn Fn() -> bool,
-    snap: &QuerySnapshot,
-    budget: Option<usize>,
-) -> Result<Vec<u64>, QueryError> {
-    // Ordinal-level matching: never round-trip through reconstructed JSON
-    // (`_id` -> `record_by_id`) just to recover an ordinal the index already
-    // holds. Reconstruction happens only when a residual predicate or a
-    // traversal must be evaluated against record properties.
-    let plan = index_candidates_with_budget(lmpg, snap, req, budget, is_cancelled)?;
-    let index_exact = plan.as_ref().is_some_and(|plan| plan.exact);
-    let candidates: Vec<u64> = match plan {
-        Some(plan) => plan.ords.into_iter().collect(),
-        None => scan::Candidates::walk(snap, lmpg.tenant, &req.labels)?.collect(is_cancelled)?,
-    };
-    // The candidates and the matches they narrow to: two ordinal vectors.
-    let candidate_bytes = candidates.capacity().saturating_mul(16);
-    aggregate_budget::check(budget, candidate_bytes)?;
-    if index_exact && req.order_by.is_empty() {
-        return Ok(candidates);
-    }
-    // The same liveness, residual-predicate and branch checks a records
-    // search makes (`is_match`): the predicate reads only the properties it
-    // names, by point reads, with one reconstruction session for the walk.
-    let ctx = EvalCtx {
-        lmpg,
-        snap: snap.clone(),
-        is_cancelled: Some(is_cancelled),
-        cycles: crate::cycle::CycleGraphs::default(),
-        declared_types: std::cell::RefCell::default(),
-        record_types: std::cell::RefCell::default(),
-    };
-    let predicate_fields = match &req.where_ {
-        Some(expr) => PointFields::for_predicate(snap, lmpg.tenant, expr)?,
-        None => None,
-    };
-    let mut session = reconstruct::ReconstructSession::new(snap, lmpg.tenant);
-    let mut working = WorkingSet {
-        limit: budget
-            .map(|limit| u64::try_from(limit.saturating_sub(candidate_bytes)).unwrap_or(u64::MAX)),
-        charged: 0,
-    };
-    let mut matched: Vec<u64> = Vec::new();
-    for ord in candidates {
-        if is_cancelled() {
-            return Err(QueryError::Cancelled);
-        }
-        if is_match(
-            &ctx,
-            req,
-            req.where_.as_ref(),
-            predicate_fields.as_ref(),
-            &mut session,
-            &mut working,
-            ord,
-        )? {
-            matched.push(ord);
-        }
-    }
-    Ok(matched)
-}
-
 /// Normalize a property/label name to the engine's canonical form.
 #[must_use]
 pub fn normalize(name: &str) -> String {
@@ -2209,10 +2055,6 @@ fn resolve_field(obj: &Map<String, Json>, field: &str) -> Option<Json> {
     obj.iter()
         .find(|(k, _)| normalize(k) == norm)
         .map(|(_, v)| v.clone())
-}
-
-fn resolve_field_numeric(obj: &Map<String, Json>, field: &str) -> Option<Json> {
-    resolve_field(obj, field).filter(serde_json::Value::is_number)
 }
 
 #[cfg(test)]

@@ -1,7 +1,8 @@
-//! Hybrid search: one predicate-resolved candidate set ranked by a vector
-//! leg, a text leg or both, fused by reciprocal rank.
+//! Hybrid search: one candidate set (a predicate's matches, or a label's
+//! members) ranked by a vector leg, a text leg or both, fused by reciprocal
+//! rank.
 
-use super::{access, append_bounded_json_response, Arc, HashSet, OwnerKind, RequestScope};
+use super::{access, append_bounded_json_response, Arc, OwnerKind, RequestScope};
 
 /// Why a hybrid search did not run.
 #[derive(Debug)]
@@ -67,15 +68,17 @@ impl RequestScope<'_> {
     /// Combined graph + vector + lexical query (document 26's hybrid
     /// pattern), against a caller-owned pinned view and work budget.
     ///
-    /// The `labels`/`predicate` graph filter is resolved exactly once, via
-    /// the same cardinality-based access-path planner `find_records` uses
-    /// (`matching_ordinals_with_budget`), into one candidate owner-ordinal
-    /// set. Both legs search only inside that set — candidate resolution
-    /// happens before ranking for both the ANN graph and the lexical index,
-    /// never as a post-filter that could leak a hidden owner into a fused
-    /// top-k slot. The two independently correct rankings are then combined
-    /// by deterministic reciprocal-rank fusion; raw scores never cross
-    /// providers.
+    /// A `predicate` is resolved exactly once, via the same cardinality-based
+    /// access-path planner `find_records` uses (`matching_ordinals`), into
+    /// one candidate owner-ordinal set. Both legs search only inside that
+    /// set — candidate resolution happens before ranking for both the ANN
+    /// graph and the lexical index, never as a post-filter that could leak a
+    /// hidden owner into a fused top-k slot. Without a predicate the legs
+    /// check label membership on their hits instead (see
+    /// [`Self::hybrid_text_leg`]), so an unfiltered query does not read the
+    /// whole label. The legs run concurrently, and their two independently
+    /// correct rankings are then combined by deterministic reciprocal-rank
+    /// fusion; raw scores never cross providers.
     ///
     /// Every fused hit is reconstructed through an
     /// [`rushdb_lmpg::AuthorizedView`] before being emitted — the same
@@ -123,19 +126,36 @@ impl RequestScope<'_> {
         let offset = usize::try_from(query.offset).unwrap_or(usize::MAX);
         let lmpg = self.lmpg();
 
-        // One predicate resolution shared by both legs. Ordinals come
-        // straight from the cardinality planner, not from reconstructing and
-        // re-decoding records the way a naive composition would.
-        let mut filter_document = serde_json::json!({ "labels": query.labels });
-        if !query.predicate.is_null() {
-            filter_document["where"] = query.predicate.clone();
-        }
-        let parsed =
-            rushdb_query::document::parse_document(&filter_document).map_err(|e| e.to_string())?;
-        let ords =
-            rushdb_query::matching_ordinals(&lmpg, &parsed.search, &|| false, Arc::clone(snap))
+        // A predicate is resolved once into the owner set both legs search
+        // inside. Without one, neither leg needs it: the vector leg takes the
+        // unfiltered route of a plain vector search (label membership checked
+        // on the hits it keeps), and the text leg searches its index whole and
+        // checks its hits' label — so an unfiltered query does not grow with
+        // the label.
+        let unfiltered = query.predicate.is_null()
+            || query
+                .predicate
+                .as_object()
+                .is_some_and(serde_json::Map::is_empty);
+        let resolve_owners = || -> Result<Arc<roaring::RoaringTreemap>, HybridError> {
+            let mut filter_document = serde_json::json!({ "labels": query.labels });
+            if !unfiltered {
+                filter_document["where"] = query.predicate.clone();
+            }
+            let parsed = rushdb_query::document::parse_document(&filter_document)
                 .map_err(|e| e.to_string())?;
-        let allowed: HashSet<u64> = ords.into_iter().collect();
+            // Ordinals straight from the cardinality planner, ascending, not
+            // from reconstructing and re-decoding records.
+            let ords =
+                rushdb_query::matching_ordinals(&lmpg, &parsed.search, &|| false, Arc::clone(snap))
+                    .map_err(|e| e.to_string())?;
+            Ok(Arc::new(ords.into_iter().collect()))
+        };
+        let owners = if unfiltered {
+            None
+        } else {
+            Some(resolve_owners()?)
+        };
 
         // Over-fetch before fusion/truncation so RRF has enough of each
         // ranking to actually combine rather than just echoing whichever leg
@@ -151,85 +171,44 @@ impl RequestScope<'_> {
             })
         };
 
-        let mut vector_report = None;
-        let vec_hits: Vec<rushdb_vector::ScoredSource> = match &query.vector {
-            Some(leg) => {
-                if leg.vector.is_empty() {
-                    return Err("hybrid vector leg requires a non-empty vector".into());
-                }
-                let label = query.labels.first().cloned().unwrap_or_default();
-                let dims = leg.vector.len();
-                let alias = match leg.index.as_deref() {
-                    Some(index) => index.to_string(),
-                    None if self.require_vector_index_name => {
-                        return Err("hybrid vector leg requires an explicit `index` \
-                             (resources.require-vector-index-name is on)"
-                            .into());
-                    }
-                    None => rushdb_lmpg::import::external_space_alias(
-                        &label,
-                        &leg.property,
-                        &leg.similarity,
-                        dims,
-                    ),
-                };
-                let vectors = self.vector_engine()?;
-                let space = vectors
-                    .lookup_space_in_view(snap, &alias)
-                    .map_err(|e| e.to_string())?
-                    .ok_or_else(|| {
-                        format!(
-                            "embedding index not found for label `{label}` and property `{}`",
-                            leg.property
-                        )
-                    })?;
-                let candidate = |source: rushdb_vector::SourceRef| {
-                    source.kind == OwnerKind::Record && allowed.contains(&source.owner_ord)
-                };
-                let (hits, report) = self.run_vector_search(
-                    &vectors,
-                    snap,
-                    &space,
-                    &super::vector_mode::VectorSearch {
-                        query: &leg.vector,
-                        k: prefetch(leg.prefetch_limit),
-                        mode: leg.mode,
-                        ef: leg.ef,
-                        min_score: leg.score_threshold,
-                    },
-                    Some(&candidate),
-                )?;
-                vector_report = Some(report);
-                hits
+        // The two legs run concurrently on the shared thread budget (one
+        // after the other when it lends no thread); each leg's result does
+        // not depend on the other.
+        let legs: Vec<LegKind> = [
+            query.vector.as_ref().map(|_| LegKind::Vector),
+            query.text.as_ref().map(|_| LegKind::Text),
+        ]
+        .into_iter()
+        .flatten()
+        .collect();
+        let mut vector_leg = None;
+        let mut text_leg = None;
+        for out in rushdb_storage::parallel::run_parts(legs.len(), |part| match legs[part] {
+            LegKind::Vector => self
+                .hybrid_vector_leg(query, snap, owners.as_ref(), &prefetch)
+                .map(LegOut::Vector),
+            LegKind::Text => self
+                .hybrid_text_leg(query, snap, owners.as_ref(), &prefetch, &resolve_owners)
+                .map(LegOut::Text),
+        })? {
+            match out {
+                LegOut::Vector(found) => vector_leg = Some(found),
+                LegOut::Text(found) => text_leg = Some(found),
             }
-            None => Vec::new(),
+        }
+        let (vec_hits, vector_report) = match vector_leg {
+            Some((hits, report)) => (hits, Some(report)),
+            None => (Vec::new(), None),
         };
-
-        let mut text_report = None;
-        let lex_hits: Vec<rushdb_textsearch::ScoredDoc> = match &query.text {
-            Some(leg) => {
-                let found = self.text.search(
-                    self.tenant(),
-                    snap,
-                    rushdb_textsearch::TextQuery {
-                        index: &leg.index,
-                        query: &leg.query,
-                        opts: crate::protocol::queries::lexical_options(
-                            leg.all_terms,
-                            leg.phrase,
-                            leg.syntax,
-                        ),
-                        top_k: prefetch(leg.prefetch_limit),
-                    },
-                    Some(std::sync::Arc::new(allowed)),
-                )?;
-                text_report = Some(serde_json::json!({
+        let (lex_hits, text_report) = match text_leg {
+            Some(found) => (
+                found.hits,
+                Some(serde_json::json!({
                     "matches": found.matches,
                     "pending": found.pending,
-                }));
-                found.hits
-            }
-            None => Vec::new(),
+                })),
+            ),
+            None => (Vec::new(), None),
         };
         // Each leg's own score per record; one leg alone ranks by its score,
         // since a fused rank score says nothing on its own.
@@ -336,6 +315,152 @@ impl RequestScope<'_> {
     }
 }
 
+/// The legs of a hybrid query.
+#[derive(Clone, Copy)]
+enum LegKind {
+    Vector,
+    Text,
+}
+
+/// One leg's result.
+enum LegOut {
+    Vector((Vec<rushdb_vector::ScoredSource>, serde_json::Value)),
+    Text(rushdb_textsearch::TextHits),
+}
+
+impl RequestScope<'_> {
+    /// The vector leg: inside `owners` when the query has a predicate, else
+    /// the unfiltered route of [`Self::search_vectors_in_view`].
+    fn hybrid_vector_leg(
+        &self,
+        query: &rushdb_protocol::HybridQuery,
+        snap: &Arc<rushdb_storage::ReadView>,
+        owners: Option<&Arc<roaring::RoaringTreemap>>,
+        prefetch: &(dyn Fn(Option<u64>) -> usize + Sync),
+    ) -> Result<(Vec<rushdb_vector::ScoredSource>, serde_json::Value), HybridError> {
+        let Some(leg) = &query.vector else {
+            return Ok((Vec::new(), serde_json::Value::Null));
+        };
+        if leg.vector.is_empty() {
+            return Err("hybrid vector leg requires a non-empty vector".into());
+        }
+        let label = query.labels.first().cloned().unwrap_or_default();
+        let alias = match leg.index.as_deref() {
+            Some(index) => index.to_string(),
+            None if self.require_vector_index_name => {
+                return Err("hybrid vector leg requires an explicit `index` \
+                     (resources.require-vector-index-name is on)"
+                    .into());
+            }
+            None => rushdb_lmpg::import::external_space_alias(
+                &label,
+                &leg.property,
+                &leg.similarity,
+                leg.vector.len(),
+            ),
+        };
+        let vectors = self.vector_engine()?;
+        let space = vectors
+            .lookup_space_in_view(snap, &alias)
+            .map_err(|e| e.to_string())?
+            .ok_or_else(|| {
+                format!(
+                    "embedding index not found for label `{label}` and property `{}`",
+                    leg.property
+                )
+            })?;
+        let member =
+            super::vectors::MemberCheck::new(snap, self.tenant(), OwnerKind::Record, &query.labels);
+        let check = |source| member.admits(source);
+        let candidates = match owners {
+            Some(ords) => rushdb_vector::Candidates::Owners {
+                kind: OwnerKind::Record,
+                ords,
+            },
+            None => rushdb_vector::Candidates::Check(&check),
+        };
+        let found = self.run_vector_search(
+            &vectors,
+            snap,
+            &space,
+            &super::vector_mode::VectorSearch {
+                query: &leg.vector,
+                k: prefetch(leg.prefetch_limit),
+                mode: leg.mode,
+                ef: leg.ef,
+                min_score: leg.score_threshold,
+                candidates,
+            },
+        )?;
+        member.finish()?;
+        Ok(found)
+    }
+
+    /// The text leg: inside `owners` when the query has a predicate. Without
+    /// one, the index is searched whole when it covers a requested label (or
+    /// any label is accepted), and a hit whose record is no longer a member
+    /// of the index's label sends the leg back to the owner set — so the
+    /// result is the owner set's either way.
+    fn hybrid_text_leg(
+        &self,
+        query: &rushdb_protocol::HybridQuery,
+        snap: &Arc<rushdb_storage::ReadView>,
+        owners: Option<&Arc<roaring::RoaringTreemap>>,
+        prefetch: &(dyn Fn(Option<u64>) -> usize + Sync),
+        resolve_owners: &(dyn Fn() -> Result<Arc<roaring::RoaringTreemap>, HybridError> + Sync),
+    ) -> Result<rushdb_textsearch::TextHits, HybridError> {
+        let Some(leg) = &query.text else {
+            return Ok(rushdb_textsearch::TextHits {
+                hits: Vec::new(),
+                matches: 0,
+                pending: 0,
+            });
+        };
+        let search = |candidates: Option<Arc<roaring::RoaringTreemap>>| {
+            self.text.search(
+                self.tenant(),
+                snap,
+                rushdb_textsearch::TextQuery {
+                    index: &leg.index,
+                    query: &leg.query,
+                    opts: crate::protocol::queries::lexical_options(
+                        leg.all_terms,
+                        leg.phrase,
+                        leg.syntax,
+                    ),
+                    top_k: prefetch(leg.prefetch_limit),
+                },
+                candidates,
+            )
+        };
+        if let Some(owners) = owners {
+            return Ok(search(Some(Arc::clone(owners)))?);
+        }
+        let covered_label = rushdb_lmpg::index::by_name(snap.as_ref(), self.tenant(), &leg.index)
+            .map_err(|e| e.to_string())?
+            .map(|def| def.label)
+            .filter(|label| query.labels.is_empty() || query.labels.contains(label));
+        let Some(label) = covered_label else {
+            // Another label's index (or none: the search reports it).
+            return Ok(search(Some(resolve_owners()?))?);
+        };
+        let found = search(None)?;
+        let mut members = true;
+        for hit in &found.hits {
+            let key = rushdb_types::keys::label_member_key(self.tenant(), &label, hit.owner_ord);
+            if snap.get(&key).map_err(|e| e.to_string())?.is_none() {
+                members = false;
+                break;
+            }
+        }
+        if members {
+            Ok(found)
+        } else {
+            Ok(search(Some(resolve_owners()?))?)
+        }
+    }
+}
+
 /// Candidates a leg may rank before fusion, at most.
 const MAX_PREFETCH_LIMIT: u64 = 10_000;
 
@@ -372,4 +497,215 @@ fn validate(query: &rushdb_protocol::HybridQuery) -> Result<(), String> {
         return Err("invalid hybrid query: `rrfK` must be a finite number ≥ 0".into());
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use rushdb_protocol::{
+        Operation, Query, RequestContext, RequestEnvelope, Response, PROTOCOL_VERSION,
+    };
+
+    use crate::protocol::ProtocolExecutor;
+    use crate::{Node, ServerConfig};
+
+    /// A node whose `auto` vector searches use the ANN graph past 4 vectors,
+    /// with a 2-dimension vector index `emb` and a whole-record text index
+    /// `docs` (of `consistency`) on `Doc`.
+    fn node(consistency: &str) -> Node {
+        let mut cfg = ServerConfig::default();
+        cfg.resources.vector_exact_max_pool = 4;
+        let node = Node::bootstrap(&mut cfg).unwrap();
+        node.scope()
+            .create_vector_index(&rushdb_protocol::VectorIndexDefinition {
+                label: "Doc".into(),
+                property: "embedding".into(),
+                similarity: "cosine".into(),
+                dimensions: 2,
+                name: Some("emb".into()),
+                model: None,
+                owner: None,
+            })
+            .unwrap();
+        node.scope()
+            .create_index(&rushdb_protocol::IndexDefinition {
+                name: "docs".into(),
+                label: "Doc".into(),
+                property: "*".into(),
+                kind: "text".into(),
+                consistency: Some(consistency.into()),
+                dimensions: None,
+            })
+            .unwrap();
+        while node.step_index_builds(std::time::Duration::from_secs(5)) > 0 {}
+        node
+    }
+
+    /// `count` `Doc` records around the unit circle in a fixed scattered
+    /// order, every one matching the text `alpha`; returns their ids.
+    #[expect(
+        clippy::cast_precision_loss,
+        reason = "a small record index mapped into f32 radians"
+    )]
+    fn fill(node: &Node, count: usize) -> Vec<String> {
+        (0..count)
+            .map(|i| {
+                let angle = ((i * 2_654_435_761) % count) as f32 * 6.2 / count as f32;
+                let words = if i % 3 == 0 {
+                    "alpha alpha beta"
+                } else {
+                    "alpha"
+                };
+                node.scope()
+                    .create_record(
+                        "Doc",
+                        &serde_json::json!({ "body": words, "kind": "doc" }),
+                        &[serde_json::json!({
+                            "propertyName": "embedding",
+                            "vector": [angle.cos(), angle.sin()],
+                            "index": "emb",
+                        })],
+                        &serde_json::json!({}),
+                    )
+                    .unwrap()["id"]
+                    .as_str()
+                    .unwrap()
+                    .to_string()
+            })
+            .collect()
+    }
+
+    fn hybrid(
+        node: &Node,
+        query: serde_json::Value,
+    ) -> (Vec<serde_json::Value>, serde_json::Value) {
+        let query = serde_json::from_value(query).unwrap();
+        let response = ProtocolExecutor::new(node, None)
+            .execute(RequestEnvelope {
+                protocol_version: PROTOCOL_VERSION,
+                request_id: None,
+                context: RequestContext::default(),
+                operation: Operation::Query {
+                    query: Query::Hybrid { query },
+                },
+            })
+            .unwrap()
+            .response;
+        let Response::Records {
+            records,
+            vector_search,
+            text_search,
+            ..
+        } = response
+        else {
+            panic!("expected records, got {response:?}")
+        };
+        (
+            records,
+            serde_json::json!({
+                "vector": vector_search,
+                "text": text_search,
+            }),
+        )
+    }
+
+    fn both_legs(predicate: &serde_json::Value, mode: &str) -> serde_json::Value {
+        serde_json::json!({
+            "labels": ["Doc"],
+            "predicate": predicate,
+            "limit": 5,
+            "vector": {
+                "property": "embedding",
+                "vector": [1.0, 0.0],
+                "index": "emb",
+                "mode": mode,
+            },
+            "text": { "index": "docs", "query": "alpha" },
+        })
+    }
+
+    /// Run an unfiltered hybrid query until its vector leg answers on the
+    /// resident ANN graph.
+    fn warm(node: &Node) {
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);
+        while hybrid(node, both_legs(&serde_json::json!({}), "auto")).1["vector"]["mode"] != "ann" {
+            assert!(
+                std::time::Instant::now() < deadline,
+                "the graph never warmed"
+            );
+            std::thread::sleep(std::time::Duration::from_millis(20));
+        }
+    }
+
+    /// Without a predicate neither leg resolves the label: the same query
+    /// reads the same rows over 10x the records.
+    #[test]
+    fn an_unfiltered_hybrid_query_reads_the_same_at_n_and_ten_n_records() {
+        let reads = |count: usize| {
+            let node = node("immediate");
+            fill(&node, count);
+            warm(&node);
+            // Applying the text index deleted its pending rows; collect them
+            // so the scan for new ones does not walk their history.
+            node.store().gc(u64::MAX).unwrap();
+            rushdb_storage::read_accounting::enable(true);
+            let _ = rushdb_storage::read_accounting::take_local();
+            let (records, report) = hybrid(&node, both_legs(&serde_json::json!({}), "ann"));
+            let reads: u64 = rushdb_storage::read_accounting::take_local().values().sum();
+            assert_eq!(records.len(), 5);
+            assert_eq!(report["vector"]["mode"], "ann");
+            reads
+        };
+        let (small, large) = (reads(300), reads(3_000));
+        assert!(small > 0);
+        assert_eq!(small, large, "reads grew with the label");
+    }
+
+    /// The unfiltered route ranks exactly as the owner set of every label
+    /// member does (a predicate every record matches), on both paths.
+    #[test]
+    fn an_unfiltered_hybrid_query_ranks_as_the_owner_set_does() {
+        let node = node("immediate");
+        fill(&node, 400);
+        warm(&node);
+        for mode in ["exact", "ann"] {
+            let (unfiltered, _) = hybrid(&node, both_legs(&serde_json::json!({}), mode));
+            let (owner_set, _) = hybrid(
+                &node,
+                both_legs(&serde_json::json!({ "kind": "doc" }), mode),
+            );
+            assert_eq!(unfiltered.len(), 5);
+            assert_eq!(unfiltered, owner_set, "{mode}");
+        }
+    }
+
+    /// A text hit whose record left the label (deleted, not yet applied to
+    /// an `eventual` index) sends the unfiltered text leg back to the owner
+    /// set: the page is still full and never holds the deleted record.
+    #[test]
+    fn a_stale_text_hit_falls_back_to_the_owner_set() {
+        let node = node("eventual");
+        let ids = fill(&node, 30);
+        // Apply the inserts, then delete a top text match.
+        node.apply_text_indexes(std::time::Duration::from_secs(5));
+        node.scope().delete_record(&ids[0]).unwrap();
+        let text_only = |predicate: serde_json::Value| {
+            hybrid(
+                &node,
+                serde_json::json!({
+                    "labels": ["Doc"],
+                    "predicate": predicate,
+                    "limit": 3,
+                    "text": { "index": "docs", "query": "beta", "prefetchLimit": 3 },
+                }),
+            )
+        };
+        let (unfiltered, report) = text_only(serde_json::json!({}));
+        let (owner_set, _) = text_only(serde_json::json!({ "kind": "doc" }));
+        assert!(report["text"]["pending"].as_u64().unwrap() > 0, "{report}");
+        assert_eq!(unfiltered.len(), 3);
+        assert!(unfiltered
+            .iter()
+            .all(|record| record["__id"] != ids[0].as_str()));
+        assert_eq!(unfiltered, owner_set);
+    }
 }

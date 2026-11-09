@@ -217,11 +217,11 @@ impl Store {
         }
         drop(window);
         Ok(admission
-            .buffer
+            .layers
             .iter()
-            .filter(|(key, (ci, _))| *ci > snapshot_ci && deps.intersects(key))
-            .map(|(_, (ci, _))| *ci)
-            .min())
+            .filter(|layer| layer.ci() > snapshot_ci)
+            .find(|layer| layer.keys().any(|key| deps.intersects(key)))
+            .map(|layer| layer.ci()))
     }
 
     #[expect(
@@ -500,7 +500,7 @@ impl Store {
         &self,
         ci: u64,
         shard: usize,
-        ops: Vec<Op>,
+        ops: impl Into<Arc<Vec<Op>>>,
         command_payload: Vec<u8>,
     ) -> Result<(), StorageError> {
         self.check_health()?;
@@ -515,13 +515,14 @@ impl Store {
         &self,
         ci: u64,
         shard: usize,
-        ops: Vec<Op>,
+        ops: impl Into<Arc<Vec<Op>>>,
         command_payload: Vec<u8>,
         prepared: Option<PreparedCommand>,
         mut admission: Option<std::sync::MutexGuard<'_, SequencerState>>,
         shard_guard: Option<std::sync::MutexGuard<'_, ()>>,
     ) -> Result<(), StorageError> {
         let started = std::time::Instant::now();
+        let ops = ops.into();
         self.check_health()?;
         if self.maintenance_aborted() {
             return Err(StorageError::Durability(
@@ -764,7 +765,7 @@ impl Store {
         // cannot move. Expand first (a failure must not consume a slot), then
         // reserve with a plain store; the previous CAS/`fetch_add` fallback
         // could leak a reserved index when the re-expansion failed.
-        let ops = expand_at(ci)?;
+        let ops = Arc::new(expand_at(ci)?);
         self.reject_oversized_commit(&ops, command_payload.len())?;
         admission.record(ci, &ops);
         self.next_commit_index.store(ci + 1, Ordering::SeqCst);
@@ -1099,13 +1100,13 @@ impl Store {
             // `drain_and_publish` did not publish (for example a mid-assignment
             // gap), so an unpublished writer cannot be missed.
             if let Some(state) = admission.as_ref() {
-                for (key, (ci, _)) in &state.buffer {
-                    if *ci > tx.base_ci
-                        && (tx.deps.intersects_key(key) || writes_conflicting(tx, key))
-                    {
-                        conflicted = Some(*ci);
-                        break;
-                    }
+                if let Some(layer) = state.layers.iter().find(|layer| {
+                    layer.ci() > tx.base_ci
+                        && layer
+                            .keys()
+                            .any(|key| tx.deps.intersects_key(key) || writes_conflicting(tx, key))
+                }) {
+                    conflicted = Some(layer.ci());
                 }
             }
             if let Some(probe) = conflicted {

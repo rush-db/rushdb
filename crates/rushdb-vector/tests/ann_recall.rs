@@ -9,7 +9,8 @@ use rushdb_lmpg::{reader::TryRead, Lmpg, RecordRef};
 use rushdb_storage::Store;
 use rushdb_types::ids::{OwnerKind, TenantId};
 use rushdb_types::keys::{key, P_FAMILY_SIG};
-use rushdb_vector::{SourceRef, VectorEngine};
+use rushdb_vector::search::{SearchMode, SearchPath};
+use rushdb_vector::{Candidates, SourceRef, VectorEngine};
 
 #[expect(
     clippy::cast_precision_loss,
@@ -94,9 +95,11 @@ fn ann_search_answers_exactly_when_the_vector_cache_is_disabled() {
         [x, y]
     });
     let query = [0.92_f32, 0.08];
-    let exact = vecs.search_exact("clustered", &query, 5, None).unwrap();
+    let exact = vecs
+        .search_exact("clustered", &query, 5, Candidates::All)
+        .unwrap();
     let approx = vecs
-        .search_ann("clustered", &query, 5, 24, None)
+        .search_ann("clustered", &query, 5, 24, Candidates::All)
         .expect("no ANN may be resident, so the search falls back to exact");
     let ords = |hits: &[rushdb_vector::ScoredSource]| {
         hits.iter().map(|h| h.source.owner_ord).collect::<Vec<_>>()
@@ -109,8 +112,12 @@ fn ann_recall_matches_exact_on_clustered_data() {
     let (_lmpg, vecs, _sources) = setup(64);
     let query = [0.92_f32, 0.08];
 
-    let exact = vecs.search_exact("clustered", &query, 8, None).unwrap();
-    let approx = vecs.search_ann("clustered", &query, 8, 24, None).unwrap();
+    let exact = vecs
+        .search_exact("clustered", &query, 8, Candidates::All)
+        .unwrap();
+    let approx = vecs
+        .search_ann("clustered", &query, 8, 24, Candidates::All)
+        .unwrap();
 
     assert_eq!(exact.len(), 8);
     assert_eq!(approx.len(), 8);
@@ -149,8 +156,12 @@ fn ann_recall_holds_at_larger_scale() {
     // Distinct angles around each query make the exact top-10 unambiguous
     // (cosine ranks by angle only, so a tie-heavy fixture caps recall).
     for query in [[1.0_f32, 0.0], [0.0, 1.0], [-1.0, 0.0], [0.707, 0.707]] {
-        let exact = vecs.search_exact("clustered", &query, 10, None).unwrap();
-        let approx = vecs.search_ann("clustered", &query, 10, 128, None).unwrap();
+        let exact = vecs
+            .search_exact("clustered", &query, 10, Candidates::All)
+            .unwrap();
+        let approx = vecs
+            .search_ann("clustered", &query, 10, 128, Candidates::All)
+            .unwrap();
         let overlap = exact
             .iter()
             .filter(|e| {
@@ -167,8 +178,9 @@ fn ann_recall_holds_at_larger_scale() {
 fn repeated_builds_are_deterministic() {
     // Two independent builds over identical canonical vectors must produce
     // the same top-k; the engine rebuilds the provider graph from scratch on
-    // every restart (no persisted graph yet), so nondeterministic build
-    // ordering would make identical data answer differently across restarts.
+    // every restart, so nondeterministic build ordering would make identical
+    // data answer differently across restarts. Decoding runs in parallel
+    // parts, the inserts in key order.
     #[expect(
         clippy::cast_precision_loss,
         reason = "the angle index is a small integer mapped into f32 radians"
@@ -180,19 +192,19 @@ fn repeated_builds_are_deterministic() {
     let (_la, a, _) = setup_with(256, arc);
     let (_lb, b, _) = setup_with(256, arc);
     for query in [[1.0_f32, 0.0], [0.0, 1.0], [0.707, 0.707]] {
-        let ra: Vec<u64> = a
-            .search_ann("clustered", &query, 10, 32, None)
-            .unwrap()
-            .into_iter()
-            .map(|h| h.source.owner_ord)
-            .collect();
-        let rb: Vec<u64> = b
-            .search_ann("clustered", &query, 10, 32, None)
-            .unwrap()
-            .into_iter()
-            .map(|h| h.source.owner_ord)
-            .collect();
-        assert_eq!(ra, rb, "ANN build must be deterministic at {query:?}");
+        let ranked = |engine: &VectorEngine| -> Vec<u64> {
+            engine
+                .search_ann("clustered", &query, 10, 32, Candidates::All)
+                .unwrap()
+                .into_iter()
+                .map(|h| h.source.owner_ord)
+                .collect()
+        };
+        assert_eq!(
+            ranked(&a),
+            ranked(&b),
+            "ANN build must be deterministic at {query:?}"
+        );
     }
 }
 
@@ -203,7 +215,7 @@ fn filters_narrow_candidates_and_corrupt_generation_falls_back() {
 
     let query = [0.91_f32, 0.1];
     let filtered = vecs
-        .search_ann("clustered", &query, 5, 16, Some(&keep))
+        .search_ann("clustered", &query, 5, 16, Candidates::Check(&keep))
         .unwrap();
     assert!(
         filtered.iter().all(|h| h.source.owner_ord < 4),
@@ -218,8 +230,67 @@ fn filters_narrow_candidates_and_corrupt_generation_falls_back() {
 
     // degradation contract: empty alias falls back to exact (empty) result
     vecs.ensure_space("empty-space", 2).unwrap();
-    let fallback_empty = vecs.search_ann("empty-space", &query, 3, 8, None).unwrap();
+    let fallback_empty = vecs
+        .search_ann("empty-space", &query, 3, 8, Candidates::All)
+        .unwrap();
     assert!(fallback_empty.is_empty());
+}
+
+#[test]
+fn an_owner_set_is_filtered_during_the_graph_walk() {
+    // 2,000 points on an arc; the query sits at angle 0 and the allowed
+    // owners lie far from it (angles from 2 rad on). A plain gather of the
+    // query's neighbourhood holds none of them, so a post-filtered ANN
+    // under-fills and is answered exactly; filtering during the walk finds
+    // them on the graph at ~2% and ~20% selectivity alike.
+    #[expect(
+        clippy::cast_precision_loss,
+        reason = "the angle index is a small integer mapped into f32 radians"
+    )]
+    let arc = |i: u64| {
+        let theta = (i as f32) * 0.003;
+        [theta.cos(), theta.sin()]
+    };
+    let (_lmpg, vecs, sources) = setup_with(2_000, arc);
+    let snap = vecs.snapshot().unwrap();
+    let space = vecs
+        .lookup_space_in_view(&snap, "clustered")
+        .unwrap()
+        .unwrap();
+    let query = [1.0_f32, 0.0];
+    for (from, count) in [(700usize, 40usize), (700, 400)] {
+        let owners: roaring::RoaringTreemap = sources[from..from + count]
+            .iter()
+            .map(|source| source.owner_ord)
+            .collect();
+        let candidates = Candidates::Owners {
+            kind: OwnerKind::Record,
+            ords: &owners,
+        };
+        let exact = vecs
+            .search_exact_in_view(&snap, &space, &query, 10, candidates)
+            .unwrap();
+        let ann = vecs
+            .search_in_view(
+                &snap,
+                &space,
+                &query,
+                10,
+                SearchMode::Ann { ef: 64 },
+                candidates,
+                None,
+            )
+            .unwrap();
+        assert_eq!(ann.path, SearchPath::Ann, "{count} owners");
+        assert!(ann
+            .hits
+            .iter()
+            .all(|hit| owners.contains(hit.source.owner_ord)));
+        let ords = |hits: &[rushdb_vector::ScoredSource]| {
+            hits.iter().map(|h| h.source.owner_ord).collect::<Vec<_>>()
+        };
+        assert_eq!(ords(&ann.hits), ords(&exact), "{count} owners: recall < 1");
+    }
 }
 
 fn keep_filter(src: SourceRef) -> bool {
@@ -298,8 +369,10 @@ fn turbovec_end_to_end_recall_matches_exact_on_high_dim() {
     let mut next = lcg_jitter(0xDEAD_BEEF_1234_5678u64);
     let query: Vec<f32> = (0..512).map(|_| next() + 0.1).collect();
 
-    let exact = vecs.search_exact("hd", &query, 8, None).unwrap();
-    let approx = vecs.search_ann("hd", &query, 8, 32, None).unwrap();
+    let exact = vecs.search_exact("hd", &query, 8, Candidates::All).unwrap();
+    let approx = vecs
+        .search_ann("hd", &query, 8, 32, Candidates::All)
+        .unwrap();
 
     assert_eq!(exact.len(), 8);
     assert_eq!(approx.len(), 8);
@@ -316,11 +389,15 @@ fn turbovec_end_to_end_recall_matches_exact_on_high_dim() {
 
     // filter must narrow candidates without leaking
     let keep: fn(SourceRef) -> bool = keep_filter;
-    let filtered = vecs.search_ann("hd", &query, 5, 32, Some(&keep)).unwrap();
+    let filtered = vecs
+        .search_ann("hd", &query, 5, 32, Candidates::Check(&keep))
+        .unwrap();
     assert!(filtered.iter().all(|h| h.source.owner_ord < 4));
 
     // degradation contract still holds: wrong dim -> DimMismatch, not panic
     let short: Vec<f32> = vec![0.0; 511];
-    let err = vecs.search_ann("hd", &short, 3, 16, None).unwrap_err();
+    let err = vecs
+        .search_ann("hd", &short, 3, 16, Candidates::All)
+        .unwrap_err();
     assert!(err.to_string().contains("dimension"));
 }

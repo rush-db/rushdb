@@ -1,9 +1,9 @@
 use super::*;
 use rushdb_lmpg::{FieldChange, Lmpg};
 use rushdb_storage::Store;
-use rushdb_types::keys::{key, u64be, P_EMB_VECTOR};
+use rushdb_types::keys::{emb_vector_key, key, u64be, P_EMB_VECTOR};
 use serde_json::json;
-use std::cell::Cell;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 fn on_backends(test: impl Fn(&VectorEngine)) {
     let path = rushdb_storage::TempPath::store("vector-pins");
@@ -384,7 +384,7 @@ fn alias_and_binding_catalogs_share_a_view_across_clear_and_gc() {
         );
         assert_eq!(
             engine
-                .search_exact_in_view(&view, &space, &[1., 0.], 1, None)
+                .search_exact_in_view(&view, &space, &[1., 0.], 1, Candidates::All)
                 .unwrap()
                 .len(),
             1
@@ -457,10 +457,10 @@ fn caller_owned_vector_views_reject_another_store() {
             .bindings_of_in_view(&foreign, space.space_id)
             .is_err());
         assert!(engine
-            .search_exact_in_view(&foreign, &space, &[1., 0.], 0, None)
+            .search_exact_in_view(&foreign, &space, &[1., 0.], 0, Candidates::All)
             .is_err());
         assert!(engine
-            .search_ann_in_view(&foreign, &space, &[1., 0.], 0, 1, None)
+            .search_ann_in_view(&foreign, &space, &[1., 0.], 0, 1, Candidates::All)
             .is_err());
         assert!(engine.reconstruct_sources_in_view(&foreign, &[]).is_err());
     });
@@ -495,9 +495,9 @@ fn exact_ann_rerank_and_ann_fallback_keep_one_view_during_writes_and_gc() {
                 .unwrap()
                 .source_hash;
             let ci = engine.store.committed_version();
-            let changed = Cell::new(false);
+            let changed = AtomicBool::new(false);
             let filter = |_| {
-                if !changed.replace(true) {
+                if !changed.swap(true, Ordering::SeqCst) {
                     engine.bind_external(&alias, source, &[0., 1.]).unwrap();
                     mutate_raw(
                         engine,
@@ -510,17 +510,19 @@ fn exact_ann_rerank_and_ann_fallback_keep_one_view_during_writes_and_gc() {
                 true
             };
             let hits = match mode {
-                0 => engine.search_exact(&alias, &[1., 0.], 1, Some(&filter)),
-                1 => engine.search_ann(&alias, &[1., 0.], 1, 2, Some(&filter)),
-                _ => engine.search_ann(&alias, &[1., 0.], 2, 2, Some(&filter)),
+                0 => engine.search_exact(&alias, &[1., 0.], 1, Candidates::Check(&filter)),
+                1 => engine.search_ann(&alias, &[1., 0.], 1, 2, Candidates::Check(&filter)),
+                _ => engine.search_ann(&alias, &[1., 0.], 2, 2, Candidates::Check(&filter)),
             }
             .unwrap();
-            assert!(changed.get());
+            assert!(changed.load(Ordering::SeqCst));
             assert_eq!(hits.len(), 1);
             assert!((hits[0].score - 1.).abs() < f32::EPSILON);
             assert_eq!(hits[0].value_hash, hash);
             assert!(
-                engine.search_exact(&alias, &[1., 0.], 1, None).unwrap()[0]
+                engine
+                    .search_exact(&alias, &[1., 0.], 1, Candidates::All)
+                    .unwrap()[0]
                     .score
                     .abs()
                     < f32::EPSILON
@@ -549,11 +551,11 @@ fn corrupt_vector_bytes_are_errors_not_short_arrays_or_empty_results() {
                 payload,
             );
             assert!(matches!(
-                engine.search_exact(&alias, &[1., 0.], 1, None),
+                engine.search_exact(&alias, &[1., 0.], 1, Candidates::All),
                 Err(VectorError::Storage(StorageError::CorruptLog))
             ));
             assert!(matches!(
-                engine.search_ann(&alias, &[1., 0.], 1, 2, None),
+                engine.search_ann(&alias, &[1., 0.], 1, 2, Candidates::All),
                 Err(VectorError::Storage(StorageError::CorruptLog))
             ));
             // Metadata freshness is computed from binding metadata only: it
@@ -587,10 +589,10 @@ fn malformed_aliases_and_bindings_do_not_look_missing() {
         assert!(engine.binding_of(space.space_id, source).is_err());
         assert!(engine.bindings_of(space.space_id).is_err());
         assert!(engine
-            .search_exact("bad-binding", &[1., 0.], 1, None)
+            .search_exact("bad-binding", &[1., 0.], 1, Candidates::All)
             .is_err());
         assert!(engine
-            .search_ann("bad-binding", &[1., 0.], 1, 2, None)
+            .search_ann("bad-binding", &[1., 0.], 1, 2, Candidates::All)
             .is_err());
         mutate_raw(
             engine,
@@ -635,23 +637,31 @@ fn invalid_queries_fail_on_empty_indexes_and_zero_k_is_supported() {
     on_backends(|engine| {
         engine.ensure_space("empty", 2).unwrap();
         assert!(matches!(
-            engine.search_ann("empty", &[1.], 1, 2, None),
+            engine.search_ann("empty", &[1.], 1, 2, Candidates::All),
             Err(VectorError::DimMismatch(2, 1))
         ));
         assert!(matches!(
-            engine.search_exact("empty", &[f32::NAN, 0.], 1, None),
+            engine.search_exact("empty", &[f32::NAN, 0.], 1, Candidates::All),
             Err(VectorError::InvalidVector(_))
         ));
         assert!(matches!(
-            engine.search_ann("empty", &[f32::INFINITY, 0.], 1, 2, None),
+            engine.search_ann("empty", &[f32::INFINITY, 0.], 1, 2, Candidates::All),
             Err(VectorError::InvalidVector(_))
         ));
         assert!(engine
-            .search_ann("empty", &[1., 0.], 0, 0, None)
+            .search_ann("empty", &[1., 0.], 0, 0, Candidates::All)
             .unwrap()
             .is_empty());
         assert!(engine.ensure_space("zero", 0).is_err());
-        assert!((cosine(&[f32::MAX, f32::MAX], &[f32::MAX, f32::MAX]) - 1.).abs() < 1e-6);
+        assert!(
+            (score(
+                &[f32::MAX, f32::MAX],
+                &[f32::MAX, f32::MAX],
+                rushdb_types::occurrence::Similarity::Cosine
+            ) - 1.)
+                .abs()
+                < 1e-6
+        );
     });
 }
 
@@ -686,10 +696,10 @@ fn shared_view_owner_reconstruction_and_native_reopen_preserve_results() {
     engine.store.gc(u64::MAX).unwrap();
     for hits in [
         engine
-            .search_exact_in_view(&snap, &space, &[1., 0.], 1, None)
+            .search_exact_in_view(&snap, &space, &[1., 0.], 1, Candidates::All)
             .unwrap(),
         engine
-            .search_ann_in_view(&snap, &space, &[1., 0.], 1, 2, None)
+            .search_ann_in_view(&snap, &space, &[1., 0.], 1, 2, Candidates::All)
             .unwrap(),
     ] {
         assert_eq!(hits.len(), 1);
@@ -802,7 +812,7 @@ fn clear_space_deletes_binary_keys_and_orphan_segments_without_crossing_scope() 
             .is_some());
         assert!(
             (engine
-                .search_exact_in_view(&old, &space, &[0., 1.], 1, None)
+                .search_exact_in_view(&old, &space, &[0., 1.], 1, Candidates::All)
                 .unwrap()[0]
                 .score
                 - 1.)
@@ -992,7 +1002,9 @@ fn rebinding_reclaims_superseded_slots_once_the_floor_passes() {
             engine.store.try_get(&new_key).unwrap().is_some(),
             "current slot kept"
         );
-        let hits = engine.search_exact("reclaim", &[0., 1.], 1, None).unwrap();
+        let hits = engine
+            .search_exact("reclaim", &[0., 1.], 1, Candidates::All)
+            .unwrap();
         assert_eq!(hits.len(), 1);
         assert!((hits[0].score - 1.).abs() < f32::EPSILON);
     });
@@ -1084,7 +1096,9 @@ fn incremental_bind_absorbs_into_the_live_cache_without_a_full_rebuild() {
         "an absorbed bind appends a hot segment rather than rebuilding one fresh frozen segment"
     );
 
-    let hits = engine.search_ann("incr", &[0., 1.], 2, 4, None).unwrap();
+    let hits = engine
+        .search_ann("incr", &[0., 1.], 2, 4, Candidates::All)
+        .unwrap();
     assert_eq!(hits.len(), 2);
     assert!(hits
         .iter()
@@ -1145,7 +1159,9 @@ fn incremental_retirement_tombstones_without_a_full_rebuild() {
     let (_, retired) = engine.revalidate_bindings("retire").unwrap();
     assert_eq!(retired, 1);
 
-    let hits = engine.search_ann("retire", &[1., 0.], 1, 4, None).unwrap();
+    let hits = engine
+        .search_ann("retire", &[1., 0.], 1, 4, Candidates::All)
+        .unwrap();
     assert!(
         hits.is_empty(),
         "a retired source must never surface, even without a fresh rebuild"
@@ -1275,13 +1291,15 @@ fn evicted_space_reopens_its_segments_and_decodes_only_what_changed() {
     );
     assert_eq!(segment_files(&space_dir), files, "nothing was rewritten");
 
-    let hits = fresh.search_ann("evict", &[0.0, 1.0], 1, 16, None).unwrap();
+    let hits = fresh
+        .search_ann("evict", &[0.0, 1.0], 1, 16, Candidates::All)
+        .unwrap();
     assert_eq!(
         hits[0].source.owner_ord, rebound.owner_ord,
         "the rebound vector wins"
     );
     let all = fresh
-        .search_ann("evict", &[1.0, 0.1], 1_000, 1_000, None)
+        .search_ann("evict", &[1.0, 0.1], 1_000, 1_000, Candidates::All)
         .unwrap();
     assert!(
         all.iter()
@@ -1349,7 +1367,9 @@ fn space_larger_than_the_vector_budget_is_built_in_persisted_chunks() {
     assert!(segments.len() >= 3, "{} segments", segments.len());
     assert_eq!(segments.iter().map(|s| s.entries().len()).sum::<usize>(), n);
     assert!(budget.snapshot().used <= budget.snapshot().limit);
-    let hits = persisted.search_ann("big", &probe.1, 1, 64, None).unwrap();
+    let hits = persisted
+        .search_ann("big", &probe.1, 1, 64, Candidates::All)
+        .unwrap();
     assert_eq!(hits[0].source.owner_ord, probe.0.owner_ord);
 
     let in_memory = VectorEngine::new(Arc::clone(&lmpg));
@@ -1358,7 +1378,9 @@ fn space_larger_than_the_vector_budget_is_built_in_persisted_chunks() {
         .err()
         .expect("resident segments over the budget are refused");
     assert!(matches!(error, VectorError::AnnBudget(_)), "{error}");
-    let exact = in_memory.search_ann("big", &probe.1, 1, 64, None).unwrap();
+    let exact = in_memory
+        .search_ann("big", &probe.1, 1, 64, Candidates::All)
+        .unwrap();
     assert_eq!(
         exact[0].source.owner_ord, probe.0.owner_ord,
         "refused ANN answers exactly"
@@ -1510,7 +1532,9 @@ fn absorb_survives_interleaved_other_tenant_commits() {
     ));
     assert_eq!(segments.len(), 2);
     assert_eq!(segments[1].entries().len(), 2);
-    let hits = a.search_ann("chain", &[0.4, 0.6], 1, 8, None).unwrap();
+    let hits = a
+        .search_ann("chain", &[0.4, 0.6], 1, 8, Candidates::All)
+        .unwrap();
     assert_eq!(hits[0].source.owner_ord, 10_002);
 }
 
@@ -1543,7 +1567,9 @@ fn segment_count_bounded_under_50k_incremental_vectors() {
         max_segments <= 3 * crate::segment::MERGE_FACTOR,
         "{max_segments} segments"
     );
-    let hits = engine.search_ann("bulk", &[1.0, 0.0], 5, 64, None).unwrap();
+    let hits = engine
+        .search_ann("bulk", &[1.0, 0.0], 5, 64, Candidates::All)
+        .unwrap();
     assert_eq!(hits.len(), 5);
     assert!(hits[0].score > 0.99);
 }
@@ -1703,7 +1729,7 @@ fn probe_twelve_spaces_of_3k_by_768_fit_the_default_budget() {
     let started = std::time::Instant::now();
     for space in 0..spaces {
         engine
-            .search_ann(&format!("s{space}"), &query, 10, 64, None)
+            .search_ann(&format!("s{space}"), &query, 10, 64, Candidates::All)
             .unwrap();
     }
     let build = started.elapsed();
@@ -1711,7 +1737,7 @@ fn probe_twelve_spaces_of_3k_by_768_fit_the_default_budget() {
     let started = std::time::Instant::now();
     for space in 0..spaces {
         engine
-            .search_ann(&format!("s{space}"), &query, 10, 64, None)
+            .search_ann(&format!("s{space}"), &query, 10, 64, Candidates::All)
             .unwrap();
     }
     let cached_round = started.elapsed();
@@ -1786,7 +1812,9 @@ fn probe_segment_bytes_after_twenty_rebind_rounds() {
         }
         if round == 0 {
             // Warm the cache so later rounds absorb incrementally.
-            engine.search_ann("rebind", &vector(), 5, 32, None).unwrap();
+            engine
+                .search_ann("rebind", &vector(), 5, 32, Candidates::All)
+                .unwrap();
         }
     }
     let live = n * dims as u64 * 4;
@@ -1835,7 +1863,7 @@ fn binding_reads_stream_past_the_materialization_ceiling() {
                 &[1.0, 2.0, 3.0, 4.0],
                 5,
                 crate::search::SearchMode::Ann { ef: 64 },
-                None,
+                Candidates::All,
                 None,
             )
             .unwrap();
@@ -1863,7 +1891,7 @@ fn a_search_never_builds_more_than_a_tail_of_the_index() {
                 &[1.0, 2.0],
                 5,
                 crate::search::SearchMode::Ann { ef: 64 },
-                None,
+                Candidates::All,
                 None,
             )
             .unwrap()
@@ -1892,4 +1920,84 @@ fn a_search_never_builds_more_than_a_tail_of_the_index() {
         scores(&first),
         "ANN agrees with the exact answer"
     );
+}
+
+#[test]
+fn an_owner_set_answers_exact_search_like_a_filter_by_seek_or_by_scan() {
+    // Below the space size the owner set is answered one owner prefix at a
+    // time; above it (owners without a binding) by one scan of the space.
+    // Both must rank exactly what a per-source filter over the space does.
+    let engine = VectorEngine::new(Arc::new(Lmpg::new(
+        Arc::new(Store::new_in_memory()),
+        TenantId::from_ordinal(83),
+    )));
+    bind_many(&engine, "owners", 3, 60);
+    let snap = engine.snapshot().unwrap();
+    let space = engine
+        .lookup_space_in_view(&snap, "owners")
+        .unwrap()
+        .unwrap();
+    let all: Vec<u64> = engine
+        .search_exact_in_view(&snap, &space, &[1., 2., 3.], 60, Candidates::All)
+        .unwrap()
+        .into_iter()
+        .map(|hit| hit.source.owner_ord)
+        .collect();
+    assert_eq!(all.len(), 60);
+    let few: roaring::RoaringTreemap = all.iter().copied().step_by(7).collect();
+    let many: roaring::RoaringTreemap = all
+        .iter()
+        .copied()
+        .step_by(2)
+        .chain(1_000_000..1_000_100)
+        .collect();
+    assert!(few.len() < 60 && many.len() > 60);
+    for owners in [&few, &many] {
+        let by_owner = engine
+            .search_exact_in_view(
+                &snap,
+                &space,
+                &[1., 2., 3.],
+                5,
+                Candidates::Owners {
+                    kind: OwnerKind::Record,
+                    ords: owners,
+                },
+            )
+            .unwrap();
+        let by_filter = engine
+            .search_exact_in_view(
+                &snap,
+                &space,
+                &[1., 2., 3.],
+                5,
+                Candidates::Check(&|source| owners.contains(source.owner_ord)),
+            )
+            .unwrap();
+        assert_eq!(by_owner.len(), 5);
+        assert_eq!(
+            by_owner
+                .iter()
+                .map(|h| h.source.owner_ord)
+                .collect::<Vec<_>>(),
+            by_filter
+                .iter()
+                .map(|h| h.source.owner_ord)
+                .collect::<Vec<_>>()
+        );
+        // A relationship owner set never matches record bindings.
+        assert!(engine
+            .search_exact_in_view(
+                &snap,
+                &space,
+                &[1., 2., 3.],
+                5,
+                Candidates::Owners {
+                    kind: OwnerKind::Relationship,
+                    ords: owners,
+                },
+            )
+            .unwrap()
+            .is_empty());
+    }
 }

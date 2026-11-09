@@ -62,9 +62,9 @@ impl RequestScope<'_> {
             }
         }
 
-        self.validate_inline_vectors(&plan)?;
+        self.validate_inline_vectors(&plan.vector_drafts)?;
         let idmap = import_bfs(&self.lmpg(), &plan, &options).map_err(|e| e.to_reason())?;
-        self.bind_inline_vectors(&plan, &idmap)?;
+        self.bind_inline_vectors(&plan.vector_drafts, &idmap)?;
         let persisted = idmap
             .iter()
             .find(|m| m.draft_id == draft_id)
@@ -140,15 +140,18 @@ impl RequestScope<'_> {
                 });
             }
         }
-        self.validate_inline_vectors(&plan)?;
+        self.validate_inline_vectors(&plan.vector_drafts)?;
+        let vector_drafts = std::mem::take(&mut plan.vector_drafts);
         let deadline = context.deadline();
-        let idmap = import_bfs_with_cancel(&self.lmpg(), &plan, &options, &|| {
+        let idmap = import_bfs_with_cancel(&self.lmpg(), plan, &options, &|| {
             deadline.is_some_and(|at| std::time::Instant::now() >= at)
         })
         .map_err(|e| e.to_reason())?;
-        if let Err(bind_error) = self.bind_inline_vectors_with_cancel(&plan, &idmap, &|| {
-            deadline.is_some_and(|at| std::time::Instant::now() >= at)
-        }) {
+        if let Err(bind_error) =
+            self.bind_inline_vectors_with_cancel(&vector_drafts, &idmap, &|| {
+                deadline.is_some_and(|at| std::time::Instant::now() >= at)
+            })
+        {
             if options.merge_by.is_none() && options.merge_strategy.is_none() {
                 if let Err(rollback_error) = self.rollback_ingest_records(&idmap) {
                     return Err(format!(
@@ -310,10 +313,10 @@ impl RequestScope<'_> {
                 });
             }
         }
-        self.validate_inline_vectors(&vector_plan)?;
+        self.validate_inline_vectors(&vector_plan.vector_drafts)?;
         lmpg.update_fields(rr, props).map_err(|e| e.to_reason())?;
         if let Err(error) = self.bind_inline_vectors(
-            &vector_plan,
+            &vector_plan.vector_drafts,
             &[UpsertIdMap {
                 draft_id: id_bytes,
                 persisted_id: id_bytes,
@@ -381,10 +384,10 @@ impl RequestScope<'_> {
                 });
             }
         }
-        self.validate_inline_vectors(&vector_plan)?;
+        self.validate_inline_vectors(&vector_plan.vector_drafts)?;
         lmpg.update_fields(rr, props).map_err(|e| e.to_reason())?;
         if let Err(error) = self.bind_inline_vectors(
-            &vector_plan,
+            &vector_plan.vector_drafts,
             &[UpsertIdMap {
                 draft_id: id_bytes,
                 persisted_id: id_bytes,
@@ -434,7 +437,7 @@ impl RequestScope<'_> {
                 });
             }
         }
-        self.validate_inline_vectors(&vector_plan)?;
+        self.validate_inline_vectors(&vector_plan.vector_drafts)?;
 
         // remove current properties then write the provided set
         let existing: Vec<String> =
@@ -461,7 +464,7 @@ impl RequestScope<'_> {
         );
         lmpg.update_fields(rr, fields).map_err(|e| e.to_reason())?;
         if let Err(error) = self.bind_inline_vectors(
-            &vector_plan,
+            &vector_plan.vector_drafts,
             &[UpsertIdMap {
                 draft_id: id_bytes,
                 persisted_id: id_bytes,
@@ -512,7 +515,7 @@ impl RequestScope<'_> {
                 });
             }
         }
-        self.validate_inline_vectors(&vector_plan)?;
+        self.validate_inline_vectors(&vector_plan.vector_drafts)?;
         let existing: Vec<String> =
             rushdb_lmpg::reconstruct::reconstruct_record(snap, self.tenant(), hdr.ordinal)
                 .map_err(|e| e.to_string())?
@@ -537,7 +540,7 @@ impl RequestScope<'_> {
         );
         lmpg.update_fields(rr, fields).map_err(|e| e.to_reason())?;
         if let Err(error) = self.bind_inline_vectors(
-            &vector_plan,
+            &vector_plan.vector_drafts,
             &[UpsertIdMap {
                 draft_id: id_bytes,
                 persisted_id: id_bytes,

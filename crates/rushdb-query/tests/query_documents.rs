@@ -375,21 +375,20 @@ fn plain_select_projects_each_matching_record_with_aliases() {
         "limit": 100
     }))
     .unwrap();
-    let aggregate_request = query
-        .aggregate
-        .expect("select lowers to projection execution");
-    let buckets = aggregate(&lmpg, &aggregate_request).unwrap();
-    let rows = aggregate_to_rows(&lmpg, &buckets, &aggregate_request).unwrap();
+    // A select of plain fields is a listing's projection, not an aggregate:
+    // each matching record is one row of exactly the selected keys (an
+    // array-typed field is read through the record, not by point reads).
+    assert!(query.aggregate.is_none());
+    let page = find_records(&lmpg, &query.search).unwrap();
 
-    assert_eq!(rows.len(), 1);
-    assert_eq!(rows[0].get("starship"), Some(&json!("Millennium Falcon")));
+    assert_eq!(page.total_matched, 1);
     assert_eq!(
-        rows[0].get("pilot_character_ids"),
-        Some(&json!(["character_han_solo", "character_chewbacca"]))
+        page.records,
+        vec![json!({
+            "starship": "Millennium Falcon",
+            "pilot_character_ids": ["character_han_solo", "character_chewbacca"]
+        })]
     );
-    assert!(rows.iter().all(|row| row
-        .as_object()
-        .is_some_and(|object| !object.contains_key("__rushdb_projection_root"))));
 }
 
 #[test]
@@ -1014,10 +1013,11 @@ fn alias_metrics_apply_level_filter_and_traverse_paths() {
         }
     }))
     .unwrap();
-    let req2 = q2.aggregate.unwrap();
-    let (buckets2, _) = aggregate_with_cancel(&lmpg, &req2, &|| false).unwrap();
-    let rows2 = aggregate_to_rows(&lmpg, &buckets2, &req2).unwrap();
+    // A select of fields and collects is a listing's projection.
+    assert!(q2.aggregate.is_none());
+    let rows2 = find_records(&lmpg, &q2.search).unwrap().records;
     assert_eq!(rows2.len(), 1);
+    assert_eq!(rows2[0]["planetName"], json!("Endor"));
     let ships = rows2[0]["highFirepowerStarships"].as_array().unwrap();
     assert_eq!(ships.len(), 2, "non-matching firepower ship excluded");
     assert_eq!(

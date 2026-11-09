@@ -30,7 +30,8 @@ in this release.
 
 | Limit | Default | Configurable | Behavior when exceeded |
 |---|---|---|---|
-| Query working set | 256 MiB | `query-memory-max` (0 = off); a request may set a smaller cap | `resource_exhausted` |
+| Query working set: what a listing, projection or aggregation holds while it runs (match ordinals, ordering rows, the row being evaluated, aggregation groups) | 256 MiB | `query-memory-max` (0 = off); a request may set a smaller cap | `resource_exhausted`, naming `query-memory-max` |
+| Returned rows: the records of a listing, the rows of a projection or aggregation, `$collect` arrays included, by serialized size | 16 MiB | `--body-limit` / `server.body-limit` | `resource_exhausted`, naming the response size limit |
 | Records a filter without a usable index checks | none | `unindexed-walk-max-owners`; a request may set a limit ([request bounds](../architecture/resource-governance.md#request-bounds)) | `invalid_request` naming the index to declare |
 | Query phase reservation | 8 MiB per request, drawn from the managed envelope | no | `resource_exhausted` when the envelope is full |
 | Records cursor page size | 1–10,000 | no | refused |
@@ -72,6 +73,7 @@ in this release.
 | Storage page cache | 128 MiB (minimum 64 KiB) | `storage-cache` |
 | Logical caches (text, planner statistics, metadata) | 128 MiB | `logical-cache-bytes` |
 | Vector cache (resident ANN indexes) | 256 MiB | `vector-cache-bytes` |
+| Graph cache (resident relationship graphs) | 128 MiB | `graph-cache-bytes` |
 | Planner statistics | 32 MiB (child of the logical caches) | `planner-stats-bytes` |
 | ANN segment cache | 256 MiB, and at most 12 cached generations | no |
 | Resident tenant handles | 512 MiB (16 KiB minimum charge per tenant) | `tenant-resident-bytes` |

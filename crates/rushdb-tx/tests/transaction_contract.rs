@@ -116,10 +116,12 @@ fn rollback_records_aborted_outcome() {
 
 #[test]
 fn expired_transaction_never_commits() {
-    let (lmpg, coord) = setup(Duration::from_millis(50));
+    // The lifetime must outlast staging on a loaded runner (50 ms did not):
+    // stage well inside it, then wait past it.
+    let (lmpg, coord) = setup(Duration::from_secs(1));
     let tx = coord.begin().unwrap();
     coord.stage(&tx, create_op("A", 1)).unwrap();
-    std::thread::sleep(Duration::from_millis(80));
+    std::thread::sleep(Duration::from_millis(1_500));
 
     match coord.commit(&tx) {
         TxOutcome::Expired => {}

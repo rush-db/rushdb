@@ -13,6 +13,7 @@
 
 use std::collections::{BTreeSet, HashMap, HashSet};
 
+use rushdb_lmpg::import::serialize_bfs_owned;
 use rushdb_protocol::{CsvParseConfig, CsvSkipEmptyLines};
 use serde_json::{Map, Value};
 
@@ -51,45 +52,77 @@ impl ProtocolExecutor<'_> {
     }
 }
 
-/// CSV rows as documents for `ingest.csv`: decoded, with entry `i` of
-/// `vectors` (when non-empty) as row `i`'s `$vectors`.
-pub(super) fn csv_documents(
+/// Rows planned per [`serialize_bfs_owned`] call. A CSV row is flat (every
+/// cell is a scalar), so it plans to exactly one record and no children:
+/// planning the rows in slices and appending the plans yields the plan of
+/// all rows at once, while only one slice of rows is ever held as JSON.
+const PLAN_SLICE_ROWS: usize = 1024;
+
+/// The import plan of `ingest.csv`: the decoded rows, with entry `i` of
+/// `vectors` (when non-empty) as row `i`'s `$vectors`. Rows stream from the
+/// decoder into the plan; each cell's text moves into its planned value.
+pub(super) fn csv_plan(
+    label: &str,
     data: &str,
     config: &CsvParseConfig,
-    options: &Value,
+    options: &rushdb_lmpg::import::ImportOptions,
     vectors: Vec<Value>,
-) -> Result<Vec<Value>, ProtocolError> {
+) -> Result<rushdb_lmpg::import::BfsPlan, ProtocolError> {
+    let invalid = |message: String| ProtocolError::new(ErrorCode::InvalidRequest, message);
+    let vector_count = vectors.len();
+    let mut vectors = vectors.into_iter();
+    let mut plan = rushdb_lmpg::import::BfsPlan::default();
+    let mut slice: Vec<Value> = Vec::with_capacity(PLAN_SLICE_ROWS);
+    let flush = |slice: &mut Vec<Value>, plan: &mut rushdb_lmpg::import::BfsPlan| {
+        if !slice.is_empty() {
+            plan.append(serialize_bfs_owned(
+                Value::Array(std::mem::take(slice)),
+                label,
+                options,
+            ));
+        }
+    };
     // The one default: `dynamicTyping` follows `suggestTypes` as the import
     // path reads it.
-    let suggest_types = rushdb_lmpg::import::ImportOptions::from_json(options).suggest_types;
-    let mut rows = decode(data, config, suggest_types).map_err(|error| {
-        ProtocolError::new(
-            ErrorCode::InvalidRequest,
-            format!("CSV parse error: {error}"),
-        )
-    })?;
-    if vectors.len() > rows.len() {
-        return Err(ProtocolError::new(
-            ErrorCode::InvalidRequest,
-            format!(
-                "vectors length ({}) exceeds the number of CSV data rows ({})",
-                vectors.len(),
-                rows.len()
-            ),
-        ));
-    }
-    for (row, entries) in rows.iter_mut().zip(vectors) {
-        let has_entries = entries
-            .as_array()
-            .is_some_and(|entries| !entries.is_empty());
-        if let (true, Some(row)) = (has_entries, row.as_object_mut()) {
-            row.insert("$vectors".to_string(), entries);
+    let rows = decode_with(data, config, options.suggest_types, |mut row| {
+        if let Some(entries) = vectors.next() {
+            let has_entries = entries
+                .as_array()
+                .is_some_and(|entries| !entries.is_empty());
+            if let (true, Some(row)) = (has_entries, row.as_object_mut()) {
+                row.insert("$vectors".to_string(), entries);
+            }
         }
+        slice.push(row);
+        if slice.len() == PLAN_SLICE_ROWS {
+            flush(&mut slice, &mut plan);
+        }
+    })
+    .map_err(|error| invalid(format!("CSV parse error: {error}")))?;
+    if vector_count > rows {
+        return Err(invalid(format!(
+            "vectors length ({vector_count}) exceeds the number of CSV data rows ({rows})"
+        )));
     }
-    Ok(rows)
+    flush(&mut slice, &mut plan);
+    Ok(plan)
 }
 
 /// Decode CSV text into one JSON object per data row.
+#[cfg(test)]
+pub(super) fn decode(
+    text: &str,
+    config: &CsvParseConfig,
+    suggest_types: bool,
+) -> Result<Vec<Value>, String> {
+    let mut rows = Vec::new();
+    decode_with(text, config, suggest_types, |row| rows.push(row))?;
+    Ok(rows)
+}
+
+/// Decode CSV text, handing each data row to `emit` as one JSON object, in
+/// order; returns the number of rows. Every row is validated before the
+/// first is emitted, so an error emits nothing.
 ///
 /// `suggest_types` is the `suggestTypes` import option, the default for
 /// `dynamicTyping`.
@@ -98,11 +131,12 @@ pub(super) fn csv_documents(
 /// Returns the first decoding error, worded as Papa Parse words it (an
 /// unterminated or malformed quoted field, or a row whose field count differs
 /// from the header's), or an invalid configuration.
-pub(super) fn decode(
+fn decode_with(
     text: &str,
     config: &CsvParseConfig,
     suggest_types: bool,
-) -> Result<Vec<Value>, String> {
+    mut emit: impl FnMut(Value),
+) -> Result<usize, String> {
     let quote = single_char(&config.quote_char, "quoteChar")?;
     let escape = match &config.escape_char {
         Some(escape) => single_char(escape, "escapeChar")?,
@@ -119,7 +153,7 @@ pub(super) fn decode(
 
     let text = text.strip_prefix(BYTE_ORDER_MARK).unwrap_or(text);
     if text.is_empty() {
-        return Ok(Vec::new());
+        return Ok(0);
     }
     let newline = match config.newline.as_deref() {
         Some(newline @ ("\n" | "\r" | "\r\n")) => newline,
@@ -157,38 +191,39 @@ pub(super) fn decode(
         }
     };
     if !config.header {
-        return Ok(rows
-            .into_iter()
-            .map(|row| {
-                Value::Object(
-                    row.into_iter()
-                        .enumerate()
-                        .map(|(index, value)| {
-                            (
-                                format!("column_{}", index + 1),
-                                typed(value).unwrap_or(Value::Null),
-                            )
-                        })
-                        .collect(),
-                )
-            })
-            .collect());
+        let count = rows.len();
+        for row in rows {
+            emit(Value::Object(
+                row.into_iter()
+                    .enumerate()
+                    .map(|(index, value)| {
+                        (
+                            format!("column_{}", index + 1),
+                            typed(value).unwrap_or(Value::Null),
+                        )
+                    })
+                    .collect(),
+            ));
+        }
+        return Ok(count);
     }
 
     let mut rows = rows.into_iter();
     let Some(fields) = rows.next() else {
-        return Ok(Vec::new());
+        return Ok(0);
     };
-    header_rows(&fields, rows.collect(), typed)
+    header_rows(&fields, rows.collect(), typed, emit)
 }
 
-/// Data rows as objects keyed by the header's property names. A row whose
-/// field count differs from the header's is an error.
+/// Data rows as objects keyed by the header's property names, handed to
+/// `emit` in order. A row whose field count differs from the header's is an
+/// error (checked for every row before any is emitted).
 fn header_rows(
     fields: &[String],
     rows: Vec<Vec<String>>,
     typed: impl Fn(String) -> Option<Value>,
-) -> Result<Vec<Value>, String> {
+    mut emit: impl FnMut(Value),
+) -> Result<usize, String> {
     for row in &rows {
         if row.len() != fields.len() {
             let kind = if row.len() < fields.len() {
@@ -204,23 +239,22 @@ fn header_rows(
         }
     }
     let names = property_names(fields);
-    Ok(rows
-        .into_iter()
-        .map(|row| {
-            let mut object = Map::new();
-            for ((field, name), value) in fields.iter().zip(&names).zip(row) {
-                // A blank header cell names no property; an empty cell typed
-                // to null is left out.
-                if field.is_empty() {
-                    continue;
-                }
-                if let Some(value) = typed(value) {
-                    object.insert(name.clone(), value);
-                }
+    let count = rows.len();
+    for row in rows {
+        let mut object = Map::with_capacity(fields.len());
+        for ((field, name), value) in fields.iter().zip(&names).zip(row) {
+            // A blank header cell names no property; an empty cell typed
+            // to null is left out.
+            if field.is_empty() {
+                continue;
             }
-            Value::Object(object)
-        })
-        .collect())
+            if let Some(value) = typed(value) {
+                object.insert(name.clone(), value);
+            }
+        }
+        emit(Value::Object(object));
+    }
+    Ok(count)
 }
 
 fn single_char(value: &str, name: &str) -> Result<char, String> {

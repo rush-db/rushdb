@@ -189,13 +189,17 @@ impl HttpRouter {
         let maintenance = self.maintenance.clone();
         let threads = self.threads;
         let checkpoint_interval = self.checkpoint_interval;
+        let threads = if threads == 0 {
+            std::thread::available_parallelism().map_or(4, std::num::NonZero::get)
+        } else {
+            threads.max(1)
+        };
+        // Long reads split across the same number of threads, shared by
+        // every query (`rushdb_storage::parallel`).
+        rushdb_storage::parallel::set_threads(threads);
         let runtime = tokio::runtime::Builder::new_multi_thread()
             .enable_all()
-            .worker_threads(if threads == 0 {
-                std::thread::available_parallelism().map_or(4, std::num::NonZero::get)
-            } else {
-                threads.max(1)
-            })
+            .worker_threads(threads)
             .build()
             .expect("HTTP runtime");
         let outcome = runtime.block_on(async move {
@@ -357,7 +361,7 @@ impl HttpRouter {
                 }
                 let checkpoint = tokio::task::spawn_blocking(move || node.store().checkpoint());
                 match tokio::time::timeout(std::time::Duration::from_secs(5), checkpoint).await {
-                    Ok(Ok(Ok(()))) => {},
+                    Ok(Ok(Ok(_))) => {},
                     failed => { outcome = Err(format!("final durability checkpoint failed: {failed:?}")); }
                 }
             }
@@ -537,7 +541,8 @@ pub(crate) fn spawn_gc_worker(
                 // materialization becomes durable (commits are WAL-fsynced and
                 // applied to redb with `Durability::None`), and the sole
                 // trigger for WAL segment reclamation (`truncate_log`, clamped to the retention cursor this tick's
-                // sweep just advanced).
+                // sweep just advanced). A tick with nothing new to make
+                // durable writes nothing to the store file.
                 if let Err(error) = store.checkpoint() {
                     tracing::warn!(%error, "durability checkpoint failed");
                 }
@@ -574,6 +579,9 @@ pub(crate) fn spawn_compaction_worker(
     growth_percent: u32,
     max_file_bytes: Option<u64>,
 ) -> tokio::task::JoinHandle<()> {
+    // The file stays over the cap until an offline compaction, so the skip
+    // is reported once when it starts, not on every tick.
+    let over_cap = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
     tokio::spawn(async move {
         let mut interval = tokio::time::interval(period);
         interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
@@ -582,17 +590,24 @@ pub(crate) fn spawn_compaction_worker(
             let Some(node) = node.upgrade() else {
                 break;
             };
+            let over_cap = std::sync::Arc::clone(&over_cap);
             let result = node
                 .maintenance_work()
                 .clone()
                 .spawn(move || {
                     let store = node.store();
                     let before = store.storage_file_bytes();
-                    match store.compact_if_needed(quiesce, growth_percent, max_file_bytes) {
+                    let outcome = store.compact_if_needed(quiesce, growth_percent, max_file_bytes);
+                    let too_large = matches!(
+                        outcome,
+                        Ok(rushdb_storage::CompactOutcome::FileTooLarge { .. })
+                    );
+                    let reported = over_cap.swap(too_large, std::sync::atomic::Ordering::Relaxed);
+                    match outcome {
                         Ok(rushdb_storage::CompactOutcome::FileTooLarge {
                             file_bytes,
                             max_bytes,
-                        }) => {
+                        }) if !reported => {
                             tracing::info!(
                                 file_bytes,
                                 max_bytes,

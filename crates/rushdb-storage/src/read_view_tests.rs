@@ -1162,3 +1162,175 @@ fn stale_view_drop_does_not_corrupt_a_newer_pin_at_the_same_ci() {
         assert_eq!(store.retention_summary(), (None, 0));
     });
 }
+
+/// `with_value` with a counted callback: the borrowed bytes copied out, and
+/// how many times the callback ran (always exactly once on success).
+fn borrowed(
+    read: impl FnOnce(&mut dyn FnMut(Option<&[u8]>)) -> Result<(), StorageError>,
+) -> (Result<Option<Vec<u8>>, StorageError>, usize) {
+    let mut calls = 0;
+    let mut seen = None;
+    let result = read(&mut |value| {
+        calls += 1;
+        seen = value.map(<[u8]>::to_vec);
+    });
+    (result.map(|()| seen), calls)
+}
+
+fn view_borrowed(view: &ReadView, key: &[u8]) -> Option<Vec<u8>> {
+    let (value, calls) = borrowed(|f| view.with_value(key, f));
+    assert_eq!(calls, 1, "the callback runs exactly once");
+    value.unwrap()
+}
+
+#[test]
+fn borrowed_reads_return_what_get_returns_for_current_history_and_deletes() {
+    on_backends(|store| {
+        commit(store, vec![(b"u/a".to_vec(), Some(b"a1".to_vec()))]);
+        let first = store.read_view().unwrap();
+        commit(
+            store,
+            vec![
+                (b"u/a".to_vec(), Some(b"a2".to_vec())),
+                (b"u/b".to_vec(), Some(b"b1".to_vec())),
+            ],
+        );
+        let second = store.read_view().unwrap();
+        commit(store, vec![(b"u/b".to_vec(), None)]);
+        let latest = store.read_view().unwrap();
+        let cases: [(&ReadView, &[u8], Option<&[u8]>); 9] = [
+            // Pinned before an overwrite: the old version, not the current.
+            (&first, b"u/a", Some(b"a1")),
+            // Pinned before the key existed.
+            (&first, b"u/b", None),
+            (&second, b"u/a", Some(b"a2")),
+            // Pinned before a delete: still visible.
+            (&second, b"u/b", Some(b"b1")),
+            (&latest, b"u/a", Some(b"a2")),
+            // Deleted at this snapshot.
+            (&latest, b"u/b", None),
+            // Never written.
+            (&latest, b"u/z", None),
+            (&first, b"u/z", None),
+            (&second, b"u/z", None),
+        ];
+        for (view, key, want) in cases {
+            let want = want.map(<[u8]>::to_vec);
+            assert_eq!(view.get(key).unwrap(), want, "get {key:?}");
+            assert_eq!(view_borrowed(view, key), want, "with_value {key:?}");
+        }
+        // An explicitly historical view resolves by commit index too.
+        let at_one = store.read_at(first.commit_index()).unwrap();
+        assert_eq!(view_borrowed(&at_one, b"u/a"), Some(b"a1".to_vec()));
+    });
+}
+
+#[test]
+fn borrowed_reads_enforce_limits_and_cancellation_like_get() {
+    on_backends(|store| {
+        commit(store, vec![(b"u/big".to_vec(), Some(vec![7; 100]))]);
+        let view = store
+            .read_with_limits(
+                None,
+                ReadLimits {
+                    max_item_bytes: 10,
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+        let (value, calls) = borrowed(|f| view.with_value(b"u/big", f));
+        assert!(matches!(value, Err(StorageError::ResourceExhausted(_))));
+        assert!(matches!(
+            view.get(b"u/big"),
+            Err(StorageError::ResourceExhausted(_))
+        ));
+        assert_eq!(calls, 0, "an over-limit value is never handed out");
+
+        let view = store.read_view().unwrap();
+        view.cancellation().cancel();
+        let (value, calls) = borrowed(|f| view.with_value(b"u/big", f));
+        assert!(matches!(value, Err(StorageError::Cancelled)));
+        assert_eq!(calls, 0);
+    });
+}
+
+#[test]
+fn borrowed_reads_are_counted_as_point_reads() {
+    on_backends(|store| {
+        commit(store, vec![(b"u/a".to_vec(), Some(b"a".to_vec()))]);
+        let view = store.read_view().unwrap();
+        crate::read_accounting::enable(true);
+        let _ = crate::read_accounting::take_local();
+        view.get(b"u/a").unwrap();
+        let by_get = crate::read_accounting::take_local();
+        view.with_value(b"u/a", |_| ()).unwrap();
+        let by_borrow = crate::read_accounting::take_local();
+        assert_eq!(by_get.values().sum::<u64>(), 1, "{by_get:?}");
+        assert_eq!(by_borrow, by_get);
+        assert!(by_borrow.keys().all(|(op, _)| *op == "get"));
+    });
+}
+
+#[test]
+fn borrowed_overlay_reads_return_the_staged_value_over_the_base() {
+    on_backends(|store| {
+        commit(
+            store,
+            vec![
+                (b"u/a".to_vec(), Some(b"base-a".to_vec())),
+                (b"u/b".to_vec(), Some(b"base-b".to_vec())),
+                (b"u/c".to_vec(), Some(b"base-c".to_vec())),
+            ],
+        );
+        let mut overlay = OverlayView::new(Arc::new(store.read_view().unwrap()));
+        overlay.put(b"u/b".to_vec(), b"staged-b".to_vec());
+        overlay.delete(b"u/c".to_vec());
+        overlay.put(b"u/d".to_vec(), b"staged-d".to_vec());
+        for (key, want) in [
+            (&b"u/a"[..], Some(&b"base-a"[..])),
+            (b"u/b", Some(b"staged-b")),
+            (b"u/c", None),
+            (b"u/d", Some(b"staged-d")),
+            (b"u/z", None),
+        ] {
+            let want = want.map(<[u8]>::to_vec);
+            let (value, calls) = borrowed(|f| overlay.with_value(key, f));
+            assert_eq!(calls, 1);
+            assert_eq!(value.unwrap(), want, "with_value {key:?}");
+            assert_eq!(overlay.get(key).unwrap(), want, "get {key:?}");
+        }
+    });
+}
+
+#[test]
+fn borrowed_reads_resolve_across_shards() {
+    let dir = crate::TempPath::dir("borrowed-shards");
+    std::fs::create_dir_all(&dir).unwrap();
+    let store = Store::open_with_resources(
+        &dir.join("rushdb.redb"),
+        resources::StorageResources {
+            shard_count: 2,
+            experimental_multi_shard: true,
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    configure(&store);
+    let first = TenantId::from_ordinal(1_000);
+    let first_shard = resources::physical_shard_for(Some(&first), 2);
+    let second = (1_001..1_065)
+        .map(TenantId::from_ordinal)
+        .find(|tenant| resources::physical_shard_for(Some(tenant), 2) != first_shard)
+        .unwrap();
+    commit_tenant(&store, first, b"first".to_vec());
+    commit_tenant(&store, second, b"second".to_vec());
+    let view = store.read_view().unwrap();
+    assert_eq!(view.native_backend_count(), 2);
+    for key in [&b"first"[..], b"second", b"missing"] {
+        assert_eq!(view_borrowed(&view, key), view.get(key).unwrap(), "{key:?}");
+    }
+    assert_eq!(view_borrowed(&view, b"second"), Some(vec![1]));
+    drop(view);
+    drop(store);
+    std::fs::remove_dir_all(dir).unwrap();
+}

@@ -78,11 +78,14 @@ see the effects of every earlier commit, even ones that are not yet durable.
 
 Waiting for each predecessor to be fsynced would cap throughput at one
 commit per fsync. Instead, the writer reads through the **sequencer
-overlay**: a fresh snapshot of the committed state layered with the net
-key effects of every commit that has been assigned an index but not yet
-published. The overlay holds only distinct in-flight keys, is trimmed as the
-publisher advances, and opens no long-lived read pin, so it never blocks
-garbage collection.
+overlay**: a fresh snapshot of the committed state layered with the
+writes of every commit that has been assigned an index but not yet
+published, one read-only layer per commit (the newest layer wins). A layer
+shares its commit's operations with the pending queue and indexes them by
+key, so admitting a commit costs only its own operations, never a copy of
+everything in flight. Layers are dropped as the publisher advances, and the
+overlay opens no long-lived read pin, so it never blocks garbage
+collection.
 
 Every key the planner reads is recorded as a read dependency. Preconditions
 in the batch (`Exists` or `Absent`) are checked against the same overlay. A
@@ -105,8 +108,9 @@ first, the writer expands again at the new index.
 
 ### 4. Enqueue and release
 
-The op-set enters the pending queue keyed by its commit index, and its
-writes are folded into the sequencer overlay. Only then does the writer
+The op-set enters the pending queue keyed by its commit index, and the
+same op-set (shared, not copied) becomes the sequencer overlay's newest
+layer. Only then does the writer
 **release admission**, before it waits for durability. The next writer can
 plan immediately, against an overlay that already contains this commit.
 This is what lets many commits share one fsync.
@@ -143,6 +147,14 @@ just before it: the shard's committed state plus the earlier commits of the
 same group. Derived rows are **not** logged and never enter a conflict set;
 every node and every replay recomputes them identically from the same base
 log. See [derived state](derived-state.md).
+
+Derivation reads the group's earlier commits through borrowed references
+to their operations, and the backend applies each commit's base and derived
+operations as two slices of one transaction, so no stage copies a commit's
+operations. A commit touching many records (a large ingest) splits its
+per-record derivation at record boundaries across the server's shared
+worker-thread budget (`RUSHDB_THREADS`) and sums the parts in order; the
+counters and rows are exactly those of a single-threaded pass.
 
 ### 7. WAL append and fsync
 

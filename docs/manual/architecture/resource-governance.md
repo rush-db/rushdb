@@ -37,6 +37,7 @@ flowchart TD
     ROOT --> PH["query phases<br/>limit = managed-limit<br/>8 MiB per executing request"]
     ROOT --> LC["logical caches<br/>logical-cache-bytes · 128 MiB"]
     ROOT --> VEC["vector cache: ANN segments<br/>vector-cache-bytes · 256 MiB"]
+    ROOT --> GRAPH["graph cache: resident relationship graphs<br/>graph-cache-bytes · 128 MiB"]
     PH --> SQL["sql (attribution)"]
     PH --> GR["graph (attribution)"]
     LC --> PS["planner statistics<br/>planner-stats-bytes · 32 MiB"]
@@ -51,6 +52,7 @@ flowchart TD
 | Query phases | (= `managed-limit`) | — | A fixed 8 MiB token per executing request; this is the concurrency ceiling. |
 | Logical caches | `logical-cache-bytes` | 128 MiB | Text indexes, planner statistics, metadata and property caches, cursor state. `0` disables them. |
 | Vector cache | `vector-cache-bytes` | 256 MiB | Resident ANN indexes of vector spaces. `0` disables ANN: searches answer exactly. |
+| Graph cache | `graph-cache-bytes` | 128 MiB | Resident relationship graphs (one type at one snapshot) for traversals. `0` keeps none: traversals read adjacency from storage. |
 | Planner statistics | `planner-stats-bytes` | 32 MiB | On-demand value distributions ([derived state](derived-state.md#planner-statistics-on-demand)). |
 
 Configuration is validated before anything is opened: `storage-cache` must
@@ -138,10 +140,12 @@ does not shrink.
 ## Per-request budgets
 
 Inside the executor, each request carries a working byte budget equal to
-the body limit. DataFusion's memory pool, graph-language results and the page a
-native query or aggregate returns are charged against it; `query-memory-max`
-(default 256 MiB) bounds structured-query and aggregation working sets:
-match ordinals, the row being evaluated and the groups. The two never mix.
+the body limit. DataFusion's memory pool, graph-language results and the rows
+a native listing, projection or aggregate returns are charged against it,
+each row by its serialized size; `query-memory-max` (default 256 MiB) bounds
+structured-query and aggregation working sets: match ordinals, ordering rows,
+the row being evaluated and the groups. The two never mix, and a refusal
+names the one that tripped (`query-memory-max` or the response size limit).
 See [query execution](query-execution.md#budgets-deadlines-and-cancellation).
 
 ## Request bounds

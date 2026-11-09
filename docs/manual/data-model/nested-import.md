@@ -247,7 +247,7 @@ from it, in the same request:
 | Field | Meaning |
 |---|---|
 | `propertyName` | The vector property, matching the index definition. |
-| `vector` | The components; the length must match the index's dimensions. |
+| `vector` | The components, as a number array or the binary form `{"f32": "<base64 of little-endian f32>"}` (exact bits, about a quarter of the text; see [Sending vectors](../indexes-and-search/vector-search.md#sending-vectors)); the length must match the index's dimensions. |
 | `index` | The name of an existing vector index. Required unless the node was configured to derive index names. |
 
 The vector index must exist before the import (create it with

@@ -6,6 +6,7 @@ use std::sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard};
 
 use redb::{Database, ReadableDatabase, ReadableTable, ReadableTableMetadata, TableDefinition};
 
+use crate::backend::CommitOps;
 use crate::history_v2;
 use crate::{
     Op, ReadLimits, ScanProjection, StorageError, StorageStatistics, VersionEntry, LAST_APPLIED_KEY,
@@ -258,7 +259,11 @@ fn prune_history(
 }
 
 /// Shared per-op MVCC application against an open redb write transaction.
-fn apply_in_txn(tx: &redb::WriteTransaction, ops: &[Op], commit_index: u64) -> Result<(), String> {
+fn apply_in_txn<'a>(
+    tx: &redb::WriteTransaction,
+    ops: impl Iterator<Item = &'a Op>,
+    commit_index: u64,
+) -> Result<(), String> {
     let mut data = tx.open_table(DATA).map_err(|e| e.to_string())?;
     let mut history = tx.open_table(HISTORY).map_err(|e| e.to_string())?;
     let mut blocks = tx.open_table(HISTORY_BLOCK).map_err(|e| e.to_string())?;
@@ -355,9 +360,20 @@ fn apply_op(
             drop_history_indexed(history, blocks, expiry, key)?;
             return Ok(());
         }
-        let previous = data
-            .get(key.as_slice())
-            .map_err(|e| e.to_string())?
+        // Put/Del write the new state and take the superseded row from the
+        // same B-tree descent: redb's `insert`/`remove` return the old value,
+        // so a lookup before the write would walk the tree twice per op.
+        let replaced = match op {
+            Op::Put(_, value) => data.insert(
+                key.as_slice(),
+                encode_current(commit_index, value).as_slice(),
+            ),
+            Op::Del(_) => data.remove(key.as_slice()),
+            Op::Purge(_) => unreachable!("purge is handled before version bookkeeping"),
+            Op::Set(..) => unreachable!("set is handled before version bookkeeping"),
+        }
+        .map_err(|e| e.to_string())?;
+        let previous = replaced
             .map(|row| {
                 decode_current(row.value())
                     .map(|(from_ci, value)| (from_ci, value.to_vec()))
@@ -390,21 +406,6 @@ fn apply_op(
                     EMPTY_VALUE,
                 )
                 .map_err(|e| e.to_string())?;
-        }
-
-        match op {
-            Op::Put(key, value) => {
-                data.insert(
-                    key.as_slice(),
-                    encode_current(commit_index, value).as_slice(),
-                )
-                .map_err(|e| e.to_string())?;
-            }
-            Op::Del(key) => {
-                data.remove(key.as_slice()).map_err(|e| e.to_string())?;
-            }
-            Op::Purge(_) => unreachable!("purge is handled before version bookkeeping"),
-            Op::Set(..) => unreachable!("set is handled before version bookkeeping"),
         }
     }
     Ok(())
@@ -445,6 +446,12 @@ pub(crate) struct RedbBackend {
     mutex_hold_max_ns: AtomicU64,
     /// Write-transaction holds by holder.
     writer_holds: WriterHoldCounters,
+    /// A materialization write committed with `Durability::None` since the
+    /// last checkpoint.
+    unsynced: AtomicBool,
+    /// `durable_lsn` of the last checkpoint this handle wrote (`u64::MAX`
+    /// before the first).
+    checkpointed_lsn: AtomicU64,
     /// RM-8 fault injection: fail the next `apply`/`apply_many`.
     #[cfg(test)]
     fail_next_apply: AtomicBool,
@@ -654,24 +661,20 @@ impl RedbReadView {
         self.data.get().ok_or(StorageError::CorruptLog)
     }
 
-    pub(crate) fn get_current_projected(
+    /// The current row of `key`, borrowed from its page guard: the value
+    /// after the commit-index header, visited in place.
+    fn visit_current(
         &self,
         key: &[u8],
         limits: ReadLimits,
         projection: ScanProjection,
-    ) -> Result<Option<Vec<u8>>, StorageError> {
-        let data = self.data_table()?;
-        data.get(key)
-            .map_err(read_error)?
-            .map(|row| {
-                if projection == ScanProjection::Keys {
-                    return Ok(Vec::new());
-                }
-                let value = current_value(row.value())?;
-                limits.check_item(key.len(), value.len())?;
-                Ok(value.to_vec())
-            })
-            .transpose()
+        visit: &mut dyn FnMut(&[u8]),
+    ) -> Result<bool, StorageError> {
+        let Some(row) = self.data_table()?.get(key).map_err(read_error)? else {
+            return Ok(false);
+        };
+        visit_projected(key, current_value(row.value())?, limits, projection, visit)?;
+        Ok(true)
     }
 
     pub(crate) fn current_range(
@@ -751,22 +754,23 @@ impl RedbReadView {
             .map_or(0, |value| value.value()))
     }
 
-    pub(crate) fn get_at(
+    /// The version of `key` visible at `ci`: the current row when it is
+    /// old enough (borrowed from its page guard), else the covering version
+    /// from the history head or its sealed-block chain (visited from the
+    /// decoded block).
+    fn visit_at(
         &self,
         key: &[u8],
         ci: u64,
         limits: ReadLimits,
         projection: ScanProjection,
-    ) -> Result<Option<Vec<u8>>, StorageError> {
-        let data = self.data_table()?;
-        if let Some(row) = data.get(key).map_err(read_error)? {
+        visit: &mut dyn FnMut(&[u8]),
+    ) -> Result<bool, StorageError> {
+        if let Some(row) = self.data_table()?.get(key).map_err(read_error)? {
             let (from_ci, value) = decode_current(row.value())?;
             if from_ci <= ci {
-                if projection == ScanProjection::Keys {
-                    return Ok(Some(Vec::new()));
-                }
-                limits.check_item(key.len(), value.len())?;
-                return Ok(Some(value.to_vec()));
+                visit_projected(key, value, limits, projection, visit)?;
+                return Ok(true);
             }
         }
         // Walk the head, then the sealed-block chain, for the version covering
@@ -786,7 +790,7 @@ impl RedbReadView {
                     .map(|value| value.value().to_vec()),
             };
             let Some(raw) = raw else {
-                return Ok(None);
+                return Ok(false);
             };
             if raw.len() > limits.max_history_block_bytes {
                 return Err(StorageError::ResourceExhausted(
@@ -799,15 +803,11 @@ impl RedbReadView {
                 .find(|v| v.from_ci <= ci && (v.to_ci == 0 || ci < v.to_ci))
                 .and_then(|v| v.value)
             {
-                return if projection == ScanProjection::Keys {
-                    Ok(Some(Vec::new()))
-                } else {
-                    limits.check_item(key.len(), value.len())?;
-                    Ok(Some(value))
-                };
+                visit_projected(key, &value, limits, projection, visit)?;
+                return Ok(true);
             }
             if prev == 0 {
-                return Ok(None);
+                return Ok(false);
             }
             next = Some(prev);
         }
@@ -860,20 +860,45 @@ impl RedbReadView {
     }
 }
 
+/// Count one row a range yields (`read_accounting`'s `row` op).
+fn count_range_row(row: &Result<(Vec<u8>, Vec<u8>), StorageError>) {
+    if let Ok((key, _)) = row {
+        crate::read_accounting::record("row", key);
+    }
+}
+
+/// Hand a visible value to `visit` under the projection and item limit.
+fn visit_projected(
+    key: &[u8],
+    value: &[u8],
+    limits: ReadLimits,
+    projection: ScanProjection,
+    visit: &mut dyn FnMut(&[u8]),
+) -> Result<(), StorageError> {
+    if projection == ScanProjection::Keys {
+        visit(&[]);
+    } else {
+        limits.check_item(key.len(), value.len())?;
+        visit(value);
+    }
+    Ok(())
+}
+
 impl crate::backend::StorageReadView for RedbReadView {
-    fn read_value(
+    fn visit_value(
         &self,
         key: &[u8],
         ci: u64,
         current: bool,
         limits: ReadLimits,
         projection: ScanProjection,
-    ) -> Result<Option<Vec<u8>>, StorageError> {
+        visit: &mut dyn FnMut(&[u8]),
+    ) -> Result<bool, StorageError> {
         crate::read_accounting::record("get", key);
         if current {
-            self.get_current_projected(key, limits, projection)
+            self.visit_current(key, limits, projection, visit)
         } else {
-            self.get_at(key, ci, limits, projection)
+            self.visit_at(key, ci, limits, projection, visit)
         }
     }
 
@@ -899,9 +924,10 @@ impl crate::backend::StorageReadView for RedbReadView {
     ) -> Result<Box<dyn Iterator<Item = Result<(Vec<u8>, Vec<u8>), StorageError>> + 'a>, StorageError>
     {
         crate::read_accounting::record("scan", start);
-        Ok(Box::new(RedbReadView::current_range(
-            self, start, end, limits, projection,
-        )?))
+        Ok(Box::new(
+            RedbReadView::current_range(self, start, end, limits, projection)?
+                .inspect(count_range_row),
+        ))
     }
 
     fn native_range<'a>(
@@ -917,9 +943,10 @@ impl crate::backend::StorageReadView for RedbReadView {
         if let Bound::Included(key) | Bound::Excluded(key) = lower {
             crate::read_accounting::record("scan", key);
         }
-        Ok(Some(Box::new(RedbReadView::native_range(
-            self, lower, upper, limits, projection,
-        )?)))
+        Ok(Some(Box::new(
+            RedbReadView::native_range(self, lower, upper, limits, projection)?
+                .inspect(count_range_row),
+        )))
     }
 
     fn visible_ci(&self) -> Result<u64, StorageError> {
@@ -996,25 +1023,40 @@ impl MergedViews {
         Ok(None)
     }
 
-    /// Point read at snapshot `ci`; `current` selects the single-shard
-    /// current-table fast path when the snapshot is the latest commit.
-    pub(crate) fn read_value(
+    /// Point read at snapshot `ci`, borrowed: `visit` runs once, with the
+    /// stored value bytes in place when the key is visible and `None`
+    /// otherwise. `current` selects the single-shard current-table fast path
+    /// when the snapshot is the latest commit.
+    pub(crate) fn visit_value<R>(
         &self,
         key: &[u8],
         ci: u64,
         current: bool,
         limits: ReadLimits,
         projection: ScanProjection,
-    ) -> Result<Option<Vec<u8>>, StorageError> {
+        visit: impl FnOnce(Option<&[u8]>) -> R,
+    ) -> Result<R, StorageError> {
+        let mut visit = Some(visit);
+        let mut out = None;
+        let mut found = |value: &[u8]| {
+            if let Some(visit) = visit.take() {
+                out = Some(visit(Some(value)));
+            }
+        };
         if self.is_single() {
-            return self.views[0].read_value(key, ci, current, limits, projection);
-        }
-        for view in &self.views {
-            if let Some(value) = view.read_value(key, ci, false, limits, projection)? {
-                return Ok(Some(value));
+            self.views[0].visit_value(key, ci, current, limits, projection, &mut found)?;
+        } else {
+            for view in &self.views {
+                if view.visit_value(key, ci, false, limits, projection, &mut found)? {
+                    break;
+                }
             }
         }
-        Ok(None)
+        Ok(match (out, visit) {
+            (Some(out), _) => out,
+            (None, Some(visit)) => visit(None),
+            (None, None) => unreachable!("a visited value always produces a result"),
+        })
     }
 
     /// Point read at snapshot `ci` (no current-transaction fast path).
@@ -1025,7 +1067,9 @@ impl MergedViews {
         limits: ReadLimits,
         projection: ScanProjection,
     ) -> Result<Option<Vec<u8>>, StorageError> {
-        self.read_value(key, ci, false, limits, projection)
+        self.visit_value(key, ci, false, limits, projection, |value| {
+            value.map(<[u8]>::to_vec)
+        })
     }
 
     /// Smallest next key across shards within `(lower, upper)`.
@@ -1198,7 +1242,7 @@ impl crate::backend::StorageBackend for RedbBackend {
         Ok((lsn, floor))
     }
 
-    fn apply_many(&self, batches: &[(u64, &[Op])]) -> Result<(), String> {
+    fn apply_many(&self, batches: &[CommitOps<'_>]) -> Result<(), String> {
         self.apply_many(batches)
     }
 
@@ -1219,7 +1263,7 @@ impl crate::backend::StorageBackend for RedbBackend {
         self.begin_shutdown();
     }
 
-    fn checkpoint(&self, durable_lsn: u64) -> Result<(), String> {
+    fn checkpoint(&self, durable_lsn: u64) -> Result<bool, String> {
         self.checkpoint(durable_lsn)
     }
 
@@ -1321,6 +1365,8 @@ impl RedbBackend {
             mutex_hold_ns: AtomicU64::new(0),
             mutex_hold_max_ns: AtomicU64::new(0),
             writer_holds: WriterHoldCounters::default(),
+            unsynced: AtomicBool::new(false),
+            checkpointed_lsn: AtomicU64::new(u64::MAX),
             #[cfg(test)]
             fail_next_apply: AtomicBool::new(false),
             #[cfg(test)]
@@ -1467,31 +1513,19 @@ impl RedbBackend {
     }
 
     /// Apply a logical `RushDB` operation set and its MVCC metadata in one
-    /// redb transaction. `commit()` is the durable acknowledgement boundary.
+    /// redb transaction.
     pub(crate) fn apply(&self, ops: &[Op], commit_index: u64) -> Result<(), String> {
-        #[cfg(test)]
-        if self.fail_next_apply.swap(false, Ordering::SeqCst) {
-            return Err("injected backend apply failure".into());
-        }
-        let db = self.lock_db()?;
-        let mut tx = db.begin_write().map_err(|e| e.to_string())?;
-        let _hold = self.writer_hold(crate::WriterHolder::Publish);
-        // Log-first: the WAL is the durable truth, so a redb commit is a
-        // buffered materialization write. Durability is forced by the periodic
-        // `checkpoint()`; recovery replays any WAL tail beyond the last
-        // checkpoint.
-        tx.set_durability(redb::Durability::None)
-            .map_err(|e| e.to_string())?;
-        apply_in_txn(&tx, ops, commit_index)?;
-        tx.commit().map_err(|e| e.to_string())
+        self.apply_many(&[CommitOps {
+            ci: commit_index,
+            base: ops,
+            derived: &[],
+        }])
     }
 
     /// Apply many commits' op-sets in ONE redb write transaction. Commit
-    /// indices must be supplied in ascending order; a single `commit()`
-    /// (one fsync when durability is `Local`) durably acknowledges the whole
-    /// batch. Used by the group-commit publisher so N concurrent commits
-    /// coalesce into one fsync instead of N.
-    pub(crate) fn apply_many(&self, batches: &[(u64, &[Op])]) -> Result<(), String> {
+    /// indices must be supplied in ascending order. Used by the group-commit
+    /// publisher so N concurrent commits share one transaction.
+    pub(crate) fn apply_many(&self, batches: &[CommitOps<'_>]) -> Result<(), String> {
         #[cfg(test)]
         if self.fail_next_apply.swap(false, Ordering::SeqCst) {
             return Err("injected backend apply failure".into());
@@ -1505,9 +1539,13 @@ impl RedbBackend {
         // checkpoint.
         tx.set_durability(redb::Durability::None)
             .map_err(|e| e.to_string())?;
-        for (commit_index, ops) in batches {
-            apply_in_txn(&tx, ops, *commit_index)?;
+        for commit in batches {
+            apply_in_txn(&tx, commit.ops(), commit.ci)?;
         }
+        // Marked inside the write transaction: redb runs one writer at a
+        // time, so a checkpoint either begins after this commit (and makes
+        // it durable) or sees the mark on its next tick.
+        self.unsynced.store(true, Ordering::SeqCst);
         tx.commit().map_err(|e| e.to_string())
     }
 
@@ -1702,7 +1740,25 @@ impl RedbBackend {
     /// is the durable truth; this is what advances the recoverable
     /// materialization and allows WAL segments at or below `durable_lsn` to be
     /// truncated.
-    pub(crate) fn checkpoint(&self, durable_lsn: u64) -> Result<(), String> {
+    ///
+    /// Skipped (returns `false`) when no buffered write landed since the
+    /// last checkpoint and `durable_lsn` is unchanged: an idle store then
+    /// writes nothing per maintenance tick.
+    pub(crate) fn checkpoint(&self, durable_lsn: u64) -> Result<bool, String> {
+        if !self.unsynced.swap(false, Ordering::SeqCst)
+            && self.checkpointed_lsn.load(Ordering::SeqCst) == durable_lsn
+        {
+            return Ok(false);
+        }
+        let written = self.write_checkpoint(durable_lsn);
+        match &written {
+            Ok(()) => self.checkpointed_lsn.store(durable_lsn, Ordering::SeqCst),
+            Err(_) => self.unsynced.store(true, Ordering::SeqCst),
+        }
+        written.map(|()| true)
+    }
+
+    fn write_checkpoint(&self, durable_lsn: u64) -> Result<(), String> {
         let db = self.lock_db()?;
         let mut tx = db.begin_write().map_err(|e| e.to_string())?;
         let _hold = self.writer_hold(crate::WriterHolder::Checkpoint);
@@ -1764,7 +1820,7 @@ fn table_size<T: ReadableTableMetadata>(table: &T) -> Result<(u64, u64), String>
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::backend::StorageBackend;
+    use crate::backend::{StorageBackend, StorageReadView};
     use crate::resources::ByteBudget;
 
     #[test]
@@ -1965,7 +2021,11 @@ mod tests {
             .apply(&[Op::Put(b"k".to_vec(), b"v".to_vec())], 1)
             .unwrap();
         backend
-            .apply_many(&[(2, &[Op::Put(b"k".to_vec(), b"w".to_vec())][..])])
+            .apply_many(&[CommitOps {
+                ci: 2,
+                base: &[Op::Put(b"k".to_vec(), b"w".to_vec())],
+                derived: &[],
+            }])
             .unwrap();
         backend.checkpoint(2).unwrap();
         backend.retire_before_batch(1, None, 16).unwrap();
@@ -2012,7 +2072,13 @@ mod tests {
             std::thread::spawn(move || {
                 let view = backend.read_view().unwrap();
                 let value = view
-                    .get_current_projected(b"k", ReadLimits::default(), ScanProjection::KeyValue)
+                    .read_value(
+                        b"k",
+                        0,
+                        true,
+                        ReadLimits::default(),
+                        ScanProjection::KeyValue,
+                    )
                     .unwrap();
                 done_tx.send(value).unwrap();
             });
@@ -2089,8 +2155,14 @@ mod tests {
         // Reads resolve versions across the head and the sealed chain.
         let view = backend.read_view().unwrap();
         let at = |ci| {
-            view.get_at(b"k", ci, ReadLimits::default(), ScanProjection::KeyValue)
-                .unwrap()
+            view.read_value(
+                b"k",
+                ci,
+                false,
+                ReadLimits::default(),
+                ScanProjection::KeyValue,
+            )
+            .unwrap()
         };
         // Values are `v0` at ci 1, then `v{i}` at ci i.
         assert_eq!(at(n), Some(format!("v{n}").into_bytes()), "current");

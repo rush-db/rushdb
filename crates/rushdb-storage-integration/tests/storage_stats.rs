@@ -314,8 +314,8 @@ fn a_file_over_the_cap_is_left_to_offline_compaction() {
     assert!(!store.compacting(), "the flag is released after compaction");
     // The write streams are counted: 200 commits appended to the WAL and
     // applied their base and derived ops.
-    let stats = store.storage_stats().unwrap();
-    assert!(stats.wal_bytes_appended > 0);
-    assert!(stats.applied_bytes > stats.wal_bytes_appended / 4);
+    let written = store.write_counters();
+    assert!(written.wal_bytes_appended > 0);
+    assert!(written.applied_bytes > written.wal_bytes_appended / 4);
     std::fs::remove_dir_all(&dir).ok();
 }

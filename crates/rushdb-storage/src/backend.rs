@@ -27,7 +27,25 @@ use std::sync::Arc;
 /// regardless of substrate. Multi-shard stores merge the per-shard
 /// views in `MergedViews`.
 pub(crate) trait StorageReadView: Send + Sync {
-    /// Point read at `ci`; `current` selects the latest-commit fast path.
+    /// Point read at `ci`, borrowed: when the key is visible, `visit` sees
+    /// the stored value bytes in place (empty for a keys-only projection)
+    /// and the result is `true`; otherwise `visit` is not called. `current`
+    /// selects the latest-commit fast path. This is a backend's one
+    /// implementation of point-read visibility, limits and read accounting;
+    /// [`Self::read_value`] copies out of it. `visit` runs while the backend
+    /// holds its read (a redb page guard, the memory maps' read locks), so it
+    /// must not read the store again.
+    fn visit_value(
+        &self,
+        key: &[u8],
+        ci: u64,
+        current: bool,
+        limits: ReadLimits,
+        projection: ScanProjection,
+        visit: &mut dyn FnMut(&[u8]),
+    ) -> Result<bool, StorageError>;
+
+    /// Point read at `ci` into an owned copy ([`Self::visit_value`]).
     fn read_value(
         &self,
         key: &[u8],
@@ -35,7 +53,13 @@ pub(crate) trait StorageReadView: Send + Sync {
         current: bool,
         limits: ReadLimits,
         projection: ScanProjection,
-    ) -> Result<Option<Vec<u8>>, StorageError>;
+    ) -> Result<Option<Vec<u8>>, StorageError> {
+        let mut value = None;
+        self.visit_value(key, ci, current, limits, projection, &mut |raw| {
+            value = Some(raw.to_vec());
+        })?;
+        Ok(value)
+    }
 
     /// Smallest key in `(lower, upper)`; `include_history` widens to retained
     /// versions for a non-current snapshot.
@@ -62,11 +86,11 @@ pub(crate) trait StorageReadView: Send + Sync {
     /// simplified included-start/excluded-end-or-unbounded convention. A
     /// real cursor walks consecutively (one seek for the whole scan, not one
     /// per row); callers must already know this view's `current` fast path
-    /// is valid — same gate [`Self::read_value`]'s `current` flag needs,
+    /// is valid — same gate [`Self::visit_value`]'s `current` flag needs,
     /// since this reads the live current-value table.
     ///
     /// `Ok(None)` means this backend has no such cursor; the caller falls
-    /// back to [`Self::next_key`] + [`Self::read_value`] per row. The
+    /// back to [`Self::next_key`] + [`Self::visit_value`] per row. The
     /// default is `Ok(None)` so adding this is additive — a backend opts in
     /// explicitly.
     fn native_range<'a>(
@@ -94,6 +118,25 @@ pub(crate) trait StorageReadView: Send + Sync {
     /// maps do not (false), so a view must resolve reads by `ci`.
     fn snapshot_pinned(&self) -> bool {
         false
+    }
+}
+
+/// One commit's writes for a backend: its base ops followed by the ops
+/// derived from them, applied at `ci` in the same transaction. The two are
+/// kept as borrowed slices so publication never concatenates them into a
+/// copy of the commit.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct CommitOps<'a> {
+    pub(crate) ci: u64,
+    pub(crate) base: &'a [Op],
+    pub(crate) derived: &'a [Op],
+}
+
+impl<'a> CommitOps<'a> {
+    /// Base ops then derived ops, in apply order.
+    pub(crate) fn ops(&self) -> impl Iterator<Item = &'a Op> + Clone {
+        let (base, derived) = (self.base, self.derived);
+        base.iter().chain(derived)
     }
 }
 
@@ -145,9 +188,9 @@ pub(crate) trait StorageBackend: Send + Sync {
     /// Apply one logical op-set at `commit_index`.
     fn apply(&self, ops: &[Op], commit_index: u64) -> Result<(), String>;
 
-    /// Apply many op-sets (ascending commit-index order) in ONE write
+    /// Apply many commits (ascending commit-index order) in ONE write
     /// transaction: a single durable acknowledgement covers the whole batch.
-    fn apply_many(&self, batches: &[(u64, &[Op])]) -> Result<(), String>;
+    fn apply_many(&self, batches: &[CommitOps<'_>]) -> Result<(), String>;
 
     /// Reclaim retained versions superseded before `watermark`.
     fn retire_before(&self, watermark: u64) -> Result<(), String>;
@@ -176,10 +219,13 @@ pub(crate) trait StorageBackend: Send + Sync {
     /// durably record `durable_lsn` as the materialization checkpoint. Under
     /// log-first the WAL is the durable truth and the backend is buffered, so a
     /// checkpoint is what makes the materialization durable and lets WAL
-    /// segments at or below `durable_lsn` be truncated. Backends with no
-    /// buffered writes treat this as a no-op.
-    fn checkpoint(&self, _durable_lsn: u64) -> Result<(), String> {
-        Ok(())
+    /// segments at or below `durable_lsn` be truncated.
+    ///
+    /// Returns whether anything was written: a checkpoint with no buffered
+    /// write since the last one, at the same `durable_lsn`, writes nothing.
+    /// Backends with no buffered writes always return `false`.
+    fn checkpoint(&self, _durable_lsn: u64) -> Result<bool, String> {
+        Ok(false)
     }
 
     /// Run `run` while this backend commits nothing (readers continue), so

@@ -485,6 +485,10 @@ pub struct StorageResources {
     /// `logical_cache_bytes`), so a large space keeps its index beside the
     /// record and text caches. 0 = no resident ANN: searches answer exactly.
     pub vector_cache_bytes: usize,
+    /// Bytes resident adjacency graphs (one relationship type at one
+    /// snapshot, for traversals) may hold, a budget of its own under the
+    /// managed limit. 0 = traversals always read adjacency from storage.
+    pub graph_cache_bytes: usize,
     /// Bytes reserved for concurrent request *phases* (query planning and
     /// execution admission). Each `ExecutionContext` and each `DataFusion`
     /// session reserves a fixed per-request token from this pool, so the pool
@@ -569,6 +573,9 @@ impl Default for StorageResources {
             logical_cache_bytes: 128 * 1024 * 1024,
             // ~150 B per vector of a 768-d space: one space of ~1.7M vectors.
             vector_cache_bytes: 256 * 1024 * 1024,
+            // ~32 B per relationship (both directions): about 4M
+            // relationships of one type.
+            graph_cache_bytes: 128 * 1024 * 1024,
             // 256 MiB / 8 MiB per request = 32 concurrent phase tokens by
             // default, instead of the previous 4 that reused the 32 MiB cache
             // budget. The parent managed limit still bounds the total.

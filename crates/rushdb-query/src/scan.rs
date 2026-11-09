@@ -8,7 +8,11 @@
 use crate::planner::OwnerSet;
 use crate::{QueryError, QuerySnapshot};
 
-/// Rows fetched per scan batch.
+/// Rows fetched by a scan's first batch; each later batch doubles, up to
+/// [`BATCH_ROWS`]. A page that stops after a few rows reads about as many
+/// as it uses, and a full walk reaches full batches after six.
+const FIRST_BATCH_ROWS: usize = 64;
+/// Rows fetched per scan batch at most.
 const BATCH_ROWS: usize = 4096;
 /// Bytes fetched per scan batch.
 const BATCH_BYTES: usize = 8 * 1024 * 1024;
@@ -19,6 +23,7 @@ pub(crate) struct OrdinalScan<'v> {
     parse: fn(&[u8], usize) -> Option<u64>,
     prefix_len: usize,
     buffered: std::collections::VecDeque<u64>,
+    batch_rows: usize,
     done: bool,
 }
 
@@ -36,6 +41,7 @@ impl<'v> OrdinalScan<'v> {
             parse,
             prefix_len: prefix.len(),
             buffered: std::collections::VecDeque::new(),
+            batch_rows: FIRST_BATCH_ROWS,
             done: false,
         })
     }
@@ -45,7 +51,8 @@ impl<'v> OrdinalScan<'v> {
             if is_cancelled() {
                 return Err(QueryError::Cancelled);
             }
-            let batch = self.cursor.next_batch(BATCH_ROWS, BATCH_BYTES)?;
+            let batch = self.cursor.next_batch(self.batch_rows, BATCH_BYTES)?;
+            self.batch_rows = (self.batch_rows * 2).min(BATCH_ROWS);
             for row in batch.rows {
                 self.buffered.push_back(
                     (self.parse)(&row.key, self.prefix_len)
@@ -154,4 +161,77 @@ impl<'v> Candidates<'v> {
         }
         Ok(out)
     }
+}
+
+/// Exclusive upper bound of the tenant's record ordinals at `snap` (the
+/// record allocator's committed watermark); `None` when it was never set.
+pub(crate) fn ordinal_end<R: rushdb_lmpg::reader::TryRead + ?Sized>(
+    snap: &R,
+    tenant: rushdb_types::ids::TenantId,
+) -> Result<Option<u64>, QueryError> {
+    let Some(raw) = snap.get(&rushdb_lmpg::expand::meta_counter_key(tenant, "record"))? else {
+        return Ok(None);
+    };
+    Ok(Some(u64::from_be_bytes(
+        raw.as_slice()
+            .try_into()
+            .map_err(|_| rushdb_storage::StorageError::CorruptLog)?,
+    )))
+}
+
+/// The records of the tenant (`labels` empty) or of `labels` whose ordinal
+/// is in `ords`, ascending: one key range per label (an ordinal's key
+/// encoding sorts by value, so the range holds exactly those ordinals).
+pub(crate) fn walk_range(
+    snap: &QuerySnapshot,
+    tenant: rushdb_types::ids::TenantId,
+    labels: &[String],
+    ords: std::ops::Range<u64>,
+) -> Result<Vec<u64>, QueryError> {
+    use rushdb_types::keys;
+    let mut out = Vec::new();
+    let mut scan = |start: Vec<u8>, end: Vec<u8>, ord_at: usize| -> Result<(), QueryError> {
+        let mut cursor = snap.scan(
+            rushdb_storage::ScanBounds {
+                start: std::ops::Bound::Included(start),
+                end: std::ops::Bound::Excluded(end),
+            },
+            rushdb_storage::ScanProjection::Keys,
+        )?;
+        loop {
+            let batch = cursor.next_batch(BATCH_ROWS, BATCH_BYTES)?;
+            for row in batch.rows {
+                out.push(
+                    keys::read_ord_tail(&row.key, ord_at)
+                        .ok_or(rushdb_storage::StorageError::CorruptLog)?,
+                );
+            }
+            if batch.done {
+                return Ok(());
+            }
+        }
+    };
+    if labels.is_empty() {
+        let at = keys::record_hdr_prefix(tenant).len();
+        scan(
+            keys::record_hdr_key(tenant, ords.start),
+            keys::record_hdr_key(tenant, ords.end),
+            at,
+        )?;
+        return Ok(out);
+    }
+    let distinct: std::collections::BTreeSet<&String> = labels.iter().collect();
+    for label in &distinct {
+        let at = keys::label_member_prefix(tenant, label).len();
+        scan(
+            keys::label_member_key(tenant, label, ords.start),
+            keys::label_member_key(tenant, label, ords.end),
+            at,
+        )?;
+    }
+    if distinct.len() > 1 {
+        // A record has one primary label: the label ranges are disjoint.
+        out.sort_unstable();
+    }
+    Ok(out)
 }

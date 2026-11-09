@@ -3,7 +3,7 @@
 
 use super::{
     access, append_bounded_json_response, key, normalize_vector_owner, similarity_from_str,
-    validate_index_alias, Arc, HashSet, Node, OwnerKind, RequestScope, P_FAMILY_SIG,
+    validate_index_alias, Arc, Node, OwnerKind, RequestScope, P_FAMILY_SIG,
 };
 
 impl Node {
@@ -654,7 +654,7 @@ impl RequestScope<'_> {
 
         let ords: Vec<u64> = if owner_kind == OwnerKind::Relationship {
             self.relationship_ordinals_matching(snap, &query.label, &serde_json::json!({}))?
-                .into_iter()
+                .iter()
                 .collect()
         } else {
             access::label_members(snap, tenant, &query.label).map_err(|e| e.to_string())?
@@ -775,22 +775,16 @@ impl RequestScope<'_> {
         Ok(result)
     }
 
-    #[expect(
-        clippy::cast_possible_truncation,
-        clippy::too_many_lines,
-        reason = "these casts narrow engine counters and sizes that are bounded by the process address space or clamped before conversion, so truncation cannot occur on supported 64-bit targets; the owner-kind branch is one linear candidate scan and output loop"
-    )]
-    pub(super) fn search_vectors_in_view(
+    /// The index a `query.vector` searches and its candidate owners, after
+    /// the label policy check. Shared by the search and `explain`, so both
+    /// route on the same candidate set.
+    pub(crate) fn resolve_vector_target(
         &self,
         query: &rushdb_protocol::VectorQuery,
         snap: &Arc<rushdb_storage::ReadView>,
-    ) -> Result<serde_json::Value, String> {
+    ) -> Result<VectorTarget, String> {
         let labels = query.labels.clone();
         let label = labels.first().cloned().unwrap_or_default();
-        let property = query.property.clone();
-        let similarity = query.similarity.clone();
-        let skip = query.offset as usize;
-        let limit = query.limit as usize;
         if query.vector.is_empty() {
             return Err("vector query requires a non-empty vector".to_string());
         }
@@ -807,7 +801,6 @@ impl RequestScope<'_> {
                 return Err("vector query denied by policy".into());
             }
         }
-        let dims = query.vector.len();
         // An explicit index name is the single space identity; only fall back
         // to the platform's derived alias when the caller did not name the space.
         let alias = match query.index.as_deref() {
@@ -817,15 +810,20 @@ impl RequestScope<'_> {
                      (resources.require-vector-index-name is on)"
                     .into());
             }
-            None => rushdb_lmpg::import::external_space_alias(&label, &property, &similarity, dims),
+            None => rushdb_lmpg::import::external_space_alias(
+                &label,
+                &query.property,
+                &query.similarity,
+                query.vector.len(),
+            ),
         };
-        let lmpg = self.lmpg();
         let Some(row_raw) = snap
             .get(self.vector_index_key(&alias).as_bytes())
             .map_err(|e| e.to_string())?
         else {
             return Err(format!(
-                "embedding index not found for label `{label}` and property `{property}`"
+                "embedding index not found for label `{label}` and property `{}`",
+                query.property
             ));
         };
         let row: serde_json::Value = serde_json::from_slice(&row_raw)
@@ -863,46 +861,62 @@ impl RequestScope<'_> {
                 .predicate
                 .as_object()
                 .is_some_and(serde_json::Map::is_empty);
-        let allowed: Option<HashSet<u64>> = if owner_kind == OwnerKind::Relationship {
+        let owners = if owner_kind == OwnerKind::Relationship {
             Some(self.relationship_ordinals_matching(snap, &label, &query.predicate)?)
         } else if unfiltered {
             None
         } else {
             let mut filter_document = serde_json::json!({ "labels": labels });
-            if !query.predicate.is_null() {
-                filter_document["where"] = query.predicate.clone();
-            }
+            filter_document["where"] = query.predicate.clone();
             let parsed = rushdb_query::document::parse_document(&filter_document)
                 .map_err(|e| e.to_string())?;
             // Ordinals directly from the cardinality planner (same access
-            // path `find_records` uses) — no JSON record reconstruction and
-            // no second by-id lookup just to recover the ordinal we already
-            // had before the predicate was evaluated.
-            let ords =
-                rushdb_query::matching_ordinals(&lmpg, &parsed.search, &|| false, Arc::clone(snap))
-                    .map_err(|e| e.to_string())?;
+            // path `find_records` uses), ascending, so the set builds in
+            // order.
+            let ords = rushdb_query::matching_ordinals(
+                &self.lmpg(),
+                &parsed.search,
+                &|| false,
+                Arc::clone(snap),
+            )
+            .map_err(|e| e.to_string())?;
             Some(ords.into_iter().collect())
         };
-        let tenant = self.tenant();
-        let lookup_error = std::cell::RefCell::new(None::<String>);
-        let candidate = |source: rushdb_vector::SourceRef| {
-            if source.kind != owner_kind {
-                return false;
-            }
-            match &allowed {
-                Some(set) => set.contains(&source.owner_ord),
-                None => labels.iter().any(|label| {
-                    let membership =
-                        rushdb_types::keys::label_member_key(tenant, label, source.owner_ord);
-                    match snap.get(&membership) {
-                        Ok(row) => row.is_some(),
-                        Err(error) => {
-                            lookup_error.borrow_mut().get_or_insert(error.to_string());
-                            false
-                        }
-                    }
-                }),
-            }
+        Ok(VectorTarget {
+            alias,
+            label,
+            labels,
+            owner_kind,
+            owners,
+        })
+    }
+
+    #[expect(
+        clippy::cast_possible_truncation,
+        reason = "these casts narrow engine counters and sizes that are bounded by the process address space or clamped before conversion, so truncation cannot occur on supported 64-bit targets"
+    )]
+    pub(super) fn search_vectors_in_view(
+        &self,
+        query: &rushdb_protocol::VectorQuery,
+        snap: &Arc<rushdb_storage::ReadView>,
+    ) -> Result<serde_json::Value, String> {
+        let skip = query.offset as usize;
+        let limit = query.limit as usize;
+        let VectorTarget {
+            alias,
+            labels,
+            owner_kind,
+            owners,
+            ..
+        } = self.resolve_vector_target(query, snap)?;
+        let member = MemberCheck::new(snap, self.tenant(), owner_kind, &labels);
+        let check = |source| member.admits(source);
+        let candidates = match &owners {
+            Some(ords) => rushdb_vector::Candidates::Owners {
+                kind: owner_kind,
+                ords,
+            },
+            None => rushdb_vector::Candidates::Check(&check),
         };
         let vectors = self.vector_engine()?;
         let space = vectors
@@ -919,12 +933,10 @@ impl RequestScope<'_> {
                 mode: query.mode,
                 ef: query.ef,
                 min_score: query.score_threshold,
+                candidates,
             },
-            Some(&candidate),
         )?;
-        if let Some(error) = lookup_error.into_inner() {
-            return Err(error);
-        }
+        member.finish()?;
         let mut data = Vec::new();
         let mut encoded_bytes = 0usize;
         let proptypes = self.proptypes_cached(snap)?;
@@ -982,7 +994,7 @@ impl RequestScope<'_> {
         snap: &Arc<rushdb_storage::ReadView>,
         rel_type: &str,
         predicate: &serde_json::Value,
-    ) -> Result<HashSet<u64>, String> {
+    ) -> Result<roaring::RoaringTreemap, String> {
         use rushdb_types::keys::{key, P_REL};
         let tenant = self.tenant();
         let predicate = match predicate {
@@ -995,7 +1007,7 @@ impl RequestScope<'_> {
         let active_policy = rushdb_authz::load_active_policy_in_view(snap, tenant)
             .map_err(|error| error.to_string())?;
         let authz = rushdb_lmpg::AuthorizedView::new(snap.as_ref(), tenant, active_policy.as_ref());
-        let mut out = HashSet::new();
+        let mut out = roaring::RoaringTreemap::new();
         for (_, raw) in snap
             .range_prefix(&key(tenant, &[P_REL, b""]))
             .map_err(|e| e.to_string())?
@@ -1034,5 +1046,92 @@ impl RequestScope<'_> {
             }
         }
         Ok(out)
+    }
+}
+
+/// The index a `query.vector` searches and its candidate owners.
+pub(crate) struct VectorTarget {
+    /// The index alias.
+    pub alias: String,
+    /// The first requested label (the index's label scope).
+    pub label: String,
+    /// The labels a hit must carry: the requested ones, or the index's own.
+    pub labels: Vec<String>,
+    pub owner_kind: OwnerKind,
+    /// The owners matching the predicate, ascending. `None` for an
+    /// unfiltered record search: every member of `labels` is a candidate,
+    /// checked per hit.
+    pub owners: Option<roaring::RoaringTreemap>,
+}
+
+/// The point check an unfiltered vector search applies to the hits it
+/// would keep: the source is an owner of `kind` that is a member of one of
+/// `labels` (or, with no label, an existing record). A failed read rejects
+/// the source and is returned by [`Self::finish`]. The check may run on
+/// several threads of one search.
+pub(super) struct MemberCheck<'a> {
+    snap: &'a rushdb_storage::ReadView,
+    tenant: rushdb_types::ids::TenantId,
+    kind: OwnerKind,
+    labels: &'a [String],
+    error: std::sync::Mutex<Option<String>>,
+}
+
+impl<'a> MemberCheck<'a> {
+    pub(super) fn new(
+        snap: &'a rushdb_storage::ReadView,
+        tenant: rushdb_types::ids::TenantId,
+        kind: OwnerKind,
+        labels: &'a [String],
+    ) -> Self {
+        Self {
+            snap,
+            tenant,
+            kind,
+            labels,
+            error: std::sync::Mutex::new(None),
+        }
+    }
+
+    /// Whether `source` may be returned.
+    pub(super) fn admits(&self, source: rushdb_vector::SourceRef) -> bool {
+        if source.kind != self.kind {
+            return false;
+        }
+        let present = |key: Vec<u8>| match self.snap.get(&key) {
+            Ok(row) => row.is_some(),
+            Err(error) => {
+                self.error
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner)
+                    .get_or_insert(error.to_string());
+                false
+            }
+        };
+        if self.labels.is_empty() {
+            return present(rushdb_types::keys::record_hdr_key(
+                self.tenant,
+                source.owner_ord,
+            ));
+        }
+        self.labels.iter().any(|label| {
+            present(rushdb_types::keys::label_member_key(
+                self.tenant,
+                label,
+                source.owner_ord,
+            ))
+        })
+    }
+
+    /// The first read error a check met, if any.
+    pub(super) fn finish(self) -> Result<(), String> {
+        match self
+            .error
+            .into_inner()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+        {
+            Some(error) => Err(error),
+            None => Ok(()),
+        }
     }
 }

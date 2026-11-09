@@ -12,7 +12,7 @@ use rushdb_lmpg::Lmpg;
 use rushdb_storage::resources::StorageResources;
 use rushdb_types::ids::{OwnerKind, TenantId};
 use rushdb_vector::search::{SearchMode, SearchPath};
-use rushdb_vector::{SourceRef, VectorEngine};
+use rushdb_vector::{Candidates, SourceRef, VectorEngine};
 use serde_json::json;
 
 const SEARCHES: usize = 2_000;
@@ -92,7 +92,7 @@ fn repeated_searches_hold_no_memory_and_leave_no_files() {
             _ => (SearchMode::Ann { ef: 64 }, Some(0.5)),
         };
         let outcome = engine
-            .search_in_view(&snap, &space, query, 10, mode, None, min_score)
+            .search_in_view(&snap, &space, query, 10, mode, Candidates::All, min_score)
             .unwrap();
         if !round.is_multiple_of(3) {
             assert_eq!(outcome.path, SearchPath::Ann, "round {round}");

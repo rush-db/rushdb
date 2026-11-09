@@ -812,3 +812,60 @@ fn partial_histogram_when_walk_budget_exceeded() {
     assert_eq!(partial.min, full.min);
     assert!(partial.max < full.max);
 }
+
+#[test]
+fn large_commits_derive_in_owner_parts_exactly() {
+    // A commit touching more pids than one derive part splits its
+    // occurrence derivation at owner boundaries across helper threads; the
+    // merged rows must equal the scratch derivation (and so the sequential
+    // one) for creates, updates, retypes and deletes alike.
+    rushdb_storage::parallel::set_threads(8);
+    let eng = engine();
+    let labels = ["A", "B", "C"];
+    let fields = ["n", "s", "tags", "x", "y"];
+    let mut rng = Rng(0x2545_f491_4f6c_dd1d);
+    let mut batch = eng.begin_batch();
+    for _ in 0..4000 {
+        let mut set = Vec::new();
+        for field in fields {
+            if rng.below(4) > 0 {
+                set.push((field.to_string(), random_value(&mut rng)));
+            }
+        }
+        batch.ops.push(rushdb_lmpg::BatchOp::CreateRecord {
+            label: labels[rng.below(labels.len())].to_string(),
+            explicit_id: None,
+            fields: set,
+        });
+    }
+    let created = eng.run_batch(batch).unwrap().created_records;
+    assert_oracle(&eng, "after a large create");
+
+    let mut batch = eng.begin_batch();
+    for (at, record) in created.iter().enumerate() {
+        match at % 4 {
+            0 => batch
+                .ops
+                .push(rushdb_lmpg::BatchOp::DeleteRecord { record: *record }),
+            1 | 2 => batch.ops.push(rushdb_lmpg::BatchOp::UpdateFields {
+                owner: OwnerKind::Record,
+                owner_ord: record.ordinal,
+                owner_public_id: record.record_id,
+                fields: fields
+                    .iter()
+                    .map(|field| {
+                        let change = if rng.below(4) == 0 {
+                            FieldChange::Delete
+                        } else {
+                            random_value(&mut rng)
+                        };
+                        ((*field).to_string(), change)
+                    })
+                    .collect(),
+            }),
+            _ => {}
+        }
+    }
+    eng.run_batch(batch).unwrap();
+    assert_oracle(&eng, "after a large update and delete");
+}

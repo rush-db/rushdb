@@ -21,7 +21,7 @@ use rushdb_lmpg::{reader::TryRead, Lmpg, RecordRef};
 use rushdb_storage::Store;
 use rushdb_types::ids::{OwnerKind, TenantId};
 use rushdb_types::keys::{key, P_FAMILY_SIG};
-use rushdb_vector::{SourceRef, VectorEngine};
+use rushdb_vector::{Candidates, SourceRef, VectorEngine};
 
 /// Where `fetch_fixtures.sh` writes the converted fixtures.
 const FIXTURES_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../data/vector-fixtures");
@@ -110,13 +110,12 @@ fn bind_real(vectors: &[Vec<f32>], dims: usize) -> (VectorEngine, Vec<u64>) {
     (vecs, ords)
 }
 
-/// Filter predicate: allow ordinals whose category is in `allowed`.
-#[expect(
-    clippy::cast_possible_truncation,
-    reason = "ordinals are reduced modulo a small constant, so the result always fits a 32-bit usize"
-)]
-fn allow_categories(allowed: &std::collections::HashSet<usize>) -> impl Fn(SourceRef) -> bool + '_ {
-    move |src| allowed.contains(&((src.owner_ord as usize) % 20))
+/// The owners whose synthetic category (`ordinal % 20`) is below `categories`.
+fn owners_in_categories(ords: &[u64], categories: u64) -> roaring::RoaringTreemap {
+    ords.iter()
+        .copied()
+        .filter(|ord| ord % 20 < categories)
+        .collect()
 }
 
 #[expect(
@@ -127,17 +126,20 @@ fn run_filtered_experiment(
     vecs: &VectorEngine,
     queries: &[Vec<f32>],
     k: usize,
-    allowed: &std::collections::HashSet<usize>,
+    allowed: &roaring::RoaringTreemap,
 ) -> (f64, f64, f64, f64) {
     let snap = vecs.snapshot().unwrap();
     let space = vecs.lookup_space_in_view(&snap, "real").unwrap().unwrap();
-    let candidate = allow_categories(allowed);
+    let candidates = Candidates::Owners {
+        kind: OwnerKind::Record,
+        ords: allowed,
+    };
 
     let t_exact = Instant::now();
     let mut exact: Vec<Vec<u64>> = Vec::new();
     for q in queries {
         let hits = vecs
-            .search_exact_in_view(&snap, &space, q, k, Some(&candidate))
+            .search_exact_in_view(&snap, &space, q, k, candidates)
             .unwrap();
         exact.push(hits.into_iter().map(|h| h.source.owner_ord).collect());
     }
@@ -147,7 +149,7 @@ fn run_filtered_experiment(
     let mut ann: Vec<Vec<u64>> = Vec::new();
     for q in queries {
         let hits = vecs
-            .search_ann_in_view(&snap, &space, q, k, k.max(8), Some(&candidate))
+            .search_ann_in_view(&snap, &space, q, k, k.max(8), candidates)
             .unwrap();
         ann.push(hits.into_iter().map(|h| h.source.owner_ord).collect());
     }
@@ -182,7 +184,7 @@ fn dbpedia_filtered_recall_and_latency() {
     }
     let (dims, vectors) = read_fvecs(&format!("{FIXTURES_DIR}/dbpedia/vectors.fvecs"), 50_000);
     assert_eq!(dims, 1536, "DBPedia should be 1536-dim");
-    let (vecs, _ords) = bind_real(&vectors, dims);
+    let (vecs, ords) = bind_real(&vectors, dims);
 
     // Queries: a held-out slice of the base vectors (out-of-sample queries are
     // not part of this fixture; using base vectors as queries is the standard
@@ -202,8 +204,8 @@ fn dbpedia_filtered_recall_and_latency() {
         "selectivity", "recall", "ann_ms", "exact_ms", "fallback%"
     );
     for selectivity in [0.05f64, 0.10, 0.25, 0.50, 1.00] {
-        let count = ((20.0f64) * selectivity).ceil() as usize;
-        let allowed: std::collections::HashSet<usize> = (0..count.min(20)).collect();
+        let count = ((20.0f64) * selectivity).ceil() as u64;
+        let allowed = owners_in_categories(&ords, count.min(20));
         let (recall, ann_ms, exact_ms, fallback) =
             run_filtered_experiment(&vecs, &queries, k, &allowed);
         println!(
@@ -246,7 +248,7 @@ fn sift1m_unfiltered_recall_against_ground_truth() {
         let hits: Vec<Vec<u64>> = queries
             .iter()
             .map(|q| {
-                vecs.search_ann_in_view(&snap, &space, q, k, k.max(16), None)
+                vecs.search_ann_in_view(&snap, &space, q, k, k.max(16), Candidates::All)
                     .unwrap()
                     .into_iter()
                     .map(|h| h.source.owner_ord)

@@ -314,11 +314,17 @@ pub fn translate_find(doc: &Map<String, Value>) -> Result<Value, String> {
             if v.as_i64() == Some(0) && !k.ends_with("score") {
                 return Err("mongo: exclusion projections are unsupported".into());
             }
-            if include && v != &Value::Bool(true) {
+            if include {
                 select.insert(k.clone(), Value::String(format!("$record.{k}")));
             }
         }
-        q.insert("select".into(), Value::Object(select));
+        // An inclusion projection reads only its fields, plus the id: `_id`
+        // is returned unless excluded, and a `$text` score is found by it.
+        if !select.is_empty() {
+            let id = rushdb_types::value::ID_FIELD;
+            select.insert(id.into(), Value::String(format!("$record.{id}")));
+            q.insert("select".into(), Value::Object(select));
+        }
     }
     if let Some(sort) = doc.get("sort").and_then(Value::as_object) {
         let mut order = Map::new();

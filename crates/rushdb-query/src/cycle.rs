@@ -3,8 +3,8 @@
 //! type and direction?
 //!
 //! Enumerating trails per record is exponential in the hop count. Instead,
-//! one graph per query and relationship shape is built from the adjacency
-//! rows and split into the parts a cycle can live in (strongly connected
+//! one graph per query and relationship shape is built from the type's
+//! resident adjacency (`adjacency::ResidentGraph`) and split into the parts a cycle can live in (strongly connected
 //! components for a direction; for `both`, components minus bridges). Per
 //! record, a breadth-first search finds its shortest cycle `s`, which is
 //! always a simple cycle and so a trail: `s` in range answers `true`; no
@@ -16,7 +16,7 @@ use std::cell::RefCell;
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::Arc;
 
-use rushdb_storage::{ReadView, ScanBounds, ScanProjection};
+use rushdb_storage::ReadView;
 use rushdb_types::ids::TenantId;
 
 use crate::{Direction, QueryError, RelatedExpr};
@@ -97,28 +97,9 @@ impl CycleGraph {
             capable: Vec::new(),
             undirected: direction == Direction::Both,
         };
-        // Every relationship has one outgoing adjacency row:
-        // `T/adj/out/<source:8>/<type>/<target:8>/<rel:8>`.
-        let prefix = rushdb_types::keys::key(tenant, &[b"adj", b"out", b""]);
-        let mut cursor = snap.scan(ScanBounds::prefix(&prefix), ScanProjection::Keys)?;
-        loop {
-            cancel()?;
-            let batch = cursor.next_batch(4_096, 1 << 20)?;
-            for row in batch.rows {
-                let Some(rest) = row.key.strip_prefix(prefix.as_slice()) else {
-                    continue;
-                };
-                if rest.len() < 8 + 1 + 1 + 18 {
-                    continue;
-                }
-                let source = u64::from_be_bytes(rest[..8].try_into().unwrap_or_default());
-                let tail = &rest[rest.len() - 17..];
-                let name = &rest[9..rest.len() - 18];
-                if rel_type.is_some_and(|wanted| wanted.as_bytes() != name) {
-                    continue;
-                }
-                let target = u64::from_be_bytes(tail[..8].try_into().unwrap_or_default());
-                let rel = u64::from_be_bytes(tail[9..17].try_into().unwrap_or_default());
+        let resident = crate::adjacency::ResidentGraph::keep(snap, tenant, rel_type, cancel)?;
+        for &source in resident.sources() {
+            for &(target, rel) in resident.edges(source, true) {
                 let (from, to) = match direction {
                     Direction::Outgoing | Direction::Both => (source, target),
                     Direction::Incoming => (target, source),
@@ -128,9 +109,6 @@ impl CycleGraph {
                 if graph.undirected && from != to {
                     graph.adj[to as usize].push((from, rel));
                 }
-            }
-            if batch.done {
-                break;
             }
         }
         if graph.undirected {

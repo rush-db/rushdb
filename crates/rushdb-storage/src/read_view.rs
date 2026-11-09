@@ -109,6 +109,7 @@ pub struct ReadView {
     planner_stats: Arc<crate::PlannerStats>,
     // The store's per-snapshot owner-set cache (READ-2).
     owner_sets: Arc<crate::owner_sets::OwnerSets>,
+    graphs: Arc<crate::graph_cache::GraphCache>,
     // Generation of the `ReadPin` entry this view admitted into. Guards Drop
     // against decrementing a newer pin at the same CI after lease expiry.
     pin_generation: u64,
@@ -285,6 +286,7 @@ impl Store {
             deriver,
             planner_stats: Arc::clone(&self.planner_stats),
             owner_sets: Arc::clone(&self.owner_sets),
+            graphs: Arc::clone(&self.graphs),
             pin_generation,
             native_current: ci == visible,
             views: Some(merged),
@@ -342,6 +344,13 @@ impl ReadView {
         &self.owner_sets
     }
 
+    /// The store's resident-adjacency cache, keyed by this view's commit
+    /// index.
+    #[must_use]
+    pub fn graphs(&self) -> &crate::graph_cache::GraphCache {
+        &self.graphs
+    }
+
     fn storage_view(&self) -> &ReadView {
         self.parent.as_deref().map_or(self, ReadView::storage_view)
     }
@@ -388,6 +397,7 @@ impl ReadView {
             deriver: self.deriver.clone(),
             planner_stats: Arc::clone(&self.planner_stats),
             owner_sets: Arc::clone(&self.owner_sets),
+            graphs: Arc::clone(&self.graphs),
             pin_generation: self.pin_generation,
             native_current: self.native_current,
             views: None,
@@ -418,7 +428,29 @@ impl ReadView {
     /// Returns [`StorageError`] if the view is cancelled, the item exceeds the
     /// read limit, or the backend read fails.
     pub fn get(&self, key: &[u8]) -> Result<Option<Vec<u8>>, StorageError> {
-        self.read_value(key, ScanProjection::KeyValue)
+        self.with_value(key, |value| value.map(<[u8]>::to_vec))
+    }
+
+    /// Read a single key at this view's snapshot without copying it: `f`
+    /// sees the stored value bytes in place (`None` when the key is not
+    /// visible) and its result is returned. The same read as [`Self::get`]
+    /// (visibility, limits, cancellation, read accounting) minus the owned
+    /// copy, for callers that only inspect the value, such as scoring a
+    /// stored vector.
+    ///
+    /// `f` runs while the backend holds the read (a redb page guard or the
+    /// in-memory maps' read locks): keep it short and never read the store
+    /// from inside it.
+    ///
+    /// # Errors
+    /// Returns [`StorageError`] if the view is cancelled, the item exceeds the
+    /// read limit, or the backend read fails; `f` is not called then.
+    pub fn with_value<R>(
+        &self,
+        key: &[u8],
+        f: impl FnOnce(Option<&[u8]>) -> R,
+    ) -> Result<R, StorageError> {
+        self.visit_value(key, ScanProjection::KeyValue, self.limits, f)
     }
 
     /// Transitional materializing helper for consumers migrating to cursors.
@@ -486,20 +518,22 @@ impl ReadView {
         }
     }
 
-    fn read_value(
-        &self,
-        key: &[u8],
-        projection: ScanProjection,
-    ) -> Result<Option<Vec<u8>>, StorageError> {
-        self.read_value_with_limits(key, projection, self.limits)
-    }
-
     fn read_value_with_limits(
         &self,
         key: &[u8],
         projection: ScanProjection,
         limits: ReadLimits,
     ) -> Result<Option<Vec<u8>>, StorageError> {
+        self.visit_value(key, projection, limits, |value| value.map(<[u8]>::to_vec))
+    }
+
+    fn visit_value<R>(
+        &self,
+        key: &[u8],
+        projection: ScanProjection,
+        limits: ReadLimits,
+        visit: impl FnOnce(Option<&[u8]>) -> R,
+    ) -> Result<R, StorageError> {
         self.health.check()?;
         self.cancellation.check()?;
         limits.check_item(key.len(), 0)?;
@@ -512,7 +546,7 @@ impl ReadView {
         // pins the snapshot (redb). The live memory maps do not, so a view must
         // resolve reads by its `ci` even at the latest commit.
         let current = self.native_current && views.snapshot_pinned();
-        views.read_value(key, self.ci, current, limits, projection)
+        views.visit_value(key, self.ci, current, limits, projection, visit)
     }
 
     fn next_key(
@@ -534,7 +568,7 @@ impl ReadView {
     /// backend range cursor over `(lower, upper)` — one seek for the whole
     /// scan instead of one per row (`next_key` + `read_value_with_limits`,
     /// still the fallback). `Ok(None)` when this view cannot use the
-    /// current-value fast path (same gate `read_value_with_limits`'s
+    /// current-value fast path (same gate `visit_value`'s
     /// `current` flag already needs: a non-current/pinned-older snapshot,
     /// or a backend whose live maps aren't physically pinned pages), or
     /// when a backend has no such cursor.
@@ -554,7 +588,7 @@ impl ReadView {
             .views
             .as_ref()
             .expect("root read view owns backend views");
-        // Same gate as `read_value_with_limits`'s `current` fast path: valid
+        // Same gate as `visit_value`'s `current` fast path: valid
         // only when this view's ci is the backend's live, physically pinned
         // current state.
         if !(self.native_current && views.snapshot_pinned()) {
@@ -764,7 +798,7 @@ impl ScanCursor<'_> {
                 self.lower = Bound::Excluded(key);
                 continue;
             };
-            let bytes = key.len() + value.len(); // checked by read_value
+            let bytes = key.len() + value.len(); // checked by visit_value
             if bytes > byte_limit - batch.bytes {
                 if batch.rows.is_empty() {
                     return Err(StorageError::ResourceExhausted(

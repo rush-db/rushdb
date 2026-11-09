@@ -152,7 +152,11 @@ A checkpoint makes the materialization durable and lets the WAL shrink:
    `min(checkpoint LSN, retention cursor)`.
 
 Checkpoints run at the end of every maintenance tick (default every 5 s),
-at clean shutdown, and before a base backup copies the store files. A base
+at clean shutdown, and before a base backup copies the store files. A
+shard with no write since its last checkpoint, at the same LSN, skips
+step 1, so an idle store does not write its store file per tick (steps 2
+and 3 still run: the retention cursor may have advanced).
+`rushdb_storage_checkpoints_total` counts only checkpoints that wrote. A base
 backup uses a variant that first drains every pending commit, so the copied
 file contains exactly the commit index its manifest claims.
 

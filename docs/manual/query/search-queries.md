@@ -95,7 +95,8 @@ RushDB picks the result shape from the document:
 |---|---|---|
 | No `select`, no `groupBy` | Listing | `records` (full records, plus `total`) |
 | `select` made only of `$collect` entries | Listing with nested collections attached to each record | `records` |
-| Any other `select`, or a non-empty `groupBy` | Projection or aggregation | `rows` (plain JSON objects, plus `total`) |
+| `select` made only of field references (and `$collect` entries), no `groupBy` | Listing with a projection: each record's row holds just the selected fields | `rows` (plain JSON objects, plus `total`) |
+| A `select` with any metric, or a non-empty `groupBy` | Aggregation | `rows` (plain JSON objects, plus `total`) |
 
 `total` on a `rows` response is the number of matched root records, not the
 number of rows.
@@ -134,13 +135,22 @@ A field reference is a string: `"$record.field"` or `"$self.field"` (the
 current record), or `"$alias.field"` for a related record bound with
 `$alias` (see [Relationships and traversal](relationships-and-traversal.md#aliases)).
 
-> **Warning:** Projections and per-record aggregations are computed as
-> groups, and a single aggregation may create at most **1,000** distinct
-> groups. A plain `select` projection that matches more than 1,000 records
-> fails with `resource_exhausted` even when `limit` is smaller, because
-> `offset`/`limit` are applied after grouping. Narrow the `predicate`, or use
-> a listing (no `select`) with a [cursor](sorting-and-pagination.md#cursors)
-> for large result sets.
+A plain projection runs as a listing, not as an aggregation: it matches,
+orders and pages exactly like a listing with the same `predicate`, `order`,
+`offset` and `limit`, and reads only the selected fields of the records on
+the page. `order` may name an output key; it sorts by the field that key
+projects. Without an `order`, only the requested page is read. It is not
+subject to the aggregation group limit, and it has the same two budgets as a
+listing:
+
+- the match set it holds while it runs (match ordinals, ordering rows) is
+  capped by `query-memory-max`;
+- the rows it returns are charged by their serialized size against the
+  response size limit (`--body-limit`, default 16 MiB).
+
+A projection is not a cursor query: `cursorTtlMs` is refused with
+`invalid_request`. Page a large projection with `offset`/`limit`, or use a
+listing (no `select`) with a [cursor](sorting-and-pagination.md#cursors).
 
 ## Counting
 

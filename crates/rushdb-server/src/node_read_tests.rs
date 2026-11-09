@@ -962,6 +962,42 @@ fn metrics_expose_storage_byte_accounting() {
 }
 
 #[test]
+fn metrics_report_write_bytes_and_checkpoints_without_a_storage_walk() {
+    // The write-path counters are live atomics: a scrape reports them before
+    // the (15-minute) storage-stats walk has ever run.
+    let dir = rushdb_storage::TempPath::dir("write-bytes-metrics");
+    let mut cfg = crate::ServerConfig {
+        data_dir: Some(dir.to_path_buf()),
+        ..Default::default()
+    };
+    let node = Node::bootstrap(&mut cfg).unwrap();
+    let value = |rendered: &str, metric: &str| -> u64 {
+        rendered
+            .lines()
+            .find_map(|line| line.strip_prefix(metric)?.strip_prefix(' '))
+            .and_then(|value| value.trim().parse().ok())
+            .unwrap_or_else(|| panic!("missing {metric}"))
+    };
+    let before = node.metrics_render();
+    node.scope()
+        .import_json_document("S", &json!({"u": 1, "name": "written"}))
+        .unwrap();
+    node.store().checkpoint().unwrap();
+    assert!(node.storage_stats().is_none(), "no storage walk ran");
+    let after = node.metrics_render();
+    for metric in [
+        "rushdb_storage_wal_bytes_total",
+        "rushdb_storage_applied_bytes_total",
+        "rushdb_storage_checkpoints_total",
+    ] {
+        assert!(
+            value(&after, metric) > value(&before, metric),
+            "{metric} did not move"
+        );
+    }
+}
+
+#[test]
 fn metrics_expose_attributable_work_counters_and_boot_phases() {
     let node = Node::bootstrap(&mut crate::ServerConfig::default()).unwrap();
     node.observe_work("sql_scan", "candidate_rows", 7);

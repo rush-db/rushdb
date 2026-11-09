@@ -34,7 +34,10 @@ impl<'a> PolicyGate<'a> {
         for collect in &req.collects {
             self.collect(collect)?;
         }
-        for (field, _) in &req.order_by {
+        // A projected property is returned as is, never masked: one the
+        // policy hides is refused, as it is in an aggregate's select.
+        let ordered = req.order_by.iter().map(|(field, _)| field);
+        for field in ordered.chain(req.projection.iter().map(|(_, field)| field)) {
             self.reference(labels, &req.related, field)?;
         }
         Ok(())

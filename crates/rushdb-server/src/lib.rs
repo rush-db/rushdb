@@ -16,6 +16,7 @@ pub mod config;
 pub mod grpc;
 pub mod http;
 pub mod lifecycle;
+mod migrations;
 mod node;
 pub mod pgwire;
 pub mod protocol;

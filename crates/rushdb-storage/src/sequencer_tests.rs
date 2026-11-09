@@ -118,6 +118,16 @@ fn apply_net(pending: &mut BTreeMap<Vec<u8>, Option<Vec<u8>>>, ops: &[Op]) {
     }
 }
 
+/// Commit index of the newest in-flight layer that writes `key`.
+fn latest_writer(state: &SequencerState, key: &[u8]) -> Option<u64> {
+    state
+        .layers
+        .iter()
+        .rev()
+        .find(|layer| layer.get(key).is_some())
+        .map(|layer| layer.ci())
+}
+
 #[test]
 fn sequencer_buffer_trims_published_and_tracks_in_flight() {
     let store = Store::new_in_memory();
@@ -133,10 +143,7 @@ fn sequencer_buffer_trims_published_and_tracks_in_flight() {
     // section trims it (the base then already contains it).
     {
         let state = store.admission_lock.lock().unwrap();
-        assert_eq!(
-            state.buffer.get(b"acct".as_slice()).map(|(ci, _)| *ci),
-            Some(1)
-        );
+        assert_eq!(latest_writer(&state, b"acct"), Some(1));
     }
 
     let second = Uuid::new_v4();
@@ -147,10 +154,11 @@ fn sequencer_buffer_trims_published_and_tracks_in_flight() {
     {
         let state = store.admission_lock.lock().unwrap();
         assert_eq!(
-            state.buffer.get(b"acct".as_slice()).map(|(ci, _)| *ci),
+            latest_writer(&state, b"acct"),
             Some(2),
             "the published entry is trimmed and the new in-flight one recorded"
         );
+        assert_eq!(state.layers.len(), 1, "one layer per in-flight commit");
     }
 }
 
@@ -285,6 +293,7 @@ fn overlay_expansion_matches_the_committed_forward_path() {
     // will. Compare against the committed predecessor and the real state.
     let base_ci = committed.first().map_or(0, |(ci, ..)| ci - 1);
     let mut pending: BTreeMap<Vec<u8>, Option<Vec<u8>>> = BTreeMap::new();
+    let mut layers: Vec<Arc<overlay_view::CommitLayer>> = Vec::new();
     for (step, (ci, batch, payload)) in committed.iter().enumerate() {
         let overlay = Arc::new(OverlayView::with_buffer(
             Arc::new(store.read_at(base_ci).expect("base view")),
@@ -308,6 +317,23 @@ fn overlay_expansion_matches_the_committed_forward_path() {
             "overlay expansion diverged from the committed forward path at step {step} (ci {ci})"
         );
 
+        // The sequencer's shared per-commit layers expand identically.
+        let layered = Arc::new(OverlayView::with_layers(
+            Arc::new(store.read_at(base_ci).expect("base view")),
+            layers.clone(),
+        ));
+        let layered_ops = store
+            .expand_against_overlay(*ci, batch, payload, Arc::clone(&layered))
+            .expect("layered expansion");
+        assert_eq!(
+            layered_ops, forward_ops,
+            "layered expansion diverged from the committed forward path at step {step} (ci {ci})"
+        );
+        layers.push(Arc::new(overlay_view::CommitLayer::new(
+            *ci,
+            Arc::new(layered_ops),
+        )));
+
         apply_net(&mut pending, &overlay_ops);
 
         // After folding this command's ops, the accumulated overlay must match
@@ -326,4 +352,146 @@ fn overlay_expansion_matches_the_committed_forward_path() {
             );
         }
     }
+}
+
+#[test]
+fn commit_layer_keeps_the_last_write_per_key_in_key_order() {
+    let layer = overlay_view::CommitLayer::new(
+        7,
+        Arc::new(vec![
+            Op::Put(b"k/b".to_vec(), b"1".to_vec()),
+            Op::Put(b"k/a".to_vec(), b"1".to_vec()),
+            Op::Del(b"k/b".to_vec()),
+            Op::Set(b"k/c".to_vec(), b"3".to_vec()),
+            Op::Put(b"k/a".to_vec(), b"2".to_vec()),
+        ]),
+    );
+    assert_eq!(layer.ci(), 7);
+    assert_eq!(layer.len(), 3);
+    assert_eq!(layer.get(b"k/a"), Some(Some(b"2".as_slice())));
+    assert_eq!(layer.get(b"k/b"), Some(None), "a later delete wins");
+    assert_eq!(layer.get(b"k/c"), Some(Some(b"3".as_slice())));
+    assert_eq!(layer.get(b"k/d"), None);
+    assert_eq!(
+        layer.keys().collect::<Vec<_>>(),
+        vec![b"k/a".as_slice(), b"k/b", b"k/c"]
+    );
+}
+
+#[test]
+fn layered_overlay_reads_newest_layer_then_buffer_over_base() {
+    let store = Store::new_in_memory();
+    store.set_expander(Arc::new(Box::new(|_, _, txn| {
+        txn.put(b"k/a".to_vec(), b"base-a".to_vec());
+        txn.put(b"k/b".to_vec(), b"base-b".to_vec());
+        txn.put(b"k/c".to_vec(), b"base-c".to_vec());
+        Ok(())
+    })));
+    let key = Uuid::new_v4();
+    let tenant = TenantId::from_ordinal(1);
+    store
+        .commit(key, |_, _| Ok((delta_batch(key, tenant, &[]), ())))
+        .expect("commit");
+    let base = Arc::new(store.read_view().unwrap());
+    let older = Arc::new(overlay_view::CommitLayer::new(
+        10,
+        Arc::new(vec![
+            Op::Put(b"k/b".to_vec(), b"older-b".to_vec()),
+            Op::Put(b"k/d".to_vec(), b"older-d".to_vec()),
+            Op::Put(b"k/e".to_vec(), b"older-e".to_vec()),
+        ]),
+    ));
+    let newer = Arc::new(overlay_view::CommitLayer::new(
+        11,
+        Arc::new(vec![
+            Op::Del(b"k/c".to_vec()),
+            Op::Put(b"k/d".to_vec(), b"newer-d".to_vec()),
+            Op::Del(b"k/e".to_vec()),
+        ]),
+    ));
+    let mut overlay = OverlayView::with_layers(base, vec![older, newer]);
+    overlay.put(b"k/b".to_vec(), b"own-b".to_vec());
+    overlay.put(b"k/e".to_vec(), b"own-e".to_vec());
+
+    assert_eq!(overlay.get(b"k/a").unwrap(), Some(b"base-a".to_vec()));
+    assert_eq!(overlay.get(b"k/b").unwrap(), Some(b"own-b".to_vec()));
+    assert_eq!(
+        overlay.get(b"k/c").unwrap(),
+        None,
+        "a layer tombstone hides base"
+    );
+    assert_eq!(overlay.get(b"k/d").unwrap(), Some(b"newer-d".to_vec()));
+    assert_eq!(overlay.get(b"k/e").unwrap(), Some(b"own-e".to_vec()));
+    let expected = vec![
+        (b"k/a".to_vec(), b"base-a".to_vec()),
+        (b"k/b".to_vec(), b"own-b".to_vec()),
+        (b"k/d".to_vec(), b"newer-d".to_vec()),
+        (b"k/e".to_vec(), b"own-e".to_vec()),
+    ];
+    assert_eq!(overlay.range_prefix(b"k/").unwrap(), expected);
+    assert_eq!(overlay.range(b"k/", b"k0").unwrap(), expected);
+    assert_eq!(
+        overlay.range(b"k/b", b"k/e").unwrap(),
+        expected[1..3].to_vec(),
+        "range bounds apply to staged rows too"
+    );
+    assert_eq!(
+        overlay.range_keys(b"k/", b"k0").unwrap(),
+        expected
+            .iter()
+            .map(|(key, _)| key.clone())
+            .collect::<Vec<_>>()
+    );
+
+    let mut txn = Txn {
+        base: TxnBase::Overlay(Arc::new(overlay)),
+        buffer: BTreeMap::new(),
+        purge_keys: BTreeSet::default(),
+        set_keys: BTreeSet::default(),
+        watermark_keys: BTreeSet::default(),
+        ids: &store.ids,
+        deps: None,
+    };
+    txn.del(b"k/a".to_vec());
+    assert_eq!(
+        txn.keys_prefix_limited(b"k/", 10).unwrap(),
+        vec![b"k/b".to_vec(), b"k/d".to_vec(), b"k/e".to_vec()]
+    );
+}
+
+#[test]
+fn admitted_commit_shares_its_ops_with_the_sequencer_layer() {
+    // The pending entry the publisher drains and the layer later commands
+    // read are one allocation: admission copies no key or value.
+    let store = Arc::new(Store::new_in_memory());
+    store.set_expander(summing_expander());
+    let publishing = store.publish_lock.lock().unwrap();
+    let worker = {
+        let store = Arc::clone(&store);
+        std::thread::spawn(move || {
+            let key = Uuid::new_v4();
+            let batch = delta_batch(key, TenantId::from_ordinal(1), &[(b"acct".to_vec(), 4)]);
+            store.commit(key, |_, _| Ok((batch.clone(), ()))).unwrap();
+        })
+    };
+    let mut pending = store.pending.lock().unwrap();
+    while !pending.contains_key(&1) {
+        pending = store
+            .pending_cv
+            .wait_timeout(pending, std::time::Duration::from_secs(2))
+            .unwrap()
+            .0;
+    }
+    {
+        let state = store.admission_lock.lock().unwrap();
+        assert_eq!(state.layers.len(), 1);
+        assert!(Arc::ptr_eq(&pending[&1].ops, state.layers[0].ops()));
+    }
+    drop(pending);
+    drop(publishing);
+    worker.join().unwrap();
+    assert_eq!(
+        store.try_get(b"acct").unwrap(),
+        Some(4_i64.to_be_bytes().to_vec())
+    );
 }

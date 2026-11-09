@@ -88,11 +88,16 @@ impl ConflictWindow {
     /// excluded, because every commit rewrites them and they are never read
     /// dependencies.
     pub(crate) fn record(&mut self, ci: u64, ops: &[Op]) {
-        let keys: Arc<[Vec<u8>]> = ops
-            .iter()
-            .map(op_key)
+        self.record_keys(ci, ops.iter().map(op_key).cloned());
+    }
+
+    /// [`Self::record`] from the commit's written keys, taken by value: the
+    /// publisher hands over the write set it already holds instead of
+    /// copying every key again.
+    pub(crate) fn record_keys(&mut self, ci: u64, keys: impl IntoIterator<Item = Vec<u8>>) {
+        let keys: Arc<[Vec<u8>]> = keys
+            .into_iter()
             .filter(|key| !crate::is_coordination_write(key))
-            .cloned()
             .collect();
         let size = keys.iter().map(|key| key.len() + PER_KEY_OVERHEAD).sum();
         self.entries.push_back((ci, keys, size));

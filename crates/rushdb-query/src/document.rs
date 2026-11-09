@@ -1018,6 +1018,24 @@ fn select_field(v: &Json) -> Result<String, QueryDocumentError> {
     Ok(s.to_string())
 }
 
+/// `order_by` with every name of a projected output replaced by the field
+/// it projects, so a projection sorts by what its rows show.
+fn projected_order(
+    order_by: &[(String, bool)],
+    projection: &[(String, String)],
+) -> Vec<(String, bool)> {
+    order_by
+        .iter()
+        .map(|(name, desc)| {
+            let field = projection
+                .iter()
+                .find(|(output, _)| norm(output) == norm(name))
+                .map_or(name, |(_, field)| field);
+            (field.clone(), *desc)
+        })
+        .collect()
+}
+
 /// Parse an `orderBy` value (`"asc"|"desc"` or `{field:"asc"}`) into
 /// `(normalized_field, descending)` pairs.
 fn parse_order_by(v: Option<&Json>) -> Vec<(String, bool)> {
@@ -1218,9 +1236,12 @@ fn parse_collect(
 /// the query is a listing (no groupBy) or aggregate (groupBy or select with
 /// metrics).
 pub struct ParsedQuery {
-    /// Records-perspective request built from `labels`/`where`/pagination.
+    /// Records-perspective request built from `labels`/`where`/pagination,
+    /// with the projection of a `select` made only of plain fields and
+    /// `$collect`s.
     pub search: SearchRequest,
-    /// Aggregate request when the document carries a `select` or `groupBy`.
+    /// Aggregate request when the document carries `groupBy` or a `select`
+    /// with a metric.
     pub aggregate: Option<AggregateRequest>,
     /// Parsed `orderBy` pairs shared by the listing and aggregate paths.
     pub order_by: Vec<(String, bool)>,
@@ -1284,7 +1305,6 @@ pub fn parse_document(document: &Json) -> Result<ParsedQuery, QueryDocumentError
     // orderBy: "asc"|"desc" | {field:"asc"}
     let order_by = parse_order_by(obj.get("orderBy"));
 
-    // select + groupBy → aggregate; else listing
     let select = obj.get("select").cloned();
     let group_by: Vec<String> = obj
         .get("groupBy")
@@ -1302,31 +1322,35 @@ pub fn parse_document(document: &Json) -> Result<ParsedQuery, QueryDocumentError
         .unwrap_or_default();
 
     // `$collect` is a per-record output shape: extract every `$collect` from
-    // `select` onto the search request so the listing path attaches them, and
-    // treat a select made only of `$collect`s as a listing (per-record rows).
+    // `select` onto the search request so the listing path attaches them.
+    // A select made only of plain field references and `$collect`s, without
+    // `groupBy`, is a listing: one row per matching record, matched, paged
+    // and budgeted like any records search. Anything with a metric is an
+    // aggregate.
     let mut aliases = CollectAliasMap::new();
     if let Some(where_expr) = &where_expr {
         collect_alias_map(where_expr, &mut aliases);
     }
     let mut collects: Vec<crate::CollectSpec> = Vec::new();
-    let collect_only = select.as_ref().is_some_and(|sel| {
-        sel.as_object().is_some_and(|m| {
-            !m.is_empty()
-                && m.values()
-                    .all(|v| v.as_object().and_then(|o| o.get("$collect")).is_some())
-        })
-    });
-    if let Some(sel) = &select {
-        if let Some(map) = sel.as_object() {
+    let mut projection: Vec<(String, String)> = Vec::new();
+    let mut listing = group_by.is_empty();
+    match select.as_ref().map(|sel| sel.as_object()) {
+        Some(Some(map)) => {
+            listing &= !map.is_empty();
             for (key, val) in map {
                 if let Some(collect) = val.as_object().and_then(|o| o.get("$collect")) {
                     collects.push(parse_collect(key, collect, &aliases)?);
+                } else if val.is_string() {
+                    projection.push((key.clone(), select_field(val)?));
+                } else {
+                    listing = false;
                 }
             }
         }
+        Some(None) => listing = false,
+        None => {}
     }
-
-    let is_aggregate = (select.is_some() && !collect_only) || !group_by.is_empty();
+    let is_aggregate = (select.is_some() && !listing) || !group_by.is_empty();
 
     let search = SearchRequest {
         labels: labels.clone(),
@@ -1334,7 +1358,13 @@ pub fn parse_document(document: &Json) -> Result<ParsedQuery, QueryDocumentError
         related: Vec::new(),
         collects: collects.clone(),
         pagination: Pagination { skip, limit },
-        order_by: order_by.clone(),
+        // A projection is ordered by its output names, as its rows are.
+        order_by: if is_aggregate {
+            order_by.clone()
+        } else {
+            projected_order(&order_by, &projection)
+        },
+        projection: if is_aggregate { Vec::new() } else { projection },
         force_scan: false,
     };
 

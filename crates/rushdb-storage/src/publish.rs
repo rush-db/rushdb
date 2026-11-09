@@ -5,6 +5,7 @@
 
 use std::collections::BTreeMap;
 
+use super::backend::CommitOps;
 use super::{
     derive, wal, CommitPhase, DeriveRead, Op, Ordering, PendingCommit, PreparedCommand,
     StorageError, Store,
@@ -125,12 +126,18 @@ impl Store {
                     return;
                 }
             };
-            let pairs: Vec<(u64, &[Op])> = batch
+            let pairs: Vec<CommitOps<'_>> = batch
                 .iter()
                 .zip(&derived)
-                .map(|(pc, all)| (pc.ci, all.as_deref().unwrap_or(pc.ops.as_slice())))
+                .map(|(pc, derived)| CommitOps {
+                    ci: pc.ci,
+                    base: &pc.ops,
+                    derived,
+                })
                 .collect();
             let publication = self.persist_many_sharded(&pairs, &batch);
+            drop(pairs);
+            drop(derived);
             match publication {
                 Ok(()) => {
                     let publish_started = std::time::Instant::now();
@@ -139,8 +146,8 @@ impl Store {
                         // validator that observes the new index always finds
                         // the summary (C4: in-memory, see `conflict_window`).
                         let mut window = self.health.cleanup(self.conflicts.lock());
-                        for pc in &batch {
-                            window.record(pc.ci, &pc.ops);
+                        for pc in &mut batch {
+                            window.record_keys(pc.ci, std::mem::take(&mut pc.prepared.writes));
                         }
                     }
                     self.published
@@ -153,7 +160,6 @@ impl Store {
                     self.observe_phase(CommitPhase::Publish, publish_started);
                 }
                 Err(e) => {
-                    drop(pairs);
                     self.fail_publication(batch, &e);
                     return;
                 }
@@ -162,34 +168,47 @@ impl Store {
         }
     }
 
-    /// Per commit of a publish group, its base + derived ops (`None` when
-    /// nothing was derived), each derived against the state before it.
-    fn derive_group(&self, batch: &[PendingCommit]) -> Result<Vec<Option<Vec<Op>>>, StorageError> {
+    /// Per commit of a publish group, the ops derived from it (empty when
+    /// nothing was derived), each derived against the state before it: its
+    /// shard backend plus the earlier commits of the group. That prior state
+    /// borrows the group's ops; nothing is copied into it.
+    fn derive_group(&self, batch: &[PendingCommit]) -> Result<Vec<Vec<Op>>, StorageError> {
         let Some(deriver) = self.deriver() else {
-            return Ok(vec![None; batch.len()]);
+            return Ok(vec![Vec::new(); batch.len()]);
         };
-        let mut bases: BTreeMap<usize, Box<dyn DeriveRead>> = BTreeMap::new();
-        let mut buffers: BTreeMap<usize, BTreeMap<Vec<u8>, Option<Vec<u8>>>> = BTreeMap::new();
-        let mut out = Vec::with_capacity(batch.len());
-        for pc in batch {
-            if let std::collections::btree_map::Entry::Vacant(slot) = bases.entry(pc.shard) {
-                slot.insert(match self.backend(pc.shard) {
-                    Some(backend) => Box::new(derive::BackendRead(backend.read_view()?)),
-                    None => Box::new(derive::Empty),
-                });
-            }
-            let buffer = buffers.entry(pc.shard).or_default();
-            let all = {
-                let before = derive::Layered {
-                    base: bases[&pc.shard].as_ref(),
-                    buffer,
+        // Each commit's derived ops are written once into its cell and never
+        // move, so later commits' layered state can borrow them.
+        let outputs: Vec<std::cell::OnceCell<Vec<Op>>> =
+            batch.iter().map(|_| std::cell::OnceCell::new()).collect();
+        {
+            let mut bases: BTreeMap<usize, Box<dyn DeriveRead>> = BTreeMap::new();
+            let mut buffers: BTreeMap<usize, BTreeMap<&[u8], Option<&[u8]>>> = BTreeMap::new();
+            for (position, (pc, cell)) in batch.iter().zip(&outputs).enumerate() {
+                if let std::collections::btree_map::Entry::Vacant(slot) = bases.entry(pc.shard) {
+                    slot.insert(match self.backend(pc.shard) {
+                        Some(backend) => Box::new(derive::BackendRead(backend.read_view()?)),
+                        None => Box::new(derive::Empty),
+                    });
+                }
+                let buffer = buffers.entry(pc.shard).or_default();
+                let ops = {
+                    let before = derive::Layered {
+                        base: bases[&pc.shard].as_ref(),
+                        buffer,
+                    };
+                    Self::derive_ops(Some(&deriver), pc.ci, &pc.ops, &before)?
                 };
-                Self::derive_ops(Some(&deriver), pc.ci, &pc.ops, &before)?
-            };
-            derive::fold(buffer, all.as_deref().unwrap_or(pc.ops.as_slice()));
-            out.push(all);
+                let ops = cell.get_or_init(|| ops);
+                // The last commit has no successor in this group to read it.
+                if position + 1 < batch.len() {
+                    derive::fold(buffer, pc.ops.iter().chain(ops));
+                }
+            }
         }
-        Ok(out)
+        Ok(outputs
+            .into_iter()
+            .map(|cell| cell.into_inner().unwrap_or_default())
+            .collect())
     }
 
     /// Fence the publisher after a failed group: fail this group and every

@@ -1,7 +1,8 @@
-//! Opt-in read accounting for profiling: counts the backend's point reads,
-//! range opens and seeks per key family (`keys::family_label`). Off by
-//! default; when off, a read costs one relaxed atomic load. [`take`] returns
-//! every thread's reads (profile one workload at a time); [`take_local`]
+//! Opt-in read accounting for profiling: counts every backend's (redb and
+//! in-memory) point reads, range opens, rows yielded by ranges and seeks per
+//! key family (`keys::family_label`). Off by default; when off, a read costs
+//! one relaxed atomic load. [`take`] returns every thread's reads (profile
+//! one workload at a time); [`take_local`]
 //! returns only the calling thread's, which stays exact while other work
 //! runs concurrently (tests).
 
@@ -23,7 +24,8 @@ pub fn enable(on: bool) {
     ENABLED.store(on, Ordering::Relaxed);
 }
 
-/// Count one backend read of kind `op` (`get`, `scan`, `seek`) at `key`.
+/// Count one backend read of kind `op` (`get`, `scan`, `row`, `seek`) at
+/// `key`.
 pub(crate) fn record(op: &'static str, key: &[u8]) {
     if !ENABLED.load(Ordering::Relaxed) {
         return;
@@ -34,6 +36,20 @@ pub(crate) fn record(op: &'static str, key: &[u8]) {
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
     *counts.entry((op, family)).or_default() += 1;
+}
+
+/// Add `counts` to the calling thread's tally: reads a helper thread did on
+/// this thread's behalf ([`crate::parallel::run_parts`]).
+pub(crate) fn add_local(counts: BTreeMap<(&'static str, String), u64>) {
+    if counts.is_empty() {
+        return;
+    }
+    LOCAL.with(|local| {
+        let mut local = local.borrow_mut();
+        for (key, count) in counts {
+            *local.entry(key).or_default() += count;
+        }
+    });
 }
 
 /// Take and reset the calling thread's counts.

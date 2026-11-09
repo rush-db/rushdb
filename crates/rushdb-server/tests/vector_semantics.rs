@@ -587,7 +587,7 @@ fn explain_vector_reports_access_path_and_candidate_count() {
                     property: "embedding".to_string(),
                     vector: vec![1.0, 0.0],
                     similarity: "cosine".to_string(),
-                    index: None,
+                    index: Some(alias.into()),
                     predicate: serde_json::json!({ "tag": "banana" }),
                     offset: 0,
                     limit: 10,
@@ -612,6 +612,9 @@ fn explain_vector_reports_access_path_and_candidate_count() {
     );
     assert_eq!(plan.k, 10);
     assert_eq!(plan.predicate, serde_json::json!({ "tag": "banana" }));
+    // One candidate is scored exactly, as the search would.
+    assert_eq!(plan.search.mode, "exact");
+    assert_eq!(plan.search.pool, 1);
 }
 
 /// A custom-named index (two same-shape embedding models) must bind and search

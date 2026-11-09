@@ -626,7 +626,7 @@ fn cancelled_inline_vector_binding_rolls_back_create_only_ingest() {
         .scope()
         .ingest_documents_with_cancel(
             Some("Doc"),
-            &serde_json::json!({
+            serde_json::json!({
                 "name": "cancelled",
                 "$vectors": [{
                     "propertyName": "embedding",
@@ -6629,6 +6629,60 @@ fn explain_names_the_unindexed_walk_and_the_index_that_would_serve_it() {
     );
     assert_eq!(plan.access_path, "label_scan");
     assert!(plan.unindexed_walk.is_none());
+}
+
+#[test]
+fn explain_names_a_relation_answered_by_expanding_from_its_targets() {
+    use rushdb_lmpg::plan::FieldChange;
+    let node = Node::bootstrap(&mut config(false)).unwrap();
+    let lmpg = node.scope().lmpg();
+    let people: Vec<_> = (0..30)
+        .map(|i| {
+            lmpg.create_record(
+                "Person",
+                None,
+                vec![("node_id".into(), FieldChange::Set(serde_json::json!(i)))],
+            )
+            .unwrap()
+        })
+        .collect();
+    for pair in people.windows(2) {
+        lmpg.create_relationship("KNOWS", pair[0], pair[1], vec![])
+            .unwrap();
+    }
+    let explain = |predicate: serde_json::Value| {
+        let Response::Explain { plan } = run(
+            &node,
+            Operation::Describe {
+                describe: Describe::Explain {
+                    query: QueryDocument {
+                        labels: vec!["Person".into()],
+                        predicate,
+                        ..QueryDocument::default()
+                    },
+                },
+            },
+        ) else {
+            panic!("explain response")
+        };
+        plan
+    };
+    // One target (an exact value count) against 30 candidates: expanded.
+    let plan = explain(serde_json::json!({ "Person": {
+        "$relation": { "type": "KNOWS", "direction": "both", "hops": { "min": 1, "max": 2 } },
+        "node_id": 7
+    }}));
+    assert_eq!(plan.access_path, "relation_expand");
+    assert_eq!(
+        plan.relation_expansion,
+        Some(rushdb_protocol::RelationExpansion { target_estimate: 1 })
+    );
+    // Every Person is a target: checked per candidate, a label scan.
+    let plan = explain(serde_json::json!({ "Person": {
+        "$relation": { "type": "KNOWS", "direction": "both" }
+    }}));
+    assert_eq!(plan.access_path, "label_scan");
+    assert!(plan.relation_expansion.is_none());
 }
 
 #[test]

@@ -18,7 +18,7 @@ use crate::read_view::{ReadLimits, ScanProjection};
 use crate::{Op, StorageError, Store};
 
 /// Read access to the state *before* a commit, for a [`Deriver`].
-pub trait DeriveRead {
+pub trait DeriveRead: Sync {
     /// Current value of `key`, or `None` when absent.
     ///
     /// # Errors
@@ -93,72 +93,79 @@ impl DeriveRead for crate::ReadView {
     }
 }
 
-/// A read base plus a buffer of writes not yet visible in it (`None` =
-/// tombstone): the state before a commit inside a publish group.
-pub(crate) struct Layered<'a> {
+/// A read base plus the writes of earlier commits of the same publish group
+/// not yet visible in it (`None` = tombstone): the state before a commit
+/// inside the group. The buffer borrows the group's ops instead of copying
+/// them.
+pub(crate) struct Layered<'a, 'b> {
     pub(crate) base: &'a dyn DeriveRead,
-    pub(crate) buffer: &'a BTreeMap<Vec<u8>, Option<Vec<u8>>>,
+    pub(crate) buffer: &'a BTreeMap<&'b [u8], Option<&'b [u8]>>,
 }
 
-impl DeriveRead for Layered<'_> {
+impl Layered<'_, '_> {
+    fn overlay(
+        &self,
+        mut merged: BTreeMap<Vec<u8>, Vec<u8>>,
+        start: &[u8],
+        end: Bound<&[u8]>,
+    ) -> Vec<(Vec<u8>, Vec<u8>)> {
+        for (key, value) in self.buffer.range::<[u8], _>((Bound::Included(start), end)) {
+            match value {
+                Some(value) => {
+                    merged.insert(key.to_vec(), value.to_vec());
+                }
+                None => {
+                    merged.remove(*key);
+                }
+            }
+        }
+        merged.into_iter().collect()
+    }
+}
+
+impl DeriveRead for Layered<'_, '_> {
     fn get(&self, key: &[u8]) -> Result<Option<Vec<u8>>, StorageError> {
         match self.buffer.get(key) {
-            Some(value) => Ok(value.clone()),
+            Some(value) => Ok(value.map(<[u8]>::to_vec)),
             None => self.base.get(key),
         }
     }
 
     fn range_prefix(&self, prefix: &[u8]) -> Result<Vec<(Vec<u8>, Vec<u8>)>, StorageError> {
-        let mut merged: BTreeMap<Vec<u8>, Vec<u8>> =
-            self.base.range_prefix(prefix)?.into_iter().collect();
+        let merged = self.base.range_prefix(prefix)?.into_iter().collect();
         let upper = crate::prefix_range(prefix).1;
         let end = if upper.is_empty() {
             Bound::Unbounded
         } else {
-            Bound::Excluded(upper)
+            Bound::Excluded(upper.as_slice())
         };
-        for (key, value) in self
-            .buffer
-            .range::<Vec<u8>, _>((Bound::Included(prefix.to_vec()), end))
-        {
-            match value {
-                Some(value) => {
-                    merged.insert(key.clone(), value.clone());
-                }
-                None => {
-                    merged.remove(key);
-                }
-            }
-        }
-        Ok(merged.into_iter().collect())
+        Ok(self.overlay(merged, prefix, end))
     }
 
     fn range(&self, start: &[u8], end: &[u8]) -> Result<Vec<(Vec<u8>, Vec<u8>)>, StorageError> {
-        let mut merged: BTreeMap<Vec<u8>, Vec<u8>> =
-            self.base.range(start, end)?.into_iter().collect();
-        for (key, value) in map_range(self.buffer, start, end) {
-            match value {
-                Some(value) => {
-                    merged.insert(key.clone(), value.clone());
-                }
-                None => {
-                    merged.remove(key);
-                }
-            }
-        }
-        Ok(merged.into_iter().collect())
+        let merged = self.base.range(start, end)?.into_iter().collect();
+        let end = if end.is_empty() {
+            Bound::Unbounded
+        } else {
+            Bound::Excluded(end)
+        };
+        Ok(self.overlay(merged, start, end))
     }
 }
 
-/// Fold ops into a layered buffer (history is irrelevant to derivation).
-pub(crate) fn fold(buffer: &mut BTreeMap<Vec<u8>, Option<Vec<u8>>>, ops: &[Op]) {
+/// Fold ops into a borrowed layered buffer (history is irrelevant to
+/// derivation).
+pub(crate) fn fold<'b>(
+    buffer: &mut BTreeMap<&'b [u8], Option<&'b [u8]>>,
+    ops: impl IntoIterator<Item = &'b Op>,
+) {
     for op in ops {
         match op {
             Op::Put(key, value) | Op::Set(key, value) => {
-                buffer.insert(key.clone(), Some(value.clone()));
+                buffer.insert(key, Some(value));
             }
             Op::Del(key) | Op::Purge(key) => {
-                buffer.insert(key.clone(), None);
+                buffer.insert(key, None);
             }
         }
     }
@@ -274,24 +281,19 @@ impl Store {
         self.health.cleanup(self.deriver.read()).clone()
     }
 
-    /// Base ops followed by their derived ops, or `None` when no deriver is
-    /// installed (the base ops are applied unchanged).
+    /// The ops derived from `base_ops` (applied after them, at the same
+    /// commit index), or none when no deriver is installed. The base ops are
+    /// never copied: callers apply the two slices together
+    /// ([`crate::backend::CommitOps`]).
     pub(crate) fn derive_ops(
         deriver: Option<&Arc<dyn Deriver>>,
         ci: u64,
         base_ops: &[Op],
         before: &dyn DeriveRead,
-    ) -> Result<Option<Vec<Op>>, StorageError> {
-        let Some(deriver) = deriver else {
-            return Ok(None);
-        };
-        let extra = deriver.derive(ci, base_ops, before)?;
-        if extra.is_empty() {
-            return Ok(None);
+    ) -> Result<Vec<Op>, StorageError> {
+        match deriver {
+            Some(deriver) => deriver.derive(ci, base_ops, before),
+            None => Ok(Vec::new()),
         }
-        let mut all = Vec::with_capacity(base_ops.len() + extra.len());
-        all.extend_from_slice(base_ops);
-        all.extend(extra);
-        Ok(Some(all))
     }
 }

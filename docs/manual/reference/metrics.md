@@ -71,10 +71,10 @@ Bolt, and `pgwire.execute` for PostgreSQL wire.
 | `rushdb_wal_retained_bytes` | gauge | — | WAL bytes retained on disk. |
 | `rushdb_bytes_stored` | gauge | `tenant` | Approximate stored bytes; `tenant="all"` is the node total. |
 | `rushdb_records_stored` | gauge | `tenant` | Records stored. `tenant="all"` always; per-tenant series (internal tenant id) only with `--metrics-tenant-limit`. |
-| `rushdb_storage_checkpoints_total` | counter | — | Durability checkpoints taken. |
-| `rushdb_storage_wal_bytes_total` | counter | — | Bytes appended to the write-ahead log. |
+| `rushdb_storage_checkpoints_total` | counter | — | Durability checkpoints that wrote. A maintenance tick with nothing new to make durable skips the checkpoint and is not counted. |
+| `rushdb_storage_wal_bytes_total` | counter | — | Bytes appended to the write-ahead log (framed records). 0 for an in-memory node, which has no WAL. |
 | `rushdb_storage_applied_bytes_total` | counter | — | Encoded op bytes (base and derived) applied to the store. With the WAL counter, the two write streams a commit produces; compare against file growth and the process's block writes. |
-| `rushdb_storage_checkpoint_wait_ms_total` | counter | — | Milliseconds spent in checkpoints. |
+| `rushdb_storage_checkpoint_wait_ms_total` | counter | — | Milliseconds spent in the checkpoints counted above. |
 | `rushdb_storage_compactions_total` | counter | — | Completed storage compactions. |
 | `rushdb_commit_log_rows_pruned` | gauge | — | Command-log rows reclaimed by retention. |
 | `rushdb_receipts_swept` | gauge | — | Retry receipts removed after the idempotency window. |
@@ -116,14 +116,14 @@ gauges. The allocator gauges stay 0 in builds without jemalloc.
 |---|---|---|---|
 | `rushdb_text_pending` | gauge | `index` | Changes not yet applied to each text index. In multitenant mode, summed by index name over the resident tenants. |
 | `rushdb_ann_exact_fallbacks_total` | counter | — | Vector searches answered exactly because the cache budget could not admit the ANN index. |
-| `rushdb_vector_searches_total` | counter | `path`, `reason` | Vector searches by the path that answered (`ann`, `exact`) and why (`none`, or the fallback: `annWarming`, `budget`, `metric`, `lowConfidence`). An `exact` answer with `annWarming` scanned every vector while the ANN index was built. |
+| `rushdb_vector_searches_total` | counter | `path`, `reason` | Vector searches by the path that answered (`ann`, `exact`) and why (`none`, or the fallback: `annWarming`, `budget`, `metric`, `lowConfidence`, `smallCandidateSet`). An `exact` answer with `annWarming` scanned every vector while the ANN index was built. |
 | `rushdb_unindexed_walks_total` | counter | — | Queries whose unindexed predicate leaf walked more than 10,000 owners; `describe.explain` names the ordered index to declare. |
 
 ## Startup
 
 | Metric | Type | Labels | Meaning |
 |---|---|---|---|
-| `rushdb_boot_phase_duration_seconds` | histogram | `phase` | Startup phase durations: `config`, `storage`, `raft` (Preview only), `total`. |
+| `rushdb_boot_phase_duration_seconds` | histogram | `phase` | Startup phase durations: `config`, `storage`, `raft` (Preview only), `migrations` (data migrations, not on a replica), `total`. |
 
 ## See also
 

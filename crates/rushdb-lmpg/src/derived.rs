@@ -148,6 +148,18 @@ impl Changes {
             *self.counters.entry(key).or_default() += delta;
         }
     }
+
+    /// Fold a later part's changes in: deltas add, rows of the later part
+    /// win (as they would have, applied after this part in sequence).
+    fn merge(&mut self, later: Changes) {
+        for (key, delta) in later.counters {
+            *self.counters.entry(key).or_default() += delta;
+        }
+        for (key, (distinct, delta)) in later.dict {
+            self.dict.entry(key).or_insert_with(|| (distinct, 0)).1 += delta;
+        }
+        self.rows.extend(later.rows);
+    }
 }
 
 fn owner_label(
@@ -405,72 +417,34 @@ impl Deriver for LmpgDeriver {
             return Ok(Vec::new());
         }
         let after = After::new(ops, before);
-        let read_before = |key: &[u8]| before.get(key);
-        let read_after = |key: &[u8]| after.get(key);
         let mut changes = Changes::default();
         let touched = scan_base_ops(&after, before, &mut changes)?;
-        let mut labels: BTreeMap<(TenantId, OwnerKind, u64), OwnerLabels> = BTreeMap::new();
-        let mut shapes: BTreeMap<(TenantId, u64), (Option<RelShape>, Option<RelShape>)> =
-            BTreeMap::new();
-        // One owner-wide occurrence scan per view, split by pid in memory:
-        // `touched.pids` is ordered by owner, and a create touches every pid
-        // of its owner, so this replaces a before and an after scan per pid.
-        let mut owner_rows: Option<((TenantId, OwnerKind, u64), OwnerOccurrences)> = None;
-        for &(tenant, kind, owner, pid) in &touched.pids {
-            let (label_before, label_after) =
-                if let Some(labels) = labels.get(&(tenant, kind, owner)) {
-                    labels.clone()
-                } else {
-                    let resolved = (
-                        owner_label(&read_before, tenant, kind, owner)?,
-                        owner_label(&read_after, tenant, kind, owner)?,
-                    );
-                    labels.insert((tenant, kind, owner), resolved.clone());
-                    resolved
-                };
-            if owner_rows
-                .as_ref()
-                .is_none_or(|(at, _)| *at != (tenant, kind, owner))
-            {
-                let prefix = k::occ_owner_prefix(tenant, kind, owner);
-                owner_rows = Some((
-                    (tenant, kind, owner),
-                    (
-                        rows_by_pid(before.range_prefix(&prefix)?)?,
-                        rows_by_pid(after.range_prefix(&prefix)?)?,
-                    ),
-                ));
-            }
-            let Some((_, (rows_before, rows_after))) = owner_rows.as_ref() else {
-                unreachable!("owner rows were just loaded")
-            };
-            let none = Vec::new();
-            let old = pid_state(rows_before.get(&pid).unwrap_or(&none))?;
-            let new = pid_state(rows_after.get(&pid).unwrap_or(&none))?;
-            derive_pid(
-                &mut changes,
-                tenant,
-                kind,
-                owner,
-                pid,
-                (label_before.as_deref(), &old),
-                (label_after.as_deref(), &new),
-            );
-            if kind == OwnerKind::Relationship {
-                let (shape_before, shape_after) = match shapes.entry((tenant, owner)) {
-                    std::collections::btree_map::Entry::Occupied(entry) => entry.into_mut(),
-                    std::collections::btree_map::Entry::Vacant(entry) => entry.insert((
-                        rel_shape(&read_before, tenant, owner)?,
-                        rel_shape(&read_after, tenant, owner)?,
-                    )),
-                };
-                derive_shape_support(
-                    &mut changes,
-                    tenant,
-                    pid,
-                    shape_before.as_ref().filter(|_| old.presence.is_some()),
-                    shape_after.as_ref().filter(|_| new.presence.is_some()),
-                );
+        // The occurrence-derived rows of one owner depend on that owner's
+        // rows alone, and every change they make is a counter or dictionary
+        // delta (summed) or an owner-keyed row: a large commit splits its
+        // touched pids at owner boundaries, derives the parts on the shared
+        // thread budget, and merges them in part order, which is exactly
+        // the sequential result.
+        let pids: Vec<(TenantId, OwnerKind, u64, u64)> = touched.pids.iter().copied().collect();
+        let parts = owner_parts(
+            &pids,
+            rushdb_storage::parallel::parts_for(pids.len() as u64, PIDS_PER_DERIVE_PART),
+        );
+        if parts.len() <= 1 {
+            derive_owner_pids(&pids, before, &after, &mut changes)?;
+        } else {
+            let derived = rushdb_storage::parallel::run_parts(parts.len(), |part| {
+                let mut part_changes = Changes::default();
+                derive_owner_pids(
+                    &pids[parts[part].clone()],
+                    before,
+                    &after,
+                    &mut part_changes,
+                )?;
+                Ok::<_, StorageError>(part_changes)
+            })?;
+            for part in derived {
+                changes.merge(part);
             }
         }
         crate::index::derive(&touched.index, before, &after, &mut changes.rows)?;
@@ -491,6 +465,115 @@ impl Deriver for LmpgDeriver {
             Some(_) => false,
         }
     }
+}
+
+/// Touched pids per derive part, at least: smaller commits derive on the
+/// calling thread.
+const PIDS_PER_DERIVE_PART: u64 = 4096;
+
+/// Split `pids` (owner order) into at most `parts` contiguous ranges that
+/// never cut one owner's pids apart.
+fn owner_parts(
+    pids: &[(TenantId, OwnerKind, u64, u64)],
+    parts: usize,
+) -> Vec<std::ops::Range<usize>> {
+    let mut out = Vec::with_capacity(parts);
+    let mut start = 0;
+    for range in rushdb_storage::parallel::split(pids.len() as u64, parts) {
+        let mut end = usize::try_from(range.end).unwrap_or(pids.len()).max(start);
+        let owner = |at: usize| {
+            pids.get(at)
+                .map(|(tenant, kind, owner, _)| (*tenant, *kind, *owner))
+        };
+        while end < pids.len() && end > 0 && owner(end) == owner(end - 1) {
+            end += 1;
+        }
+        if end > start {
+            out.push(start..end);
+            start = end;
+        }
+    }
+    if start < pids.len() {
+        out.push(start..pids.len());
+    }
+    out
+}
+
+/// Derive the occurrence rows (presence, value dictionary, null and
+/// relationship-shape counters) of `pids`, all of whose owners' pids it
+/// holds, into `changes`.
+fn derive_owner_pids(
+    pids: &[(TenantId, OwnerKind, u64, u64)],
+    before: &dyn DeriveRead,
+    after: &After<'_>,
+    changes: &mut Changes,
+) -> Result<(), StorageError> {
+    let read_before = |key: &[u8]| before.get(key);
+    let read_after = |key: &[u8]| after.get(key);
+    let mut labels: BTreeMap<(TenantId, OwnerKind, u64), OwnerLabels> = BTreeMap::new();
+    let mut shapes: BTreeMap<(TenantId, u64), (Option<RelShape>, Option<RelShape>)> =
+        BTreeMap::new();
+    // One owner-wide occurrence scan per view, split by pid in memory:
+    // `touched.pids` is ordered by owner, and a create touches every pid
+    // of its owner, so this replaces a before and an after scan per pid.
+    let mut owner_rows: Option<((TenantId, OwnerKind, u64), OwnerOccurrences)> = None;
+    for &(tenant, kind, owner, pid) in pids {
+        let (label_before, label_after) = if let Some(labels) = labels.get(&(tenant, kind, owner)) {
+            labels.clone()
+        } else {
+            let resolved = (
+                owner_label(&read_before, tenant, kind, owner)?,
+                owner_label(&read_after, tenant, kind, owner)?,
+            );
+            labels.insert((tenant, kind, owner), resolved.clone());
+            resolved
+        };
+        if owner_rows
+            .as_ref()
+            .is_none_or(|(at, _)| *at != (tenant, kind, owner))
+        {
+            let prefix = k::occ_owner_prefix(tenant, kind, owner);
+            owner_rows = Some((
+                (tenant, kind, owner),
+                (
+                    rows_by_pid(before.range_prefix(&prefix)?)?,
+                    rows_by_pid(after.range_prefix(&prefix)?)?,
+                ),
+            ));
+        }
+        let Some((_, (rows_before, rows_after))) = owner_rows.as_ref() else {
+            unreachable!("owner rows were just loaded")
+        };
+        let none = Vec::new();
+        let old = pid_state(rows_before.get(&pid).unwrap_or(&none))?;
+        let new = pid_state(rows_after.get(&pid).unwrap_or(&none))?;
+        derive_pid(
+            changes,
+            tenant,
+            kind,
+            owner,
+            pid,
+            (label_before.as_deref(), &old),
+            (label_after.as_deref(), &new),
+        );
+        if kind == OwnerKind::Relationship {
+            let (shape_before, shape_after) = match shapes.entry((tenant, owner)) {
+                std::collections::btree_map::Entry::Occupied(entry) => entry.into_mut(),
+                std::collections::btree_map::Entry::Vacant(entry) => entry.insert((
+                    rel_shape(&read_before, tenant, owner)?,
+                    rel_shape(&read_after, tenant, owner)?,
+                )),
+            };
+            derive_shape_support(
+                changes,
+                tenant,
+                pid,
+                shape_before.as_ref().filter(|_| old.presence.is_some()),
+                shape_after.as_ref().filter(|_| new.presence.is_some()),
+            );
+        }
+    }
+    Ok(())
 }
 
 fn is_derived_family(family: Option<u8>) -> bool {

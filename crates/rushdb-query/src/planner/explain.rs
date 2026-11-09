@@ -5,7 +5,8 @@ use rushdb_lmpg::reader::TryRead;
 use rushdb_types::model::LogicalType;
 
 use super::{
-    collect_leaves, family_id, is_range_leaf, labels_for, leaf_estimate, normalize, property_id,
+    collect_leaves, expansions, family_id, is_range_leaf, labels_for, leaf_estimate, normalize,
+    property_id, target_estimate,
 };
 use crate::{Expr, FieldPred, QueryError};
 
@@ -109,4 +110,39 @@ pub fn explain_walk<R: TryRead>(
         }
     }
     Ok(Some((norm, owners, walked_labels.into_iter().collect())))
+}
+
+/// The traversal the planner answers by expanding backwards from its
+/// targets, for `EXPLAIN` and the unindexed-walk check: the estimated
+/// number of targets it starts from (the smallest, when several are
+/// expanded). `None` when no traversal conjunct is expanded.
+///
+/// # Errors
+/// Propagates storage reads from the estimates.
+pub fn explain_expansion<R: TryRead>(
+    snap: &R,
+    tenant: rushdb_types::ids::TenantId,
+    labels: &[String],
+    where_: &Expr,
+) -> Result<Option<u64>, QueryError> {
+    let mut leaves = Vec::new();
+    collect_leaves(where_, &mut leaves);
+    let mut eligible = Vec::new();
+    let mut traversals = Vec::new();
+    for leaf in leaves {
+        match leaf {
+            Expr::Related(rel) if !rel.cycle => traversals.push(rel),
+            _ => {
+                if let Some(estimate) = leaf_estimate(snap, tenant, leaf, labels)? {
+                    eligible.push((estimate, leaf));
+                }
+            }
+        }
+    }
+    let mut best: Option<u64> = None;
+    for (_, rel) in expansions(snap, tenant, labels, &eligible, traversals)?.expand {
+        let targets = target_estimate(snap, tenant, rel)?;
+        best = Some(best.map_or(targets, |current| current.min(targets)));
+    }
+    Ok(best)
 }

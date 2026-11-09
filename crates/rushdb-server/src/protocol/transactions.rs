@@ -21,27 +21,28 @@ impl ProtocolExecutor<'_> {
                 "operation cancelled",
             ));
         }
-        let Some((label, documents, options)) = Self::ingest_input(ingest)? else {
+        let Some((plan, options)) = Self::ingest_input(ingest)? else {
             return Ok(Response::Ingested {
                 count: 0,
                 relationships: 0,
                 records: Vec::new(),
             });
         };
-        self.ingest_documents(
-            label.as_deref(),
-            &documents,
-            &options,
-            execution_context,
-            is_cancelled,
-        )
+        self.ingest_plan(plan, &options, execution_context, is_cancelled)
     }
 
-    /// An import as the label, the documents and the options the documents
-    /// ingest path takes, validated; `None` for a CSV without rows.
+    /// An import as its validated import plan and options; `None` for a CSV
+    /// without rows. The request's rows move into the plan (no copy).
     fn ingest_input(
         ingest: Ingest,
-    ) -> Result<Option<(Option<String>, serde_json::Value, serde_json::Value)>, ProtocolError> {
+    ) -> Result<
+        Option<(
+            rushdb_lmpg::import::BfsPlan,
+            rushdb_lmpg::import::ImportOptions,
+        )>,
+        ProtocolError,
+    > {
+        use rushdb_lmpg::import::{serialize_bfs_owned, ImportOptions};
         match ingest {
             Ingest::Documents {
                 label,
@@ -61,7 +62,10 @@ impl ProtocolExecutor<'_> {
                         "label is required for a top-level array, an empty object, or an object containing primitive properties",
                     ));
                 }
-                Ok(Some((label, documents, options)))
+                let options = ImportOptions::from_json(&options);
+                let plan =
+                    serialize_bfs_owned(documents, label.as_deref().unwrap_or_default(), &options);
+                Ok(Some((plan, options)))
             }
             Ingest::Csv {
                 label,
@@ -77,17 +81,15 @@ impl ProtocolExecutor<'_> {
                         "label is required for CSV import",
                     ));
                 }
-                rushdb_lmpg::import::ImportOptions::validate_json(&options)
+                ImportOptions::validate_json(&options)
                     .map_err(|error| ProtocolError::new(ErrorCode::InvalidRequest, error))?;
-                let rows = super::csv::csv_documents(&data, &parse_config, &options, vectors)?;
-                if rows.is_empty() {
+                let options = ImportOptions::from_json(&options);
+                let plan = super::csv::csv_plan(label, &data, &parse_config, &options, vectors)?;
+                drop(data);
+                if plan.records.is_empty() {
                     return Ok(None);
                 }
-                Ok(Some((
-                    Some(label.to_owned()),
-                    serde_json::Value::Array(rows),
-                    options,
-                )))
+                Ok(Some((plan, options)))
             }
         }
     }
@@ -101,9 +103,9 @@ impl ProtocolExecutor<'_> {
         execution_context: &mut rushdb_engine::ExecutionContext,
     ) -> Result<Response, ProtocolError> {
         let (count, relationships) = match Self::ingest_input(ingest)? {
-            Some((label, documents, options)) => self
+            Some((plan, options)) => self
                 .node
-                .tx_stage_ingest(&transaction_id, label.as_deref(), &documents, &options)
+                .tx_stage_ingest(&transaction_id, plan, &options)
                 .map_err(|error| self.transaction_failed(&transaction_id, error))?,
             None => (0, 0),
         };
@@ -117,23 +119,16 @@ impl ProtocolExecutor<'_> {
         })
     }
 
-    fn ingest_documents(
+    fn ingest_plan(
         &self,
-        label: Option<&str>,
-        documents: &serde_json::Value,
-        options: &serde_json::Value,
+        plan: rushdb_lmpg::import::BfsPlan,
+        options: &rushdb_lmpg::import::ImportOptions,
         execution_context: &mut rushdb_engine::ExecutionContext,
         is_cancelled: &dyn Fn() -> bool,
     ) -> Result<Response, ProtocolError> {
         let result = self
             .node
-            .ingest_documents_with_execution_context(
-                execution_context,
-                label,
-                documents,
-                options,
-                is_cancelled,
-            )
+            .ingest_plan_with_execution_context(execution_context, plan, options, is_cancelled)
             .map_err(|error| {
                 if execution_context.check_deadline().is_err() {
                     execution_failed("execution deadline exceeded")

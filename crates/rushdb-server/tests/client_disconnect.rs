@@ -107,14 +107,16 @@ fn a_query_stops_when_its_client_disconnects() {
         }}}),
     );
 
-    // Every record walks the whole ring looking for a name nobody has:
-    // RING² visits, far longer than this test waits.
+    // `$contains` has no count to plan from, so the block's targets are
+    // estimated as every NODE and each record is checked on its own: it
+    // walks the whole ring testing a name nobody has, RING² checks, far
+    // longer than this test waits.
     let slow = json!({ "protocolVersion": 1, "context": {}, "operation": {
         "kind": "query", "query": { "kind": "records", "query": {
             "labels": ["NODE"],
             "predicate": { "NODE": {
                 "$relation": { "type": "NEXT", "direction": "out", "hops": { "min": 1, "max": 100_000 } },
-                "name": "nowhere"
+                "name": { "$contains": "nowhere" }
             }}
         }}
     }});

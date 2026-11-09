@@ -20,7 +20,15 @@ GHCR needs only the workflow token.
 
 1. Set `[workspace.package] version`, move the `CHANGELOG.md` entry from
    *Unreleased* to the version and date, and run the quality gate from the
-   README.
+   README. Before tagging, run the competitive benchmark suite's `filtering`
+   and `graph` areas at dev scale against an image built from the release
+   commit and compare each series with the previous release; a series that
+   got slower is a release blocker until it is explained. The in-repo
+   read-count tests (`crates/rushdb-query/tests/cost_scaling.rs`,
+   `relation_expansion.rs`, and the scaling tests of
+   `crates/rushdb-server/tests/vector_search_mode.rs`) gate every pull
+   request on cost that follows the result rather than the label; the
+   benchmark run catches what read counts do not (CPU per row, contention).
 2. Push the tag. `release.yml`:
    - builds `rushdb` for Linux x86-64 and arm64 (inside
      `manylinux_2_28`, so they need glibc 2.28+) and macOS Apple silicon and

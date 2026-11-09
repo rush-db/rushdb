@@ -149,6 +149,36 @@ fn aggregating_a_hidden_property_is_refused() {
 }
 
 #[test]
+fn projecting_a_hidden_property_is_refused() {
+    // A projection's rows are returned as read, not masked: a hidden
+    // property in it is refused, under an output name or beside a visible
+    // one, and a projection of visible properties answers.
+    let handler = company();
+    refused(
+        &handler,
+        &json!({ "labels": ["EMP"], "select": { "pay": "$record.salary" } }),
+        "salary",
+    );
+    refused(
+        &handler,
+        &json!({ "labels": ["EMP"], "select": { "name": "$record.name", "salary": "$record.salary" } }),
+        "salary",
+    );
+    let out = call(
+        &handler,
+        &records(
+            &json!({ "labels": ["EMP"], "select": { "who": "$record.name" },
+            "order": { "who": "asc" } }),
+        ),
+    );
+    assert_eq!(
+        out,
+        json!({ "kind": "rows", "rows": [ { "who": "Boss" }, { "who": "Peer" }, { "who": "Worker" } ],
+            "total": 3 })
+    );
+}
+
+#[test]
 fn traversing_a_denied_relationship_type_is_refused() {
     let handler = company();
     refused(

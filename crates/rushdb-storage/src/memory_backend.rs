@@ -14,7 +14,7 @@ use std::ops::Bound;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, RwLock};
 
-use crate::backend::{LoadedState, StorageBackend, StorageReadView};
+use crate::backend::{CommitOps, LoadedState, StorageBackend, StorageReadView};
 use crate::read_view::{ReadLimits, ScanProjection};
 use crate::{wal, Op, StorageError, StorageStatistics, VersionEntry, LAST_APPLIED_KEY, LOG_PREFIX};
 
@@ -60,7 +60,11 @@ impl MemoryBackend {
     /// Apply one op-set's MVCC transition to the maps. Mirrors the durable
     /// backend's semantics: `Put`/`Del` retain a superseded version, `Purge`
     /// erases history, `Set` overwrites without history.
-    fn apply_ops(&self, ops: &[Op], ci: u64) -> Result<(), String> {
+    fn apply_ops<'a>(
+        &self,
+        ops: impl Iterator<Item = &'a Op> + Clone,
+        ci: u64,
+    ) -> Result<(), String> {
         let mut data = self
             .maps
             .data
@@ -77,7 +81,7 @@ impl MemoryBackend {
                 .created
                 .write()
                 .map_err(|_| "memory created lock poisoned".to_string())?;
-            for op in ops {
+            for op in ops.clone() {
                 match op {
                     Op::Put(k, _) => {
                         if let Some(prev_created) = created.get(k).copied() {
@@ -137,7 +141,7 @@ impl MemoryBackend {
             })
             .collect();
         drop(data);
-        self.apply_ops(&usage_ops, ci)
+        self.apply_ops(usage_ops.iter(), ci)
     }
 }
 
@@ -170,12 +174,12 @@ impl StorageBackend for MemoryBackend {
     }
 
     fn apply(&self, ops: &[Op], commit_index: u64) -> Result<(), String> {
-        self.apply_ops(ops, commit_index)
+        self.apply_ops(ops.iter(), commit_index)
     }
 
-    fn apply_many(&self, batches: &[(u64, &[Op])]) -> Result<(), String> {
-        for (ci, ops) in batches {
-            self.apply_ops(ops, *ci)?;
+    fn apply_many(&self, batches: &[CommitOps<'_>]) -> Result<(), String> {
+        for commit in batches {
+            self.apply_ops(commit.ops(), commit.ci)?;
         }
         Ok(())
     }
@@ -256,31 +260,38 @@ struct MemoryReadView {
 }
 
 impl StorageReadView for MemoryReadView {
-    fn read_value(
+    fn visit_value(
         &self,
         key: &[u8],
         ci: u64,
         current: bool,
         limits: ReadLimits,
         projection: ScanProjection,
-    ) -> Result<Option<Vec<u8>>, StorageError> {
+        visit: &mut dyn FnMut(&[u8]),
+    ) -> Result<bool, StorageError> {
+        crate::read_accounting::record("get", key);
         limits.check_item(key.len(), 0)?;
+        // The value is visited under the maps' read locks, borrowed from the
+        // live entry or its retained version: no copy is made.
+        let mut found = |value: Option<&[u8]>| -> Result<bool, StorageError> {
+            let Some(value) = value else {
+                return Ok(false);
+            };
+            if projection == ScanProjection::Keys {
+                visit(&[]);
+            } else {
+                limits.check_item(key.len(), value.len())?;
+                visit(value);
+            }
+            Ok(true)
+        };
         // `current` is only ever true for an unpinned latest read (Store-level
         // `try_get`); a pinned `ReadView` passes `current = native_current &&
         // snapshot_pinned`, which is false for the live memory maps. So a
         // current read returns the live value; otherwise `ci` is authoritative.
         if current {
             let data = self.health.guard(self.maps.data.read())?;
-            return data
-                .get(key)
-                .map(|value| {
-                    if projection == ScanProjection::Keys {
-                        return Ok(Vec::new());
-                    }
-                    limits.check_item(key.len(), value.len())?;
-                    Ok(value.clone())
-                })
-                .transpose();
+            return found(data.get(key).map(Vec::as_slice));
         }
         let data = self.health.guard(self.maps.data.read())?;
         let history = self.health.guard(self.maps.history.read())?;
@@ -298,15 +309,7 @@ impl StorageReadView for MemoryReadView {
                 })
                 .and_then(|v| v.value.as_deref())
         };
-        value
-            .map(|value| {
-                if projection == ScanProjection::Keys {
-                    return Ok(Vec::new());
-                }
-                limits.check_item(key.len(), value.len())?;
-                Ok(value.to_vec())
-            })
-            .transpose()
+        found(value)
     }
 
     fn next_key(
@@ -316,6 +319,9 @@ impl StorageReadView for MemoryReadView {
         limits: ReadLimits,
         _include_history: bool,
     ) -> Result<Option<Vec<u8>>, StorageError> {
+        if let Bound::Included(key) | Bound::Excluded(key) = lower {
+            crate::read_accounting::record("seek", key);
+        }
         let data = self.health.guard(self.maps.data.read())?;
         let history = self.health.guard(self.maps.history.read())?;
         let bounds = (
@@ -343,6 +349,7 @@ impl StorageReadView for MemoryReadView {
         projection: ScanProjection,
     ) -> Result<Box<dyn Iterator<Item = Result<(Vec<u8>, Vec<u8>), StorageError>> + 'a>, StorageError>
     {
+        crate::read_accounting::record("scan", start);
         let data = self.health.guard(self.maps.data.read())?;
         let bounds = (
             Bound::Included(start),
@@ -362,7 +369,13 @@ impl StorageReadView for MemoryReadView {
                 rows.push(Ok((key.clone(), value.clone())));
             }
         }
-        Ok(Box::new(rows.into_iter()))
+        // Rows count as they are yielded, as on redb: a reader that stops
+        // early reads only what it took.
+        Ok(Box::new(rows.into_iter().inspect(|row| {
+            if let Ok((key, _)) = row {
+                crate::read_accounting::record("row", key);
+            }
+        })))
     }
 
     fn visible_ci(&self) -> Result<u64, StorageError> {

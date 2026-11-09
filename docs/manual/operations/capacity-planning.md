@@ -91,6 +91,11 @@ Rules of thumb:
 - Set the service memory limit with headroom over the measured RSS (about
   1 GB peak in the 200K bulk-ingest run, 1.1 GB at 1M records in one tenant,
   more with large vector spaces; see the table above).
+- One ingest request is one commit, and its rows stay in memory until it is
+  durable: budget about 3 KB of transient heap per ingested row of a
+  ten-column CSV, on top of the request body. Two 8 MiB CSV requests of
+  about 100,000 rows each peaked at 2.2 GB RSS; send smaller chunks (a few
+  MiB) from several clients to cut the peak and raise throughput.
 - Leave the rest of the host's RAM to the kernel page cache, which caches the
   store file, vector segments, and text indexes.
 - `managed-limit` and the cache settings bound engine reservations, not

@@ -8,7 +8,7 @@ use rushdb_storage::Store;
 use rushdb_types::ids::{OwnerKind, TenantId};
 use rushdb_types::keys::{key, P_FAMILY_SIG};
 use rushdb_types::occurrence::Similarity;
-use rushdb_vector::{SourceRef, VectorEngine};
+use rushdb_vector::{Candidates, SourceRef, VectorEngine};
 
 fn setup() -> (Lmpg, VectorEngine) {
     let store = Arc::new(Store::new_in_memory());
@@ -79,19 +79,19 @@ fn cosine_dot_euclidean_scores_and_ranking() {
     bind_one(&lmpg, &vecs, "euc", "Doc", "v", &c);
 
     // Exact self-query score per metric.
-    let cos_self = vecs.search_exact("cos", &a, 3, None).unwrap();
+    let cos_self = vecs.search_exact("cos", &a, 3, Candidates::All).unwrap();
     assert!(
         (cos_self[0].score - 1.0).abs() < 1e-4,
         "cosine self-similarity ~1.0, got {}",
         cos_self[0].score
     );
-    let dot_self = vecs.search_exact("dot", &a, 3, None).unwrap();
+    let dot_self = vecs.search_exact("dot", &a, 3, Candidates::All).unwrap();
     assert!(
         (dot_self[0].score - 1.0).abs() < 1e-4,
         "dot self-score = |a|^2 = 1.0, got {}",
         dot_self[0].score
     );
-    let euc_self = vecs.search_exact("euc", &a, 3, None).unwrap();
+    let euc_self = vecs.search_exact("euc", &a, 3, Candidates::All).unwrap();
     assert!(
         (euc_self[0].score - 1.0).abs() < 1e-4,
         "euclidean self-similarity 1/(1+0)=1.0, got {}",

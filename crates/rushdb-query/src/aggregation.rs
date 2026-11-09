@@ -1,14 +1,14 @@
 //! Budgeted grouping, aggregate evaluation, and result projection.
 
 use super::{
-    aggregate_budget, alias_field_values, attach_collects_with_budget, binding_roots_with_cancel,
-    canonical_scalar_cmp, count_related, infer_scalar, json_value_cmp, normalize, reconstruct,
-    related_specs_from_where, resolve_field, resolve_field_numeric, working_set_budget,
-    AggregateRequest, Arc, GroupBucket, Json, Lmpg, Map, OutputExpr, Pagination, PointFields,
-    QueryError, QuerySnapshot, Scalar, SearchRequest, MISSING_SENTINEL,
+    aggregate_budget, attach_collects_with_budget, json_value_cmp, normalize, reconstruct,
+    related_specs_from_where, working_set_budget, AggregateRequest, Arc, Budget, Cap, GroupBucket,
+    Json, Lmpg, Map, OutputExpr, PointFields, QueryError, QuerySnapshot, SearchRequest,
 };
-use crate::aggregate_catalog::{dictionary_grouped_count, too_many_groups};
-use std::collections::{BTreeSet, HashMap, HashSet};
+use crate::aggregate_catalog::dictionary_grouped_count;
+use crate::aggregate_rows::{row_bytes, Partial, RowCtx, RowPlan};
+use crate::aggregate_scan::{self, Mode, Rows, Scan};
+use crate::page::serialized_bytes;
 
 /// Branch-grain aggregation over a `BindingRelation` of distinct roots:
 /// one root contributes exactly one binding row, independent branches are
@@ -94,14 +94,13 @@ pub fn aggregate_with_cancel_in_view(
         return Err(QueryError::Cancelled);
     }
     let budget = working_set_budget(lmpg);
-    aggregate_budget::check(budget, std::mem::size_of::<GroupBucket>())?;
+    Budget::WorkingSet.check(budget, std::mem::size_of::<GroupBucket>())?;
     aggregate_budgeted(lmpg, req, is_cancelled, snap, budget)
         .map_err(aggregate_budget::resource_error)
 }
 
 #[expect(
     clippy::too_many_lines,
-    clippy::cast_sign_loss,
     clippy::cast_precision_loss,
     clippy::needless_pass_by_value,
     reason = "aggregate accumulation keeps one live budget and pinned snapshot"
@@ -117,10 +116,7 @@ fn aggregate_budgeted(
         labels: req.labels.clone(),
         where_: req.where_.clone(),
         related: req.related.clone(),
-        collects: Vec::new(),
-        pagination: Pagination::default(),
-        order_by: Vec::new(),
-        force_scan: false,
+        ..SearchRequest::default()
     };
     // Count-only fast path: a single global `$count: "*"` with no grouping or
     // other metrics needs only the match count. A single unscoped label is
@@ -137,7 +133,7 @@ fn aggregate_budgeted(
     // Grouped counts over one property: the value dictionary holds the
     // exact owner count per value, so no record is read.
     if let Some(buckets) = dictionary_grouped_count(lmpg, req, &snap, is_cancelled)? {
-        aggregate_budget::check(
+        Budget::WorkingSet.check(
             budget,
             buckets.iter().fold(0usize, |sum, b| {
                 sum.saturating_add(aggregate_budget::bucket_bytes(b))
@@ -146,355 +142,52 @@ fn aggregate_budgeted(
         let total = buckets.iter().map(|b| b.count_roots).sum();
         return Ok((order_and_page(buckets, req), total));
     }
-    let candidates: Vec<u64> =
-        binding_roots_with_cancel(lmpg, &page_req, is_cancelled, &snap, budget)?;
-    // What is retained: one ordinal per match. The walk charged its own
-    // transient copies.
-    let candidate_bytes = candidates.len().saturating_mul(std::mem::size_of::<u64>());
-    aggregate_budget::check(budget, candidate_bytes)?;
-    let total_matched = candidates.len() as u64;
-    if is_count_only(req) {
-        let mut buckets = count_only_bucket(total_matched);
-        apply_aggregate_pagination(&mut buckets, req);
-        return Ok((buckets, total_matched));
-    }
-    // Aggregate alias targets come from the `where` traversal blocks.
-    let alias_specs = related_specs_from_where(req.where_.as_ref());
-    let pure_projection = !req.plain_fields.is_empty()
-        && req.group_by.is_empty()
-        && req.sums.is_empty()
-        && req.counts.is_empty()
-        && req.mins.is_empty()
-        && req.maxs.is_empty()
-        && req.outputs.is_empty()
-        && req.expr_sums.is_empty()
-        && req.expr_avgs.is_empty()
-        && req.avg_terms.is_empty()
-        && req.time_bucket.is_none();
-
-    // A `select` without groupBy is per-root output-shaping (each root its own
-    // row) when it projects root fields or collects. Metrics alone roll up
-    // globally; a bare rollup (e.g. timeBucket with no select/groupBy) is a
-    // single bucket.
-    let per_root =
-        req.group_by.is_empty() && (!req.plain_fields.is_empty() || !req.collects.is_empty());
-    // Each matched root is its own row, so rows are bounded by the paging
-    // and the memory budget, not by the group cap; without an `orderBy` only
-    // the requested page is reconstructed.
-    let per_row = pure_projection || per_root;
-    let candidates = if per_row && req.order_by.is_empty() {
-        let page_end = req.skip.saturating_add(req.limit.unwrap_or(u64::MAX));
-        candidates
-            .into_iter()
-            .take(usize::try_from(page_end).unwrap_or(usize::MAX))
-            .collect()
-    } else {
-        candidates
-    };
-
-    let mut buckets: Vec<GroupBucket> = Vec::new();
-    // Grouped buckets are found by their rendered key, not by comparing
-    // every bucket's key map per row.
-    let mut bucket_index: HashMap<String, usize> = HashMap::new();
     // Only the properties the request names are read: by point reads when
     // every one is a scalar (READ-1's `PointFields`), else by folding the
-    // record's occurrences into just those names. One session serves every
-    // row: family definitions are frozen within the pinned snapshot.
-    let names = referenced_fields(req);
-    let point_fields = PointFields::resolve(&snap, lmpg.tenant, names.iter().map(String::as_str))?;
-    let selected: HashSet<String> = names
-        .iter()
-        .flat_map(|name| [name.clone(), normalize(name)])
-        .collect();
-    let mut session = reconstruct::ReconstructSession::new(&snap, lmpg.tenant);
-    let metric_count = req
-        .counts
-        .len()
-        .saturating_add(req.sums.len())
-        .saturating_add(req.mins.len())
-        .saturating_add(req.maxs.len())
-        .saturating_add(req.expr_avgs.len())
-        .saturating_add(req.expr_sums.len())
-        .saturating_add(req.avg_terms.len())
-        .saturating_add(req.group_by.len())
-        .saturating_add(req.plain_fields.len());
-    let mut retained_bytes = candidate_bytes;
-    for ord in candidates {
-        if is_cancelled() {
-            return Err(QueryError::Cancelled);
+    // record's occurrences into just those names. Family definitions are
+    // frozen within the pinned snapshot.
+    let plan = RowPlan::new(req, related_specs_from_where(req.where_.as_ref()));
+    let points = PointFields::resolve_in(
+        &snap,
+        lmpg.tenant,
+        &req.labels,
+        plan.names.iter().map(String::as_str),
+    )?;
+    let selected = Rows::selection(&plan);
+    let rows = Rows {
+        points: points.as_ref(),
+        selected: &selected,
+    };
+    let scan = Scan {
+        lmpg,
+        search: &page_req,
+        snap: &snap,
+        budget,
+        plan: &plan,
+    };
+    let mode = if is_count_only(req) {
+        Mode::Count
+    } else if plan.per_row() {
+        Mode::Roots
+    } else {
+        Mode::Groups
+    };
+    let pass = aggregate_scan::run(&scan, &rows, mode, is_cancelled)?;
+    let total_matched = pass.total;
+    let candidate_bytes = pass.candidate_bytes;
+    let mut buckets = match mode {
+        Mode::Count => {
+            let mut buckets = count_only_bucket(total_matched);
+            apply_aggregate_pagination(&mut buckets, req);
+            return Ok((buckets, total_matched));
         }
-        let obj: Map<String, Json> = match &point_fields {
-            Some(fields) => fields.row(&snap, lmpg.tenant, ord)?,
-            None => match session.reconstruct_record_selected(ord, &selected)? {
-                Some(Json::Object(map)) => map,
-                _ => continue,
-            },
-        };
-        // The row is transient: it must fit beside what is retained, but it
-        // is not retained itself.
-        let row_bytes = aggregate_budget::object_bytes(&obj);
-        aggregate_budget::check(budget, retained_bytes.saturating_add(row_bytes))?;
-        let alias_budget = budget.map(|limit| {
-            limit.saturating_sub(retained_bytes.saturating_add(row_bytes))
-                / metric_count.saturating_add(1)
-        });
-
-        let mut bucket_keys: Map<String, Json> = Map::new();
-        if pure_projection || per_root {
-            // A `select` without groupBy is row projection / per-root
-            // aggregation, not a global rollup: the hidden root ordinal keeps
-            // each root a distinct row; aggregate_to_rows removes it.
-            bucket_keys.insert("__rushdb_projection_root".into(), Json::Number(ord.into()));
-        }
-        if pure_projection {
-            for (output, field) in &req.plain_fields {
-                if let Some(value) = resolve_field(&obj, field) {
-                    bucket_keys.insert(output.clone(), value);
-                }
-            }
-        } else if per_root {
-            // Per-root rows with metrics still carry plain field projections.
-            for (output, field) in &req.plain_fields {
-                if let Some(value) = resolve_field(&obj, field) {
-                    bucket_keys.insert(output.clone(), value);
-                }
-            }
-        }
-        for g in &req.group_by {
-            // a group-by entry that is a timeBucket alias is resolved by the
-            // timeBucket step below; don't leak a separate missing key
-            if req.time_bucket_alias.as_deref() == Some(g.as_str()) {
-                continue;
-            }
-            // The key keeps the caller's spelling; lookups by output name
-            // compare normalized names.
-            let v = resolve_field(&obj, g).unwrap_or(Json::String(MISSING_SENTINEL.into()));
-            bucket_keys.insert(g.clone(), v);
-        }
-        if let Some(tb) = &req.time_bucket {
-            let keyed = resolve_field(&obj, &tb.field)
-                .and_then(|v| v.as_f64())
-                .map_or_else(
-                    || Json::String(MISSING_SENTINEL.into()),
-                    |ms| Json::Number((tb.floor_millis(ms) as u64).into()),
-                );
-            // output naming honors the user's `as` alias; the default key is
-            // the documented `__bucket_<field>/<unit>` form
-            let tb_key = req.time_bucket_alias.clone().unwrap_or_else(|| {
-                format!("__bucket_{}/{}", normalize(&tb.field), tb.unit.unit_str())
-            });
-            bucket_keys.insert(tb_key, keyed);
-        }
-
-        // Per-row keys carry the root ordinal, so they never repeat.
-        let (bucket, previous_bucket_bytes) = if per_row {
-            (new_bucket(&mut buckets, bucket_keys), 0)
-        } else {
-            let rendered = serde_json::to_string(&bucket_keys).unwrap_or_default();
-            if let Some(&position) = bucket_index.get(&rendered) {
-                let bucket = &mut buckets[position];
-                let bytes = aggregate_budget::bucket_bytes(bucket);
-                (bucket, bytes)
-            } else {
-                if buckets.len() >= MAX_AGGREGATE_BUCKETS {
-                    return Err(too_many_groups());
-                }
-                bucket_index.insert(rendered, buckets.len());
-                (new_bucket(&mut buckets, bucket_keys), 0)
-            }
-        };
-
-        // $count '*' = distinct root identity; each row already unique.
-        bucket.count_roots += 1;
-
-        for (out, field) in &req.counts {
-            if req.hidden_outputs.contains(out) {
-                continue;
-            }
-            let target_key = out.clone();
-            if field.as_str() == "*" {
-                continue;
-            }
-            // P20 fix: a `$count` over a related-record alias (`$count: "$battle"`)
-            // counts the distinct related records, not a root-record field. The
-            // alias comes from the `where`/`related` traversal specs.
-            if let Some(related) = count_related(
-                lmpg,
-                &snap,
-                lmpg.tenant,
-                ord,
-                &alias_specs,
-                field,
-                alias_budget,
-            )? {
-                aggregate_budget::check(alias_budget, related.len().saturating_mul(64))?;
-                for _other in related {
-                    bump_count(bucket, &target_key);
-                }
-                continue;
-            }
-            if resolve_field(&obj, field).is_some() {
-                bump_count(bucket, &target_key);
-            }
-        }
-        for (out, field) in &req.sums {
-            // alias metrics: `$sum: "$employee.salary"` aggregates over the
-            // root's related records via the `where` traversal alias.
-            if let Some(values) = alias_field_values(
-                lmpg,
-                &snap,
-                lmpg.tenant,
-                ord,
-                &alias_specs,
-                field,
-                alias_budget,
-            )? {
-                let key = out.clone();
-                let cur = bucket
-                    .sums
-                    .get(&key)
-                    .and_then(serde_json::Value::as_f64)
-                    .unwrap_or(0.0);
-                let sum = values
-                    .iter()
-                    .try_fold(cur, |sum, value| -> Result<f64, QueryError> {
-                        if !value.is_number() {
-                            return Ok(sum);
-                        }
-                        let value = exact_f64(value).ok_or_else(|| {
-                            QueryError::InvalidPredicate(
-                                "aggregate integer is not exactly representable as f64".into(),
-                            )
-                        })?;
-                        Ok(sum + value)
-                    })?;
-                bucket.sums.insert(key, serde_json::json!(sum));
-            } else if let Some(Json::Number(n)) = resolve_field_numeric(&obj, field) {
-                let key = out.clone();
-                let cur = bucket
-                    .sums
-                    .get(&key)
-                    .and_then(serde_json::Value::as_f64)
-                    .unwrap_or(0.0);
-                let next = cur
-                    + exact_f64(&Json::Number(n.clone())).ok_or_else(|| {
-                        QueryError::InvalidPredicate(
-                            "aggregate integer is not exactly representable as f64".into(),
-                        )
-                    })?;
-                bucket.sums.insert(key, serde_json::json!(next));
-            }
-        }
-        for (out, expr) in &req.expr_sums {
-            if let Some(v) = eval_row_expr(expr, &obj) {
-                let key = out.clone();
-                let cur = bucket
-                    .sums
-                    .get(&key)
-                    .and_then(serde_json::Value::as_f64)
-                    .unwrap_or(0.0);
-                bucket.sums.insert(key, serde_json::json!(cur + v));
-            }
-        }
-        for (out, expr) in &req.expr_avgs {
-            if let Some(v) = eval_row_expr(expr, &obj) {
-                let key = out.clone();
-                let cur = bucket
-                    .sums
-                    .get(&key)
-                    .and_then(serde_json::Value::as_f64)
-                    .unwrap_or(0.0);
-                bucket.sums.insert(key, serde_json::json!(cur + v));
-                bump_avg_count(bucket, format!("__avg_n_{out}"), 1);
-            }
-        }
-        for (out, field) in &req.avg_terms {
-            if let Some(values) = alias_field_values(
-                lmpg,
-                &snap,
-                lmpg.tenant,
-                ord,
-                &alias_specs,
-                field,
-                alias_budget,
-            )? {
-                let key = out.clone();
-                let sum = values
-                    .iter()
-                    .try_fold(0.0, |sum, value| -> Result<f64, QueryError> {
-                        if !value.is_number() {
-                            return Ok(sum);
-                        }
-                        let value = exact_f64(value).ok_or_else(|| {
-                            QueryError::InvalidPredicate(
-                                "aggregate integer is not exactly representable as f64".into(),
-                            )
-                        })?;
-                        Ok(sum + value)
-                    })?;
-                let cur = bucket
-                    .sums
-                    .get(&key)
-                    .and_then(serde_json::Value::as_f64)
-                    .unwrap_or(0.0);
-                bucket.sums.insert(key, serde_json::json!(cur + sum));
-                let added = values.iter().filter(|v| v.is_number()).count() as u64;
-                bump_avg_count(bucket, format!("__avg_n_{out}"), added);
-            } else if let Some(Json::Number(n)) = resolve_field_numeric(&obj, field) {
-                let key = out.clone();
-                let cur = bucket
-                    .sums
-                    .get(&key)
-                    .and_then(serde_json::Value::as_f64)
-                    .unwrap_or(0.0);
-                let value = exact_f64(&Json::Number(n.clone())).ok_or_else(|| {
-                    QueryError::InvalidPredicate(
-                        "aggregate integer is not exactly representable as f64".into(),
-                    )
-                })?;
-                bucket.sums.insert(key, serde_json::json!(cur + value));
-                bump_avg_count(bucket, format!("__avg_n_{out}"), 1);
-            }
-        }
-        for (out, field) in &req.mins {
-            if let Some(values) = alias_field_values(
-                lmpg,
-                &snap,
-                lmpg.tenant,
-                ord,
-                &alias_specs,
-                field,
-                alias_budget,
-            )? {
-                for v in values {
-                    minmax(bucket, out.clone(), &v, true);
-                }
-            } else if let Some(v) = resolve_field(&obj, field) {
-                minmax(bucket, out.clone(), &v, true);
-            }
-        }
-        for (out, field) in &req.maxs {
-            if let Some(values) = alias_field_values(
-                lmpg,
-                &snap,
-                lmpg.tenant,
-                ord,
-                &alias_specs,
-                field,
-                alias_budget,
-            )? {
-                for v in values {
-                    minmax(bucket, out.clone(), &v, false);
-                }
-            } else if let Some(v) = resolve_field(&obj, field) {
-                minmax(bucket, out.clone(), &v, false);
-            }
-        }
-        retained_bytes = retained_bytes
-            .saturating_sub(previous_bucket_bytes)
-            .saturating_add(aggregate_budget::bucket_bytes(bucket));
-        aggregate_budget::check(budget, retained_bytes)?;
-    }
+        Mode::Roots => per_root_rows(&scan, &rows, &pass, req, is_cancelled)?,
+        Mode::Groups => pass.groups.finish(&plan),
+    };
+    let retained_bytes = buckets.iter().fold(candidate_bytes, |sum, b| {
+        sum.saturating_add(aggregate_budget::bucket_bytes(b))
+    });
+    Budget::WorkingSet.check(budget, retained_bytes)?;
 
     // Derived outputs ($ref chains): source sums materialize first, then
     // refs resolve in declaration order; cycles surface as unresolved refs.
@@ -511,7 +204,7 @@ fn aggregate_budgeted(
                 sum.saturating_add(name.len()).saturating_add(256)
             })
             .saturating_mul(buckets.len());
-        aggregate_budget::check(
+        Budget::WorkingSet.check(
             budget,
             retained_bytes
                 .saturating_sub(candidate_bytes)
@@ -589,6 +282,55 @@ fn aggregate_budgeted(
     }
 
     Ok((order_and_page(buckets, req), total_matched))
+}
+
+/// Per-root rows (a `select` of root fields or collects without
+/// `groupBy`): each matched root is its own row, so rows are bounded by the
+/// paging and the memory budget, not by the group cap; without an `orderBy`
+/// only the requested page is read.
+fn per_root_rows(
+    scan: &Scan<'_>,
+    rows: &Rows<'_>,
+    pass: &aggregate_scan::Pass,
+    req: &AggregateRequest,
+    is_cancelled: &dyn Fn() -> bool,
+) -> Result<Vec<GroupBucket>, QueryError> {
+    let roots = if req.order_by.is_empty() {
+        let page_end = req.skip.saturating_add(req.limit.unwrap_or(u64::MAX));
+        &pass.roots[..usize::try_from(page_end)
+            .unwrap_or(usize::MAX)
+            .min(pass.roots.len())]
+    } else {
+        &pass.roots[..]
+    };
+    let (snap, tenant, budget) = (scan.snap, scan.lmpg.tenant, scan.budget);
+    let mut session = reconstruct::ReconstructSession::new(snap, tenant);
+    let mut partial = Partial::default();
+    let mut row = Vec::new();
+    let mut retained = pass
+        .candidate_bytes
+        .saturating_add(pass.roots.len().saturating_mul(8));
+    for &ord in roots {
+        if is_cancelled() {
+            return Err(QueryError::Cancelled);
+        }
+        if !rows.read(scan.plan, snap, tenant, &mut session, ord, &mut row)? {
+            continue;
+        }
+        let held = retained.saturating_add(row_bytes(&row));
+        Budget::WorkingSet.check(budget, held)?;
+        let ctx = RowCtx {
+            lmpg: scan.lmpg,
+            snap,
+            ord,
+            alias_budget: budget.map(|limit| {
+                limit.saturating_sub(held) / scan.plan.metric_count().saturating_add(1)
+            }),
+        };
+        retained = retained.saturating_add(partial.accumulate(scan.plan, &row, &ctx)?);
+        Budget::WorkingSet.check(budget, retained)?;
+    }
+    Ok(partial.finish(scan.plan))
 }
 
 /// Aggregate, then paginate: complete buckets first, then deterministic
@@ -752,7 +494,13 @@ pub fn aggregate_to_rows_in_view(
     aggregate_to_rows_in_view_with_budget(lmpg, snap, buckets, req, None)
 }
 
-/// Shape aggregate output with bounded working and retained rows.
+/// Shape aggregate output against the response budget.
+///
+/// The buckets were already admitted under `query-memory-max` while they
+/// accumulated. What rendering adds is the response: each row is charged by
+/// its real serialized bytes, `$collect`s included, as it is rendered,
+/// against `budget` (the response size limit), or `query-memory-max` when
+/// the caller gave none.
 ///
 /// # Errors
 /// Returns storage or resource errors while reconstructing collects.
@@ -763,38 +511,15 @@ pub fn aggregate_to_rows_in_view_with_budget(
     req: &AggregateRequest,
     budget: Option<usize>,
 ) -> Result<Vec<Json>, QueryError> {
-    let configured = lmpg
-        .limits()
-        .query_memory_max_bytes()
-        .map(|bytes| usize::try_from(bytes).unwrap_or(usize::MAX));
-    let budget = match (budget, configured) {
-        (Some(a), Some(b)) => Some(a.min(b)),
-        (a, b) => a.or(b),
-    };
-    let snap = budget.map_or_else(
+    let cap = Cap::for_response(budget, lmpg.limits().query_memory_max_bytes());
+    let snap = cap.map_or_else(
         || Arc::clone(snap),
-        |bytes| snap.with_materialization_limit(bytes / 16),
+        |cap| snap.with_materialization_limit(cap.limit() / 16),
     );
-    let mut retained = buckets.iter().fold(0usize, |sum, bucket| {
-        sum.saturating_add(aggregate_budget::bucket_bytes(bucket))
-    });
-    aggregate_budget::check(budget, retained)?;
-    let mut rows = Vec::new();
+    let mut charged = 0usize;
+    let mut rows = Vec::with_capacity(buckets.len());
     for b in buckets {
-        aggregate_budget::check(
-            budget,
-            retained.saturating_add(aggregate_budget::bucket_bytes(b)),
-        )?;
-        let root_ordinal = b
-            .keys
-            .get("__rushdb_projection_root")
-            .and_then(serde_json::Value::as_u64);
-        let mut row = Map::new();
-        for (k, v) in &b.keys {
-            if k != "__rushdb_projection_root" {
-                row.insert(k.clone(), v.clone());
-            }
-        }
+        let mut row = b.keys.clone();
         for (out, field) in &req.counts {
             if field == "*" {
                 row.insert(out.clone(), Json::Number((b.count_roots).into()));
@@ -846,174 +571,25 @@ pub fn aggregate_to_rows_in_view_with_budget(
         // Attach per-root `$collect` shapes (docs' "aggregation with select"):
         // the row keeps its aggregate metrics and gains the collected arrays.
         let mut row_json = Json::Object(row);
-        if !req.collects.is_empty() {
-            if let Some(ord) = root_ordinal {
-                row_json = attach_collects_with_budget(
-                    lmpg,
-                    &snap,
-                    ord,
-                    row_json,
-                    &req.collects,
-                    budget.map(|limit| limit.saturating_sub(retained)),
-                    &|| false,
-                )
-                .map_err(aggregate_budget::resource_error)?;
-            }
+        if let Some(ord) = b.root.filter(|_| !req.collects.is_empty()) {
+            row_json = attach_collects_with_budget(
+                lmpg,
+                &snap,
+                ord,
+                row_json,
+                &req.collects,
+                cap.map(|cap| cap.after(charged)),
+                &|| false,
+            )
+            .map_err(aggregate_budget::resource_error)?;
         }
-        retained = retained.saturating_add(aggregate_budget::value_bytes(&row_json));
-        aggregate_budget::check(budget, retained)?;
+        if cap.is_some() {
+            charged = charged.saturating_add(serialized_bytes(&row_json));
+            Cap::check_opt(cap, charged)?;
+        }
         rows.push(row_json);
     }
     Ok(rows)
-}
-
-/// The record properties an aggregate reads per row, as the request spells
-/// them (without the `$record.` prefix): group keys, the time-bucket field,
-/// counted, summed, averaged and min/max fields, plain projections and the
-/// fields of per-row expressions. Alias metrics (`$sum: "$employee.salary"`)
-/// read related records through their traversal, not the row, so their
-/// names resolve to nothing here.
-fn referenced_fields(req: &AggregateRequest) -> BTreeSet<String> {
-    let mut names = BTreeSet::new();
-    let mut add = |field: &str| {
-        names.insert(field.strip_prefix("$record.").unwrap_or(field).to_owned());
-    };
-    for g in &req.group_by {
-        if req.time_bucket_alias.as_deref() != Some(g.as_str()) {
-            add(g);
-        }
-    }
-    if let Some(tb) = &req.time_bucket {
-        add(&tb.field);
-    }
-    for (_, field) in req
-        .counts
-        .iter()
-        .filter(|(_, field)| field != "*")
-        .chain(&req.sums)
-        .chain(&req.mins)
-        .chain(&req.maxs)
-        .chain(&req.avg_terms)
-        .chain(&req.plain_fields)
-    {
-        add(field);
-    }
-    for (_, expr) in req.expr_sums.iter().chain(&req.expr_avgs) {
-        expr_fields(expr, &mut add);
-    }
-    names
-}
-
-fn expr_fields(expr: &OutputExpr, add: &mut impl FnMut(&str)) {
-    match expr {
-        OutputExpr::Field(name) | OutputExpr::Ref(name) => add(name),
-        OutputExpr::Add(a, b) | OutputExpr::Subtract(a, b) | OutputExpr::Multiply(a, b) => {
-            expr_fields(a, add);
-            expr_fields(b, add);
-        }
-        OutputExpr::Divide {
-            dividend, divisor, ..
-        } => {
-            expr_fields(dividend, add);
-            expr_fields(divisor, add);
-        }
-        OutputExpr::Literal(_) => {}
-    }
-}
-
-fn new_bucket(buckets: &mut Vec<GroupBucket>, keys: Map<String, Json>) -> &mut GroupBucket {
-    buckets.push(GroupBucket {
-        keys,
-        count_roots: 0,
-        sums: Map::new(),
-        counts: Map::new(),
-        mins: Map::new(),
-        maxs: Map::new(),
-        derived_outputs: std::collections::BTreeMap::new(),
-    });
-    let last = buckets.len() - 1;
-    &mut buckets[last]
-}
-
-/// Increment an `$count` occurrence counter. Stored as a numeric counter rather
-/// than one array entry per counted value, so a high-cardinality count does not
-/// retain O(values) memory. A `$count` over a traversal alias counts distinct
-/// related records because the traversal already deduplicates its result.
-fn bump_count(bucket: &mut GroupBucket, key: &str) {
-    let entry = bucket
-        .counts
-        .entry(key.to_string())
-        .or_insert_with(|| Json::Number(0.into()));
-    let next = entry.as_u64().unwrap_or(0).saturating_add(1);
-    *entry = Json::Number(next.into());
-}
-
-/// Increment an `$avg` non-null count. Stored as a numeric counter rather than
-/// one array entry per value, so a high-cardinality average does not retain
-/// O(values) memory.
-fn bump_avg_count(bucket: &mut GroupBucket, key: String, delta: u64) {
-    let entry = bucket
-        .counts
-        .entry(key)
-        .or_insert_with(|| Json::Number(0.into()));
-    if let Json::Number(n) = entry {
-        *n = (n.as_u64().unwrap_or(0) + delta).into();
-    }
-}
-
-pub(super) fn minmax(bucket: &mut GroupBucket, key: String, v: &Json, is_min: bool) {
-    let entry = if is_min {
-        &mut bucket.mins
-    } else {
-        &mut bucket.maxs
-    };
-    let entry = entry
-        .entry(key)
-        .or_insert_with(|| aggregate_numeric_value(v));
-    let Some((_, next)) = infer_scalar(v) else {
-        return;
-    };
-    let Some((_, current)) = infer_scalar(entry) else {
-        return;
-    };
-    if !matches!(next, Scalar::Int64(_) | Scalar::Float64(_))
-        || !matches!(current, Scalar::Int64(_) | Scalar::Float64(_))
-    {
-        return;
-    }
-    let Some(ordering) = canonical_scalar_cmp(&next, &current) else {
-        return;
-    };
-    let replace = if is_min {
-        ordering == std::cmp::Ordering::Less
-    } else {
-        ordering == std::cmp::Ordering::Greater
-    };
-    if replace {
-        *entry = aggregate_numeric_value(v);
-    }
-}
-
-#[expect(
-    clippy::cast_precision_loss,
-    clippy::cast_possible_truncation,
-    reason = "the paired integer round-trip check preserves exact large integers"
-)]
-fn aggregate_numeric_value(value: &Json) -> Json {
-    let Some((_, scalar)) = infer_scalar(value) else {
-        return value.clone();
-    };
-    match scalar {
-        Scalar::Int64(integer) => {
-            let float = integer as f64;
-            if (float as i128) == i128::from(integer) {
-                serde_json::Number::from_f64(float).map_or_else(|| value.clone(), Json::Number)
-            } else {
-                value.clone()
-            }
-        }
-        _ => value.clone(),
-    }
 }
 
 fn map_metric<'a>(map: &'a Map<String, Json>, name: &str) -> Option<&'a Json> {
@@ -1054,29 +630,6 @@ fn compare_json_metric(a: Option<&Json>, b: Option<&Json>) -> std::cmp::Ordering
     }
 }
 
-/// Evaluate an `OutputExpr` against a single reconstructed record object.
-pub(super) fn eval_row_expr(expr: &OutputExpr, obj: &Map<String, Json>) -> Option<f64> {
-    match expr {
-        OutputExpr::Literal(l) => Some(*l),
-        OutputExpr::Field(field) => resolve_field(obj, field).and_then(|value| exact_f64(&value)),
-        OutputExpr::Ref(name) => obj.get(&normalize(name)).and_then(exact_f64),
-        OutputExpr::Add(a, b) => Some(eval_row_expr(a, obj)? + eval_row_expr(b, obj)?),
-        OutputExpr::Subtract(a, b) => Some(eval_row_expr(a, obj)? - eval_row_expr(b, obj)?),
-        OutputExpr::Multiply(a, b) => Some(eval_row_expr(a, obj)? * eval_row_expr(b, obj)?),
-        OutputExpr::Divide {
-            dividend, divisor, ..
-        } => {
-            let d = eval_row_expr(dividend, obj)?;
-            let q = eval_row_expr(divisor, obj)?;
-            if q == 0.0 {
-                None
-            } else {
-                Some(d / q)
-            }
-        }
-    }
-}
-
 /// Convert a JSON number to the aggregate expression representation without
 /// silently rounding an integer that cannot be represented by `f64`.
 #[expect(
@@ -1084,7 +637,7 @@ pub(super) fn eval_row_expr(expr: &OutputExpr, obj: &Map<String, Json>) -> Optio
     clippy::cast_possible_truncation,
     reason = "the integer round-trip check rejects lossy widening"
 )]
-pub(super) fn exact_f64(value: &Json) -> Option<f64> {
+pub(crate) fn exact_f64(value: &Json) -> Option<f64> {
     let number = value.as_number()?;
     if let Some(integer) = number.as_i64() {
         let float = integer as f64;
