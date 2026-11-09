@@ -93,6 +93,11 @@ fn boot_with(
         }),
         _ => None,
     };
+    // The server builds its TLS acceptor from the process-default provider
+    // (`bind_grpc` installs it; this test binds directly). Install it before
+    // the server thread starts, not when the first client connects, or the
+    // acceptor can race the client and find none.
+    let _ = rustls::crypto::ring::default_provider().install_default();
     let (mut server, port) =
         GrpcServer::bind(handler, "127.0.0.1", 0, 64 * 1024 * 1024, tls).expect("grpc bind");
     std::thread::spawn(move || server.serve_forever());
