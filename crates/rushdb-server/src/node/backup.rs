@@ -269,14 +269,18 @@ impl Node {
         crate::archive::archive_once(&self.store, dir)
     }
 
-    /// Force a durability checkpoint: fsync the materialization and durably
-    /// record the committed LSN. Under log-first this must run before an
-    /// offline physical base backup (`--backup-base`) copies the store file.
+    /// Durability checkpoint: fsync the materialization and durably record
+    /// the committed LSN (nothing is written when nothing changed since the
+    /// last checkpoint). Under log-first this must run before an offline
+    /// physical base backup (`--backup-base`) copies the store file.
     ///
     /// # Errors
     /// Returns a message when the checkpoint fails.
     pub fn checkpoint(&self) -> Result<(), String> {
-        self.store.checkpoint().map_err(|e| e.to_string())
+        self.store
+            .checkpoint()
+            .map(|_| ())
+            .map_err(|e| e.to_string())
     }
 
     /// Offline physical base backup into `out_dir`: the caller owns the

@@ -20,6 +20,7 @@ serde_json = { workspace = true }
 uuid = { workspace = true }
 blake3 = { workspace = true }
 thiserror = { workspace = true }
+roaring = { workspace = true }
 # Opt-in per-search phase timings (`rushdb_vector::search` debug target).
 tracing = "0.1"
 # Default ANN provider.

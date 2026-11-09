@@ -168,7 +168,7 @@ fn persistence_failure_completes_all_waiters_and_fences_new_writes() {
         PendingCommit {
             ci: 2,
             shard: 0,
-            ops: vec![],
+            ops: Arc::new(vec![]),
             prepared: PreparedCommand::from_ops(2, &[]),
             command_payload: Vec::new(),
             ack: later_tx,
@@ -223,7 +223,7 @@ fn temporary_nonpublisher_lock_holder_does_not_strand_a_commit() {
     let (tx, rx) = mpsc::channel();
     let worker_store = store.clone();
     let worker = std::thread::spawn(move || {
-        tx.send(worker_store.enqueue_and_publish(1, 0, vec![], vec![]))
+        tx.send(worker_store.enqueue_and_publish(1, 0, Vec::<Op>::new(), vec![]))
             .unwrap();
     });
     let mut pending = store.pending.lock().unwrap();
@@ -524,7 +524,7 @@ fn multi_shard_persist_fans_out_to_both_backends_in_parallel() {
         PendingCommit {
             ci: 1,
             shard: 0,
-            ops: vec![Op::Put(b"shard0-key".to_vec(), b"v0".to_vec())],
+            ops: Arc::new(vec![Op::Put(b"shard0-key".to_vec(), b"v0".to_vec())]),
             prepared: PreparedCommand::from_ops(
                 1,
                 &[Op::Put(b"shard0-key".to_vec(), b"v0".to_vec())],
@@ -535,7 +535,7 @@ fn multi_shard_persist_fans_out_to_both_backends_in_parallel() {
         PendingCommit {
             ci: 2,
             shard: 1,
-            ops: vec![Op::Put(b"shard1-key".to_vec(), b"v1".to_vec())],
+            ops: Arc::new(vec![Op::Put(b"shard1-key".to_vec(), b"v1".to_vec())]),
             prepared: PreparedCommand::from_ops(
                 2,
                 &[Op::Put(b"shard1-key".to_vec(), b"v1".to_vec())],
@@ -544,7 +544,14 @@ fn multi_shard_persist_fans_out_to_both_backends_in_parallel() {
             ack: ack1,
         },
     ];
-    let pairs: Vec<(u64, &[Op])> = batch.iter().map(|pc| (pc.ci, pc.ops.as_slice())).collect();
+    let pairs: Vec<crate::backend::CommitOps<'_>> = batch
+        .iter()
+        .map(|pc| crate::backend::CommitOps {
+            ci: pc.ci,
+            base: &pc.ops,
+            derived: &[],
+        })
+        .collect();
     store.persist_many_sharded(&pairs, &batch).unwrap();
     let get = |shard: usize, key: &[u8]| {
         store

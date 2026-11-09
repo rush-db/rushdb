@@ -80,15 +80,20 @@ Value rules:
 - An `$avg` over no numeric values is `0`.
 - Integers above 2^53 that cannot be represented exactly are rejected rather
   than rounded.
-- `$min` and `$max` compare numbers numerically and other values by the same
-  rules as [sorting](sorting-and-pagination.md#comparison-rules).
+- `$min` and `$max` compare numbers numerically. The first value seen (in
+  record order) sets the metric; when it is not a number it stays, and
+  values that are not numbers never replace a number.
+- Group keys are the stored values: an integer `15` and a float `15.0` are
+  different groups, as are a missing property (`"__missing__"`) and an
+  explicit `null`.
 
 ## How `select` and `groupBy` shape the rows
 
 | Document | Rows |
 |---|---|
 | `select` with metrics only, no `groupBy` | One global row, for example `{ "n": 42 }`. |
-| `select` with projections (field references) and no `groupBy` | One row per matching record, carrying the projections and any metrics computed for that record. |
+| `select` of field references (and `$collect`s) only, no `groupBy` | Not an aggregation: a listing with a projection, one row per matching record (see [Plain projection](search-queries.md#plain-projection)). |
+| `select` with field references and metrics, no `groupBy` | One row per matching record, carrying the projections and the metrics computed for that record. |
 | `select` + `groupBy` | One row per distinct combination of group keys. |
 | `groupBy` naming only `select` output names | One global row (see [Grouping](#grouping)). |
 
@@ -147,9 +152,10 @@ Rules:
 
 `order` sorts the rows by output name (metric or group key), and `offset` /
 `limit` then slice the sorted rows. Every group is computed before ordering,
-so `limit` does not reduce the work or the group limit. A plain projection
-(one row per record) is the exception: it is not subject to the group
-limit, and without an `order` only the requested page of records is read.
+so `limit` does not reduce the work or the group limit. Per-record rows
+(field references beside metrics, no `groupBy`) are the exception: they are
+not subject to the group limit, and without an `order` only the requested
+page of records is read.
 
 ## Derived arithmetic
 
@@ -319,15 +325,40 @@ collected record above it.
 | Limit | Value | Error when exceeded |
 |---|---|---|
 | Distinct groups (rows before paging) in one grouped or rolled-up aggregation | 1,000 | `resource_exhausted` (not retryable): "aggregate exceeds 1000 distinct groups" |
-| Aggregation working set (match ordinals, the row being aggregated, groups, collected arrays) | `resources.query-memory-max` (default 256 MiB), tightened by `context.queryMemoryMaxBytes`; never the request body limit, which caps only the returned page | `resource_exhausted` (not retryable): "aggregate working set would exceed query-memory-max (N bytes)" |
+| Aggregation working set (match ordinals, the row being aggregated, every part's groups) | `resources.query-memory-max` (default 256 MiB), tightened by `context.queryMemoryMaxBytes`; never the response size limit | `resource_exhausted` (not retryable): "query working set would exceed query-memory-max (N bytes); raise --query-memory-max or narrow the filter" |
+| Returned rows, collected arrays included | The response size limit (`--body-limit`, default 16 MiB): each row is charged by its serialized size as it is rendered | `resource_exhausted` (not retryable): "response would exceed the response size limit (N bytes); raise --body-limit or request a smaller page" |
 | `$avg` `$precision` | 15 | Clamped to 15 |
 | `$timeBucket` `size` | at least 1 | `invalid_request` |
 
 Aggregations never return partial results: when a limit is hit, the whole
 query fails. To stay within them, filter with `predicate` and group on
-lower-cardinality properties. Per-record projections over large match sets
-are bounded by the memory budget; page them with `limit` (see
+lower-cardinality properties. Per-record rows over large match sets are
+bounded by the two budgets; page them with `limit`. A `select` of field
+references only is a listing, not an aggregation (see
 [Plain projection](search-queries.md#plain-projection)).
+
+## How an aggregation runs
+
+The candidate records come from the index plan or from the label's member
+list; both hold live records only, so no record is read to check it exists.
+They are split into parts of about 8,192 records: the index plan's owners
+8,192 at a time, a label's members by fixed ranges of record ordinals that
+each part reads itself (the members are never collected into one list).
+Each part checks its
+records against what the index did not answer, reads the properties the
+`select` and `groupBy` name (one point read per property and record when
+they are scalars), and folds them into its own groups with typed counters,
+sums and extremes. Parts run on the worker threads the server has free
+(`threads`, shared by every query; a query that finds none runs its parts on
+its own thread), and their groups are merged in part order.
+
+The part size depends only on the matches, so the answer does not depend on
+how many threads ran: counts, minimums, maximums and group order are those
+of a single pass, and a floating-point `$sum` or `$avg` is the sum of the
+per-part sums in part order, the same on every run over the same data
+(it may differ in the last bits from a strictly left-to-right sum). The
+groups every part holds count toward `query-memory-max` together.
+Cancellation and the request deadline stop every part.
 
 > **Note:** A global `{ "$count": "*" }` with no predicate on a single label
 > is answered from the label catalog in constant time. Any other count

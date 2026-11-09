@@ -1,7 +1,9 @@
 //! Measurement, not a gate: grouped aggregation over many records of one
 //! label, the shapes of the benchmark suite's `aggregations` area. Run with
 //! `cargo test -p rushdb-query --release --test aggregate_measurement -- --ignored --nocapture`
-//! and `AGGREGATE_MEASUREMENT_RECORDS` (default 1,000,000).
+//! and `AGGREGATE_MEASUREMENT_RECORDS` (default 1,000,000),
+//! `AGGREGATE_MEASUREMENT_THREADS` (default `1,8`) and
+//! `AGGREGATE_MEASUREMENT_DIR` (a redb store in that empty directory).
 
 use std::sync::Arc;
 use std::time::Instant;
@@ -24,7 +26,12 @@ fn grouped_aggregation_latency_at_scale() {
         .ok()
         .and_then(|v| v.parse().ok())
         .unwrap_or(1_000_000);
-    let store = Arc::new(Store::new_in_memory());
+    // `AGGREGATE_MEASUREMENT_DIR` names an empty directory for a redb store
+    // (in memory without it).
+    let store = Arc::new(match std::env::var("AGGREGATE_MEASUREMENT_DIR") {
+        Ok(dir) => Store::open(&std::path::Path::new(&dir).join("store.redb")).unwrap(),
+        Err(_) => Store::new_in_memory(),
+    });
     let lmpg = Lmpg::new(store.clone(), TenantId::single());
     let options = rushdb_lmpg::import::ImportOptions::default();
     let started = Instant::now();
@@ -127,15 +134,28 @@ fn grouped_aggregation_latency_at_scale() {
             },
         ),
     ];
+    // Each shape at each thread budget (`AGGREGATE_MEASUREMENT_THREADS`,
+    // default `1,8`); the answers must not differ.
+    let threads: Vec<usize> = std::env::var("AGGREGATE_MEASUREMENT_THREADS")
+        .unwrap_or_else(|_| "1,8".into())
+        .split(',')
+        .filter_map(|t| t.trim().parse().ok())
+        .collect();
     for (name, request) in &shapes {
-        let view = Arc::new(store.read_view().unwrap());
-        let started = Instant::now();
-        let (buckets, total) =
-            aggregate_with_cancel_in_view(&lmpg, request, &|| false, view).unwrap();
-        println!(
-            "{name}: {:.1?} ({} groups, {total} matched)",
-            started.elapsed(),
-            buckets.len()
-        );
+        let mut answers = Vec::new();
+        for &n in &threads {
+            rushdb_storage::parallel::set_threads(n);
+            let view = Arc::new(store.read_view().unwrap());
+            let started = Instant::now();
+            let (buckets, total) =
+                aggregate_with_cancel_in_view(&lmpg, request, &|| false, view).unwrap();
+            println!(
+                "{name} [{n} threads]: {:.1?} ({} groups, {total} matched)",
+                started.elapsed(),
+                buckets.len()
+            );
+            answers.push(serde_json::to_string(&buckets).unwrap());
+        }
+        assert!(answers.windows(2).all(|w| w[0] == w[1]), "{name}");
     }
 }

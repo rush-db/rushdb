@@ -8,16 +8,6 @@ use serde_json::Value;
 
 use crate::{GroupBucket, QueryError, QuerySnapshot};
 
-pub(super) fn check(limit: Option<usize>, bytes: usize) -> Result<(), QueryError> {
-    if let Some(limit) = limit.filter(|limit| bytes > *limit) {
-        return Err(QueryError::ResourceLimit(format!(
-            "aggregate working set would exceed query-memory-max ({limit} bytes); \
-             raise --query-memory-max or narrow the filter"
-        )));
-    }
-    Ok(())
-}
-
 pub(super) fn value_bytes(value: &Value) -> usize {
     let payload = match value {
         Value::String(value) => value.len(),

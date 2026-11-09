@@ -4215,6 +4215,7 @@ dependencies = [
 name = "rushdb-lmpg"
 version = "3.0.6"
 dependencies = [
+ "rushdb-protocol",
  "rushdb-storage",
  "rushdb-types",
  "serde",
@@ -4240,6 +4241,7 @@ dependencies = [
 name = "rushdb-protocol"
 version = "3.0.6"
 dependencies = [
+ "base64 0.22.1",
  "serde",
  "serde_json",
  "thiserror 2.0.20",
@@ -4388,6 +4390,7 @@ dependencies = [
 name = "rushdb-textsearch"
 version = "3.0.6"
 dependencies = [
+ "roaring",
  "rushdb-lmpg",
  "rushdb-storage",
  "rushdb-types",
@@ -4434,6 +4437,7 @@ dependencies = [
  "arc-swap",
  "blake3",
  "im",
+ "roaring",
  "rushdb-lmpg",
  "rushdb-storage",
  "rushdb-types",

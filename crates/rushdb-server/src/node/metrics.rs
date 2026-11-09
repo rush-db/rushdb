@@ -101,18 +101,6 @@ impl Metrics {
             self.storage_history_bytes.set(clamp(stats.history_bytes));
             self.storage_log_bytes.set(clamp(stats.log_bytes));
             self.storage_receipt_bytes.set(clamp(stats.receipt_bytes));
-            advance(&self.storage_admission_waits, clamp(stats.admission_waits));
-            advance(
-                &self.storage_admission_wait_ms,
-                clamp(stats.admission_wait_ms),
-            );
-            advance(&self.storage_checkpoints, clamp(stats.checkpoints));
-            advance(
-                &self.storage_checkpoint_wait_ms,
-                clamp(stats.checkpoint_wait_ms),
-            );
-            advance(&self.storage_wal_bytes, clamp(stats.wal_bytes_appended));
-            advance(&self.storage_applied_bytes, clamp(stats.applied_bytes));
         }
         self.retention_consumers
             .set(i64::try_from(consumers.len()).unwrap_or(i64::MAX));
@@ -196,8 +184,25 @@ impl Metrics {
         advance(&self.group_commits_total, clamp(store.group_commit_count()));
         self.retention_oldest_reader
             .set(store.retention_summary().0.map_or(0, clamp));
-        // Live (no scan): backend lock contention, retained WAL, conflict
-        // window. These used to refresh only with the 15-minute storage walk.
+        // Live (no scan): write-path counters, backend lock contention,
+        // retained WAL, conflict window. They used to be read from the
+        // 15-minute storage walk, so they stayed 0 until its first run.
+        let written = store.write_counters();
+        advance(
+            &self.storage_admission_waits,
+            clamp(written.admission_waits),
+        );
+        advance(
+            &self.storage_admission_wait_ms,
+            clamp(written.admission_wait_ms),
+        );
+        advance(&self.storage_checkpoints, clamp(written.checkpoints));
+        advance(
+            &self.storage_checkpoint_wait_ms,
+            clamp(written.checkpoint_wait_ms),
+        );
+        advance(&self.storage_wal_bytes, clamp(written.wal_bytes_appended));
+        advance(&self.storage_applied_bytes, clamp(written.applied_bytes));
         let locks = store.backend_lock_times();
         advance(
             &self.storage_backend_mutex_wait_ms,
@@ -446,7 +451,7 @@ impl Metrics {
         .expect("valid Prometheus metric");
         let storage_checkpoints = prometheus::IntCounter::new(
             "rushdb_storage_checkpoints_total",
-            "Cumulative explicit durability checkpoints",
+            "Cumulative durability checkpoints that wrote (idle ones are skipped)",
         )
         .expect("valid Prometheus metric");
         let storage_checkpoint_wait_ms = prometheus::IntCounter::new(

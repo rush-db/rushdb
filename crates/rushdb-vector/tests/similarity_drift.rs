@@ -22,7 +22,7 @@ use rushdb_storage::Store;
 use rushdb_types::ids::{OwnerKind, TenantId};
 use rushdb_types::keys::{key, P_FAMILY_SIG};
 use rushdb_types::occurrence::Similarity;
-use rushdb_vector::{score, ScoredSource, SourceRef, VectorEngine};
+use rushdb_vector::{score, Candidates, ScoredSource, SourceRef, VectorEngine};
 
 const TENANT: TenantId = TenantId::from_ordinal(91);
 
@@ -220,7 +220,9 @@ fn exact_search_returns_the_pairwise_score_for_every_hit() {
         &vectors,
     );
     let q = random_vector(&mut state, 8, 1.0);
-    let hits = vecs.search_exact("cal", &q, vectors.len(), None).unwrap();
+    let hits = vecs
+        .search_exact("cal", &q, vectors.len(), Candidates::All)
+        .unwrap();
     assert_eq!(hits.len(), vectors.len());
     for h in hits {
         let bound = by_ord.get(&h.source.owner_ord).expect("bound vector");
@@ -248,7 +250,10 @@ fn high_magnitude_high_dim_cosine_matches_reference() {
         Similarity::Cosine,
         &vectors,
     );
-    for h in vecs.search_exact("big", &q, vectors.len(), None).unwrap() {
+    for h in vecs
+        .search_exact("big", &q, vectors.len(), Candidates::All)
+        .unwrap()
+    {
         let bound = by_ord.get(&h.source.owner_ord).unwrap();
         assert_close(
             h.score,
@@ -271,11 +276,11 @@ fn exact_search_and_view_path_agree_bit_for_bit() {
         &vectors,
     );
     let q = random_vector(&mut state, 4, 1.0);
-    let direct = vecs.search_exact("paths", &q, 16, None).unwrap();
+    let direct = vecs.search_exact("paths", &q, 16, Candidates::All).unwrap();
     let snap = vecs.snapshot().unwrap();
     let space = vecs.lookup_space_in_view(&snap, "paths").unwrap().unwrap();
     let via_view = vecs
-        .search_exact_in_view(&snap, &space, &q, 16, None)
+        .search_exact_in_view(&snap, &space, &q, 16, Candidates::All)
         .unwrap();
     assert_eq!(signature(&direct), signature(&via_view));
 }
@@ -302,15 +307,15 @@ fn scores_are_bit_identical_across_memory_disk_and_reopen() {
     let db = dir.join("rushdb.redb");
     let disk_store = Arc::new(Store::open(&db).unwrap());
     let disk = bind_fixture(disk_store.clone(), "s", 16, Similarity::Cosine, &vectors).0;
-    let disk_scores = signature(&disk.search_exact("s", &q, 32, None).unwrap());
+    let disk_scores = signature(&disk.search_exact("s", &q, 32, Candidates::All).unwrap());
     drop(disk);
     drop(disk_store);
 
     let reopened_store = Arc::new(Store::open(&db).unwrap());
     let reopened = VectorEngine::new(Arc::new(Lmpg::new(reopened_store, TENANT)));
-    let reopened_scores = signature(&reopened.search_exact("s", &q, 32, None).unwrap());
+    let reopened_scores = signature(&reopened.search_exact("s", &q, 32, Candidates::All).unwrap());
 
-    let mem_scores = signature(&mem.search_exact("s", &q, 32, None).unwrap());
+    let mem_scores = signature(&mem.search_exact("s", &q, 32, Candidates::All).unwrap());
     assert_eq!(mem_scores.len(), vectors.len());
     assert_eq!(
         disk_scores, mem_scores,

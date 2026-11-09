@@ -78,23 +78,36 @@ impl Store {
     /// commit with quick-repair state) without changing logical state. Under
     /// log-first, per-commit durability is the WAL fsync; redb commits are
     /// `Durability::None` until this checkpoint, which is also what lets WAL
-    /// segments at or below the checkpointed LSN be truncated. A no-op for
-    /// in-memory stores.
+    /// segments at or below the checkpointed LSN be truncated. A shard with
+    /// nothing written since its last checkpoint is skipped, so an idle store
+    /// writes nothing; WAL truncation still runs (the retention cursor may
+    /// have advanced). A no-op for in-memory stores.
+    ///
+    /// Returns whether any shard checkpointed; only those count in
+    /// [`crate::WriteCounters::checkpoints`].
     ///
     /// # Errors
     /// Returns [`StorageError`] if a shard's checkpoint fails.
-    pub fn checkpoint(&self) -> Result<(), StorageError> {
+    pub fn checkpoint(&self) -> Result<bool, StorageError> {
         self.check_health()?;
         let started = std::time::Instant::now();
         let durable_lsn = self.committed_version();
-        self.for_each_backend_parallel(|backend| backend.checkpoint(durable_lsn))?;
+        let written = self
+            .for_each_backend_parallel(|backend| backend.checkpoint(durable_lsn))?
+            .contains(&true);
         self.truncate_log(durable_lsn)?;
+        if written {
+            self.count_checkpoint(started);
+        }
+        Ok(written)
+    }
+
+    fn count_checkpoint(&self, started: std::time::Instant) {
         self.checkpoints.fetch_add(1, Ordering::Relaxed);
         self.checkpoint_wait_ms.fetch_add(
             u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX),
             Ordering::Relaxed,
         );
-        Ok(())
     }
 
     /// Run `copy` with every store file quiescent at a durable commit:
@@ -131,8 +144,13 @@ impl Store {
         let _guard = self.health.guard(self.publish_lock.lock())?;
         self.drain_and_publish();
         let durable_lsn = self.committed_version();
-        self.for_each_backend_parallel(|backend| backend.checkpoint(durable_lsn))?;
-        self.checkpoints.fetch_add(1, Ordering::Relaxed);
+        let started = std::time::Instant::now();
+        if self
+            .for_each_backend_parallel(|backend| backend.checkpoint(durable_lsn))?
+            .contains(&true)
+        {
+            self.count_checkpoint(started);
+        }
         let mut copy = Some(copy);
         let mut result = None;
         paused(&self.all_backends(), &mut || {
@@ -354,12 +372,6 @@ impl Store {
             total.receipt_keys += s.receipt_keys;
             total.receipt_bytes += s.receipt_bytes;
         }
-        total.admission_waits = self.admission_waits.load(Ordering::Relaxed);
-        total.admission_wait_ms = self.admission_wait_ms.load(Ordering::Relaxed);
-        total.checkpoints = self.checkpoints.load(Ordering::Relaxed);
-        total.wal_bytes_appended = self.wal_bytes_appended.load(Ordering::Relaxed);
-        total.applied_bytes = self.applied_bytes.load(Ordering::Relaxed);
-        total.checkpoint_wait_ms = self.checkpoint_wait_ms.load(Ordering::Relaxed);
         Ok(total)
     }
 

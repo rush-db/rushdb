@@ -174,7 +174,8 @@ curl -s http://127.0.0.1:3000/protocol/v1/execute \
 
 | Field | Meaning |
 |---|---|
-| `accessPath` | `index:<name>` when a ready declared ordered index covers a predicate leaf for every requested label (several names are comma-separated, one per label); `property_walk:<property>` when an eligible leaf without an index narrows the candidates (see `unindexedWalk`); otherwise `label_scan` when `labels` is set, or `full_scan` when it is empty. |
+| `accessPath` | `index:<name>` when a ready declared ordered index covers a predicate leaf for every requested label (several names are comma-separated, one per label); `property_walk:<property>` when an eligible leaf without an index narrows the candidates (see `unindexedWalk`); `relation_expand` when a `$relation` block is answered by expanding from the records it matches (see `relationExpansion`); otherwise `label_scan` when `labels` is set, or `full_scan` when it is empty. |
+| `relationExpansion` | `targetEstimate`: an upper bound of the records the `$relation` block's labels and predicate match, which the expansion starts from. Present whenever the planner expands a block, also next to an `index:` or `property_walk:` path. Omitted otherwise ([performance notes](../query/relationships-and-traversal.md#performance-notes)). |
 | `unindexedWalk` | For a `property_walk`: `property`, `owners` (the records carrying the property under the requested labels, each visited with one point read) and `suggestedIndexes` (one `{label, property}` ordered index per walked label that would answer the leaf instead). Omitted otherwise. |
 | `labels` | The labels the query is constrained to. |
 | `predicate` | The predicate as submitted. |

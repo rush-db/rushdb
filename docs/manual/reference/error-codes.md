@@ -107,7 +107,9 @@ connect with `sslmode=disable` or `prefer`.
 | `resource exhausted: transaction operation limit` | `resource_exhausted` (not retryable) | Over `tx-max-operations`. |
 | `resource exhausted: transaction staging byte limit` | `resource_exhausted` (not retryable) | Over `tx-max-staged-bytes`. |
 | `storage resource exhausted: expanded mutation batch exceeds` | `resource_exhausted` (not retryable) | Over `max-expanded-commit-bytes`. |
-| `query working set exceeded` | `resource_exhausted` | Over `query-memory-max`. |
+| `query working set would exceed query-memory-max (N bytes)` | `resource_exhausted` | A listing, projection or aggregation would hold more than `query-memory-max` while it runs. Raise `--query-memory-max` or narrow the filter. |
+| `response would exceed the response size limit (N bytes)` | `resource_exhausted` | The returned rows would exceed the response size limit. Raise `--body-limit` or request a smaller page. |
+| `query working set exceeded` | `resource_exhausted` | An upsert key walk or SQL statement over `query-memory-max`. |
 | `serializable_conflict` / `transaction_conflict` | `write_conflict` | Concurrent write to the same data; retry. |
 | `policy-enforced reads are unavailable for this adapter` | `unauthorized` | A data-access policy is enforced and this read path cannot apply it. |
 | `index DDL is a mutation; send it as mutate.statement` | `invalid_request` | Index DDL sent as a query. |
@@ -123,7 +125,6 @@ connect with `sslmode=disable` or `prefer`.
 | `property ... does not exist` | `not_found` | `deleteProperty` of an unknown name. |
 | `record ... already exists` | `conflict` | `putRecord` create with the id of an existing record. |
 | `aggregate exceeds 1000 distinct groups` | `resource_exhausted` (not retryable) | Narrow the grouping or add filters. |
-| `aggregate working set would exceed query-memory-max (N bytes)` | `resource_exhausted` (not retryable) | Raise `--query-memory-max` or narrow the filter; the request body limit never caps an aggregate's working set. |
 
 ## See also
 

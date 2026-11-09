@@ -85,7 +85,7 @@ impl<'a> WorkingSet<'a> {
         self.charged = self.charged.saturating_add(bytes);
         if let Some(limit) = self.limit {
             if self.charged > limit {
-                return Err(format!("query working set exceeded {limit} bytes"));
+                return Err(rushdb_query::Budget::WorkingSet.exceeded(limit).to_string());
             }
         }
         self.charges = self.charges.wrapping_add(1);
@@ -116,7 +116,10 @@ mod tests {
         meter.charge(value_bytes(10)).unwrap();
         meter.charge(value_bytes(10)).unwrap();
         let error = meter.charge(value_bytes(10)).unwrap_err();
-        assert!(error.contains("query working set exceeded 200 bytes"));
+        assert!(
+            error.contains("query working set would exceed query-memory-max (200 bytes)"),
+            "{error}"
+        );
         meter.release(value_bytes(10) * 2);
         meter.charge(value_bytes(10)).unwrap();
     }

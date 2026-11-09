@@ -22,11 +22,22 @@ flowchart LR
     R --> O["offset / limit<br/>records with score + provenance"]
 ```
 
-1. **Filter once.** `labels` and `predicate` are resolved by the
+1. **Filter once.** A `predicate` is resolved with `labels` by the
    [query planner](query-planning.md) into one candidate set of records.
+   Without a predicate the candidates are the members of `labels` (every
+   record when it is empty), and no set is built: each leg checks label
+   membership on the hits it ranks, so an unfiltered query costs the same on
+   a label of a thousand records as on one of a million.
 2. **Rank inside the candidates.** The vector leg and the text leg each rank
-   only records in that set. Filtering happens before ranking, so a record
-   outside the predicate can never take a top slot.
+   only candidates, and they run concurrently. Filtering happens before
+   ranking, so a record outside the predicate can never take a top slot.
+   Without a predicate, the vector leg runs exactly as an unfiltered
+   [`query.vector`](vector-search.md) does, and the text leg searches its
+   whole index (which covers one label) when that label is among `labels` (or
+   `labels` is empty); if one of its hits is no longer a member of the label
+   (a deletion an `eventual` index has not applied yet), the leg is answered
+   inside the label's member set instead, so the result is the same either
+   way.
 3. **Fuse.** Each leg contributes to every record it returned, by the
    chosen [fusion](#fusion). A record found by both legs receives both
    contributions. Raw cosine and BM25 scores are never compared directly.
@@ -73,11 +84,11 @@ At least one leg is required; with both set the query is a true hybrid.
 | Field | Required | Default | Description |
 |---|---|---|---|
 | `property` | yes | — | Vector property. |
-| `vector` | yes | — | Query vector with the index's dimensions. |
+| `vector` | yes | — | Query vector with the index's dimensions: a number array or the binary form `{"f32": "<base64>"}` ([Sending vectors](vector-search.md#sending-vectors)). |
 | `index` | yes¹ | — | Vector index name. |
 | `similarity` | no | `cosine` | Only used to derive the index alias when `index` is omitted. |
 | `mode` | no | `auto` | `auto`, `exact` or `ann` (see [Vector search](vector-search.md#exact-versus-approximate-ann)). |
-| `ef` | no | `resources.vector-default-ef` | ANN breadth when the leg runs on the ANN graph. |
+| `ef` | no | `resources.vector-default-ef` (128) | ANN breadth when the leg runs on the ANN graph: candidates the walk keeps and re-scores. |
 | `scoreThreshold` | no | — | Drop vector hits scoring below this before fusion. |
 | `weight` | no | 1 | This leg's share of the fused score (≥ 0). |
 | `prefetchLimit` | no | `4 × (offset + limit)` | Hits this leg ranks before fusion, 1 to 10,000. Below `offset + limit`, a page can hold fewer results. |
@@ -173,7 +184,7 @@ both legs perfectly, but is never returned: it is outside the predicate.
 | `total` | Number of records in this page. |
 | `vectorSearch` | How the vector leg ran (as for [`query.vector`](vector-search.md)). |
 | `fusion` | With both legs: the fusion that combined them. |
-| `textSearch` | The text leg's `matches` (records matching the query inside the filtered candidates, beyond this page) and `pending` (changes the index had not applied). |
+| `textSearch` | The text leg's `matches` (records matching the query, beyond this page: inside the filtered candidates with a predicate, in the whole index without one) and `pending` (changes the index had not applied). |
 
 ## Choosing parameters
 

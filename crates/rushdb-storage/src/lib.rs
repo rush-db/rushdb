@@ -23,6 +23,7 @@ pub use copy_on_write::CopyOnWrite;
 mod conflict_window;
 mod derive;
 mod fair_gate;
+pub mod graph_cache;
 pub mod history_v2;
 mod layout;
 mod log_export;
@@ -32,6 +33,7 @@ mod memory_backend;
 mod observability;
 mod overlay_view;
 pub mod owner_sets;
+pub mod parallel;
 mod persist;
 pub mod planner_stats;
 mod publish;
@@ -50,7 +52,8 @@ use backend::StorageBackend;
 pub use derive::{DeriveRead, Deriver};
 pub use maintenance::CompactOutcome;
 pub use observability::{
-    BackendLockTimes, CommitObserver, CommitPhase, WriterHolder, WriterHolds, WRITER_HOLD_BOUNDS,
+    BackendLockTimes, CommitObserver, CommitPhase, WriteCounters, WriterHolder, WriterHolds,
+    WRITER_HOLD_BOUNDS,
 };
 pub use overlay_view::OverlayView;
 pub use planner_stats::PlannerStats;
@@ -107,7 +110,8 @@ struct PendingCommit {
     /// fans out durability across shard backends so different tenants persist
     /// in parallel once `shard_count > 1`.
     shard: usize,
-    ops: Vec<Op>,
+    /// Shared with the sequencer's layer for this commit.
+    ops: Arc<Vec<Op>>,
     prepared: PreparedCommand,
     /// The originating `CommitBatch`, pre-serialized: paired with
     /// `ops` in the WAL record so the command journal is derivable from the
@@ -118,46 +122,48 @@ struct PendingCommit {
 
 /// Pending-overlay state for the commit sequencer.
 ///
-/// A committed `base` plus the net key effect of every assigned-but-unpublished
-/// commit, so an expansion can read through `Txn`'s overlay instead of waiting
-/// for the predecessor to be published. It is guarded by the writer
+/// One read layer per assigned-but-unpublished commit, in commit-index
+/// order, so an expansion can read through `Txn`'s overlay instead of waiting
+/// for its predecessors to be published. It is guarded by the writer
 /// `admission_lock`, so every writer that can assign a commit index observes
 /// one consistent overlay.
 ///
-/// `buffer` is this state's *own* copy (never the publisher's `pending` map), so
-/// it cannot race the publisher removing a drained entry. Rebase only needs the
-/// generation (commit index) at which each key was last written, so the buffer
-/// stays O(distinct in-flight keys), not O(in-flight ops).
+/// Each layer shares its commit's op vector with the publisher's `pending`
+/// entry (an `Arc`, never a copy), and the overlay handed to the next command
+/// shares the layers, so admitting a commit costs O(its own ops), not
+/// O(every in-flight op). A drained `pending` entry cannot race this state:
+/// the layer keeps its own reference until `trim_sequencer` drops it.
 #[derive(Default)]
 struct SequencerState {
-    /// `key -> (commit index that last wrote it, value or tombstone)` for
-    /// assigned-but-unpublished commits. The committed base is opened fresh
-    /// (and dropped) per critical section, so this state holds no read pin
-    /// between commits and cannot stall GC.
-    buffer: BTreeMap<Vec<u8>, (u64, Option<Vec<u8>>)>,
+    /// Assigned-but-unpublished commits, oldest first. The committed base is
+    /// opened fresh (and dropped) per critical section, so this state holds
+    /// no read pin between commits and cannot stall GC.
+    layers: std::collections::VecDeque<Arc<overlay_view::CommitLayer>>,
 }
 
 impl std::fmt::Debug for SequencerState {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("SequencerState")
-            .field("in_flight_keys", &self.buffer.len())
+            .field("in_flight_commits", &self.layers.len())
             .finish()
     }
 }
 
 impl SequencerState {
-    /// Fold an assigned commit's expanded ops into the pending buffer.
-    fn record(&mut self, ci: u64, ops: &[Op]) {
-        for op in ops {
-            match op {
-                Op::Put(key, value) | Op::Set(key, value) => {
-                    self.buffer.insert(key.clone(), (ci, Some(value.clone())));
-                }
-                Op::Del(key) | Op::Purge(key) => {
-                    self.buffer.insert(key.clone(), (ci, None));
-                }
-            }
-        }
+    /// Add an assigned commit's expanded ops as the newest layer.
+    fn record(&mut self, ci: u64, ops: &Arc<Vec<Op>>) {
+        debug_assert!(self.layers.back().is_none_or(|layer| layer.ci() < ci));
+        self.layers
+            .push_back(Arc::new(overlay_view::CommitLayer::new(
+                ci,
+                Arc::clone(ops),
+            )));
+    }
+
+    /// Keys written by in-flight commits (a key written by two commits
+    /// counts twice).
+    fn in_flight_keys(&self) -> usize {
+        self.layers.iter().map(|layer| layer.len()).sum()
     }
 }
 
@@ -190,21 +196,6 @@ pub struct StorageStatistics {
     pub receipt_keys: u64,
     /// Total retry-receipt bytes.
     pub receipt_bytes: u64,
-    /// Number of bounded admission-lock waits (including timed-out waits).
-    pub admission_waits: u64,
-    /// Milliseconds spent waiting for admission-lock ownership.
-    pub admission_wait_ms: u64,
-    /// Number of explicit durability checkpoints.
-    pub checkpoints: u64,
-    /// Milliseconds spent in explicit durability checkpoints.
-    pub checkpoint_wait_ms: u64,
-    /// Bytes appended to the WAL (framed records), cumulative since open.
-    pub wal_bytes_appended: u64,
-    /// Encoded bytes of every op, base and derived, handed to the backends,
-    /// cumulative since open. With `wal_bytes_appended`, the two write
-    /// streams a commit produces; compare against `rushdb.redb` growth and
-    /// the process's block writes to attribute write amplification.
-    pub applied_bytes: u64,
 }
 
 /// Errors returned by the storage layer: failed preconditions, corrupt or
@@ -632,6 +623,7 @@ pub struct Store {
     adapter_budgets: adapter_budgets::AdapterBudgets,
     planner_stats: Arc<planner_stats::PlannerStats>,
     owner_sets: Arc<owner_sets::OwnerSets>,
+    graphs: Arc<graph_cache::GraphCache>,
     resource_config: resources::StorageResources,
     data: Arc<RwLock<BTreeMap<Vec<u8>, Vec<u8>>>>,
     /// creation commit index per live key (multi-version reads).
@@ -736,7 +728,7 @@ pub struct Store {
     /// purge frees pages without growing the file, so it triggers idle
     /// compaction on its own.
     purged_since_compaction: AtomicU64,
-    /// Bytes appended to the WAL, cumulative (see `StorageStatistics`).
+    /// Bytes appended to the WAL, cumulative (see `WriteCounters`).
     wal_bytes_appended: AtomicU64,
     /// Encoded op bytes handed to the backends, cumulative.
     applied_bytes: AtomicU64,
@@ -798,6 +790,10 @@ impl Store {
         let owner_sets = Arc::new(owner_sets::OwnerSets::new(
             logical_cache_resources.as_ref(),
         )?);
+        let graphs = Arc::new(graph_cache::GraphCache::new(optional_child(
+            "graph-cache",
+            config.graph_cache_bytes,
+        )?)?);
         let planner_stats = Arc::new(planner_stats::PlannerStats::new(
             &config,
             logical_cache_resources.as_ref(),
@@ -831,6 +827,7 @@ impl Store {
             adapter_budgets,
             planner_stats,
             owner_sets,
+            graphs,
             resource_config: config,
             data: Arc::clone(&maps.data),
             created: Arc::clone(&maps.created),
@@ -895,16 +892,6 @@ impl Store {
     #[doc(hidden)]
     pub fn mark_compacting(&self, on: bool) {
         self.compacting.store(on, Ordering::Relaxed);
-    }
-
-    /// `(WAL bytes appended, op bytes applied)` since the store opened: the
-    /// two write streams a commit produces.
-    #[must_use]
-    pub fn write_bytes(&self) -> (u64, u64) {
-        (
-            self.wal_bytes_appended.load(Ordering::Relaxed),
-            self.applied_bytes.load(Ordering::Relaxed),
-        )
     }
 
     /// The store's managed-byte budget.
@@ -1228,7 +1215,13 @@ impl Store {
     /// (the base holds the same value).
     fn trim_sequencer(&self, state: &mut SequencerState) {
         let published = self.published.load(Ordering::SeqCst);
-        state.buffer.retain(|_, (ci, _)| *ci > published);
+        while state
+            .layers
+            .front()
+            .is_some_and(|layer| layer.ci() <= published)
+        {
+            state.layers.pop_front();
+        }
     }
 
     /// Assemble the pending overlay (current committed base + in-flight writes)
@@ -1238,11 +1231,10 @@ impl Store {
     /// hold the admission guard that owns `state`.
     fn sequencer_overlay(&self, state: &SequencerState) -> Result<Arc<OverlayView>, StorageError> {
         let base = Arc::new(self.read_view()?);
-        let mut buffer: BTreeMap<Vec<u8>, Option<Vec<u8>>> = BTreeMap::new();
-        for (key, (_, value)) in &state.buffer {
-            buffer.insert(key.clone(), value.clone());
-        }
-        Ok(Arc::new(OverlayView::with_buffer(base, buffer)))
+        Ok(Arc::new(OverlayView::with_layers(
+            base,
+            state.layers.iter().cloned().collect(),
+        )))
     }
 
     fn check_health(&self) -> Result<(), StorageError> {
@@ -1748,14 +1740,15 @@ impl Store {
         (pins.first_key_value().map(|(ci, _)| *ci), pins.len())
     }
 
-    /// Number of keys in the sequencer's assigned-but-unpublished overlay.
-    /// Observability for the single-writer in-flight window; returns 0
+    /// Keys written by the sequencer's assigned-but-unpublished commits (a
+    /// key two in-flight commits write counts twice). Observability for the
+    /// single-writer in-flight window; returns 0
     /// when the admission lock is poisoned rather than panicking a scrape.
     #[must_use]
     pub fn sequencer_inflight_keys(&self) -> usize {
         self.admission_lock
             .lock()
-            .map_or(0, |state| state.buffer.len())
+            .map_or(0, |state| state.in_flight_keys())
     }
 
     /// Reclaim versions superseded at or before the requested watermark,
@@ -1932,7 +1925,7 @@ impl Store {
             // (DeleteFamily) sees what a live expansion would.
             let derived =
                 Self::derive_ops(self.deriver().as_ref(), ci, &ops, &derive::MapRead(&shadow))?;
-            for op in derived.as_deref().unwrap_or(&ops) {
+            for op in ops.iter().chain(&derived) {
                 match op {
                     Op::Put(key, value) | Op::Set(key, value) => {
                         shadow.insert(key.clone(), value.clone());

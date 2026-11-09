@@ -40,7 +40,7 @@ use rushdb_types::occurrence::Similarity;
 #[cfg(test)]
 use std::collections::HashMap;
 
-use crate::{ScoredSource, SourceRef, VectorError};
+use crate::{Candidates, ScoredSource, SourceRef, VectorError};
 
 /// On-disk schema version of a frozen segment's manifest. Bump and
 /// rebuild-on-mismatch on any incompatible change, the same discipline
@@ -125,12 +125,21 @@ impl HotSegment {
         self.vectors.push(vector);
     }
 
-    fn gather(&self, query: &[f32], k: usize, similarity: Similarity) -> Vec<usize> {
+    /// Brute-force top-`k`, scoring only the positions `admit` accepts.
+    fn gather(
+        &self,
+        query: &[f32],
+        k: usize,
+        similarity: Similarity,
+        admit: Option<&dyn Fn(usize) -> bool>,
+    ) -> Vec<usize> {
+        let prepared = crate::kernel::PreparedQuery::new(query, similarity);
         let mut scored: Vec<(f32, usize)> = self
             .vectors
             .iter()
             .enumerate()
-            .map(|(i, v)| (crate::score(query, v, similarity), i))
+            .filter(|(i, _)| admit.is_none_or(|admit| admit(*i)))
+            .map(|(i, v)| (prepared.score(v), i))
             .collect();
         scored.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal));
         scored.into_iter().take(k).map(|(_, i)| i).collect()
@@ -228,11 +237,12 @@ impl Drop for SegmentFile {
     }
 }
 
-/// Graph search breadth fixed at build/open time. Per-query `ef` is honored by
-/// over-fetching `max(k, ef)` candidates instead of mutating the shared
-/// index's expansion, which raced between concurrent queries (C9,
-/// cloud-capacity F11).
-const SEARCH_EXPANSION: usize = 128;
+/// The search breadth a segment's index is opened with: the least there is.
+/// `usearch` walks `max(expansion_search, count)` candidates, so with this
+/// floor a gather of `count = max(k, ef)` walks exactly that breadth — the
+/// per-query `ef` decides the walk, never a value fixed when the index was
+/// opened (which, mutated per query, raced between concurrent queries).
+const SEARCH_EXPANSION_FLOOR: usize = 1;
 
 fn usearch_options(dims: u32, similarity: Similarity) -> usearch::IndexOptions {
     usearch::IndexOptions {
@@ -249,35 +259,65 @@ fn usearch_options(dims: u32, similarity: Similarity) -> usearch::IndexOptions {
         quantization: usearch::ScalarKind::F16,
         connectivity: 0,
         expansion_add: 0,
-        expansion_search: SEARCH_EXPANSION,
+        expansion_search: SEARCH_EXPANSION_FLOOR,
         multi: false,
     }
 }
 
-/// Builds a `usearch` index over `len` vectors, consuming them one at a time:
-/// a caller decoding from storage never holds the f32 corpus, only the
-/// index under construction.
-fn build_index<V: AsRef<[f32]>>(
+/// Vectors one part of a build reads and decodes. Parts run on the shared
+/// thread budget; their size is a function of the build only.
+const BUILD_PART_VECTORS: usize = 1024;
+/// Vectors read ahead of the graph inserts at most: bounds a build's extra
+/// memory to one chunk of decoded vectors.
+const BUILD_CHUNK_VECTORS: usize = 8 * BUILD_PART_VECTORS;
+
+/// Builds a `usearch` index over `len` vectors, `vector_at(i)` being the
+/// vector of key `i`. Vectors are read and decoded in parts on the shared
+/// thread budget ([`rushdb_storage::parallel`]), one bounded chunk ahead of
+/// the inserts, so a caller decoding from storage never holds the f32
+/// corpus; the inserts run in key order, so two builds of the same vectors
+/// are the same graph.
+fn build_index<V, F>(
     len: usize,
-    vectors: impl IntoIterator<Item = Result<V, VectorError>>,
+    vector_at: F,
     dims: u32,
     similarity: Similarity,
-) -> Result<usearch::Index, VectorError> {
+) -> Result<usearch::Index, VectorError>
+where
+    V: AsRef<[f32]> + Send,
+    F: Fn(usize) -> Result<V, VectorError> + Sync,
+{
     let options = usearch_options(dims, similarity);
     let index = usearch::Index::new(&options).map_err(|e| VectorError::Engine(e.to_string()))?;
     index
-        .reserve(len.max(1))
+        .reserve_capacity_and_threads(len.max(1), 1)
         .map_err(|e| VectorError::Engine(e.to_string()))?;
-    let mut added = 0usize;
-    for (key, vector) in vectors.into_iter().enumerate() {
-        index
-            .add(key as u64, vector?.as_ref())
-            .map_err(|e| VectorError::Engine(e.to_string()))?;
-        added += 1;
+    // Reading and decoding the vectors runs in parallel parts; the graph
+    // inserts run on one thread in key order. Inserts from several threads
+    // link a measurably worse graph (recall@10 at ef 128 on clustered 384-d
+    // data: 0.996-0.999 against 1.000), and one order makes every build of
+    // the same vectors the same graph.
+    let mut start = 0;
+    while start < len {
+        let end = (start + BUILD_CHUNK_VECTORS).min(len);
+        let parts = (end - start).div_ceil(BUILD_PART_VECTORS);
+        let decoded = rushdb_storage::parallel::run_parts(parts, |at| {
+            let from = start + at * BUILD_PART_VECTORS;
+            (from..(from + BUILD_PART_VECTORS).min(end))
+                .map(&vector_at)
+                .collect::<Result<Vec<V>, VectorError>>()
+        })?;
+        for (key, vector) in (start..).zip(decoded.into_iter().flatten()) {
+            index
+                .add(key as u64, vector.as_ref())
+                .map_err(|e| VectorError::Engine(e.to_string()))?;
+        }
+        start = end;
     }
-    if added != len {
+    if index.size() != len {
         return Err(VectorError::Engine(format!(
-            "segment build: {added} vectors for {len} entries"
+            "segment build: {} vectors for {len} entries",
+            index.size()
         )));
     }
     Ok(index)
@@ -350,21 +390,26 @@ impl FrozenSegment {
             + self.buffer.as_ref().map_or(0, |buffer| buffer.len())
     }
 
-    /// Builds a fresh frozen segment from `entries`/`vectors` (same order),
+    /// Builds a fresh frozen segment from `entries`, `vector_at(i)` being
+    /// the vector of `entries[i]`,
     /// resident in memory only — no disk persistence. Used directly by a
     /// pure in-memory store (no configured segments directory). The built
     /// graph is serialized and viewed, releasing the build arena.
     ///
     /// # Errors
     /// Returns [`VectorError::Engine`] when the `usearch` index cannot be
-    /// built or serialized, and whatever a vector of `vectors` yields.
-    pub(crate) fn build_in_memory<V: AsRef<[f32]>>(
+    /// built or serialized, and whatever `vector_at` returns.
+    pub(crate) fn build_in_memory<V, F>(
         entries: Vec<SegmentEntry>,
-        vectors: impl IntoIterator<Item = Result<V, VectorError>>,
+        vector_at: F,
         dims: u32,
         similarity: Similarity,
-    ) -> Result<Self, VectorError> {
-        let built = build_index(entries.len(), vectors, dims, similarity)?;
+    ) -> Result<Self, VectorError>
+    where
+        V: AsRef<[f32]> + Send,
+        F: Fn(usize) -> Result<V, VectorError> + Sync,
+    {
+        let built = build_index(entries.len(), vector_at, dims, similarity)?;
         let mut buffer = vec![0u8; built.serialized_length()].into_boxed_slice();
         built
             .save_to_buffer(&mut buffer)
@@ -391,27 +436,32 @@ impl FrozenSegment {
         })
     }
 
-    /// Builds a fresh frozen segment from `entries`/`vectors` (same order),
+    /// Builds a fresh frozen segment from `entries`, `vector_at(i)` being
+    /// the vector of `entries[i]`,
     /// persists it under `path` as `usearch`'s own single-file format plus
     /// two sidecars (`<path>.manifest.json`, `<path>.entries`), and returns a
     /// view of that file (the build arena is released).
     ///
     /// # Errors
     /// Returns [`VectorError::Engine`] when the `usearch` index cannot be
-    /// built, persisted or reopened, and whatever a vector of `vectors`
-    /// yields.
-    pub(crate) fn build<V: AsRef<[f32]>>(
+    /// built, persisted or reopened, and whatever `vector_at`
+    /// returns.
+    pub(crate) fn build<V, F>(
         entries: Vec<SegmentEntry>,
-        vectors: impl IntoIterator<Item = Result<V, VectorError>>,
+        vector_at: F,
         dims: u32,
         similarity: Similarity,
         path: &Path,
-    ) -> Result<Self, VectorError> {
+    ) -> Result<Self, VectorError>
+    where
+        V: AsRef<[f32]> + Send,
+        F: Fn(usize) -> Result<V, VectorError> + Sync,
+    {
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent)
                 .map_err(|e| VectorError::Engine(format!("segment directory create: {e}")))?;
         }
-        let built = build_index(entries.len(), vectors, dims, similarity)?;
+        let built = build_index(entries.len(), vector_at, dims, similarity)?;
         // Written aside and renamed into place, sidecars first: a reader of
         // the directory never sees a segment file without its sidecars.
         let staged = path.with_extension(format!("tmp-{}", uuid::Uuid::now_v7().simple()));
@@ -521,14 +571,27 @@ impl FrozenSegment {
     /// Raw candidate gather, bypassing dedup/rerank — exposed at
     /// `pub(crate)` for `ann.rs`'s own recall-regression tests, which
     /// exercise the live `usearch` graph directly rather than duplicating
-    /// an index-construction harness.
+    /// an index-construction harness. With `admit`, the graph walk skips
+    /// every position it rejects (usearch's filtered search), so all
+    /// `k.max(ef)` results pass the filter however selective it is.
     #[expect(
         clippy::cast_possible_truncation,
         reason = "keys are vector positions assigned by build() as `key as u64` from a usize index, so they always round-trip back"
     )]
-    pub(crate) fn gather(&self, query: &[f32], k: usize, ef: usize) -> Vec<usize> {
-        self.index
-            .search(query, k.max(ef))
+    pub(crate) fn gather(
+        &self,
+        query: &[f32],
+        k: usize,
+        ef: usize,
+        admit: Option<&dyn Fn(usize) -> bool>,
+    ) -> Vec<usize> {
+        let found = match admit {
+            None => self.index.search(query, k.max(ef)),
+            Some(admit) => self
+                .index
+                .filtered_search(query, k.max(ef), |key| admit(key as usize)),
+        };
+        found
             .map(|matches| matches.keys.into_iter().map(|key| key as usize).collect())
             .unwrap_or_default()
     }
@@ -644,10 +707,17 @@ impl Segment {
         }
     }
 
-    fn gather(&self, query: &[f32], k: usize, ef: usize, similarity: Similarity) -> Vec<usize> {
+    fn gather(
+        &self,
+        query: &[f32],
+        k: usize,
+        ef: usize,
+        similarity: Similarity,
+        admit: Option<&dyn Fn(usize) -> bool>,
+    ) -> Vec<usize> {
         match self {
-            Segment::Hot(hot) => hot.gather(query, k, similarity),
-            Segment::Frozen(frozen) => frozen.gather(query, k, ef),
+            Segment::Hot(hot) => hot.gather(query, k, similarity, admit),
+            Segment::Frozen(frozen) => frozen.gather(query, k, ef, admit),
         }
     }
 }
@@ -881,7 +951,7 @@ impl SegmentSet {
         if hot.len() == 0 || hot.len() < min_len {
             return Ok(false);
         }
-        let vectors = hot.vectors.iter().map(Ok);
+        let vectors = |i: usize| Ok(&hot.vectors[i]);
         let frozen = match path {
             Some(path) => {
                 FrozenSegment::build(hot.entries.clone(), vectors, dims, similarity, path)?
@@ -1108,6 +1178,11 @@ impl SegmentSet {
     /// if it is its source's live entry, so a superseded or retired vector
     /// can never surface, and reranking always uses the current one.
     ///
+    /// An owner set ([`Candidates::Owners`]) is applied during each
+    /// segment's gather together with liveness, so every gathered entry is a
+    /// live candidate and a selective filter does not empty the gather.
+    /// Other candidates are checked on the gathered entries only.
+    ///
     /// Returns the deduped, filtered candidate count alongside the reranked
     /// top-`k` — the caller's degradation contract (fall back to an exact
     /// scan when ANN confidence is too low) is defined over that pre-rerank
@@ -1121,7 +1196,7 @@ impl SegmentSet {
         k: usize,
         ef: usize,
         similarity: Similarity,
-        candidate: Option<&dyn Fn(SourceRef) -> bool>,
+        candidates: Candidates<'_>,
         rerank: impl Fn(&SegmentEntry) -> Result<ScoredSource, VectorError>,
     ) -> Result<(usize, Vec<ScoredSource>), VectorError> {
         let state = self.state.load_full();
@@ -1136,7 +1211,18 @@ impl SegmentSet {
         let mut resolved: Vec<&SegmentEntry> = Vec::new();
         for (segment, id) in state.segments.iter().zip(state.ids.iter()) {
             let started = profile.then(std::time::Instant::now);
-            let gathered = segment.gather(query, gather_k, gather_k, similarity);
+            let live = |index: usize, entry: &SegmentEntry| {
+                state.live.get(&source_key(entry.source)) == Some(&(*id, index))
+            };
+            let in_walk = |index: usize| {
+                segment
+                    .entries()
+                    .get(index)
+                    .is_some_and(|entry| live(index, entry) && candidates.admits(entry.source))
+            };
+            let admit: Option<&dyn Fn(usize) -> bool> =
+                matches!(candidates, Candidates::Owners { .. }).then_some(&in_walk);
+            let gathered = segment.gather(query, gather_k, gather_k, similarity, admit);
             if let Some(started) = started {
                 let kind = usize::from(matches!(**segment, Segment::Frozen(_)));
                 profile_gather[kind].0 += 1;
@@ -1147,10 +1233,7 @@ impl SegmentSet {
                 let Some(entry) = segment.entries().get(index) else {
                     continue;
                 };
-                if state.live.get(&source_key(entry.source)) != Some(&(*id, index)) {
-                    continue;
-                }
-                if candidate.is_none_or(|filter| filter(entry.source)) {
+                if live(index, entry) && candidates.admits(entry.source) {
                     resolved.push(entry);
                 }
             }
@@ -1199,8 +1282,10 @@ impl Default for SegmentSet {
 mod tests {
     use super::*;
 
-    fn ok(vectors: &[Vec<f32>]) -> impl Iterator<Item = Result<&Vec<f32>, VectorError>> {
-        vectors.iter().map(Ok)
+    fn ok<'a>(
+        vectors: &'a [Vec<f32>],
+    ) -> impl Fn(usize) -> Result<&'a Vec<f32>, VectorError> + Sync + 'a {
+        |i| Ok(&vectors[i])
     }
 
     impl FrozenSegment {
@@ -1335,9 +1420,14 @@ mod tests {
         let query = [0.92_f32, 0.08];
         let exact = exact_top_k(&vectors, &query, 8);
         let (_, approx) = set
-            .search(&query, 8, 24, Similarity::Cosine, None, |entry| {
-                store.rerank(&query, Similarity::Cosine, entry)
-            })
+            .search(
+                &query,
+                8,
+                24,
+                Similarity::Cosine,
+                Candidates::All,
+                |entry| store.rerank(&query, Similarity::Cosine, entry),
+            )
             .unwrap();
         assert_eq!(approx.len(), 8);
         let overlap = exact
@@ -1374,9 +1464,14 @@ mod tests {
         let search = |set: &SegmentSet, store: &CanonicalStore, worker: u8, ef: usize| {
             let query = [0.92_f32, 0.08 + f32::from(worker) * 0.01];
             let (_, hits) = set
-                .search(&query, 4, ef, Similarity::Cosine, None, |entry| {
-                    store.rerank(&query, Similarity::Cosine, entry)
-                })
+                .search(
+                    &query,
+                    4,
+                    ef,
+                    Similarity::Cosine,
+                    Candidates::All,
+                    |entry| store.rerank(&query, Similarity::Cosine, entry),
+                )
                 .unwrap();
             hits.iter()
                 .map(|hit| hit.source.owner_ord)
@@ -1410,6 +1505,93 @@ mod tests {
         for worker in workers {
             worker.join().unwrap();
         }
+    }
+
+    /// Pseudo-random unit-ish vectors (xorshift): no structure for the
+    /// graph to exploit, so the walk breadth shows in what is visited.
+    #[expect(clippy::cast_precision_loss, reason = "a test distribution")]
+    fn noise(n: usize, dims: usize, seed: u64) -> Vec<Vec<f32>> {
+        let mut state = seed;
+        (0..n)
+            .map(|_| {
+                (0..dims)
+                    .map(|_| {
+                        state ^= state << 13;
+                        state ^= state >> 7;
+                        state ^= state << 17;
+                        (state >> 40) as f32 / (1u64 << 24) as f32 - 0.5
+                    })
+                    .collect()
+            })
+            .collect()
+    }
+
+    /// The per-query `ef` decides the graph walk: a smaller `ef` visits
+    /// fewer nodes, a larger one more, each counted by the filter the walk
+    /// consults for every candidate it considers.
+    #[test]
+    fn the_walk_follows_the_requested_ef() {
+        let vectors = noise(4_000, 16, 7);
+        let frozen = FrozenSegment::build_in_memory(
+            entries_for(&vectors, 0, 0),
+            ok(&vectors),
+            16,
+            Similarity::Cosine,
+        )
+        .unwrap();
+        let visited = |ef: usize| {
+            let calls = std::sync::atomic::AtomicUsize::new(0);
+            let admit = |_: usize| {
+                calls.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                true
+            };
+            let mut total = 0;
+            for query in noise(20, 16, 99) {
+                calls.store(0, std::sync::atomic::Ordering::Relaxed);
+                let found = frozen.gather(&query, 10, ef, Some(&admit));
+                assert_eq!(found.len(), ef.max(10));
+                total += calls.load(std::sync::atomic::Ordering::Relaxed);
+            }
+            total
+        };
+        let (narrow, default, wide) = (visited(16), visited(128), visited(512));
+        assert!(narrow < default, "ef 16 visited {narrow}, ef 128 {default}");
+        assert!(default < wide, "ef 128 visited {default}, ef 512 {wide}");
+    }
+
+    /// The default `ef` (128) walks exactly what a search did when the
+    /// breadth was fixed at 128 when the index was opened.
+    #[test]
+    fn the_default_ef_walks_as_the_fixed_breadth_did() {
+        let vectors = noise(4_000, 16, 11);
+        let frozen = FrozenSegment::build_in_memory(
+            entries_for(&vectors, 0, 0),
+            ok(&vectors),
+            16,
+            Similarity::Cosine,
+        )
+        .unwrap();
+        let fixed = usearch::Index::new(&usearch::IndexOptions {
+            expansion_search: 128,
+            ..usearch_options(16, Similarity::Cosine)
+        })
+        .unwrap();
+        let buffer = frozen.buffer.as_ref().unwrap();
+        // SAFETY: `buffer` outlives `fixed`, which is dropped first.
+        unsafe { fixed.view_from_buffer(buffer) }.unwrap();
+        for query in noise(30, 16, 5) {
+            for k in [1usize, 10, 128] {
+                let old: Vec<usize> = fixed
+                    .search(&query, k.max(128))
+                    .unwrap()
+                    .keys
+                    .into_iter()
+                    .map(|key| usize::try_from(key).unwrap())
+                    .collect();
+                assert_eq!(frozen.gather(&query, k, 128, None), old, "k {k}");
+            }
+        }
+        drop(fixed);
     }
 
     #[test]
@@ -1446,9 +1628,14 @@ mod tests {
         let query = [0.92_f32, 0.08];
         let exact = exact_top_k(&vectors, &query, 8);
         let (_, approx) = set
-            .search(&query, 8, 24, Similarity::Cosine, None, |entry| {
-                store.rerank(&query, Similarity::Cosine, entry)
-            })
+            .search(
+                &query,
+                8,
+                24,
+                Similarity::Cosine,
+                Candidates::All,
+                |entry| store.rerank(&query, Similarity::Cosine, entry),
+            )
             .unwrap();
         let overlap = exact
             .iter()
@@ -1493,9 +1680,14 @@ mod tests {
         let query = [0.92_f32, 0.08];
         let exact = exact_top_k(&vectors, &query, 8);
         let (_, approx) = set
-            .search(&query, 8, 24, Similarity::Cosine, None, |entry| {
-                store.rerank(&query, Similarity::Cosine, entry)
-            })
+            .search(
+                &query,
+                8,
+                24,
+                Similarity::Cosine,
+                Candidates::All,
+                |entry| store.rerank(&query, Similarity::Cosine, entry),
+            )
             .unwrap();
         assert_eq!(approx.len(), 8);
         let overlap = exact
@@ -1568,9 +1760,14 @@ mod tests {
 
         let query = [1.0_f32, 0.0];
         let (_, results) = set
-            .search(&query, 1, 16, Similarity::Cosine, None, |entry| {
-                store.rerank(&query, Similarity::Cosine, entry)
-            })
+            .search(
+                &query,
+                1,
+                16,
+                Similarity::Cosine,
+                Candidates::All,
+                |entry| store.rerank(&query, Similarity::Cosine, entry),
+            )
             .unwrap();
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].source.owner_ord, 99);
@@ -1591,7 +1788,7 @@ mod tests {
         let built =
             FrozenSegment::build(entries.clone(), ok(&vectors), 2, Similarity::Cosine, &path)
                 .unwrap();
-        let built_hit = built.gather(&[0.92, 0.08], 4, 16);
+        let built_hit = built.gather(&[0.92, 0.08], 4, 16, None);
         assert!(!built_hit.is_empty());
 
         let reopened = FrozenSegment::open(&path, 2, Similarity::Cosine)
@@ -1602,7 +1799,7 @@ mod tests {
             segment_fingerprint(&entries),
             "entries come back from the sidecar"
         );
-        let reopened_hit = reopened.gather(&[0.92, 0.08], 4, 16);
+        let reopened_hit = reopened.gather(&[0.92, 0.08], 4, 16, None);
         assert!(!reopened_hit.is_empty());
     }
 
@@ -1679,9 +1876,14 @@ mod tests {
         let query = [0.92_f32, 0.08];
         let exact = exact_top_k(&vectors, &query, 8);
         let (_, approx) = set
-            .search(&query, 8, 24, Similarity::Cosine, None, |entry| {
-                store.rerank(&query, Similarity::Cosine, entry)
-            })
+            .search(
+                &query,
+                8,
+                24,
+                Similarity::Cosine,
+                Candidates::All,
+                |entry| store.rerank(&query, Similarity::Cosine, entry),
+            )
             .unwrap();
         let overlap = exact
             .iter()
@@ -1731,9 +1933,14 @@ mod tests {
         let query = [0.92_f32, 0.08];
         let exact = exact_top_k(&vectors, &query, 8);
         let (_, approx) = set
-            .search(&query, 8, 24, Similarity::Cosine, None, |entry| {
-                store.rerank(&query, Similarity::Cosine, entry)
-            })
+            .search(
+                &query,
+                8,
+                24,
+                Similarity::Cosine,
+                Candidates::All,
+                |entry| store.rerank(&query, Similarity::Cosine, entry),
+            )
             .unwrap();
         let overlap = exact
             .iter()
@@ -1783,9 +1990,14 @@ mod tests {
 
         let query = [1.0_f32, 0.0];
         let (_, results) = set
-            .search(&query, 1, 16, Similarity::Cosine, None, |entry| {
-                store.rerank(&query, Similarity::Cosine, entry)
-            })
+            .search(
+                &query,
+                1,
+                16,
+                Similarity::Cosine,
+                Candidates::All,
+                |entry| store.rerank(&query, Similarity::Cosine, entry),
+            )
             .unwrap();
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].source.owner_ord, 7);
@@ -1811,9 +2023,14 @@ mod tests {
 
         let query = [0.92_f32, 0.08];
         let (before_count, before) = set
-            .search(&query, 32, 32, Similarity::Cosine, None, |entry| {
-                store.rerank(&query, Similarity::Cosine, entry)
-            })
+            .search(
+                &query,
+                32,
+                32,
+                Similarity::Cosine,
+                Candidates::All,
+                |entry| store.rerank(&query, Similarity::Cosine, entry),
+            )
             .unwrap();
         assert!(before
             .iter()
@@ -1821,9 +2038,14 @@ mod tests {
 
         set.tombstone(removed_source);
         let (after_count, after) = set
-            .search(&query, 32, 32, Similarity::Cosine, None, |entry| {
-                store.rerank(&query, Similarity::Cosine, entry)
-            })
+            .search(
+                &query,
+                32,
+                32,
+                Similarity::Cosine,
+                Candidates::All,
+                |entry| store.rerank(&query, Similarity::Cosine, entry),
+            )
             .unwrap();
         assert!(
             !after
@@ -1859,9 +2081,14 @@ mod tests {
         let query = [0.92_f32, 0.08];
         let exact = exact_top_k(&vectors, &query, 8);
         let (_, approx) = set
-            .search(&query, 8, 24, Similarity::Cosine, None, |entry| {
-                store.rerank(&query, Similarity::Cosine, entry)
-            })
+            .search(
+                &query,
+                8,
+                24,
+                Similarity::Cosine,
+                Candidates::All,
+                |entry| store.rerank(&query, Similarity::Cosine, entry),
+            )
             .unwrap();
         let overlap = exact
             .iter()
@@ -1941,9 +2168,14 @@ mod tests {
                 // ef covers everything, so the ANN gather is exhaustive and
                 // any difference is a liveness bug, not recall.
                 let (_, got) = set
-                    .search(&query, 10, 10_000, Similarity::Cosine, None, |entry| {
-                        store.rerank(&query, Similarity::Cosine, entry)
-                    })
+                    .search(
+                        &query,
+                        10,
+                        10_000,
+                        Similarity::Cosine,
+                        Candidates::All,
+                        |entry| store.rerank(&query, Similarity::Cosine, entry),
+                    )
                     .unwrap();
                 let mut want: Vec<(f32, u64)> = oracle
                     .iter()

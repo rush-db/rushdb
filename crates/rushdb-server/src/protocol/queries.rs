@@ -163,13 +163,17 @@ impl ProtocolExecutor<'_> {
                     .map_err(|error| ProtocolError::new(ErrorCode::Unauthorized, error))?;
             }
         }
+        let rows_only = parsed.aggregate.is_some() || !parsed.search.projection.is_empty();
+        if rows_only && query.cursor_ttl_ms.is_some() {
+            return Err(ProtocolError::new(
+                ErrorCode::InvalidRequest,
+                "cursor pagination is available only for records queries",
+            ));
+        }
+        if !parsed.search.projection.is_empty() {
+            return self.projection_rows(&parsed.search, is_cancelled, execution_context);
+        }
         if let Some(aggregate) = parsed.aggregate {
-            if query.cursor_ttl_ms.is_some() {
-                return Err(ProtocolError::new(
-                    ErrorCode::InvalidRequest,
-                    "cursor pagination is available only for records queries",
-                ));
-            }
             let (buckets, matched) = if let Some(context) = execution_context.as_mut() {
                 self.node
                     .aggregate_with_execution_context(context, &aggregate, is_cancelled)
@@ -228,6 +232,26 @@ impl ProtocolExecutor<'_> {
             vector_search: None,
             text_search: None,
             fusion: None,
+        })
+    }
+
+    /// A projection is a listing whose rows are the selected fields.
+    fn projection_rows(
+        &self,
+        search: &rushdb_query::SearchRequest,
+        is_cancelled: &dyn Fn() -> bool,
+        execution_context: Option<&mut rushdb_engine::ExecutionContext>,
+    ) -> Result<Response, ProtocolError> {
+        let page = if let Some(context) = execution_context {
+            self.node
+                .project_with_execution_context(context, search, is_cancelled)
+        } else {
+            rushdb_query::find_records_with_cancel(&self.node.lmpg(), search, is_cancelled)
+        }
+        .map_err(query_failed)?;
+        Ok(Response::Rows {
+            total: page.total_matched,
+            rows: page.records,
         })
     }
 

@@ -48,6 +48,11 @@ pub(crate) struct LmpgGraphStore {
     /// A failed text search (unknown option, unparsable query), reported
     /// like a storage failure at the statement boundary.
     text_failure: Mutex<Option<String>>,
+    /// Relationship types read from adjacency rows (the type is part of the
+    /// row's key), by relationship ordinal: a variable-length expansion
+    /// asks for the type of every edge it walks, which would otherwise read
+    /// and decode each relationship's header.
+    edge_types: Mutex<HashMap<u64, grafeo_common::types::ArcStr>>,
 }
 
 impl LmpgGraphStore {
@@ -80,6 +85,7 @@ impl LmpgGraphStore {
             text,
             text_matches: Mutex::new(HashMap::new()),
             text_failure: Mutex::new(None),
+            edge_types: Mutex::new(HashMap::new()),
         }
     }
 
@@ -614,7 +620,14 @@ impl GraphStore for LmpgGraphStore {
                 _ => Vec::new(),
             }
             .into_iter()
-            .map(|(_, other, edge)| (NodeId::new(other), EdgeId::new(edge)))
+            .map(|(rel_type, other, edge)| {
+                self.edge_types
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner)
+                    .entry(edge)
+                    .or_insert_with(|| rel_type.into());
+                (NodeId::new(other), EdgeId::new(edge))
+            })
             .collect::<Vec<_>>();
             edges.sort_unstable();
             edges.dedup();
@@ -664,6 +677,14 @@ impl GraphStore for LmpgGraphStore {
     }
 
     fn edge_type(&self, id: EdgeId) -> Option<grafeo_common::types::ArcStr> {
+        if let Some(known) = self
+            .edge_types
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .get(&id.as_u64())
+        {
+            return Some(known.clone());
+        }
         self.read(|| {
             Ok(
                 access::relationship_by_ord(&self.view, self.tenant, id.as_u64())?

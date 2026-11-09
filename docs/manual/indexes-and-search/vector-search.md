@@ -21,6 +21,25 @@ compute embeddings with your own provider and send them to the database.
 Vectors are stored as 32-bit floats. Each tenant can hold at most **256**
 vector spaces.
 
+## Sending vectors
+
+Every vector in a request — `upsertVectors` items, inline `vectors` and
+`$vectors` entries, `query.vector` and the hybrid vector leg — is either a
+JSON array of numbers or the **binary form**:
+
+```json
+{ "f32": "zczMPQAAgD8AAAAA" }
+```
+
+`f32` is the standard base64 (RFC 4648, with padding) of the components as
+little-endian IEEE-754 32-bit floats, back to back. The example is
+`[0.1, 1.0, 0.0]`. The binary form carries every bit as sent — no decimal
+rounding on either side — in about a quarter of the text a JSON array of
+full-precision floats takes, and needs no float parsing. A binary vector whose
+decoded length is not a multiple of 4 bytes, that holds a NaN or an infinity,
+or that is not valid base64 is refused with `invalid_request`; its length must
+equal the index's `dimensions` like any other vector.
+
 ## Create a vector index
 
 `index.createVector` takes a `VectorIndexDefinition`:
@@ -141,7 +160,7 @@ the record's vector; upserting an identical vector is a no-op.
 | Item field | Required | Description |
 |---|---|---|
 | `recordId` | yes | Record (or relationship, for a relationship index) id. |
-| `vector` | yes | Components; length must equal `dimensions`. |
+| `vector` | yes | Components, as a number array or the [binary form](#sending-vectors); length must equal `dimensions`. |
 | `indexGeneration` | no | The `generation` you read when your embedding job started. If the index was dropped and recreated (or re-declared) since, the whole batch is rejected with `stale vector index generation`. |
 | `sourceHash` | no | Engine value hash of the source property captured before embedding. When present, the bind succeeds only if the property still has that value; the binding is then *source-tracked* (see below). |
 
@@ -211,14 +230,14 @@ while the embedding was computed.
 |---|---|---|---|---|
 | `labels` | string[] | yes | — | Label to search (the first entry selects the derived alias when `index` is omitted). `[]` searches the index's own label. |
 | `property` | string | yes | — | Vector property. |
-| `vector` | number[] | yes | — | Query vector, non-empty, finite, with the index's dimensions. |
+| `vector` | number[] or `{"f32": …}` | yes | — | Query vector, non-empty, finite, with the index's dimensions; see [Sending vectors](#sending-vectors). |
 | `index` | string | yes¹ | — | Index name. When set, the space's own metric is used. |
 | `similarity` | string | no | `cosine` | Only used to derive the alias when `index` is omitted. |
 | `predicate` | object | no | `{}` | Filter applied **before** ranking (same syntax as `query.records`). |
 | `offset` | integer | no | 0 | Ranked results to skip. |
 | `limit` | integer | yes | — | Results to return. |
 | `mode` | string | no | `auto` | `auto`, `exact` or `ann`; see [Exact versus approximate](#exact-versus-approximate-ann). `ef > 0` with no `mode` means `ann`. |
-| `ef` | integer | no | `resources.vector-default-ef` (64) | ANN gather breadth whenever the search runs on the ANN graph; at least `offset + limit` is gathered. |
+| `ef` | integer | no | `resources.vector-default-ef` (128) | ANN breadth whenever the search runs on the ANN graph: the graph walk keeps this many candidates and all of them are re-scored exactly. At least `offset + limit` is used. |
 | `scoreThreshold` | number | no | — | Keep only hits scoring at least this much. A page may then hold fewer than `limit` records. |
 
 ```bash
@@ -247,8 +266,9 @@ curl -s http://127.0.0.1:3000/protocol/v1/execute \
 Results come back as a `records` response, best first. Each record carries a
 `score`; `total` is the number of records on this page. `vectorSearch` reports
 how the search ran: `mode` (`exact` or `ann`), `ef` for an ANN search, `pool`
-(the index's vectors) and, when a search that would use the ANN graph was
-answered exactly, `fallback` (see below).
+(the vectors the search could score: the records matching `predicate`, at most
+the index's vectors, or the whole index without a predicate) and, when a search
+that would use the ANN graph was answered exactly, `fallback` (see below).
 
 ```json
 {
@@ -277,34 +297,49 @@ All scores are "higher is more similar".
 | `dot` | dot(a, b) | no — always answered exactly |
 | `euclidean` / `l2` | 1 / (1 + ‖a − b‖) | no — always answered exactly |
 
-Exact search orders equal scores deterministically by record.
+Scores are computed in 64-bit floating point and returned as 32-bit floats.
+The same vectors give the same score bits on every CPU (see [Vector
+internals](../architecture/vector-internals.md#scoring)). Search orders equal
+scores deterministically by record.
 
 ### Exact versus approximate (ANN)
 
 - **Exact:** every bound vector that passes the filter is scored;
-  the top `offset + limit` are kept in a bounded heap. Results are exact and
-  memory use is proportional to `offset + limit`, not to the index size. Cost
-  grows with the index: ~1.7 µs per 768-d vector (5,000 vectors ≈ 9 ms).
-- **ANN** (cosine only): an in-memory HNSW graph gathers at least
-  `max(ef, offset + limit)` candidates, every candidate is **re-scored exactly**
-  against the stored vector, and the best are returned. Larger `ef` trades
-  latency for recall. A resident graph answers in about a millisecond, but
-  building it takes seconds (5,000 768-d vectors ≈ 2 s).
+  the top `offset + limit` are kept. Results are exact and memory use is
+  proportional to `offset + limit`, not to the index size. With a
+  `predicate`, only the matching records' vectors are read (one lookup per
+  matching record), so the cost follows the number of matches, not the index
+  size. Without one, every vector in the index is scored. A large search is
+  split into fixed-size parts scored on several threads (as many as the
+  server's thread budget lends at that moment, see `RUSHDB_THREADS`); the
+  result is identical however many threads ran it.
+- **ANN** (cosine only): an in-memory HNSW graph walk keeps the best
+  `max(ef, offset + limit)` candidates, every candidate is **re-scored
+  exactly** against the stored vector, and the best are returned. With a
+  `predicate`, the graph walk skips records outside it, so every gathered
+  candidate matches. `ef` is the per-query trade-off: a smaller `ef` walks
+  fewer graph nodes and re-scores fewer vectors (lower latency, lower
+  recall), a larger one the opposite. A resident graph answers in about a
+  millisecond, but building it takes seconds; the build adds vectors on
+  several threads.
 
-`mode` chooses between them:
+`mode` chooses between them. The choice is made on the **pool**: the records
+matching `predicate` (at most the index's vectors) when there is one, the
+index's vectors otherwise.
 
 | `mode` | Behaviour |
 |---|---|
-| `auto` (default) | Exact while the index holds at most `resources.vector-exact-max-pool` vectors (default 5,000) or its metric is not cosine. Above that, ANN once the graph is resident; until then the search is answered exactly while the graph is built in the background (`fallback: annWarming`), so no search waits for a build. |
+| `auto` (default) | Exact while the pool is at most `resources.vector-exact-max-pool` (default 5,000) or the metric is not cosine, so a narrow filter on a large index is answered exactly, with full recall. Above that, ANN once the graph is resident; until then the search is answered exactly while the graph is built in the background (`fallback: annWarming`), so no search waits for a build. |
 | `exact` | Exact search. |
-| `ann` | ANN, building the graph first if it is not resident. Refused (`invalid_request`) on a `dot` or `euclidean` index. |
+| `ann` | ANN, building the graph first if it is not resident. A filtered pool within `resources.vector-exact-max-pool` is answered exactly instead (`fallback: smallCandidateSet`): it is cheaper than the graph walk and never less accurate. Refused (`invalid_request`) on a `dot` or `euclidean` index. |
 
 ANN degrades to exact search instead of returning a short or wrong answer, and
 reports why in `vectorSearch.fallback`:
 
 | Situation | Behaviour | `fallback` |
 |---|---|---|
-| The gather produced fewer than `min(ef, offset + limit)` candidates that pass the filter | Exact search for this query | `lowConfidence` |
+| A forced `ann` whose filtered pool is within `resources.vector-exact-max-pool` | Exact search over the matching records | `smallCandidateSet` |
+| The graph walk found fewer than `min(ef, offset + limit)` candidates that pass the filter | Exact search for this query | `lowConfidence` |
 | The ANN graph does not fit the vector cache budget | Exact search; counted in `rushdb_ann_exact_fallbacks_total`. `auto` does not retry the build until the index changes. | `budget` |
 | The logical cache budget is disabled (`RUSHDB_LOGICAL_CACHE_BYTES=0`) | No ANN can be resident: exact search, counted in `rushdb_ann_exact_fallbacks_total`; `revalidateVector` reports `annRebuildError` | `budget` |
 
@@ -321,9 +356,11 @@ The `predicate` is resolved by the [query planner](query-planning.md) into a
 candidate set **before** ranking, and both exact and ANN search only consider
 candidates. A filtered search therefore never returns a record outside the
 filter, and never returns fewer results because high-scoring records were
-filtered out after ranking. With ANN, the gather is enlarged in proportion to
-the filter's selectivity; a very selective filter usually falls back to exact
-search, which is cheap because the candidate set is small.
+filtered out after ranking. A candidate set within
+`resources.vector-exact-max-pool` is scored exactly, reading only those
+records' vectors. A larger one is searched on the ANN graph, which skips
+non-matching records during the walk instead of filtering a fixed gather
+afterwards, so a selective filter does not empty the gather.
 
 > **Tip:** Declared [ordered indexes](indexes.md) speed up the filter stage of
 > vector queries exactly as they do for `query.records`.
@@ -342,7 +379,7 @@ properties) with a `score`.
 ### Inspect a vector query
 
 `describe.explainVector` takes the same document as `query.vector` and reports
-the candidate count without ranking:
+the candidate count and the path the search would take, without ranking:
 
 ```json
 {
@@ -360,9 +397,12 @@ the candidate count without ranking:
 }
 ```
 
-The `explainVector` plan contains `accessPath` (`vector_index`), `alias`,
-`label`, `candidateCount` (records matching the predicate), `k`
-(`offset + limit`) and `predicate`.
+The `explainVector` plan contains `accessPath` (`vector_index`), `alias` (the
+named `index`), `label`, `candidateCount` (records matching the predicate; the
+index's vectors without one), `k` (`offset + limit`), `predicate` and `search`:
+the `vectorSearch` report the search would return, decided by the same rule
+(`mode`, `ef`, `pool`, and a `fallback` known before searching:
+`smallCandidateSet` or `annWarming`).
 
 ## Keep vectors in step with data
 
@@ -435,9 +475,11 @@ validated against the snapshot's version of the space before use.
 ## Sizing notes
 
 - Each stored vector costs `4 × dimensions` bytes plus a binding row.
-- Exact search reads every bound vector that passes the filter; its cost grows
-  with the candidate count. `auto` switches large indexes to ANN; set
-  `resources.vector-exact-max-pool` to move that point.
+- Exact search reads one binding and one vector per candidate: with a
+  `predicate` its cost grows with the number of matching records, without one
+  with the index size (spread over the threads the server lends it). `auto` (and a forced `ann` with a `predicate`) searches
+  exactly up to `resources.vector-exact-max-pool` candidates and on the ANN
+  graph above; set it to move that point.
 - The ANN graph lives in memory and is charged to the logical cache budget
   (`RUSHDB_LOGICAL_CACHE_BYTES`, default 128 MiB). When it does not fit,
   queries fall back to exact search rather than fail. Watch

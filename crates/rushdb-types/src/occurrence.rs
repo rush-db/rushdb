@@ -212,6 +212,85 @@ fn default_source_hash_tracked() -> bool {
     true
 }
 
+/// Bytes of a stored binding value ([`EmbeddingBinding::encode_value`]).
+pub const BINDING_VALUE_LEN: usize = 17;
+
+/// The part of a stored binding its key does not hold: `vector_slot`
+/// (u64 LE) `||` `source_hash` (u64 LE) `||` flags (status in bits 0-1,
+/// `source_hash_tracked` in bit 2). The key carries the space and source
+/// ([`crate::keys::parse_emb_binding_key`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BindingValue {
+    /// Slot of the stored vector within the space.
+    pub vector_slot: u64,
+    /// Value hash captured when the binding was created.
+    pub source_hash: u64,
+    /// See [`EmbeddingBinding::source_hash_tracked`].
+    pub source_hash_tracked: bool,
+    /// Current lifecycle status of the binding.
+    pub status: BindingStatus,
+}
+
+impl BindingValue {
+    /// Decode a stored binding value; `None` when it is not one.
+    #[must_use]
+    pub fn decode(raw: &[u8]) -> Option<Self> {
+        let raw: &[u8; BINDING_VALUE_LEN] = raw.try_into().ok()?;
+        let flags = raw[16];
+        if flags & !0b111 != 0 {
+            return None;
+        }
+        let status = match flags & 0b11 {
+            0 => BindingStatus::Pending,
+            1 => BindingStatus::Ready,
+            2 => BindingStatus::Stale,
+            _ => BindingStatus::Retired,
+        };
+        Some(Self {
+            vector_slot: u64::from_le_bytes(raw[0..8].try_into().ok()?),
+            source_hash: u64::from_le_bytes(raw[8..16].try_into().ok()?),
+            source_hash_tracked: flags & 0b100 != 0,
+            status,
+        })
+    }
+}
+
+impl EmbeddingBinding {
+    /// The stored value of this binding (see [`BindingValue`]).
+    #[must_use]
+    pub fn encode_value(&self) -> [u8; BINDING_VALUE_LEN] {
+        let mut out = [0u8; BINDING_VALUE_LEN];
+        out[0..8].copy_from_slice(&self.vector_slot.to_le_bytes());
+        out[8..16].copy_from_slice(&self.source_hash.to_le_bytes());
+        out[16] = match self.status {
+            BindingStatus::Pending => 0,
+            BindingStatus::Ready => 1,
+            BindingStatus::Stale => 2,
+            BindingStatus::Retired => 3,
+        } | if self.source_hash_tracked { 0b100 } else { 0 };
+        out
+    }
+
+    /// Rebuild a binding from its stored key and value; `None` when either
+    /// is not a binding's.
+    #[must_use]
+    pub fn decode(key: &[u8], value: &[u8]) -> Option<Self> {
+        let (space_id, owner_kind, owner_ord, pid, elem) = crate::keys::parse_emb_binding_key(key)?;
+        let value = BindingValue::decode(value)?;
+        Some(Self {
+            space_id,
+            owner_kind,
+            owner_ord,
+            pid,
+            elem,
+            vector_slot: value.vector_slot,
+            source_hash: value.source_hash,
+            source_hash_tracked: value.source_hash_tracked,
+            status: value.status,
+        })
+    }
+}
+
 /// Occurrence row flag: the occurrence is an element of an array property.
 pub const OCC_FLAG_ARRAY: u8 = 0x01;
 /// Occurrence row state: explicit null.
@@ -291,6 +370,44 @@ mod codec_tests {
     use crate::encoding::{decode_order_preserving, encode_order_preserving, logical_tag};
     use crate::model::LogicalType;
     use crate::value::Scalar;
+
+    #[test]
+    fn a_binding_round_trips_through_its_key_and_compact_value() {
+        for (status, tracked) in [
+            (BindingStatus::Pending, false),
+            (BindingStatus::Ready, true),
+            (BindingStatus::Stale, true),
+            (BindingStatus::Retired, false),
+        ] {
+            let binding = EmbeddingBinding {
+                space_id: 7,
+                owner_kind: OwnerKind::Relationship,
+                owner_ord: 1 << 40,
+                pid: 3,
+                elem: 2,
+                vector_slot: u64::MAX - 1,
+                source_hash: 0xdead_beef_cafe_f00d,
+                source_hash_tracked: tracked,
+                status,
+            };
+            let key = crate::keys::emb_binding_key(
+                crate::ids::TenantId(9),
+                binding.space_id,
+                binding.owner_kind,
+                binding.owner_ord,
+                binding.pid,
+                binding.elem,
+            );
+            let value = binding.encode_value();
+            assert_eq!(value.len(), BINDING_VALUE_LEN);
+            assert_eq!(EmbeddingBinding::decode(&key, &value), Some(binding));
+        }
+        // A wrong length or an unknown flag bit is not a binding value.
+        assert_eq!(BindingValue::decode(&[0; 16]), None);
+        let mut bad = [0u8; BINDING_VALUE_LEN];
+        bad[16] = 0b1000;
+        assert_eq!(BindingValue::decode(&bad), None);
+    }
 
     /// Seeded xorshift: a reproducible property test without a dependency.
     struct Rng(u64);

@@ -2,7 +2,6 @@
 //! applier from pending rows, `eventual` (reports lag) or `immediate`
 //! (read-your-writes), never pinning the WAL.
 
-use std::collections::HashSet;
 use std::sync::Arc;
 
 use rushdb_lmpg::index::{pending, IndexStep};
@@ -48,7 +47,7 @@ fn search_opts(
     name: &str,
     query: &str,
     opts: LexicalOptions,
-    candidates: Option<Arc<HashSet<u64>>>,
+    candidates: Option<Arc<roaring::RoaringTreemap>>,
 ) -> (Vec<u64>, u64) {
     let view = lmpg.store.read_view().unwrap();
     let hits = text
@@ -135,7 +134,7 @@ fn bm25_ranks_relevant_documents_across_all_string_properties() {
         "articles",
         "database",
         LexicalOptions::default(),
-        Some(Arc::new(HashSet::from([engine.ordinal]))),
+        Some(Arc::new(roaring::RoaringTreemap::from([engine.ordinal]))),
     );
     assert_eq!(scoped, vec![engine.ordinal]);
 }
@@ -483,7 +482,10 @@ fn a_search_counts_every_match_and_can_return_them_all() {
     let all = run(rushdb_textsearch::ALL_HITS, None);
     assert_eq!((all.hits.len(), all.matches), (31, 31));
     // Candidates bound the count too.
-    let scoped = run(5, Some(Arc::new(HashSet::from([other.ordinal]))));
+    let scoped = run(
+        5,
+        Some(Arc::new(roaring::RoaringTreemap::from([other.ordinal]))),
+    );
     assert_eq!((scoped.hits.len(), scoped.matches), (1, 1));
 }
 

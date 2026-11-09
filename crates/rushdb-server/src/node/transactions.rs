@@ -207,20 +207,15 @@ impl RequestScope<'_> {
     pub fn tx_stage_ingest(
         &self,
         tx_id: &str,
-        label: Option<&str>,
-        documents: &serde_json::Value,
-        options: &serde_json::Value,
+        plan: rushdb_lmpg::import::BfsPlan,
+        options: &rushdb_lmpg::import::ImportOptions,
     ) -> Result<(u64, u64), String> {
-        use rushdb_lmpg::import::{serialize_bfs, ImportOptions};
         let coordinator = self
             .existing_tx_coordinator()
             .ok_or("unknown transaction id")?;
-        ImportOptions::validate_json(options)?;
-        let options = ImportOptions::from_json(options);
         if options.merge_by.is_some() || options.merge_strategy.is_some() {
             return Err("unsupported in a transaction: an import with mergeBy or mergeStrategy cannot be staged; run it outside the transaction".into());
         }
-        let plan = serialize_bfs(documents, label.unwrap_or_default(), &options);
         if let Some(error) = plan.validation_errors.first() {
             return Err(error.clone());
         }
@@ -238,12 +233,13 @@ impl RequestScope<'_> {
             })
             .collect();
         let persisted = |draft: [u8; 16]| pinned.get(&draft).copied().unwrap_or(draft);
+        let records = plan.records.len() as u64;
         let mut batch = self.lmpg().begin_batch();
-        for record in &plan.records {
+        for record in plan.records {
             batch.ops.push(rushdb_lmpg::BatchOp::CreateRecord {
-                label: record.label.clone(),
+                label: record.label,
                 explicit_id: Some(record.explicit_id.unwrap_or(record.draft_id)),
-                fields: record.properties.clone(),
+                fields: record.properties,
             });
         }
         coordinator.stage_batch(tx_id, batch)?;
@@ -271,7 +267,7 @@ impl RequestScope<'_> {
             )?;
             relationships += 1;
         }
-        Ok((plan.records.len() as u64, relationships))
+        Ok((records, relationships))
     }
 
     pub(crate) fn tx_stage_with_execution_context(

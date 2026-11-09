@@ -102,7 +102,7 @@ Opening a large store can take a while (redb open, WAL replay). The HTTP
 port is bound **first** and answers probes while the node boots:
 `/health` returns `200` with `{"status":"starting","phase":…}`, `/ready`
 returns `503` with the current phase (`starting`, `opening-storage`,
-`starting-engines`, `ready`), and protocol requests get a retryable
+`starting-engines`, `migrating`, `ready`), and protocol requests get a retryable
 `unavailable`. When the node is ready, the same socket is handed to the real
 router, so the port is never closed during startup.
 

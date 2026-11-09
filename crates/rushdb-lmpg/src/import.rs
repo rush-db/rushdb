@@ -527,7 +527,9 @@ impl ImportOptions {
 pub struct InlineVectorEntry {
     /// Property the vector is bound to.
     pub property_name: String,
-    /// Vector components.
+    /// Vector components: a number array or `{"f32": "<base64>"}` (see
+    /// [`rushdb_protocol::vector_wire`]).
+    #[serde(deserialize_with = "rushdb_protocol::vector_wire::deserialize")]
     pub vector: Vec<f32>,
     /// Optional similarity function name.
     pub similarity_function: Option<String>,
@@ -590,6 +592,19 @@ pub struct BfsPlan {
     pub validation_errors: Vec<String>,
 }
 
+impl BfsPlan {
+    /// Append `other` after this plan's drafts. Planning independent
+    /// documents one slice at a time and appending the plans yields the
+    /// plan of all of them at once when no document has nested children
+    /// (children are queued after every top-level document of a call).
+    pub fn append(&mut self, other: BfsPlan) {
+        self.records.extend(other.records);
+        self.relations.extend(other.relations);
+        self.vector_drafts.extend(other.vector_drafts);
+        self.validation_errors.extend(other.validation_errors);
+    }
+}
+
 /// Mapping from a draft id to the persisted record id after an upsert.
 pub struct UpsertIdMap {
     /// Draft-local id.
@@ -637,9 +652,16 @@ fn json_to_js_string(v: &Json) -> String {
 
 /// Scalar coercion mirroring the product's parsePrimitive under
 /// `TImportOptions`. ISO-8601 / date-only strings become typed datetime writes
-/// (epoch ms).
+/// (epoch ms). Borrowing form of [`coerce_value`].
 #[must_use]
 pub fn coerce_change(value: &Json, options: &ImportOptions) -> Option<FieldChange> {
+    coerce_value(value.clone(), options)
+}
+
+/// [`coerce_change`] taking the value by value, so an ingested string or
+/// array moves into the planned write instead of being copied.
+#[must_use]
+pub fn coerce_value(value: Json, options: &ImportOptions) -> Option<FieldChange> {
     // Product parity: an array whose elements are not all the same JS type is
     // coerced to a string array instead of failing (reference processArrayValue:
     // `isInconsistentArray || !suggestTypes ? value.map(String) : value`).
@@ -648,7 +670,7 @@ pub fn coerce_change(value: &Json, options: &ImportOptions) -> Option<FieldChang
         // untypeable `Set(null)` that the planner would reject
         return Some(FieldChange::ExplicitNull);
     }
-    if let Json::Array(items) = value {
+    if let Json::Array(items) = &value {
         if items.is_empty() {
             // Product parity: a genuinely empty array is preserved as `[]`
             // (the reference stores `property.value = []`), never collapsed to
@@ -680,12 +702,11 @@ pub fn coerce_change(value: &Json, options: &ImportOptions) -> Option<FieldChang
     }
     if options.skip_empty_values {
         match value {
-            Json::String(s) if s.is_empty() => return None,
+            Json::String(ref s) if s.is_empty() => return None,
             Json::Array(items) => {
                 let stripped: Vec<Json> = items
-                    .iter()
+                    .into_iter()
                     .filter(|i| !(i.is_string() && i.as_str().is_some_and(str::is_empty)))
-                    .cloned()
                     .collect();
                 if stripped.is_empty() {
                     return None;
@@ -696,7 +717,7 @@ pub fn coerce_change(value: &Json, options: &ImportOptions) -> Option<FieldChang
         }
     }
     if options.suggest_types {
-        if let Json::String(s) = value {
+        if let Json::String(s) = &value {
             if let Some(ms) = rushdb_types::datetime::parse_datetime(s) {
                 return Some(FieldChange::SetDatetime(ms));
             }
@@ -709,7 +730,7 @@ pub fn coerce_change(value: &Json, options: &ImportOptions) -> Option<FieldChang
                     && !s.contains('E')
                     && s.parse::<u64>().is_ok()
                 {
-                    return Some(FieldChange::Set(value.clone()));
+                    return Some(FieldChange::Set(value));
                 }
                 if let Ok(f) = s.parse::<f64>() {
                     return Some(FieldChange::Set(
@@ -717,14 +738,13 @@ pub fn coerce_change(value: &Json, options: &ImportOptions) -> Option<FieldChang
                     ));
                 }
             }
-            return Some(FieldChange::Set(value.clone()));
         }
-        return Some(FieldChange::Set(value.clone()));
+        return Some(FieldChange::Set(value));
     }
     // Inference off: every value is stored as text, element by element for
     // an array (reference parity: `value.map(String)`).
     match value {
-        Json::String(_) => Some(FieldChange::Set(value.clone())),
+        Json::String(_) => Some(FieldChange::Set(value)),
         Json::Array(items) => Some(FieldChange::Set(Json::Array(
             items
                 .iter()
@@ -734,7 +754,7 @@ pub fn coerce_change(value: &Json, options: &ImportOptions) -> Option<FieldChang
                 })
                 .collect(),
         ))),
-        other => Some(FieldChange::Set(Json::String(json_to_js_string(other)))),
+        other => Some(FieldChange::Set(Json::String(json_to_js_string(&other)))),
     }
 }
 
@@ -763,12 +783,19 @@ struct QueueItem {
 }
 
 /// Product-parity BFS serializer (reference serializeBFS).
+#[must_use]
+pub fn serialize_bfs(data: &Json, label: &str, options: &ImportOptions) -> BfsPlan {
+    serialize_bfs_owned(data.clone(), label, options)
+}
+
+/// [`serialize_bfs`] consuming the documents: every value moves into the
+/// plan, so a large ingest holds one copy of its rows, not two.
 #[expect(
     clippy::too_many_lines,
     reason = "the BFS walk must stay in one function so queue ordering and child-parent linkage remain visibly deterministic"
 )]
 #[must_use]
-pub fn serialize_bfs(data: &Json, label: &str, options: &ImportOptions) -> BfsPlan {
+pub fn serialize_bfs_owned(data: Json, label: &str, options: &ImportOptions) -> BfsPlan {
     let mut plan = BfsPlan::default();
     // Breadth first: children go to the back, the next record comes off
     // the front. A `Vec` popped at index 0 shifted every queued row, which
@@ -776,7 +803,7 @@ pub fn serialize_bfs(data: &Json, label: &str, options: &ImportOptions) -> BfsPl
     // terabytes); a deque pops the front in place.
     let mut queue: std::collections::VecDeque<QueueItem> = std::collections::VecDeque::new();
 
-    if let Some(arr) = data.as_array() {
+    if let Json::Array(arr) = data {
         queue.reserve(arr.len());
         for value in arr {
             queue.push_back(QueueItem {
@@ -785,7 +812,7 @@ pub fn serialize_bfs(data: &Json, label: &str, options: &ImportOptions) -> BfsPl
                 } else {
                     label.to_string()
                 },
-                value: value.clone(),
+                value,
                 parent_id: None,
                 skip: false,
                 rel_type: None,
@@ -793,7 +820,8 @@ pub fn serialize_bfs(data: &Json, label: &str, options: &ImportOptions) -> BfsPl
         }
     } else {
         let has_explicit_label = !label.trim().is_empty();
-        let obj = data.as_object().cloned().unwrap_or_default();
+        let empty = serde_json::Map::new();
+        let obj = data.as_object().unwrap_or(&empty);
         let has_primitive_at_root = obj.iter().any(|(_, v)| is_primitive(v));
         let complex_children_count = obj
             .iter()
@@ -809,7 +837,7 @@ pub fn serialize_bfs(data: &Json, label: &str, options: &ImportOptions) -> BfsPl
             } else {
                 label.to_string()
             },
-            value: data.clone(),
+            value: data,
             parent_id: None,
             skip,
             rel_type: None,
@@ -917,7 +945,7 @@ pub fn serialize_bfs(data: &Json, label: &str, options: &ImportOptions) -> BfsPl
                         rel_type: rel_type.clone(),
                     });
                 }
-            } else if let Some(change) = coerce_change(&value, options) {
+            } else if let Some(change) = coerce_value(value, options) {
                 record_draft.properties.push((key, change));
             }
         }
@@ -980,10 +1008,6 @@ fn merge_snapshot(lmpg: &Lmpg) -> Result<rushdb_storage::ReadView, LmpgError> {
     lmpg.store
         .read_view()
         .map_err(|error| LmpgError::Conflict(format!("merge lookup read failed: {error}")))
-}
-
-fn fields_from_props(props: &[(String, FieldChange)]) -> Vec<(String, FieldChange)> {
-    props.to_vec()
 }
 
 fn find_record_by_keys(
@@ -1520,18 +1544,20 @@ pub fn import_bfs(
     plan: &BfsPlan,
     options: &ImportOptions,
 ) -> Result<Vec<UpsertIdMap>, LmpgError> {
-    import_bfs_with_cancel(lmpg, plan, options, &|| false)
+    import_bfs_with_cancel(lmpg, plan.clone(), options, &|| false)
 }
 
 /// Cancellation-aware BFS import. The callback is polled before each
 /// bounded commit phase so a cancelled request does not start another batch.
+/// The plan is consumed: its records' fields move into the commit instead of
+/// being copied. Its vector drafts are not read (the caller binds them).
 ///
 /// # Errors
 /// Returns [`LmpgError`] when validation, cancellation, planning, or a
 /// durable record/relationship commit fails.
 pub fn import_bfs_with_cancel(
     lmpg: &Lmpg,
-    plan: &BfsPlan,
+    plan: BfsPlan,
     options: &ImportOptions,
     is_cancelled: &dyn Fn() -> bool,
 ) -> Result<Vec<UpsertIdMap>, LmpgError> {
@@ -1554,109 +1580,40 @@ pub fn import_bfs_with_cancel(
 /// `run_batch` returns `created_records` in op order.
 fn import_bfs_batch_create(
     lmpg: &Lmpg,
-    plan: &BfsPlan,
+    plan: BfsPlan,
     is_cancelled: &dyn Fn() -> bool,
 ) -> Result<Vec<UpsertIdMap>, LmpgError> {
     if is_cancelled() {
         return Err(LmpgError::Conflict("import cancelled".into()));
     }
     let mut record_batch = lmpg.begin_batch();
-    for rec in &plan.records {
+    let mut draft_ids = Vec::with_capacity(plan.records.len());
+    record_batch.ops.reserve(plan.records.len());
+    for rec in plan.records {
+        draft_ids.push(rec.draft_id);
         record_batch.ops.push(crate::BatchOp::CreateRecord {
-            label: rec.label.clone(),
+            label: rec.label,
             explicit_id: rec.explicit_id,
-            fields: fields_from_props(&rec.properties),
+            fields: rec.properties,
         });
     }
     let committed = lmpg.run_batch(record_batch)?;
-    let idmap: Vec<UpsertIdMap> = plan
-        .records
-        .iter()
+    let idmap: Vec<UpsertIdMap> = draft_ids
+        .into_iter()
         .zip(committed.created_records.iter())
-        .map(|(rec, rr)| UpsertIdMap {
-            draft_id: rec.draft_id,
+        .map(|(draft_id, rr)| UpsertIdMap {
+            draft_id,
             persisted_id: rr.record_id,
         })
         .collect();
 
     if !plan.relations.is_empty() {
+        const PARTIAL: &str = "partial import progress: records committed, relationships not; retrying a plain-create import creates the records again";
         if is_cancelled() {
-            return Err(LmpgError::Conflict(
-                "partial import progress: records committed, relationships not; retrying a plain-create import creates the records again: import cancelled"
-                    .into(),
-            ));
+            return Err(LmpgError::Conflict(format!("{PARTIAL}: import cancelled")));
         }
-        let mut rel_batch = lmpg.begin_batch();
-        let snap = lmpg
-            .store
-            .read_view()
-            .map_err(|e| LmpgError::Conflict(e.to_string()))?;
-        let tenant = lmpg.tenant;
-        // dedupe pairs within one plan (the sequential path relies on each
-        // relationship being committed before the next adjacency check)
-        let mut seen: std::collections::BTreeSet<(u64, String, u64)> =
-            std::collections::BTreeSet::new();
-        for rel in &plan.relations {
-            let source = idmap
-                .iter()
-                .find(|m| m.draft_id == rel.source)
-                .map_or(rel.source, |m| m.persisted_id);
-            let target = idmap
-                .iter()
-                .find(|m| m.draft_id == rel.target)
-                .map_or(rel.target, |m| m.persisted_id);
-            let Some(src) = crate::reader::try_access::record_by_id(
-                &snap,
-                tenant,
-                &rushdb_types::ids::RecordId(source),
-            )
-            .map_err(|e| LmpgError::Conflict(e.to_string()))?
-            else {
-                continue;
-            };
-            let Some(tgt) = crate::reader::try_access::record_by_id(
-                &snap,
-                tenant,
-                &rushdb_types::ids::RecordId(target),
-            )
-            .map_err(|e| LmpgError::Conflict(e.to_string()))?
-            else {
-                continue;
-            };
-            if !seen.insert((src.ordinal, rel.rel_type.clone(), tgt.ordinal)) {
-                continue;
-            }
-            let already_linked = crate::reader::try_access::edge_exists(
-                &snap,
-                tenant,
-                src.ordinal,
-                &rel.rel_type,
-                tgt.ordinal,
-            )
-            .map_err(|e| LmpgError::Conflict(e.to_string()))?;
-            if already_linked {
-                continue;
-            }
-            rel_batch.ops.push(crate::BatchOp::CreateRelationship {
-                rel_type: rel.rel_type.clone(),
-                source: RecordRef {
-                    record_id: source,
-                    ordinal: src.ordinal,
-                },
-                target: RecordRef {
-                    record_id: target,
-                    ordinal: tgt.ordinal,
-                },
-                fields: vec![],
-            });
-        }
-        if !rel_batch.ops.is_empty() {
-            lmpg.run_batch(rel_batch).map_err(|error| {
-                LmpgError::Conflict(format!(
-                    "partial import progress: records committed, relationships not; retrying a plain-create import creates the records again: {error}"
-                ))
-            })?;
-        }
+        import_relations_batched(lmpg, &plan.relations, &idmap)
+            .map_err(|error| LmpgError::Conflict(format!("{PARTIAL}: {error}")))?;
     }
 
     Ok(idmap)
@@ -1676,17 +1633,22 @@ const MERGE_BATCH: usize = 1024;
 /// CSV/JSON imports use the batched create path instead.
 fn import_bfs_merge(
     lmpg: &Lmpg,
-    plan: &BfsPlan,
+    plan: BfsPlan,
     options: &ImportOptions,
     is_cancelled: &dyn Fn() -> bool,
 ) -> Result<Vec<UpsertIdMap>, LmpgError> {
     check_merge_keys(options)?;
     let mut idmap: Vec<UpsertIdMap> = Vec::with_capacity(plan.records.len());
-    for chunk in plan.records.chunks(MERGE_BATCH) {
+    let mut records = plan.records.into_iter();
+    loop {
+        let chunk: Vec<BfsRecord> = records.by_ref().take(MERGE_BATCH).collect();
+        if chunk.is_empty() {
+            break;
+        }
         if is_cancelled() {
             return Err(LmpgError::Conflict("import cancelled".into()));
         }
-        if chunk_has_duplicate_keys(chunk, options) {
+        if chunk_has_duplicate_keys(&chunk, options) {
             import_chunk_sequential(lmpg, chunk, options, &mut idmap)?;
         } else {
             import_chunk_batched(lmpg, chunk, options, &mut idmap)?;
@@ -1695,7 +1657,7 @@ fn import_bfs_merge(
     if is_cancelled() {
         return Err(LmpgError::Conflict("import cancelled".into()));
     }
-    import_relations_batched(lmpg, plan, &idmap)?;
+    import_relations_batched(lmpg, &plan.relations, &idmap)?;
     Ok(idmap)
 }
 
@@ -1821,7 +1783,7 @@ fn canonical_key_repr(value: &Json) -> String {
 /// become `UpdateFields`, the rest `CreateRecord`, all in one atomic commit.
 fn import_chunk_batched(
     lmpg: &Lmpg,
-    chunk: &[BfsRecord],
+    chunk: Vec<BfsRecord>,
     options: &ImportOptions,
     idmap: &mut Vec<UpsertIdMap>,
 ) -> Result<(), LmpgError> {
@@ -1829,13 +1791,13 @@ fn import_chunk_batched(
     let mut batch = lmpg.begin_batch();
     // Per draft: the matched id, or `None` when the batch creates it (created
     // ids come back in op order).
-    let mut resolved: Vec<Option<[u8; 16]>> = Vec::with_capacity(chunk.len());
+    let mut resolved: Vec<([u8; 16], Option<[u8; 16]>)> = Vec::with_capacity(chunk.len());
     // Every record resolves against the same committed snapshot (keys are
     // pairwise unique within the chunk), so one merge index serves it.
     let snap = merge_snapshot(lmpg)?;
     let mut index = MergeIndex::new(lmpg);
     for rec in chunk {
-        let keys = merge_keys(rec, options);
+        let keys = merge_keys(&rec, options);
         let existing = if keys.is_empty() {
             None
         } else {
@@ -1853,30 +1815,32 @@ fn import_chunk_batched(
             // mirror the per-record path's default-deny check here.
             lmpg.authorize_label(&rec.label)
                 .map_err(LmpgError::Conflict)?;
-            let mut fields = Vec::new();
-            if rewrite {
-                fields.extend(existing_field_deletes(lmpg, rr)?);
-            }
-            fields.extend(fields_from_props(&rec.properties));
+            let fields = if rewrite {
+                let mut fields = existing_field_deletes(lmpg, rr)?;
+                fields.extend(rec.properties);
+                fields
+            } else {
+                rec.properties
+            };
             batch.ops.push(crate::BatchOp::UpdateFields {
                 owner: OwnerKind::Record,
                 owner_ord: rr.ordinal,
                 owner_public_id: rr.record_id,
                 fields,
             });
-            resolved.push(Some(rr.record_id));
+            resolved.push((rec.draft_id, Some(rr.record_id)));
         } else {
             batch.ops.push(crate::BatchOp::CreateRecord {
-                label: rec.label.clone(),
+                label: rec.label,
                 explicit_id: rec.explicit_id,
-                fields: fields_from_props(&rec.properties),
+                fields: rec.properties,
             });
-            resolved.push(None);
+            resolved.push((rec.draft_id, None));
         }
     }
     let committed = lmpg.run_batch(batch)?;
     let mut created = committed.created_records.into_iter();
-    for (rec, slot) in chunk.iter().zip(resolved) {
+    for (draft_id, slot) in resolved {
         let persisted_id = match slot {
             Some(id) => id,
             None => {
@@ -1889,7 +1853,7 @@ fn import_chunk_batched(
             }
         };
         idmap.push(UpsertIdMap {
-            draft_id: rec.draft_id,
+            draft_id,
             persisted_id,
         });
     }
@@ -1899,13 +1863,13 @@ fn import_chunk_batched(
 /// Per-record merge fallback for chunks that contain duplicate merge keys.
 fn import_chunk_sequential(
     lmpg: &Lmpg,
-    chunk: &[BfsRecord],
+    chunk: Vec<BfsRecord>,
     options: &ImportOptions,
     idmap: &mut Vec<UpsertIdMap>,
 ) -> Result<(), LmpgError> {
     let rewrite = options.merge_strategy.as_deref() == Some("rewrite");
     for rec in chunk {
-        let keys = merge_keys(rec, options);
+        let keys = merge_keys(&rec, options);
         // Each record sees its predecessors' commits: a fresh snapshot and
         // merge index per record.
         let existing = if keys.is_empty() {
@@ -1924,15 +1888,11 @@ fn import_chunk_sequential(
             if rewrite {
                 lmpg.update_fields(rr, existing_field_deletes(lmpg, rr)?)?;
             }
-            lmpg.update_fields(rr, fields_from_props(&rec.properties))?;
+            lmpg.update_fields(rr, rec.properties)?;
             rr.record_id
         } else {
-            lmpg.create_record(
-                &rec.label,
-                rec.explicit_id,
-                fields_from_props(&rec.properties),
-            )?
-            .record_id
+            lmpg.create_record(&rec.label, rec.explicit_id, rec.properties)?
+                .record_id
         };
         idmap.push(UpsertIdMap {
             draft_id: rec.draft_id,
@@ -1972,10 +1932,10 @@ fn existing_field_deletes(
 /// every record chunk is committed, so endpoints resolve from persisted state.
 fn import_relations_batched(
     lmpg: &Lmpg,
-    plan: &BfsPlan,
+    relations: &[BfsRelation],
     idmap: &[UpsertIdMap],
 ) -> Result<(), LmpgError> {
-    if plan.relations.is_empty() {
+    if relations.is_empty() {
         return Ok(());
     }
     let by_draft: std::collections::HashMap<[u8; 16], [u8; 16]> =
@@ -1989,7 +1949,7 @@ fn import_relations_batched(
     // dedupe pairs here (the per-record path relied on each commit being
     // visible to the next `edge_exists` probe).
     let mut seen: BTreeSet<(u64, String, u64)> = BTreeSet::new();
-    for rel in &plan.relations {
+    for rel in relations {
         let source = by_draft.get(&rel.source).copied().unwrap_or(rel.source);
         let target = by_draft.get(&rel.target).copied().unwrap_or(rel.target);
         let Some(src) = crate::reader::try_access::record_by_id(
@@ -2144,11 +2104,64 @@ mod tests {
             "Doc",
             &ImportOptions::default(),
         );
-        let error = import_bfs_with_cancel(&lmpg, &plan, &ImportOptions::default(), &|| true)
+        let error = import_bfs_with_cancel(&lmpg, plan, &ImportOptions::default(), &|| true)
             .err()
             .expect("cancelled import");
         assert!(error.to_string().contains("cancelled"));
         assert_eq!(store.committed_version(), 0);
+    }
+
+    #[test]
+    fn nested_import_links_every_child_to_its_parent() {
+        // The relationship commit resolves both endpoints of each draft
+        // relationship through one map lookup; with thousands of children
+        // every edge still joins the right persisted records, exactly once.
+        let store = std::sync::Arc::new(rushdb_storage::Store::new_in_memory());
+        let tenant = rushdb_types::ids::TenantId::from_ordinal(92);
+        let lmpg = Lmpg::new(std::sync::Arc::clone(&store), tenant);
+        let children: Vec<Json> = (0..3000)
+            .map(|i| serde_json::json!({"n": i, "leaf": {"m": i}}))
+            .collect();
+        let plan = serialize_bfs(
+            &serde_json::json!({"name": "root", "items": children}),
+            "Root",
+            &ImportOptions::default(),
+        );
+        assert_eq!(plan.records.len(), 6001);
+        assert_eq!(plan.relations.len(), 6000);
+        let relations = plan.relations.clone();
+        let idmap = import_bfs_with_cancel(&lmpg, plan, &ImportOptions::default(), &|| false)
+            .expect("import");
+        let persisted: std::collections::HashMap<[u8; 16], [u8; 16]> =
+            idmap.iter().map(|m| (m.draft_id, m.persisted_id)).collect();
+        assert_eq!(persisted.len(), 6001, "one persisted id per draft");
+        let snap = store.read_view().unwrap();
+        let ordinal = |draft: &[u8; 16]| {
+            crate::reader::try_access::record_by_id(
+                &snap,
+                tenant,
+                &rushdb_types::ids::RecordId(persisted[draft]),
+            )
+            .unwrap()
+            .expect("persisted record")
+            .ordinal
+        };
+        for rel in &relations {
+            assert!(crate::reader::try_access::edge_exists(
+                &snap,
+                tenant,
+                ordinal(&rel.source),
+                &rel.rel_type,
+                ordinal(&rel.target),
+            )
+            .unwrap());
+        }
+        assert_eq!(
+            crate::reader::try_access::label_members(&snap, tenant, "items")
+                .unwrap()
+                .len(),
+            3000
+        );
     }
 
     #[test]
@@ -2165,7 +2178,7 @@ mod tests {
         assert_eq!(plan.relations.len(), 1);
 
         let checks = std::cell::Cell::new(0usize);
-        let Err(error) = import_bfs_with_cancel(&lmpg, &plan, &ImportOptions::default(), &|| {
+        let Err(error) = import_bfs_with_cancel(&lmpg, plan, &ImportOptions::default(), &|| {
             let current = checks.get();
             checks.set(current + 1);
             current >= 1

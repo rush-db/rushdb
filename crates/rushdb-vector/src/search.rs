@@ -5,8 +5,71 @@ use std::sync::Arc;
 
 use rushdb_storage::{ReadView, StorageError};
 
+use roaring::RoaringTreemap;
+use rushdb_types::ids::OwnerKind;
+
 use crate::ann::space_version;
 use crate::{EmbeddingSpace, ScoredSource, SourceRef, VectorEngine, VectorError};
+
+/// The sources a search may return.
+#[derive(Clone, Copy)]
+pub enum Candidates<'a> {
+    /// Every source in the space.
+    All,
+    /// Sources passing a point check that is expected to admit nearly every
+    /// source (e.g. label membership of an unfiltered search). It is applied
+    /// to gathered hits only, never during the graph walk, so its cost does
+    /// not grow with the nodes the walk visits; an exact search applies it
+    /// only to a hit that would enter its top `k`. It may run on several
+    /// threads at once.
+    Check(&'a (dyn Fn(SourceRef) -> bool + Sync)),
+    /// Exactly the sources of these owners: an exact search reads only
+    /// their bindings, an ANN search skips every other node during the
+    /// graph walk, and the owner count is what routing decides on.
+    Owners {
+        /// Owner kind of every candidate.
+        kind: OwnerKind,
+        /// Candidate owner ordinals.
+        ords: &'a RoaringTreemap,
+    },
+}
+
+impl Candidates<'_> {
+    /// Whether `source` may be returned.
+    #[must_use]
+    pub fn admits(&self, source: SourceRef) -> bool {
+        match self {
+            Candidates::All => true,
+            Candidates::Check(check) => check(source),
+            Candidates::Owners { kind, ords } => {
+                source.kind == *kind && ords.contains(source.owner_ord)
+            }
+        }
+    }
+
+    /// The candidate owner count, when the candidates are an owner set.
+    #[must_use]
+    pub fn owner_count(&self) -> Option<u64> {
+        match self {
+            Candidates::Owners { ords, .. } => Some(ords.len()),
+            Candidates::All | Candidates::Check(_) => None,
+        }
+    }
+}
+
+impl std::fmt::Debug for Candidates<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Candidates::All => f.write_str("All"),
+            Candidates::Check(_) => f.write_str("Check"),
+            Candidates::Owners { kind, ords } => f
+                .debug_struct("Owners")
+                .field("kind", kind)
+                .field("count", &ords.len())
+                .finish(),
+        }
+    }
+}
 
 /// A space's background ANN build.
 #[derive(Debug, Clone, Copy)]
@@ -81,16 +144,16 @@ impl VectorEngine {
         query: &[f32],
         k: usize,
         mode: SearchMode,
-        candidate: Option<&dyn Fn(SourceRef) -> bool>,
+        candidates: Candidates<'_>,
         min_score: Option<f32>,
     ) -> Result<SearchOutcome, VectorError> {
         let (hits, path) = match mode {
             SearchMode::Exact => (
-                self.exact_in_view(snap, space, query, k, candidate, min_score)?,
+                self.exact_in_view(snap, space, query, k, candidates, min_score)?,
                 SearchPath::Exact,
             ),
             SearchMode::Ann { ef } => {
-                self.ann_in_view(snap, space, query, k, ef, candidate, min_score)?
+                self.ann_in_view(snap, space, query, k, ef, candidates, min_score)?
             }
         };
         Ok(SearchOutcome { hits, path })

@@ -6,6 +6,8 @@
 
 use serde::{Deserialize, Serialize};
 
+pub mod vector_wire;
+
 /// Wire protocol version spoken by these envelopes.
 ///
 /// Bumped whenever the wire shape changes in a backward-incompatible way.
@@ -1530,6 +1532,8 @@ pub struct VectorItem {
     /// Record the vector belongs to.
     pub record_id: String,
     /// The vector components.
+    /// A number array or `{"f32": "<base64>"}` (see [`vector_wire`]).
+    #[serde(deserialize_with = "vector_wire::deserialize")]
     pub vector: Vec<f32>,
     /// Hash of the source property captured before an external embedding
     /// provider ran. When present, the engine conditionally attaches the
@@ -1552,6 +1556,8 @@ pub struct VectorQuery {
     /// Property holding the indexed vector.
     pub property: String,
     /// The query vector.
+    /// A number array or `{"f32": "<base64>"}` (see [`vector_wire`]).
+    #[serde(deserialize_with = "vector_wire::deserialize")]
     pub vector: Vec<f32>,
     /// Similarity metric name.
     #[serde(default = "default_similarity")]
@@ -1590,17 +1596,18 @@ pub struct VectorQuery {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum VectorSearchMode {
-    /// The server chooses: exact search while the index holds at most
-    /// `resources.vector-exact-max-pool` vectors (or its metric has no ANN
-    /// graph), ANN above. A search never waits for the ANN graph to be
-    /// built: until it is resident, `auto` answers exactly and builds it in
-    /// the background.
+    /// The server chooses: exact search while the search could score at
+    /// most `resources.vector-exact-max-pool` vectors (the predicate's
+    /// matching owners when filtered, the whole index otherwise) or the
+    /// metric has no ANN graph, ANN above. A search never waits for the ANN
+    /// graph to be built: until it is resident, `auto` answers exactly and
+    /// builds it in the background.
     Auto,
     /// Score every candidate.
     Exact,
-    /// Gather from the ANN graph and rerank exactly. Only cosine indexes
-    /// have one; a budget or confidence shortfall is still answered exactly
-    /// and reported.
+    /// Walk the ANN graph and rerank exactly. Only cosine indexes have one;
+    /// a filtered pool within `resources.vector-exact-max-pool`, a budget or
+    /// a confidence shortfall is still answered exactly and reported.
     Ann,
 }
 
@@ -1614,13 +1621,18 @@ pub struct VectorSearchReport {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ef: Option<usize>,
     /// Why a search that would use the ANN graph was answered exactly:
-    /// `metric` (no ANN graph for this metric), `budget` (the graph does not
-    /// fit the vector cache), `lowConfidence` (too few filtered candidates
-    /// gathered), or `annWarming` (`auto` only: the graph is being built in
-    /// the background; later searches use it).
+    /// `smallCandidateSet` (a forced `ann` whose filtered pool is within
+    /// `resources.vector-exact-max-pool`: scoring it exactly is cheaper and
+    /// never less accurate), `metric` (no ANN graph for this metric),
+    /// `budget` (the graph does not fit the vector cache), `lowConfidence`
+    /// (the graph walk found too few candidates), or `annWarming` (`auto`
+    /// only: the graph is being built in the background; later searches use
+    /// it).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub fallback: Option<String>,
-    /// Vectors in the index (its ready bindings), which `auto` decides on.
+    /// The vectors the search could score, which the path is chosen on: the
+    /// owners matching the predicate (at most the index's ready vectors)
+    /// when filtered, the index's ready vectors otherwise.
     pub pool: u64,
 }
 
@@ -1633,6 +1645,8 @@ pub struct HybridVectorLeg {
     /// Property holding the indexed vector.
     pub property: String,
     /// The query vector.
+    /// A number array or `{"f32": "<base64>"}` (see [`vector_wire`]).
+    #[serde(deserialize_with = "vector_wire::deserialize")]
     pub vector: Vec<f32>,
     /// Similarity metric name.
     #[serde(default = "default_similarity")]
@@ -2327,9 +2341,15 @@ pub struct ValueOverlap {
 pub struct ExplainPlan {
     /// Access path selected by the planner: `index:<name>` for a declared
     /// ordered index, `property_walk:<property>` when an unindexed predicate
-    /// leaf narrows the candidates (see `unindexedWalk`), else `label_scan`
-    /// or `full_scan`.
+    /// leaf narrows the candidates (see `unindexedWalk`), `relation_expand`
+    /// when a `$relation` block is answered by expanding from its targets
+    /// (see `relationExpansion`), else `label_scan` or `full_scan`.
     pub access_path: String,
+    /// A `$relation` conjunct the planner answers by expanding backwards
+    /// from the records its block matches, instead of checking every
+    /// candidate of the labels.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub relation_expansion: Option<RelationExpansion>,
     /// The unindexed walk the access path starts with: the property, the
     /// owners carrying it that are visited, and the ordered indexes that
     /// would answer the leaf instead.
@@ -2358,6 +2378,15 @@ pub struct ExplainPlan {
     pub limit: Option<u64>,
     /// Offset applied by the query.
     pub offset: u64,
+}
+
+/// A `$relation` expansion reported by `EXPLAIN`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RelationExpansion {
+    /// Upper bound of the records the block's labels and filter match: the
+    /// targets the expansion starts from.
+    pub target_estimate: u64,
 }
 
 /// An unindexed predicate walk reported by `EXPLAIN`.
@@ -2393,13 +2422,20 @@ pub struct ExplainVectorPlan {
     pub alias: String,
     /// Label the query is scoped to.
     pub label: String,
-    /// Number of records matching the predicate (the candidate set the vector
-    /// search is filtered to — filter-before-top-k).
+    /// Owners matching the predicate (the candidate set the vector search is
+    /// filtered to — filter-before-top-k); without a predicate, the index's
+    /// ready vectors.
     pub candidate_count: u64,
     /// Top-k requested (offset + limit).
     pub k: usize,
     /// Residual predicate applied as the candidate filter.
     pub predicate: serde_json::Value,
+    /// The path the search would take, decided by the rule the search
+    /// itself uses: `mode`, `ef`, `pool`, and a `fallback` known before it
+    /// runs (`smallCandidateSet`, `annWarming`). Fallbacks found while
+    /// searching (`budget`, `lowConfidence`) appear only in the search's
+    /// own report.
+    pub search: VectorSearchReport,
 }
 
 /// A bound transport listener on the server.

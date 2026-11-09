@@ -2,12 +2,18 @@
 
 use super::{
     access, canonical_id, hex_decode_16, normalize, scalar_equal, Expr, FieldPred, Json, Lmpg,
-    LogicalType, QueryError, QuerySnapshot, Scalar, SearchRequest, TypeState,
+    LogicalType, QueryError, QuerySnapshot, RelatedExpr, Scalar, SearchRequest, TypeState,
 };
 use rushdb_lmpg::reader::TryRead;
 
+mod expansion;
 mod explain;
-pub use explain::{explain_cardinality, explain_walk};
+mod leaf_walk;
+#[cfg(test)]
+mod leaf_walk_tests;
+pub(super) use expansion::{expansions, target_estimate};
+pub use explain::{explain_cardinality, explain_expansion, explain_walk};
+use leaf_walk::{each_presence_owner, owners_matching};
 
 /// Index-only candidate plan for a `where` conjunction. Eligible positive
 /// leaves (`field == scalar`, `field IN`, `$exists: true`, null, and numeric
@@ -86,9 +92,16 @@ pub(super) fn index_candidates_with_budget(
     let mut residual: Vec<Expr> = Vec::new();
     let mut has_residual = false;
     let mut exactable = true;
+    let mut traversals: Vec<&RelatedExpr> = Vec::new();
     for leaf in leaves {
         if is_cancelled() {
             return Err(QueryError::Cancelled);
+        }
+        if let Expr::Related(rel) = leaf {
+            if !rel.cycle {
+                traversals.push(rel);
+                continue;
+            }
         }
         if let Some(estimate) = leaf_estimate(snap, lmpg.tenant, leaf, &req.labels)? {
             if leaf_is_null_only(leaf) {
@@ -103,13 +116,20 @@ pub(super) fn index_candidates_with_budget(
             }
         }
     }
-    if eligible.is_empty() {
+    let expansions = expansions(snap, lmpg.tenant, &req.labels, &eligible, traversals)?;
+    for rel in &expansions.residual {
+        residual.push(Expr::Related((*rel).clone()));
+        has_residual = true;
+    }
+    let expanded = expansions.expand;
+    if eligible.is_empty() && expanded.is_empty() {
         return Ok(None);
     }
     // Single unscoped `$exists: true` with a maintained owner count: answer the
     // total from the counter and materialize only the requested page.
     if !has_residual
         && exactable
+        && expanded.is_empty()
         && req.related.is_empty()
         && req.order_by.is_empty()
         && eligible.len() == 1
@@ -136,7 +156,8 @@ pub(super) fn index_candidates_with_budget(
         }
     }
     eligible.sort_by_key(|(estimate, _)| *estimate);
-    if eligible[0].0 != u64::MAX
+    if expanded.is_empty()
+        && eligible[0].0 != u64::MAX
         && eligible[0].0 > PLANNER_MATERIALIZE_CAP
         && !crate::index_access::answers(snap, lmpg.tenant, eligible[0].1, &req.labels)?
     {
@@ -146,29 +167,58 @@ pub(super) fn index_candidates_with_budget(
     }
     // Every leaf but `$id` resolves under the requested labels (index
     // entries, presence and value rows are kept per label), so one such leaf
-    // in the conjunction scopes the whole intersection.
+    // in the conjunction scopes the whole intersection; an expansion keeps
+    // only records of the requested labels.
     let label_scoped = req.labels.is_empty()
+        || !expanded.is_empty()
         || eligible
             .iter()
             .any(|(_, leaf)| !is_id_leaf(leaf) && !matches!(leaf, Expr::Or(_)));
+    // Leaves and expansions in one order, smallest expected set first: an
+    // anchored expansion of a few hundred records goes before a leaf of tens
+    // of thousands, which is then checked on those records only.
+    let mut steps: Vec<(u64, Step<'_>)> = eligible
+        .into_iter()
+        .map(|(estimate, leaf)| (estimate, Step::Leaf(leaf)))
+        .chain(
+            expanded
+                .into_iter()
+                .map(|(reach, rel)| (reach, Step::Expand(rel))),
+        )
+        .collect();
+    steps.sort_by_key(|(estimate, _)| *estimate);
     let mut acc: Option<OwnerSet> = None;
-    for (_, leaf) in eligible {
+    for (_, step) in steps {
         if is_cancelled() {
             return Err(QueryError::Cancelled);
         }
         if acc.as_ref().is_some_and(OwnerSet::is_empty) {
             break;
         }
-        // Later leaves are checked on the owners earlier leaves left
-        // (`LeafScope::candidates`), not walked over their population.
-        let scope = LeafScope {
-            labels: &req.labels,
-            owner_limit,
-            candidates: acc.as_ref(),
-        };
-        let Some(owners) = leaf_owners(snap, lmpg.tenant, leaf, &scope)? else {
-            // Classified eligible but not materializable: fall back safely.
-            return Ok(None);
+        let owners = match step {
+            Step::Leaf(leaf) => {
+                // Later leaves are checked on the owners earlier steps left
+                // (`LeafScope::candidates`), not walked over their population.
+                let scope = LeafScope {
+                    labels: &req.labels,
+                    owner_limit,
+                    candidates: acc.as_ref(),
+                    is_cancelled,
+                };
+                let Some(owners) = leaf_owners(snap, lmpg.tenant, leaf, &scope)? else {
+                    // Classified eligible but not materializable: fall back safely.
+                    return Ok(None);
+                };
+                owners
+            }
+            Step::Expand(rel) => crate::expand::expand_relation(
+                lmpg,
+                snap,
+                rel,
+                &req.labels,
+                owner_limit,
+                is_cancelled,
+            )?,
         };
         acc = Some(match acc {
             None => owners,
@@ -210,6 +260,12 @@ pub(super) fn index_candidates_with_budget(
             _ => Some(Expr::And(residual)),
         },
     }))
+}
+
+/// One step of a conjunction's plan: a leaf's owners, or an expansion.
+enum Step<'a> {
+    Leaf(&'a Expr),
+    Expand(&'a RelatedExpr),
 }
 
 /// Flatten a top-level `And` into conjuncts; any other node is a single
@@ -491,10 +547,6 @@ impl<'a> BoundedOwners<'a> {
         }
     }
 
-    pub(super) fn contains(&self, owner: u64) -> bool {
-        self.owners.contains(owner)
-    }
-
     /// Adds `owner`; a new owner past the limit fails the read.
     pub(super) fn insert(&mut self, owner: u64) -> Result<(), QueryError> {
         if self.owners.contains(owner) {
@@ -516,7 +568,7 @@ impl<'a> BoundedOwners<'a> {
 /// rows narrow to the owners carrying the property (under `labels` when
 /// given), and their occurrence values decide the predicate. There are no
 /// automatic value postings.
-fn leaf_owners<R: TryRead>(
+fn leaf_owners<R: TryRead + Sync>(
     snap: &R,
     tenant: rushdb_types::ids::TenantId,
     expr: &Expr,
@@ -656,84 +708,18 @@ fn labels_for<R: TryRead>(
 }
 
 /// What a leaf is resolved against: the requested labels, the owner budget,
-/// and the owners earlier leaves already narrowed to (when any).
+/// the owners earlier leaves already narrowed to (when any), and the
+/// caller's cancellation, polled between rounds of an owner walk.
 pub(super) struct LeafScope<'a> {
     pub(super) labels: &'a [String],
     pub(super) owner_limit: usize,
     pub(super) candidates: Option<&'a OwnerSet>,
-}
-
-/// Owners under `labels` (all when empty) carrying a non-null value of `pid`
-/// for which `keep` holds. When earlier leaves already narrowed the owners
-/// to fewer candidates than `pid`'s population, only those candidates are
-/// checked; otherwise the population is walked. Returns `false` (scan
-/// instead) when the population to walk exceeds the materialization cap.
-fn owners_matching<R: TryRead>(
-    snap: &R,
-    tenant: rushdb_types::ids::TenantId,
-    pid: u64,
-    scope: &LeafScope<'_>,
-    owners: &mut OwnerSet,
-    keep: &dyn Fn(&access::Occurrence) -> bool,
-) -> Result<bool, QueryError> {
-    let kind = rushdb_types::ids::OwnerKind::Record;
-    let labels = labels_for(snap, tenant, pid, scope.labels)?;
-    let mut population = 0u64;
-    for label in &labels {
-        population = population.saturating_add(rushdb_lmpg::derived::prop_support_label(
-            snap, tenant, kind, pid, label,
-        )?);
-    }
-    // Labels whose owners hold `pid` as an array (maintained per label): only
-    // those need every element; elsewhere the value is the single row at
-    // element 0, read with one point get instead of a range scan per owner.
-    let (_, array_labels) = rushdb_lmpg::derived::array_markers(snap, tenant, kind, pid)?;
-    let matches = |owner: u64, scalar: bool| -> Result<bool, QueryError> {
-        Ok(if scalar {
-            access::occurrence(snap, tenant, kind, owner, pid, 0)?.is_some_and(|occ| keep(&occ))
-        } else {
-            access::occurrences_of_pid(snap, tenant, kind, owner, pid)?
-                .iter()
-                .any(keep)
-        })
-    };
-    let mut owners = BoundedOwners::new(owners, scope.owner_limit);
-    if let Some(candidates) = scope.candidates.filter(|c| c.len() < population) {
-        let scalar = array_labels.is_empty();
-        for owner in candidates {
-            if !owners.contains(owner) && matches(owner, scalar)? {
-                owners.insert(owner)?;
-            }
-        }
-        return Ok(true);
-    }
-    if population > PLANNER_MATERIALIZE_CAP {
-        return Ok(false);
-    }
-    if population > UNINDEXED_WALK_THRESHOLD {
-        UNINDEXED_WALKS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-    }
-    for label in &labels {
-        let scalar = !array_labels.contains(label);
-        for owner in rushdb_lmpg::derived::presence_owners(
-            snap,
-            tenant,
-            kind,
-            label,
-            pid,
-            rushdb_types::keys::NULLNESS_VALUE,
-        )? {
-            if !owners.contains(owner) && matches(owner, scalar)? {
-                owners.insert(owner)?;
-            }
-        }
-    }
-    Ok(true)
+    pub(super) is_cancelled: &'a dyn Fn() -> bool,
 }
 
 /// Owner ordinals whose value satisfies a range predicate. String and boolean
 /// properties never satisfy `numeric_cmp_any`, so they contribute nothing.
-fn owners_with_range<R: TryRead>(
+fn owners_with_range<R: TryRead + Sync>(
     snap: &R,
     tenant: rushdb_types::ids::TenantId,
     name: &str,
@@ -952,23 +938,7 @@ pub(super) fn owners_with_presence<R: TryRead>(
     let mut set = OwnerSet::new();
     let mut owners = BoundedOwners::new(&mut set, owner_limit);
     for prefix in prefixes {
-        let (start, end) = rushdb_storage::prefix_range(&prefix);
-        let mut failed = None;
-        snap.for_each_key(&start, &end, &mut |key| {
-            let result = rushdb_types::keys::read_ord_tail(key, prefix.len())
-                .ok_or_else(|| rushdb_storage::StorageError::CorruptLog.into())
-                .and_then(|owner| owners.insert(owner));
-            match result {
-                Ok(()) => true,
-                Err(error) => {
-                    failed = Some(error);
-                    false
-                }
-            }
-        })?;
-        if let Some(error) = failed {
-            return Err(error);
-        }
+        each_presence_owner(snap, &prefix, None, None, &mut |owner| owners.insert(owner))?;
     }
     Ok(Some(set))
 }
@@ -976,7 +946,7 @@ pub(super) fn owners_with_presence<R: TryRead>(
 /// Owner ordinals whose value equals any of `values` (exact), under
 /// `labels`. `None` when the shape is not indexable or the population is too
 /// large to inspect (scan instead).
-fn owners_for_values<R: TryRead>(
+fn owners_for_values<R: TryRead + Sync>(
     snap: &R,
     tenant: rushdb_types::ids::TenantId,
     name: &str,

@@ -227,8 +227,7 @@ fn grouped_averages_over_many_records_fit_query_memory_max() {
     // candidate vector's *capacity* was charged twice over (16 B then 8 B
     // per slot) and tripled again for an `$avg`, so 30,000 matches needed
     // over 768 KiB and every row was rebuilt in full (the `note` column
-    // included). 30,000 ordinals are 240,000 bytes retained, and the walk
-    // charged twice that.
+    // included).
     let store = store_with_cap(600_000);
     let lmpg = Lmpg::new(store.clone(), TenantId::single());
     seed_trips(&lmpg, 30_000);
@@ -258,17 +257,26 @@ fn grouped_averages_over_many_records_fit_query_memory_max() {
         / 10_000.0;
     assert_eq!(a.sums["dist"], json!(expected_distance));
 
-    // The cap still binds the retained ordinals: 30,000 do not fit 200 KiB.
-    let store = store_with_cap(200_000);
-    let lmpg = Lmpg::new(store.clone(), TenantId::single());
-    seed_trips(&lmpg, 30_000);
-    let view = Arc::new(store.read_view().unwrap());
-    let error =
-        rushdb_query::aggregate_with_cancel_in_view(&lmpg, &request, &|| false, view).unwrap_err();
-    assert!(
-        matches!(&error, QueryError::ResourceLimit(message) if message.contains("query-memory-max")),
-        "{error:?}"
-    );
+    // A walk of the label holds no list of every member: each part reads
+    // its own range of ordinals, so 30,000 records aggregate within 200 KB.
+    // The cap still binds what a part holds: one part's members (8,192
+    // ordinals, 64 KiB) do not fit 40 KB.
+    for (cap, fits) in [(200_000, true), (40_000, false)] {
+        let store = store_with_cap(cap);
+        let lmpg = Lmpg::new(store.clone(), TenantId::single());
+        seed_trips(&lmpg, 30_000);
+        let view = Arc::new(store.read_view().unwrap());
+        let outcome = rushdb_query::aggregate_with_cancel_in_view(&lmpg, &request, &|| false, view);
+        match outcome {
+            Ok((buckets, total)) => assert!(fits && total == 30_000 && buckets.len() == 2),
+            Err(error) => assert!(
+                !fits
+                    && matches!(&error, QueryError::ResourceLimit(message)
+                        if message.contains("query-memory-max")),
+                "{error:?}"
+            ),
+        }
+    }
 }
 
 #[test]
@@ -432,4 +440,191 @@ fn the_response_budget_caps_the_page_not_the_working_set() {
         read(1024, 1024 * 1024, 1_000),
         Err(QueryError::ResourceLimit(_))
     ));
+}
+
+/// Seeds `count` `Doc` records (`doc_id`, `tenant`, a short `body`) in one
+/// commit.
+fn seed_docs(lmpg: &Lmpg, count: u32) {
+    let rows: Vec<serde_json::Value> = (0..count)
+        .map(|i| json!({ "doc_id": i, "tenant": i % 500, "body": format!("doc {i}") }))
+        .collect();
+    let options = rushdb_lmpg::import::ImportOptions::default();
+    let plan = rushdb_lmpg::import::serialize_bfs(&json!(rows), "Doc", &options);
+    rushdb_lmpg::import::import_bfs(lmpg, &plan, &options).unwrap();
+}
+
+/// What a transport does with a query document: an aggregate renders its
+/// buckets, anything else is a records page; both under a `response`-byte
+/// budget (the body limit), on a store whose `query-memory-max` is `cap`.
+fn run_document(
+    cap: u64,
+    docs: u32,
+    document: &serde_json::Value,
+    response: usize,
+) -> Result<(u64, Vec<serde_json::Value>), QueryError> {
+    let store = store_with_cap(cap);
+    let lmpg = Lmpg::new(store.clone(), TenantId::single());
+    seed_docs(&lmpg, docs);
+    run_in(&lmpg, &store, document, Some(response))
+}
+
+fn run_in(
+    lmpg: &Lmpg,
+    store: &Store,
+    document: &serde_json::Value,
+    response: Option<usize>,
+) -> Result<(u64, Vec<serde_json::Value>), QueryError> {
+    let parsed = parse_document(document).unwrap();
+    let view = Arc::new(store.read_view().unwrap());
+    if let Some(aggregate) = parsed.aggregate {
+        let (buckets, total) = rushdb_query::aggregate_with_cancel_in_view(
+            lmpg,
+            &aggregate,
+            &|| false,
+            Arc::clone(&view),
+        )?;
+        let rows = rushdb_query::aggregate_to_rows_in_view_with_budget(
+            lmpg, &view, &buckets, &aggregate, response,
+        )?;
+        return Ok((total, rows));
+    }
+    let page = rushdb_query::find_records_in_view_with_budget(
+        lmpg,
+        &parsed.search,
+        &|| false,
+        view,
+        response,
+    )?;
+    Ok((page.total_matched, page.records))
+}
+
+const DEFAULT_QUERY_MEMORY_MAX: u64 = 256 * 1024 * 1024;
+
+fn resource_message(result: Result<(u64, Vec<serde_json::Value>), QueryError>) -> String {
+    match result {
+        Err(QueryError::ResourceLimit(message)) => message,
+        other => panic!("expected a resource limit, got {other:?}"),
+    }
+}
+
+#[test]
+fn a_projection_returns_every_row_its_real_bytes_allow() {
+    // BENCH-9: a select of plain fields went to the aggregate executor,
+    // which materialized every match and refused its rows on an estimate
+    // of ~770 bytes per row, ~40 times their JSON. 20,000 `{"doc_id": n}`
+    // rows are ~330 KB; they fit a 2 MiB response budget that the estimate
+    // (15 MB) did not.
+    let tenants: Vec<u32> = (0..500).collect();
+    let document = json!({
+        "labels": ["Doc"],
+        "where": { "tenant": { "$in": tenants } },
+        "select": { "doc_id": "$record.doc_id" },
+        "limit": 100_000
+    });
+    let parsed = parse_document(&document).unwrap();
+    assert!(parsed.aggregate.is_none(), "a projection is a listing");
+    assert_eq!(
+        parsed.search.projection,
+        vec![("doc_id".to_owned(), "doc_id".to_owned())]
+    );
+    let (total, rows) =
+        run_document(DEFAULT_QUERY_MEMORY_MAX, 20_000, &document, 2 * 1024 * 1024).unwrap();
+    assert_eq!(total, 20_000);
+    assert_eq!(rows.len(), 20_000);
+    assert_eq!(rows[7], json!({ "doc_id": 7 }));
+    let real: usize = rows.iter().map(|row| row.to_string().len()).sum();
+    assert!(real < 512 * 1024, "{real} bytes of rows");
+}
+
+#[test]
+fn an_aggregate_renders_rows_charged_by_their_real_bytes() {
+    // A per-root aggregate (a metric beside a field, no `groupBy`) is one
+    // row per record: its render is charged by each row's real JSON, not by
+    // an estimate of every bucket up front.
+    let document = json!({
+        "labels": ["Doc"],
+        "select": { "doc_id": "$record.doc_id", "n": { "$count": "*" } },
+        "limit": 100_000
+    });
+    assert!(parse_document(&document).unwrap().aggregate.is_some());
+    let (total, rows) =
+        run_document(DEFAULT_QUERY_MEMORY_MAX, 20_000, &document, 2 * 1024 * 1024).unwrap();
+    assert_eq!(total, 20_000);
+    assert_eq!(rows.len(), 20_000);
+    assert_eq!(rows[3], json!({ "doc_id": 3, "n": 1 }));
+}
+
+#[test]
+fn a_budget_error_names_the_limit_that_tripped() {
+    let projection = json!({
+        "labels": ["Doc"],
+        "select": { "doc_id": "$record.doc_id" },
+        "limit": 100_000
+    });
+    let aggregate = json!({
+        "labels": ["Doc"],
+        "select": { "doc_id": "$record.doc_id", "n": { "$count": "*" } },
+        "limit": 100_000
+    });
+    for document in [&projection, &aggregate] {
+        // The rows (~40 KB) do not fit a 16 KiB response.
+        let response = resource_message(run_document(
+            DEFAULT_QUERY_MEMORY_MAX,
+            2_000,
+            document,
+            16 * 1024,
+        ));
+        assert!(
+            response.contains("response size limit (16384 bytes)")
+                && response.contains("--body-limit")
+                && !response.contains("query-memory-max"),
+            "{response}"
+        );
+        // 2,000 match ordinals do not fit a 4 KiB working set.
+        let working = resource_message(run_document(4096, 2_000, document, 1024 * 1024));
+        assert!(
+            working.contains("query-memory-max (4096 bytes)")
+                && working.contains("--query-memory-max")
+                && !working.contains("body-limit"),
+            "{working}"
+        );
+    }
+}
+
+#[test]
+fn a_projection_page_stops_reading_after_its_rows() {
+    // Without an order, a projection reads its page and stops: the total
+    // comes from the label counter, so 20 times the matches costs about the
+    // same reads. The aggregate executor read every match.
+    let reads = |docs: u32| -> u64 {
+        let document = json!({
+            "labels": ["Doc"],
+            "select": { "doc_id": "$record.doc_id" },
+            "limit": 10
+        });
+        // Reads are counted by the durable backend.
+        let path = rushdb_storage::TempPath::store("projection-reads");
+        let store = Arc::new(Store::open(&path).unwrap());
+        let lmpg = Lmpg::new(store.clone(), TenantId::single());
+        seed_docs(&lmpg, docs);
+        // Accounting is switched on and left on: other tests in this binary
+        // may flip the global flag, and this thread's own tally is checked.
+        rushdb_storage::read_accounting::enable(true);
+        let _ = rushdb_storage::read_accounting::take_local();
+        let (total, rows) = run_in(&lmpg, &store, &document, None).unwrap();
+        let reads = rushdb_storage::read_accounting::take_local().values().sum();
+        assert_eq!(total, u64::from(docs));
+        assert_eq!(rows.len(), 10);
+        assert_eq!(rows[0], json!({ "doc_id": 0 }));
+        drop((lmpg, store));
+        rushdb_storage::remove_store(&path).unwrap();
+        reads
+    };
+    let small = reads(1_000);
+    let large = reads(20_000);
+    assert!(small > 0);
+    assert!(
+        large < small.saturating_mul(2),
+        "1K matches: {small} reads; 20K matches: {large} reads"
+    );
 }

@@ -112,6 +112,10 @@ pub struct Planner<'a> {
     /// Owners whose ordinal this planner allocated: they hold no committed
     /// occurrences, so writes to them skip the read-before-delete probes.
     new_owners: std::collections::HashSet<(OwnerKind, u64)>,
+    /// `(kind, owner, family)` whose values this batch has staged, so a
+    /// later write of the same property in the batch replaces them instead
+    /// of leaving a second definition's value beside its own.
+    staged_families: std::collections::HashSet<(OwnerKind, u64, u64)>,
     /// Occurrence slots `(kind, owner, pid, elem)` already staged for
     /// deletion in this batch.
     pub deleted_occurrences: BTreeSet<(OwnerKind, u64, u64, u64)>,
@@ -130,6 +134,7 @@ impl<'a> Planner<'a> {
             pending_defs: HashMap::new(),
             absent_defs: std::collections::HashSet::new(),
             new_owners: std::collections::HashSet::new(),
+            staged_families: std::collections::HashSet::new(),
             deleted_occurrences: BTreeSet::new(),
         }
     }
@@ -507,6 +512,9 @@ impl<'a> Planner<'a> {
 
     /// Delete every live occurrence this owner holds for the family's
     /// definitions, returning tombstone rows for embedding invalidation.
+    /// Values this batch already staged for the family are dropped too, so
+    /// an owner holds one definition's value per family however often the
+    /// batch writes it (`{"x": 1, "X": 2.5}` keeps only `2.5`).
     ///
     /// # Errors
     /// Returns [`PlanError::Storage`] if a definition or occurrence row cannot
@@ -517,6 +525,17 @@ impl<'a> Planner<'a> {
         owner_ord: u64,
         family: &PropertyFamily,
     ) -> Result<(), PlanError> {
+        if self
+            .staged_families
+            .remove(&(kind, owner_ord, family.family_id))
+        {
+            self.mutations.retain(|mutation| {
+                !matches!(mutation, Mutation::PutOccurrence { row, .. }
+                    if row.owner_kind == kind
+                        && row.owner_ord == owner_ord
+                        && row.family_id == family.family_id)
+            });
+        }
         if self.new_owners.contains(&(kind, owner_ord)) {
             // Created by this batch: nothing committed to delete.
             return Ok(());
@@ -639,6 +658,8 @@ impl<'a> Planner<'a> {
         field_display: &str,
         payload: &ValuePayload,
     ) -> Result<(), PlanError> {
+        self.staged_families
+            .insert((kind, owner_ord, family.family_id));
         let elements: Vec<Json> = match payload {
             ValuePayload::Null => vec![Json::Null],
             ValuePayload::Single(v) => vec![v.clone()],

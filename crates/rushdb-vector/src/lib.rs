@@ -7,15 +7,19 @@
 //! so vector state rebuilds identically after a restart.
 
 pub mod ann;
+mod exact;
+pub mod kernel;
 pub mod search;
 pub mod structural;
 
 pub(crate) mod segment;
 
+pub use search::Candidates;
+
 #[cfg(test)]
 mod pinned_tests;
 
-use std::collections::{BinaryHeap, HashMap};
+use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
 use rushdb_lmpg::expand::meta_counter_key;
@@ -30,9 +34,9 @@ use rushdb_types::command::{CommitBatch, IsolationMode, Mutation};
 use rushdb_types::ids::{OwnerKind, TenantId};
 use rushdb_types::keys::{
     emb_alias_key, emb_binding_key, emb_bindings_prefix, emb_reclaim_prefix, emb_space_key,
-    emb_vector_key, parse_emb_reclaim_value,
+    parse_emb_reclaim_value,
 };
-use rushdb_types::occurrence::{BindingStatus, EmbeddingBinding, EmbeddingSpaceInfo};
+use rushdb_types::occurrence::{BindingStatus, BindingValue, EmbeddingBinding, EmbeddingSpaceInfo};
 
 /// Immutable vector-space contract bound through stable aliases
 /// (document 09). The metric is cosine through normalized vectors.
@@ -50,31 +54,12 @@ pub struct EmbeddingSpace {
 
 /// Score a query against a stored vector under the space's similarity metric
 /// (Neo4j semantics): cosine = dot/|a||b|, dot = raw dot product, euclidean =
-/// `1 / (1 + L2 distance)`. Higher is more similar for all three.
+/// `1 / (1 + L2 distance)`. Higher is more similar for all three. Scoring
+/// many vectors against one query should prepare it once
+/// ([`kernel::PreparedQuery`]); this is that, for one vector.
 #[must_use]
-#[expect(
-    clippy::cast_possible_truncation,
-    reason = "scores accumulate in f64 for numerical stability, then narrow to the f32 public API"
-)]
 pub fn score(query: &[f32], vec: &[f32], similarity: rushdb_types::occurrence::Similarity) -> f32 {
-    match similarity {
-        rushdb_types::occurrence::Similarity::Cosine => cosine(query, vec),
-        rushdb_types::occurrence::Similarity::Dot => {
-            let mut dot = 0f64;
-            for i in 0..query.len() {
-                dot += f64::from(query[i]) * f64::from(vec[i]);
-            }
-            dot as f32
-        }
-        rushdb_types::occurrence::Similarity::Euclidean => {
-            let mut dist = 0f64;
-            for i in 0..query.len() {
-                let d = f64::from(query[i] - vec[i]);
-                dist += d * d;
-            }
-            (1.0 / (1.0 + dist.sqrt())) as f32
-        }
-    }
+    kernel::PreparedQuery::new(query, similarity).score(vec)
 }
 
 /// Calibration (2026-10-06): a built `usearch` index carries a
@@ -96,10 +81,6 @@ pub const MAX_VECTOR_SPACES: usize = 256;
 /// Commit-closure reason for [`VectorError::SpaceLimit`]; the closure can
 /// only return text, so the caller maps this exact reason back to the type.
 const SPACE_LIMIT_REASON: &str = "vector space limit reached";
-
-/// Rows and bytes per batch when exact search streams an index's bindings.
-const EXACT_SCAN_BATCH_ROWS: usize = 1024;
-const EXACT_SCAN_BATCH_BYTES: usize = 4 * 1024 * 1024;
 
 /// Total order over sources, the deterministic tie-break for equal scores.
 fn source_order(source: SourceRef) -> (u8, u64, u64, u64) {
@@ -206,23 +187,6 @@ pub struct ScoredSource {
     pub value_hash: u64,
 }
 
-impl PartialEq for ScoredSource {
-    fn eq(&self, other: &Self) -> bool {
-        self.score.total_cmp(&other.score) == std::cmp::Ordering::Equal
-    }
-}
-impl Eq for ScoredSource {}
-impl PartialOrd for ScoredSource {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        Some(self.cmp(other))
-    }
-}
-impl Ord for ScoredSource {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.score.total_cmp(&other.score)
-    }
-}
-
 impl From<String> for VectorError {
     fn from(v: String) -> Self {
         VectorError::Conflict(v)
@@ -271,7 +235,7 @@ fn sweep_orphan_segments(dir: &std::path::Path) {
     }
 }
 
-fn decode_vector(raw: Option<Vec<u8>>, dims: u32) -> Result<Vec<f32>, VectorError> {
+fn decode_vector(raw: Option<&[u8]>, dims: u32) -> Result<Vec<f32>, VectorError> {
     let b = raw.ok_or(StorageError::CorruptLog)?;
     if b.len() % 4 != 0 || b.len() / 4 != dims as usize {
         return Err(StorageError::CorruptLog.into());
@@ -286,24 +250,6 @@ fn decode_vector(raw: Option<Vec<u8>>, dims: u32) -> Result<Vec<f32>, VectorErro
         return Err(StorageError::CorruptLog.into());
     }
     Ok(values)
-}
-
-#[expect(
-    clippy::cast_possible_truncation,
-    reason = "cosine accumulates in f64 for numerical stability, then narrows to the f32 API type"
-)]
-fn cosine(a: &[f32], b: &[f32]) -> f32 {
-    let (mut dot, mut na, mut nb) = (0f64, 0f64, 0f64);
-    for i in 0..a.len() {
-        dot += f64::from(a[i]) * f64::from(b[i]);
-        na += f64::from(a[i]).powi(2);
-        nb += f64::from(b[i]).powi(2);
-    }
-    if na == 0.0 || nb == 0.0 {
-        0.0
-    } else {
-        (dot / (na.sqrt() * nb.sqrt())) as f32
-    }
 }
 
 /// The hash of `source`'s current value: what a guarded bind
@@ -768,8 +714,7 @@ impl VectorEngine {
                     source.elem,
                 );
                 if let Some(raw) = txn.get(&binding_key).map_err(|e| e.to_string())? {
-                    let existing: EmbeddingBinding =
-                        serde_json::from_slice(&raw).map_err(|_| "corrupt embedding binding")?;
+                    let existing = BindingValue::decode(&raw).ok_or("corrupt embedding binding")?;
                     if existing.source_hash == request.hash
                         && existing.source_hash_tracked == request.source_hash_tracked
                         && existing.status == BindingStatus::Ready
@@ -915,15 +860,16 @@ impl VectorEngine {
     ) -> Result<Option<EmbeddingBinding>, VectorError> {
         self.validate_view(snap)?;
         let t = self.lmpg.tenant;
-        let raw = snap.get(&emb_binding_key(
+        let key = emb_binding_key(
             t,
             space,
             source.kind,
             source.owner_ord,
             source.pid,
             source.elem,
-        ))?;
-        raw.map(|raw| serde_json::from_slice(&raw).map_err(|_| StorageError::CorruptLog.into()))
+        );
+        snap.get(&key)?
+            .map(|raw| EmbeddingBinding::decode(&key, &raw).ok_or(StorageError::CorruptLog.into()))
             .transpose()
     }
 
@@ -1013,7 +959,10 @@ impl VectorEngine {
                 .range_prefix(&emb_bindings_prefix(t, space.space_id))
                 .map_err(|e| e.to_string())?
                 .into_iter()
-                .map(|(_, raw)| serde_json::from_slice(&raw).map_err(|e| e.to_string()))
+                .map(|(key, raw)| {
+                    EmbeddingBinding::decode(&key, &raw)
+                        .ok_or_else(|| "corrupt embedding binding".to_string())
+                })
                 .collect::<Result<_, _>>()?;
             let mut stale = 0usize;
             let mut retired = 0usize;
@@ -1211,8 +1160,8 @@ impl VectorEngine {
         }
     }
 
-    /// Exhaustively score every `Ready` binding of `alias` against `query` and
-    /// return the top `k`, optionally filtered by `candidate`.
+    /// Exhaustively score every `Ready` binding of `alias` among
+    /// `candidates` against `query` and return the top `k`.
     ///
     /// # Errors
     ///
@@ -1225,13 +1174,13 @@ impl VectorEngine {
         alias: &str,
         query: &[f32],
         k: usize,
-        candidate: Option<&dyn Fn(SourceRef) -> bool>,
+        candidates: Candidates<'_>,
     ) -> Result<Vec<ScoredSource>, VectorError> {
         let snap = self.snapshot()?;
         let space = self
             .lookup_space_in_view(&snap, alias)?
             .ok_or_else(|| VectorError::Conflict("unknown alias".into()))?;
-        self.search_exact_in_view(&snap, &space, query, k, candidate)
+        self.search_exact_in_view(&snap, &space, query, k, candidates)
     }
 
     /// Reject a caller-owned view that belongs to a different store.
@@ -1244,8 +1193,8 @@ impl VectorEngine {
         Ok(())
     }
 
-    /// Exact top-`k` search within a caller-owned view, with optional
-    /// filtering. The view must belong to this engine's store.
+    /// Exact top-`k` search among `candidates` within a caller-owned view.
+    /// The view must belong to this engine's store.
     ///
     /// # Errors
     ///
@@ -1259,123 +1208,9 @@ impl VectorEngine {
         space: &EmbeddingSpace,
         query: &[f32],
         k: usize,
-        candidate: Option<&dyn Fn(SourceRef) -> bool>,
+        candidates: Candidates<'_>,
     ) -> Result<Vec<ScoredSource>, VectorError> {
-        self.exact_in_view(snap, space, query, k, candidate, None)
-    }
-
-    /// [`Self::search_exact_in_view`] keeping only hits scoring at least
-    /// `min_score`; a lower hit never enters the top-`k` heap.
-    pub(crate) fn exact_in_view(
-        &self,
-        snap: &ReadView,
-        space: &EmbeddingSpace,
-        query: &[f32],
-        k: usize,
-        candidate: Option<&dyn Fn(SourceRef) -> bool>,
-        min_score: Option<f32>,
-    ) -> Result<Vec<ScoredSource>, VectorError> {
-        self.validate_view(snap)?;
-        let t = self.lmpg.tenant;
-        if query.len() != space.dims as usize {
-            return Err(VectorError::DimMismatch(space.dims, query.len()));
-        }
-        if query.iter().any(|v| !v.is_finite()) {
-            return Err(VectorError::InvalidVector(
-                "query components must be finite".into(),
-            ));
-        }
-        if k == 0 {
-            return Ok(Vec::new());
-        }
-
-        // P14 bounded top-K heap: retain only the `k` best scores in a min-heap by
-        // score (the heap's top is the current k-th best). Peak memory is
-        // O(k), not O(bindings), so exact search on a large index is bounded.
-        let mut heap: BinaryHeap<std::cmp::Reverse<ScoredSource>> = BinaryHeap::new();
-        // Stream the bindings in bounded batches: materializing every binding
-        // row first made exact search O(bindings) in memory, not O(k)
-        // (C9, cloud-capacity F10).
-        let mut cursor = snap.scan(
-            rushdb_storage::ScanBounds::prefix(&emb_bindings_prefix(t, space.space_id)),
-            rushdb_storage::ScanProjection::KeyValue,
-        )?;
-        loop {
-            let batch = cursor.next_batch(EXACT_SCAN_BATCH_ROWS, EXACT_SCAN_BATCH_BYTES)?;
-            for row in batch.rows {
-                let raw = row.value.unwrap_or_default();
-                self.score_exact_binding(
-                    snap, space, query, k, candidate, min_score, &raw, &mut heap,
-                )?;
-            }
-            if batch.done {
-                break;
-            }
-        }
-        let mut scored: Vec<ScoredSource> = heap.into_iter().map(|r| r.0).collect();
-        // Deterministic: score descending, then canonical source.
-        scored.sort_by(|a, b| {
-            b.score
-                .partial_cmp(&a.score)
-                .unwrap_or(std::cmp::Ordering::Equal)
-                .then_with(|| source_order(a.source).cmp(&source_order(b.source)))
-        });
-        Ok(scored)
-    }
-
-    /// Score one binding row into the bounded top-`k` heap (exact search).
-    #[expect(
-        clippy::too_many_arguments,
-        reason = "one streamed row folded into the caller's heap; bundling the arguments would only move them into a single-use struct"
-    )]
-    fn score_exact_binding(
-        &self,
-        snap: &ReadView,
-        space: &EmbeddingSpace,
-        query: &[f32],
-        k: usize,
-        candidate: Option<&dyn Fn(SourceRef) -> bool>,
-        min_score: Option<f32>,
-        raw: &[u8],
-        heap: &mut BinaryHeap<std::cmp::Reverse<ScoredSource>>,
-    ) -> Result<(), VectorError> {
-        let t = self.lmpg.tenant;
-        {
-            let b: EmbeddingBinding =
-                serde_json::from_slice(raw).map_err(|_| StorageError::CorruptLog)?;
-            if b.space_id != space.space_id {
-                return Err(StorageError::CorruptLog.into());
-            }
-            if b.status != BindingStatus::Ready {
-                return Ok(());
-            }
-            let src = SourceRef {
-                kind: b.owner_kind,
-                owner_ord: b.owner_ord,
-                pid: b.pid,
-                elem: b.elem,
-            };
-            if candidate.is_some_and(|f| !f(src)) {
-                return Ok(());
-            }
-            let vec = decode_vector(
-                snap.get(&emb_vector_key(t, space.space_id, b.vector_slot))?,
-                space.dims,
-            )?;
-            let score = score(query, &vec, space.similarity);
-            if min_score.is_some_and(|min| score < min) {
-                return Ok(());
-            }
-            heap.push(std::cmp::Reverse(ScoredSource {
-                source: src,
-                score,
-                value_hash: b.source_hash,
-            }));
-            if heap.len() > k {
-                heap.pop();
-            }
-        }
-        Ok(())
+        self.exact_in_view(snap, space, query, k, candidates, None)
     }
 
     /// Ranked sources projected through owner JSON reconstruction across
@@ -1453,8 +1288,8 @@ pub(crate) fn for_each_binding<R: rushdb_lmpg::reader::TryRead + ?Sized>(
 ) -> Result<(), VectorError> {
     let (start, end) = rushdb_storage::prefix_range(&emb_bindings_prefix(t, space));
     let mut corrupt = false;
-    r.for_each_row(&start, &end, &mut |_, raw| {
-        if let Ok(binding) = serde_json::from_slice(raw) {
+    r.for_each_row(&start, &end, &mut |key, raw| {
+        if let Some(binding) = EmbeddingBinding::decode(key, raw) {
             visit(binding)
         } else {
             corrupt = true;

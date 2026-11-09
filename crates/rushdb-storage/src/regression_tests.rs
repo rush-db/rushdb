@@ -111,16 +111,92 @@ fn admission_lock_acquisition_timeout_is_retryable() {
     );
     drop(held);
     assert!(store.acquire_admission().is_ok());
-    let stats = store.storage_stats().unwrap();
-    assert!(stats.admission_waits >= 1);
+    assert!(store.write_counters().admission_waits >= 1);
+}
+
+fn empty_batch(commit_key: Uuid) -> CommitBatch {
+    CommitBatch {
+        command_version: rushdb_types::command::COMMAND_VERSION,
+        tenant: TenantId::from_ordinal(1),
+        transaction_id: "regression-test".into(),
+        commit_key,
+        start_index: 0,
+        isolation: rushdb_types::command::IsolationMode::ReadCommitted,
+        preconditions: vec![],
+        mutations: vec![],
+    }
 }
 
 #[test]
-fn checkpoint_work_is_accounted() {
+fn idle_checkpoints_write_nothing_and_a_commit_checkpoints_again() {
+    let path = crate::TempPath::store("idle-checkpoint");
+    let store = Store::open(&path).unwrap();
+    store.set_expander(Arc::new(Box::new(|ci, _, txn| {
+        txn.put(format!("k/{ci}").into_bytes(), b"v".to_vec());
+        Ok(())
+    })));
+    let commit = || {
+        let key = Uuid::new_v4();
+        store
+            .commit(key, |_, _| Ok((empty_batch(key), ())))
+            .unwrap();
+    };
+    let checkpoints = || store.write_counters().checkpoints;
+    let file_len = || std::fs::metadata(path.path()).unwrap().len();
+
+    commit();
+    assert!(store.checkpoint().unwrap(), "a commit is made durable");
+    assert_eq!(checkpoints(), 1);
+    // Idle ticks: nothing new to make durable, so nothing is written.
+    let len = file_len();
+    let holds = |store: &Store| {
+        store
+            .writer_holds()
+            .into_iter()
+            .find(|(holder, _)| *holder == crate::WriterHolder::Checkpoint)
+            .map(|(_, holds)| holds.counts.iter().sum::<u64>())
+    };
+    let before = holds(&store);
+    for _ in 0..3 {
+        assert!(
+            !store.checkpoint().unwrap(),
+            "an idle checkpoint is skipped"
+        );
+    }
+    assert_eq!(checkpoints(), 1);
+    assert_eq!(holds(&store), before, "no checkpoint write transaction ran");
+    assert_eq!(file_len(), len);
+
+    commit();
+    assert!(store.checkpoint().unwrap(), "new writes checkpoint again");
+    assert_eq!(checkpoints(), 2);
+    assert!(store.write_counters().checkpoint_wait_ms <= 60_000);
+}
+
+#[test]
+fn an_in_memory_checkpoint_writes_nothing() {
     let store = Store::new_in_memory();
-    store.checkpoint().unwrap();
-    let stats = store.storage_stats().unwrap();
-    assert_eq!(stats.checkpoints, 1);
+    assert!(!store.checkpoint().unwrap());
+    assert_eq!(store.write_counters().checkpoints, 0);
+}
+
+#[test]
+fn a_commit_moves_the_write_byte_counters() {
+    let path = crate::TempPath::store("write-counters");
+    let store = Store::open(&path).unwrap();
+    store.set_expander(Arc::new(Box::new(|_, _, txn| {
+        txn.put(b"k".to_vec(), vec![7; 100]);
+        Ok(())
+    })));
+    let before = store.write_counters();
+    assert_eq!((before.wal_bytes_appended, before.applied_bytes), (0, 0));
+    let key = Uuid::new_v4();
+    store
+        .commit(key, |_, _| Ok((empty_batch(key), ())))
+        .unwrap();
+    let after = store.write_counters();
+    assert!(after.wal_bytes_appended > 100, "{after:?}");
+    assert!(after.applied_bytes > 100, "{after:?}");
 }
 
 #[test]

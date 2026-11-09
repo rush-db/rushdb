@@ -36,7 +36,7 @@ pub(crate) mod working_set;
 
 use scope::RequestScope;
 
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -642,6 +642,14 @@ impl Node {
             maintenance_work: crate::lifecycle::MaintenanceWork::default(),
             index_build_wake: std::sync::Arc::default(),
         };
+        // Rewrite rows earlier releases stored in an older form before any
+        // reader sees them. A follower receives the leader's rewrites.
+        if cfg.resources.replica_of.is_none() {
+            let phase_started = std::time::Instant::now();
+            crate::boot::set_phase("migrating");
+            crate::migrations::run(&node.store)?;
+            boot_phases.push(("migrations", phase_started.elapsed()));
+        }
         node.restore_retention_consumers()?;
         // Every durable commit feeds the latency histogram (C0: it was never
         // observed, so `rushdb_commit_latency_seconds` stayed empty).
@@ -1041,13 +1049,21 @@ impl RequestScope<'_> {
                 ),
             _ => None,
         };
+        let relation_expansion = match parsed_where.as_ref() {
+            Some(expr) => rushdb_query::explain_expansion(snap, tenant, &query.labels, expr)
+                .map_err(|e| e.to_string())?
+                .map(|target_estimate| rushdb_protocol::RelationExpansion { target_estimate }),
+            None => None,
+        };
         Ok(rushdb_protocol::ExplainPlan {
-            access_path: match (&index, &unindexed_walk) {
-                (Some(name), _) => format!("index:{name}"),
-                (None, Some(walk)) => format!("property_walk:{}", walk.property),
-                (None, None) if query.labels.is_empty() => "full_scan".to_string(),
-                (None, None) => "label_scan".to_string(),
+            access_path: match (&index, &unindexed_walk, &relation_expansion) {
+                (Some(name), _, _) => format!("index:{name}"),
+                (None, Some(walk), _) => format!("property_walk:{}", walk.property),
+                (None, None, Some(_)) => "relation_expand".to_string(),
+                (None, None, None) if query.labels.is_empty() => "full_scan".to_string(),
+                (None, None, None) => "label_scan".to_string(),
             },
+            relation_expansion,
             unindexed_walk,
             labels: query.labels.clone(),
             predicate: query.predicate.clone(),
@@ -1060,56 +1076,19 @@ impl RequestScope<'_> {
     }
     /// Vector query plan introspection for `Describe::ExplainVector`: the
     /// access path (`vector_index`), the resolved alias, the predicate-resolved
-    /// candidate count (filter-before-top-k), and the top-k. Does not execute.
+    /// candidate count (filter-before-top-k), the top-k, and the path the
+    /// search would take. Does not execute.
     ///
     /// # Errors
     ///
-    /// Returns a message when the read view cannot be created or the filter
-    /// document cannot be parsed/evaluated.
+    /// Returns a message when the read view cannot be created, the filter
+    /// document cannot be parsed/evaluated, or the index is missing.
     pub fn explain_vector(
         &self,
         query: &rushdb_protocol::VectorQuery,
     ) -> Result<rushdb_protocol::ExplainVectorPlan, String> {
         let snap = Arc::new(self.store.read_view().map_err(|e| e.to_string())?);
-        self.explain_vector_in_view(query, snap)
-    }
-
-    /// Explain vector access using a caller-owned pinned snapshot.
-    #[expect(
-        clippy::cast_possible_truncation,
-        reason = "these casts narrow engine counters and sizes that are bounded by the process address space or clamped before conversion, so truncation cannot occur on supported 64-bit targets"
-    )]
-    pub(crate) fn explain_vector_in_view(
-        &self,
-        query: &rushdb_protocol::VectorQuery,
-        snap: Arc<rushdb_storage::ReadView>,
-    ) -> Result<rushdb_protocol::ExplainVectorPlan, String> {
-        let labels = query.labels.clone();
-        let label = labels.first().cloned().unwrap_or_default();
-        let dims = query.vector.len();
-        let alias = rushdb_lmpg::import::external_space_alias(
-            &label,
-            &query.property,
-            &query.similarity,
-            dims,
-        );
-        let mut filter_document = serde_json::json!({ "labels": labels });
-        if !query.predicate.is_null() {
-            filter_document["where"] = query.predicate.clone();
-        }
-        let parsed =
-            rushdb_query::document::parse_document(&filter_document).map_err(|e| e.to_string())?;
-        let page =
-            rushdb_query::find_records_in_view(&self.lmpg(), &parsed.search, &|| false, snap)
-                .map_err(|e| e.to_string())?;
-        Ok(rushdb_protocol::ExplainVectorPlan {
-            access_path: "vector_index".to_string(),
-            alias,
-            label,
-            candidate_count: page.records.len().min(u64::MAX as usize) as u64,
-            k: (query.offset as usize).saturating_add(query.limit as usize),
-            predicate: query.predicate.clone(),
-        })
+        self.explain_vector_in_view(query, &snap)
     }
 
     /// Build a tenant-scoped engine handle bound to this node's store,
@@ -1501,7 +1480,7 @@ impl RequestScope<'_> {
             .map_err(|e| e.to_string())?
             .ok_or("index space missing")?;
         let hits = vectors
-            .search_exact_in_view(&snap, &space, vector, k, None)
+            .search_exact_in_view(&snap, &space, vector, k, rushdb_vector::Candidates::All)
             .map_err(|e| e.to_string())?;
         let mut out = Vec::new();
         for h in hits {

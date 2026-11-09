@@ -50,19 +50,17 @@ impl RequestScope<'_> {
         documents: &serde_json::Value,
         options: &serde_json::Value,
     ) -> Result<serde_json::Value, String> {
-        self.ingest_documents_with_cancel(label, documents, options, &|| false)
+        self.ingest_documents_with_cancel(label, documents.clone(), options, &|| false)
     }
 
-    /// Context-owned ingest boundary used by network transports. The legacy
-    /// convenience method remains available for embedded callers, while
-    /// transport ingest inherits the request deadline and cancellation state
-    /// across each durable phase.
-    pub(crate) fn ingest_documents_with_execution_context(
+    /// Context-owned ingest boundary used by network transports: the import
+    /// plan inherits the request deadline and cancellation state across each
+    /// durable phase. The plan is consumed (its rows move into the commit).
+    pub(crate) fn ingest_plan_with_execution_context(
         &self,
         context: &mut rushdb_engine::ExecutionContext,
-        label: Option<&str>,
-        documents: &serde_json::Value,
-        options: &serde_json::Value,
+        plan: rushdb_lmpg::import::BfsPlan,
+        options: &rushdb_lmpg::import::ImportOptions,
         is_cancelled: &dyn Fn() -> bool,
     ) -> Result<serde_json::Value, String> {
         context
@@ -72,7 +70,7 @@ impl RequestScope<'_> {
             return Err("operation cancelled".into());
         }
         let deadline = context.deadline();
-        let result = self.ingest_documents_with_cancel(label, documents, options, &|| {
+        let result = self.ingest_plan_with_cancel(plan, options, &|| {
             is_cancelled() || deadline.is_some_and(|at| std::time::Instant::now() >= at)
         })?;
         if is_cancelled() {
@@ -87,27 +85,37 @@ impl RequestScope<'_> {
     pub(crate) fn ingest_documents_with_cancel(
         &self,
         label: Option<&str>,
-        documents: &serde_json::Value,
+        documents: serde_json::Value,
         options: &serde_json::Value,
         is_cancelled: &dyn Fn() -> bool,
     ) -> Result<serde_json::Value, String> {
-        use rushdb_lmpg::import::{serialize_bfs, ImportOptions};
+        use rushdb_lmpg::import::{serialize_bfs_owned, ImportOptions};
         ImportOptions::validate_json(options)?;
         let options = ImportOptions::from_json(options);
-        let plan = serialize_bfs(documents, label.unwrap_or_default(), &options);
-        self.validate_inline_vectors(&plan)?;
-        let idmap = rushdb_lmpg::import::import_bfs_with_cancel(
-            &self.lmpg(),
-            &plan,
-            &options,
-            is_cancelled,
-        )
-        .map_err(|e| e.to_reason())?;
+        let plan = serialize_bfs_owned(documents, label.unwrap_or_default(), &options);
+        self.ingest_plan_with_cancel(plan, &options, is_cancelled)
+    }
+
+    fn ingest_plan_with_cancel(
+        &self,
+        mut plan: rushdb_lmpg::import::BfsPlan,
+        options: &rushdb_lmpg::import::ImportOptions,
+        is_cancelled: &dyn Fn() -> bool,
+    ) -> Result<serde_json::Value, String> {
+        self.validate_inline_vectors(&plan.vector_drafts)?;
+        let count = plan.records.len();
+        let relationships = plan.relations.len();
+        let vector_drafts = std::mem::take(&mut plan.vector_drafts);
+        let idmap =
+            rushdb_lmpg::import::import_bfs_with_cancel(&self.lmpg(), plan, options, is_cancelled)
+                .map_err(|e| e.to_reason())?;
         if is_cancelled() {
             return Err("import cancelled".into());
         }
 
-        if let Err(bind_error) = self.bind_inline_vectors_with_cancel(&plan, &idmap, is_cancelled) {
+        if let Err(bind_error) =
+            self.bind_inline_vectors_with_cancel(&vector_drafts, &idmap, is_cancelled)
+        {
             // The create-only ingest path can compensate its record commit if
             // a later vector commit fails. Merge/update imports may have
             // touched pre-existing records, so they return explicit partial
@@ -131,7 +139,6 @@ impl RequestScope<'_> {
             return Err("import cancelled".into());
         }
 
-        let count = plan.records.len();
         if options.return_result && count <= 1000 {
             let records: Vec<serde_json::Value> = {
                 let snap = self.store.read_view().map_err(|e| e.to_string())?;
@@ -163,19 +170,19 @@ impl RequestScope<'_> {
             };
             Ok(serde_json::json!({
                 "count": count,
-                "relationships": plan.relations.len(),
+                "relationships": relationships,
                 "data": records
             }))
         } else if options.return_result {
             Ok(serde_json::json!({
                 "message": format!("Import complete. {count} records processed."),
                 "count": count,
-                "relationships": plan.relations.len()
+                "relationships": relationships
             }))
         } else {
             Ok(serde_json::json!({
                 "count": count,
-                "relationships": plan.relations.len(),
+                "relationships": relationships,
                 "data": true
             }))
         }
@@ -185,15 +192,15 @@ impl RequestScope<'_> {
     /// draft ids are remapped to persisted ids.
     pub(super) fn bind_inline_vectors(
         &self,
-        plan: &rushdb_lmpg::import::BfsPlan,
+        vector_drafts: &[rushdb_lmpg::import::VectorDraft],
         idmap: &[rushdb_lmpg::import::UpsertIdMap],
     ) -> Result<(), String> {
-        self.bind_inline_vectors_with_cancel(plan, idmap, &|| false)
+        self.bind_inline_vectors_with_cancel(vector_drafts, idmap, &|| false)
     }
 
     pub(super) fn bind_inline_vectors_with_cancel(
         &self,
-        plan: &rushdb_lmpg::import::BfsPlan,
+        vector_drafts: &[rushdb_lmpg::import::VectorDraft],
         idmap: &[rushdb_lmpg::import::UpsertIdMap],
         is_cancelled: &dyn Fn() -> bool,
     ) -> Result<(), String> {
@@ -202,11 +209,13 @@ impl RequestScope<'_> {
         // batch of N vectors cost N fsyncs (C9, cloud-capacity F10).
         let mut groups: std::collections::BTreeMap<(String, String), Vec<InlineVector>> =
             std::collections::BTreeMap::new();
-        for vd in &plan.vector_drafts {
-            let persisted = idmap
-                .iter()
-                .find(|m| m.draft_id == vd.draft_id)
-                .map_or(vd.draft_id, |m| m.persisted_id);
+        let persisted_ids: std::collections::HashMap<[u8; 16], [u8; 16]> =
+            idmap.iter().map(|m| (m.draft_id, m.persisted_id)).collect();
+        for vd in vector_drafts {
+            let persisted = persisted_ids
+                .get(&vd.draft_id)
+                .copied()
+                .unwrap_or(vd.draft_id);
             let hex = crate::node::hex_simple(&persisted);
             for entry in &vd.entries {
                 if is_cancelled() {
@@ -267,9 +276,9 @@ impl RequestScope<'_> {
     /// cannot leave a partially-created record behind.
     pub(super) fn validate_inline_vectors(
         &self,
-        plan: &rushdb_lmpg::import::BfsPlan,
+        vector_drafts: &[rushdb_lmpg::import::VectorDraft],
     ) -> Result<(), String> {
-        for draft in &plan.vector_drafts {
+        for draft in vector_drafts {
             for entry in &draft.entries {
                 self.resolve_inline_vector_alias(&draft.label, entry)?;
             }

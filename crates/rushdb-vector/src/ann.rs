@@ -11,12 +11,6 @@
 //! pinned view. Canonical storage corruption is an error, not an empty
 //! generation.
 
-/// Entries sampled to estimate filter selectivity for the filtered-ANN gather
-/// size (Slice 27 / 11-filter-aware-ann.md). 256 is a stable estimator and is
-/// far cheaper than the gather itself. Sampling is spread across the
-/// generation rather than using a potentially biased prefix.
-const FILTERED_SELECTIVITY_SAMPLE: usize = 256;
-
 /// Entry count at which background maintenance freezes a space's hot
 /// segment (brute-force scanned) into a frozen one, and the base size of the
 /// merge tiers.
@@ -71,7 +65,7 @@ use rushdb_types::occurrence::BindingStatus;
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use crate::search::{FallbackReason, SearchPath};
+use crate::search::{Candidates, FallbackReason, SearchPath};
 use crate::{ScoredSource, SourceRef, VectorEngine, VectorError};
 
 /// A rebuildable ANN projection of one Space's canonical vector segments.
@@ -616,10 +610,9 @@ impl VectorEngine {
             VectorError::AnnBudget(error.to_string())
         };
         let decode = |slot: u64| {
-            crate::decode_vector(
-                snap.get(&emb_vector_key(tenant, space.space_id, slot))?,
-                space.dims,
-            )
+            snap.with_value(&emb_vector_key(tenant, space.space_id, slot), |raw| {
+                crate::decode_vector(raw, space.dims)
+            })?
         };
         #[cfg(feature = "turbovec")]
         if wants_provider(dims) {
@@ -675,23 +668,19 @@ impl VectorEngine {
                 .resize(set.measured_bytes().saturating_add(estimate))
                 .map_err(refuse)?;
             let entries = std::mem::replace(&mut missing, rest);
-            #[expect(
-                clippy::needless_collect,
-                reason = "the build takes `entries` by value while the vectors stream"
-            )]
             let slots: Vec<u64> = entries.iter().map(|entry| entry.slot).collect();
-            let vectors = slots.into_iter().map(decode);
+            let vector_at = |i: usize| decode(slots[i]);
             let frozen = match self.space_segment_path(space.space_id) {
                 Some(path) => crate::segment::FrozenSegment::build(
                     entries,
-                    vectors,
+                    vector_at,
                     space.dims,
                     space.similarity,
                     &path,
                 ),
                 None => crate::segment::FrozenSegment::build_in_memory(
                     entries,
-                    vectors,
+                    vector_at,
                     space.dims,
                     space.similarity,
                 ),
@@ -809,9 +798,7 @@ impl VectorEngine {
             ))
             .ok()
             .flatten()
-            .and_then(|raw| {
-                serde_json::from_slice::<rushdb_types::occurrence::EmbeddingBinding>(&raw).ok()
-            })
+            .and_then(|raw| rushdb_types::occurrence::BindingValue::decode(&raw))
             .is_some_and(|binding| binding.status == BindingStatus::Ready)
         });
         drop(view);
@@ -1108,17 +1095,16 @@ impl VectorEngine {
         let view = self.store.read_view()?;
         let tenant = self.tenant();
         // A reclaimed slot fails the build: the merge waits for a rebuild.
-        #[expect(
-            clippy::needless_collect,
-            reason = "the build takes `entries` by value while the vectors stream"
-        )]
         let slots: Vec<u64> = entries.iter().map(|entry| entry.slot).collect();
-        let vectors = slots.into_iter().map(|slot| {
-            match view.get(&emb_vector_key(tenant, space_id, slot))? {
-                Some(raw) => crate::decode_vector(Some(raw), dims),
-                None => Err(VectorError::Engine("merged vector slot reclaimed".into())),
-            }
-        });
+        let vectors = |i: usize| {
+            view.with_value(
+                &emb_vector_key(tenant, space_id, slots[i]),
+                |raw| match raw {
+                    Some(raw) => crate::decode_vector(Some(raw), dims),
+                    None => Err(VectorError::Engine("merged vector slot reclaimed".into())),
+                },
+            )?
+        };
         let merged = match self.space_segment_path(space_id) {
             Some(path) => {
                 crate::segment::FrozenSegment::build(entries, vectors, dims, similarity, &path)
@@ -1203,8 +1189,9 @@ impl VectorEngine {
         Ok(generation)
     }
 
-    /// Filter-aware approximate search with exact rerank; falls back to
-    /// exhaustive scan whenever the generation cannot answer confidently.
+    /// Filter-aware approximate search among `candidates` with exact
+    /// rerank; falls back to exhaustive scan whenever the generation cannot
+    /// answer confidently.
     ///
     /// # Errors
     ///
@@ -1219,17 +1206,17 @@ impl VectorEngine {
         query: &[f32],
         k: usize,
         ef: usize,
-        candidate: Option<&dyn Fn(SourceRef) -> bool>,
+        candidates: Candidates<'_>,
     ) -> Result<Vec<ScoredSource>, VectorError> {
         let snap = self.snapshot()?;
         let Some(space) = self.lookup_space_in_view(&snap, space_alias)? else {
             return Err(VectorError::Conflict("unknown alias".into()));
         };
-        self.search_ann_in_view(&snap, &space, query, k, ef, candidate)
+        self.search_ann_in_view(&snap, &space, query, k, ef, candidates)
     }
 
-    /// Approximate top-`k` search within a caller-owned view, with optional
-    /// filtering. The view must belong to this engine's store.
+    /// Approximate top-`k` search among `candidates` within a caller-owned
+    /// view. The view must belong to this engine's store.
     ///
     /// # Errors
     ///
@@ -1245,10 +1232,10 @@ impl VectorEngine {
         query: &[f32],
         k: usize,
         ef: usize,
-        candidate: Option<&dyn Fn(SourceRef) -> bool>,
+        candidates: Candidates<'_>,
     ) -> Result<Vec<ScoredSource>, VectorError> {
         Ok(self
-            .ann_in_view(snap, space, query, k, ef, candidate, None)?
+            .ann_in_view(snap, space, query, k, ef, candidates, None)?
             .0)
     }
 
@@ -1263,13 +1250,13 @@ impl VectorEngine {
         query: &[f32],
         k: usize,
         ef: usize,
-        candidate: Option<&dyn Fn(SourceRef) -> bool>,
+        candidates: Candidates<'_>,
         min_score: Option<f32>,
     ) -> Result<(Vec<ScoredSource>, SearchPath), VectorError> {
         let exact =
             |reason: FallbackReason| -> Result<(Vec<ScoredSource>, SearchPath), VectorError> {
                 Ok((
-                    self.exact_in_view(snap, space, query, k, candidate, min_score)?,
+                    self.exact_in_view(snap, space, query, k, candidates, min_score)?,
                     SearchPath::ExactFallback(reason),
                 ))
             };
@@ -1316,57 +1303,53 @@ impl VectorEngine {
         }
         let requested = ef.max(k).min(gen.entries.len());
 
-        // Filtered ANN (benchmark-grounded, Slice 27 / 11-filter-aware-ann.md):
-        // a fixed gather of `requested` wastes its budget on filtered-out
-        // points, so the measured recall drops for selective filters (small ef
-        // returns only the query-local neighborhood) unless the beam is large
-        // enough to also reach the allowed set. For filtered queries we
-        // estimate filter selectivity from a cheap sample of the entries, then
-        // do ONE gather sized so the allowed set is well represented
-        // (gather ~ survivor_target / selectivity), bounded by a cap. A filter
-        // whose allowed set cannot be reached (e.g. spatially-correlated and
-        // selective) simply falls through to the exact scan below, preserving
-        // correctness with bounded wasted gather. Unfiltered queries keep the
-        // exact previous single-gather behavior.
-        let gather_size = filtered_gather_size(&gen.entries, candidate, k, requested);
-
+        // An owner set is filtered during the graph walk (`SegmentSet::search`),
+        // so the gather is `requested` sources that all pass: no gather
+        // inflation and no selectivity guess.
+        let prepared = crate::kernel::PreparedQuery::new(query, space.similarity);
         let rerank =
             |source: SourceRef, slot: u64, value_hash: u64| -> Result<ScoredSource, VectorError> {
-                let raw =
-                    profile.time_get(|| snap.get(&emb_vector_key(tenant, space.space_id, slot)))?;
-                let vec = crate::decode_vector(raw, space.dims)?;
+                // Scored in place from the stored bytes: no per-candidate copy.
+                let key = emb_vector_key(tenant, space.space_id, slot);
+                let score = |raw: Option<&[u8]>| raw.and_then(|raw| prepared.score_stored(raw));
+                let score = profile.time_get(|| snap.with_value(&key, score))?;
+                let score = score.ok_or(StorageError::CorruptLog)?;
                 Ok(ScoredSource {
                     source,
-                    score: crate::score(query, &vec, space.similarity),
+                    score,
                     value_hash,
                 })
             };
 
         let (candidate_count, mut out) = match &cached.backing {
-            AnnBacking::Segments(set) => set.search(
-                query,
-                k,
-                gather_size,
-                space.similarity,
-                candidate,
-                |entry| rerank(entry.source, entry.slot, entry.value_hash),
-            )?,
+            AnnBacking::Segments(set) => {
+                set.search(query, k, requested, space.similarity, candidates, |entry| {
+                    rerank(entry.source, entry.slot, entry.value_hash)
+                })?
+            }
             #[cfg(feature = "turbovec")]
             AnnBacking::Provider(provider) => {
-                let gathered: Vec<AnnEntry> = if let Some(filter) = candidate {
-                    provider
-                        .gather(query, gather_size, gather_size.max(ef))
-                        .into_iter()
-                        .filter_map(|idx| gen.entries.get(idx).cloned())
-                        .filter(|entry| filter(entry.source))
-                        .collect()
-                } else {
-                    provider
-                        .gather(query, requested, ef.max(requested))
-                        .into_iter()
-                        .filter_map(|idx| gen.entries.get(idx).cloned())
-                        .collect()
+                // turbovec has no filtered search, so its gather is
+                // post-filtered. An owner set gives the exact selectivity
+                // (owners over entries), and the gather is widened by its
+                // inverse so about `requested` candidates survive; an
+                // under-filled gather is answered exactly (`lowConfidence`).
+                let gather = match candidates.owner_count() {
+                    Some(owners) => {
+                        let owners = usize::try_from(owners.max(1)).unwrap_or(usize::MAX);
+                        requested
+                            .saturating_mul(gen.entries.len())
+                            .div_ceil(owners)
+                            .clamp(requested, gen.entries.len())
+                    }
+                    None => requested,
                 };
+                let gathered: Vec<AnnEntry> = provider
+                    .gather(query, gather, gather.max(ef))
+                    .into_iter()
+                    .filter_map(|idx| gen.entries.get(idx).cloned())
+                    .filter(|entry| candidates.admits(entry.source))
+                    .collect();
                 let count = gathered.len();
                 let scored: Vec<ScoredSource> = gathered
                     .iter()
@@ -1537,40 +1520,6 @@ fn fork_set(backing: &AnnBacking) -> &crate::segment::SegmentSet {
     set
 }
 
-/// How many candidates to gather. Unfiltered: `requested`. Filtered: enough
-/// that the allowed set is represented ~4x over `k`, from a cheap sample of
-/// the filter's selectivity, bounded by the entry count.
-#[expect(
-    clippy::cast_precision_loss,
-    clippy::cast_possible_truncation,
-    clippy::cast_sign_loss,
-    reason = "selectivity is a bounded ratio over at most the entry count and is clamped back to that count, so f64 rounding cannot change the gather size"
-)]
-fn filtered_gather_size(
-    entries: &[AnnEntry],
-    candidate: Option<&dyn Fn(SourceRef) -> bool>,
-    k: usize,
-    requested: usize,
-) -> usize {
-    let Some(filter) = candidate else {
-        return requested;
-    };
-    // Cheap selectivity estimate: how many sampled entries pass the
-    // predicate? Slot order is arbitrary, so a small fixed sample is a
-    // stable estimator and costs ~nothing vs the gather itself.
-    let sample_len = FILTERED_SELECTIVITY_SAMPLE.min(entries.len());
-    let passed = (0..sample_len)
-        .map(|sample| sample * entries.len() / sample_len)
-        .filter_map(|index| entries.get(index))
-        .filter(|entry| filter(entry.source))
-        .count();
-    let selectivity = (passed as f64 / sample_len.max(1) as f64).max(1e-6);
-    // One gather sized so the allowed set is represented ~4x over k.
-    let target = k.saturating_mul(4);
-    let wanted = (target as f64 / selectivity) as usize;
-    wanted.max(requested).min(entries.len())
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1663,7 +1612,7 @@ mod tests {
         for _ in 0..600 {
             let provider = crate::segment::FrozenSegment::build_in_memory(
                 entries.clone(),
-                vectors.iter().map(Ok),
+                |i: usize| Ok(&vectors[i]),
                 2,
                 rushdb_types::occurrence::Similarity::Cosine,
             )
@@ -1674,7 +1623,16 @@ mod tests {
                     let mut scored: Vec<(f32, usize)> = vectors
                         .iter()
                         .enumerate()
-                        .map(|(i, v)| (crate::cosine(query, v), i))
+                        .map(|(i, v)| {
+                            (
+                                crate::score(
+                                    query,
+                                    v,
+                                    rushdb_types::occurrence::Similarity::Cosine,
+                                ),
+                                i,
+                            )
+                        })
                         .collect();
                     scored
                         .sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal));
@@ -1685,15 +1643,23 @@ mod tests {
                         .collect::<Vec<_>>()
                 };
                 let gathered: Vec<usize> = provider
-                    .gather(query, 24, 24)
+                    .gather(query, 24, 24, None)
                     .into_iter()
                     .take(24)
                     .collect();
                 let mut reranked: Vec<usize> = gathered.clone();
                 reranked.sort_by(|a, b| {
-                    crate::cosine(query, &vectors[*b])
-                        .partial_cmp(&crate::cosine(query, &vectors[*a]))
-                        .unwrap_or(std::cmp::Ordering::Equal)
+                    crate::score(
+                        query,
+                        &vectors[*b],
+                        rushdb_types::occurrence::Similarity::Cosine,
+                    )
+                    .partial_cmp(&crate::score(
+                        query,
+                        &vectors[*a],
+                        rushdb_types::occurrence::Similarity::Cosine,
+                    ))
+                    .unwrap_or(std::cmp::Ordering::Equal)
                 });
                 reranked.truncate(8);
                 let overlap = reranked.iter().filter(|idx| exact.contains(idx)).count();
@@ -1724,7 +1690,7 @@ mod tests {
             let dims32 = u32::try_from(dims).unwrap();
             let built = crate::segment::FrozenSegment::build_in_memory(
                 synth_segment_entries(&vectors),
-                vectors.iter().map(Ok),
+                |i: usize| Ok(&vectors[i]),
                 dims32,
                 rushdb_types::occurrence::Similarity::Cosine,
             )
@@ -1752,7 +1718,12 @@ mod tests {
             let mut scored: Vec<(f32, usize)> = vectors
                 .iter()
                 .enumerate()
-                .map(|(i, v)| (crate::cosine(&query, v), i))
+                .map(|(i, v)| {
+                    (
+                        crate::score(&query, v, rushdb_types::occurrence::Similarity::Cosine),
+                        i,
+                    )
+                })
                 .collect();
             scored.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal));
             scored
@@ -1761,14 +1732,14 @@ mod tests {
         let entries = synth_segment_entries(&vectors);
         let usearch_provider = crate::segment::FrozenSegment::build_in_memory(
             entries,
-            vectors.iter().map(Ok),
+            |i: usize| Ok(&vectors[i]),
             u32::try_from(dims).unwrap(),
             rushdb_types::occurrence::Similarity::Cosine,
         )
         .unwrap();
         let turbo = TurboProvider::build(&vectors).unwrap();
 
-        let h = usearch_provider.gather(&query, 8, 24);
+        let h = usearch_provider.gather(&query, 8, 24, None);
         let t = turbo.gather(&query, 8, 24);
 
         // top-1 must agree between providers and exact scan
@@ -1781,74 +1752,6 @@ mod tests {
             .filter(|idx| exact.iter().take(8).any(|(_, e)| e == *idx))
             .count();
         assert!(overlap >= 6, "turbovec top-8 recall too low: {overlap}/8");
-    }
-
-    /// The selectivity-scaled gather (Slice 27 / 11-filter-aware-ann.md): with
-    /// a filter that only a small fraction of points pass, a fixed small beam
-    /// gathers the query-local neighborhood and under-fills, so recall drops
-    /// (measured cliff). The adaptive path estimates selectivity and gathers
-    /// enough to represent the allowed set. This test fixes that behavior with
-    /// a cheap fixture: build the provider directly and check that the
-    /// selectivity estimate scales the gather up.
-    #[test]
-    #[expect(
-        clippy::cast_precision_loss,
-        clippy::cast_possible_truncation,
-        clippy::cast_sign_loss,
-        reason = "quadrant labels and grid jitter are tiny non-negative integers, and the gather size is a small bounded count"
-    )]
-    fn filtered_selectivity_estimate_scales_the_gather() {
-        // 400 vectors in 4 well-separated quadrants; filter keeps one quadrant
-        // (25%). A beam of k=4 returns the query-local cluster, which the
-        // filtered-out quadrants dominate; the estimate must push the gather
-        // to ~4k/0.25 = 64.
-        let mut vectors = Vec::new();
-        for i in 0..400usize {
-            let q = (i % 4) as f32;
-            let x = if q == 0.0 { 0.9 } else { 0.1 };
-            let y = if q == 0.0 { 0.1 } else { 0.9 };
-            let jx = ((i * 37) % 100) as f32 / 1000.0 - 0.05;
-            let jy = ((i * 53) % 100) as f32 / 1000.0 - 0.05;
-            vectors.push(vec![x + jx, y + jy]);
-        }
-        // Building the segment is not needed for the estimate math, but keeps
-        // this test faithful to the real path (it must not panic on build).
-        let entries = synth_segment_entries(&vectors);
-        let _segment = crate::segment::FrozenSegment::build_in_memory(
-            entries,
-            vectors.iter().map(Ok),
-            2,
-            rushdb_types::occurrence::Similarity::Cosine,
-        )
-        .unwrap();
-        let gen_len = vectors.len();
-
-        // Estimate: entries in slot order are 25% allowed (every 4th).
-        let filter = |src: crate::SourceRef| src.owner_ord.is_multiple_of(4);
-        let sample_len = FILTERED_SELECTIVITY_SAMPLE.min(gen_len);
-        let passed = (0..sample_len)
-            .filter(|&i| {
-                filter(crate::SourceRef {
-                    kind: crate::OwnerKind::Record,
-                    owner_ord: i as u64,
-                    pid: 0,
-                    elem: 0,
-                })
-            })
-            .count();
-        let selectivity = passed as f64 / sample_len as f64;
-        assert!(
-            (0.2..0.3).contains(&selectivity),
-            "expected ~25% selectivity, got {selectivity:.3}"
-        );
-        let k = 4usize;
-        let wanted = (k.saturating_mul(4) as f64 / selectivity) as usize;
-        assert!(
-            wanted >= 48,
-            "selectivity-scaled gather must be > 4k, got {wanted}"
-        );
-        // It must not exceed the index.
-        assert!(wanted <= gen_len);
     }
 
     /// Calibration (2026-10-06): `MAX_CACHED_ANN_GENERATIONS` and

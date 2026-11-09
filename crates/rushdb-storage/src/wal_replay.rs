@@ -311,15 +311,19 @@ impl Store {
         ops: &[crate::Op],
         lsn: u64,
     ) -> Result<(), StorageError> {
-        let all = match deriver {
+        let extra = match deriver {
             Some(_) => {
                 let before = crate::derive::BackendRead(backend.read_view()?);
                 Self::derive_ops(deriver, lsn, ops, &before)?
             }
-            None => None,
+            None => Vec::new(),
         };
         backend
-            .apply(all.as_deref().unwrap_or(ops), lsn)
+            .apply_many(&[crate::backend::CommitOps {
+                ci: lsn,
+                base: ops,
+                derived: &extra,
+            }])
             .map_err(StorageError::Durability)
     }
 }

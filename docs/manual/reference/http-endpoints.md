@@ -49,7 +49,7 @@ While the node is still opening its store, `/health` returns 200 with
 | Status | Body `status` / `reason` | Cause |
 |---|---|---|
 | 200 | `ready` | Serving. |
-| 503 | `starting`, with the boot phase | The node is still booting (`starting`, `opening-storage`, `starting-engines`). |
+| 503 | `starting`, with the boot phase | The node is still booting (`starting`, `opening-storage`, `starting-engines`, `migrating`). |
 | 503 | `maintenance` / `maintenance mode` | Maintenance mode is on. |
 | 503 | `not_ready` / `store is shutting down` | Shutdown in progress. |
 | 503 | `not_ready` / `durable publisher failed` (+ `error`) | The write path failed (for example the disk filled up mid-commit); restart required. |

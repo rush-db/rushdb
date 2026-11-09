@@ -372,7 +372,7 @@ impl TextIndexes {
         tenant: TenantId,
         view: &ReadView,
         request: TextQuery<'_>,
-        candidates: Option<Arc<HashSet<u64>>>,
+        candidates: Option<Arc<roaring::RoaringTreemap>>,
     ) -> Result<TextHits, TextSearchError> {
         let TextQuery {
             index: name,
@@ -543,13 +543,13 @@ fn ranked(
     query: &str,
     opts: LexicalOptions,
     top_k: usize,
-    candidates: Option<Arc<HashSet<u64>>>,
+    candidates: Option<Arc<roaring::RoaringTreemap>>,
 ) -> Result<(Vec<ScoredDoc>, usize), TextSearchError> {
     use tantivy::collector::{Count, FilterCollector, TopDocs};
     use tantivy::schema::{TantivyDocument, Value as _};
     let searcher = opened.reader.searcher();
     let parsed = build_query(opened, query, opts)?;
-    let accepts = move |owner: u64| candidates.as_ref().is_none_or(|c| c.contains(&owner));
+    let accepts = move |owner: u64| candidates.as_ref().is_none_or(|c| c.contains(owner));
     let matches = searcher
         .search(
             &*parsed,

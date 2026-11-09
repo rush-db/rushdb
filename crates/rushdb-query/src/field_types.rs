@@ -3,9 +3,8 @@
 //! type, the type of the definition the record holds.
 
 use rushdb_types::model::LogicalType;
-use serde_json::{Map, Value as Json};
 
-use crate::{access, normalize, root_ord_of, EvalCtx, QueryError, ID_FIELD};
+use crate::{access, normalize, EvalCtx, QueryError};
 
 fn type_of_field(
     ctx: &EvalCtx<'_>,
@@ -20,13 +19,13 @@ fn type_of_field(
     Ok(declared)
 }
 
-/// The type of `name` on the record `obj`: the declared type, or for a name
+/// The type of `name` on record `ordinal`: the declared type, or for a name
 /// stored under more than one type, the type of the definition the record
 /// holds (`None` when it holds none).
 pub(crate) fn type_held(
     ctx: &EvalCtx<'_>,
     name: &str,
-    obj: &Map<String, Json>,
+    ordinal: u64,
 ) -> Result<Option<LogicalType>, QueryError> {
     let norm = normalize(name);
     if !ctx.record_types.borrow().contains_key(&norm) {
@@ -39,10 +38,6 @@ pub(crate) fn type_held(
         drop(types);
         return type_of_field(ctx, name);
     }
-    let Some(id) = obj.get(ID_FIELD).and_then(Json::as_str) else {
-        return Ok(None);
-    };
-    let ordinal = root_ord_of(ctx, id)?;
     // Record reconstruction shows the highest pid a record holds.
     let mut held = None;
     for &(pid, ty) in split {

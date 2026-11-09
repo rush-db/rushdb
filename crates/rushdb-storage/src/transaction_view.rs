@@ -485,8 +485,8 @@ impl Txn<'_> {
         let merged;
         let staged: &BTreeMap<Vec<u8>, Option<Vec<u8>>> =
             if let TxnBase::Overlay(overlay) = &self.base {
-                let mut map = overlay.buffer().clone();
-                for (key, value) in &self.buffer {
+                let mut map = overlay.staged_rows(bounds.0, bounds.1);
+                for (key, value) in self.buffer.range::<[u8], _>(bounds) {
                     map.insert(key.clone(), value.clone());
                 }
                 merged = map;

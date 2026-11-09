@@ -78,6 +78,38 @@ impl RequestScope<'_> {
         Ok((page.total_matched, records))
     }
 
+    /// Execute a projected listing (a `select` of plain fields and
+    /// `$collect`s) against a caller-owned execution context: the records
+    /// path's matching and early stop, with rows of the projected fields
+    /// charged by their real bytes against the response budget. Rows are
+    /// returned as built, not masked: the policy gate refused any projected
+    /// property the policy hides before planning.
+    pub(crate) fn project_with_execution_context(
+        &self,
+        context: &mut rushdb_engine::ExecutionContext,
+        req: &SearchRequest,
+        is_cancelled: &dyn Fn() -> bool,
+    ) -> Result<rushdb_query::Page, rushdb_query::QueryError> {
+        use rushdb_query::QueryError;
+        context
+            .check_deadline()
+            .map_err(|_| QueryError::Cancelled)?;
+        let page = rushdb_query::find_records_in_view_with_budget(
+            &self.lmpg(),
+            req,
+            is_cancelled,
+            Arc::clone(context.read_view()),
+            context.remaining_budget(),
+        )?;
+        if is_cancelled() {
+            return Err(QueryError::Cancelled);
+        }
+        context
+            .check_deadline()
+            .map_err(|_| QueryError::Cancelled)?;
+        Ok(page)
+    }
+
     /// Execute an aggregate against a caller-owned pinned read view.
     pub(crate) fn aggregate_with_execution_context(
         &self,

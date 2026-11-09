@@ -159,6 +159,45 @@ fn searchquery_read_filter_projection_sort() {
 }
 
 #[test]
+fn searchquery_projection_wire_shape() {
+    // A select of plain fields answers `rows`: the selected keys in select
+    // order (a field the record lacks is left out), ordered by an output
+    // name, paged, with the exact total of every match.
+    let node = bootstrap();
+    seed(&node);
+    let envelope = RequestEnvelope {
+        protocol_version: 1,
+        request_id: None,
+        context: RequestContext::default(),
+        operation: Operation::Query {
+            query: Query::Records {
+                query: serde_json::from_value(json!({
+                    "labels": ["FACTION"],
+                    "predicate": { "founded_year_bby": { "$lt": 0 } },
+                    "select": {
+                        "title": "$record.name",
+                        "year": "$record.founded_year_bby",
+                        "missing": "$record.nope"
+                    },
+                    "order": { "title": "desc" },
+                    "offset": 1,
+                    "limit": 1
+                }))
+                .unwrap(),
+            },
+        },
+    };
+    let response = rushdb_server::protocol::ProtocolExecutor::new(&node, None)
+        .execute(envelope)
+        .unwrap()
+        .response;
+    assert_eq!(
+        serde_json::to_string(&response).unwrap(),
+        r#"{"kind":"rows","rows":[{"title":"Jedi Order","year":-100}],"total":3}"#
+    );
+}
+
+#[test]
 fn searchquery_finite_page_preserves_total_and_order() {
     let node = bootstrap();
     seed(&node);

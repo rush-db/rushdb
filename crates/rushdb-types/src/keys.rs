@@ -207,6 +207,44 @@ pub fn emb_bindings_prefix(tenant: TenantId, space: u64) -> Vec<u8> {
     key(tenant, &[P_EMB_BINDING, &u64be(space)])
 }
 
+/// Prefix covering one owner's embedding bindings in a space: every
+/// property element of that record or relationship.
+#[must_use]
+pub fn emb_owner_bindings_prefix(
+    tenant: TenantId,
+    space: u64,
+    kind: OwnerKind,
+    owner_ord: u64,
+) -> Vec<u8> {
+    key(
+        tenant,
+        &[
+            P_EMB_BINDING,
+            &u64be(space),
+            &[kind.as_byte()],
+            &u64be(owner_ord),
+        ],
+    )
+}
+
+/// The `(space, kind, owner, pid, elem)` an [`emb_binding_key`] names, read
+/// from its fixed-width tail (`space / kind / owner / pid / elem`), so a
+/// scan can skip a binding by owner without decoding its value, and the
+/// binding value need not repeat what the key holds.
+#[must_use]
+pub fn parse_emb_binding_key(key: &[u8]) -> Option<(u64, OwnerKind, u64, u64, u64)> {
+    // space (8) '/' kind (1) '/' owner (8) '/' pid (8) '/' elem (8)
+    let kind_at = key.len().checked_sub(28)?;
+    let kind = OwnerKind::from_byte(*key.get(kind_at)?)?;
+    Some((
+        read_u64(key, kind_at.checked_sub(9)?)?,
+        kind,
+        read_u64(key, kind_at + 2)?,
+        read_u64(key, kind_at + 11)?,
+        read_u64(key, kind_at + 20)?,
+    ))
+}
+
 /// Key for a stored embedding vector slot within a space.
 #[must_use]
 pub fn emb_vector_key(tenant: TenantId, space: u64, slot: u64) -> Vec<u8> {
@@ -1159,5 +1197,26 @@ mod ord_tests {
         let member = label_member_key(tenant, "User", 70_000);
         assert_eq!(parse_label_member_key(&member), Some(("User", 70_000)));
         assert_eq!(parse_record_hdr_key(&record_hdr_key(tenant, 9)), Some(9));
+    }
+
+    #[test]
+    fn an_owner_binding_prefix_covers_only_that_owners_bindings() {
+        let tenant = TenantId(7);
+        for (kind, owner) in [(OwnerKind::Record, 1u64), (OwnerKind::Relationship, 257)] {
+            let prefix = emb_owner_bindings_prefix(tenant, 3, kind, owner);
+            let own = emb_binding_key(tenant, 3, kind, owner, 9, 2);
+            assert!(own.starts_with(&prefix));
+            assert!(own.starts_with(&emb_bindings_prefix(tenant, 3)));
+            assert_eq!(parse_emb_binding_key(&own), Some((3, kind, owner, 9, 2)));
+            for other in [
+                emb_binding_key(tenant, 3, kind, owner + 1, 9, 2),
+                emb_binding_key(tenant, 4, kind, owner, 9, 2),
+                emb_binding_key(tenant, 3, OwnerKind::Record, owner, 9, 2),
+            ] {
+                if other != own {
+                    assert!(!other.starts_with(&prefix));
+                }
+            }
+        }
     }
 }

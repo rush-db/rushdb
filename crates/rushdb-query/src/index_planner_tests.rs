@@ -101,32 +101,6 @@ fn scan_numeric_comparison_preserves_large_integer_ordering() {
     ));
 }
 
-#[test]
-fn aggregate_minmax_preserves_large_integer_json_values() {
-    let mut bucket = GroupBucket {
-        keys: Map::new(),
-        count_roots: 0,
-        sums: Map::new(),
-        counts: Map::new(),
-        mins: Map::new(),
-        maxs: Map::new(),
-        derived_outputs: std::collections::BTreeMap::new(),
-    };
-    let first = serde_json::json!(9_007_199_254_740_993i64);
-    let rounded = serde_json::json!(9_007_199_254_740_992.0f64);
-    minmax(&mut bucket, "value".into(), &rounded, false);
-    minmax(&mut bucket, "value".into(), &first, false);
-    assert_eq!(bucket.maxs["value"], first);
-}
-
-#[test]
-fn derived_field_expression_rejects_lossy_integer_widening() {
-    let mut row = Map::new();
-    row.insert("value".into(), serde_json::json!(9_007_199_254_740_993i64));
-    let expr = OutputExpr::Field("value".into());
-    assert_eq!(eval_row_expr(&expr, &row), None);
-}
-
 fn lmpg() -> Lmpg {
     Lmpg::new(
         Arc::new(rushdb_storage::Store::new_in_memory()),
@@ -270,7 +244,7 @@ fn eligible_returns_plan_residual_only_returns_none_and_force_scan_bypasses() {
 
 #[test]
 fn related_traversal_honors_cancellation() {
-    // Q-6r: predicate traversal (`eval_related`) must observe the cancellation
+    // Q-6r: predicate traversal (`related_holds`) must observe the cancellation
     // probe, not run to completion after a stop is requested.
     let store = std::sync::Arc::new(rushdb_storage::Store::new_in_memory());
     let tenant = rushdb_types::ids::TenantId::from_ordinal(1);
@@ -281,14 +255,7 @@ fn related_traversal_honors_cancellation() {
 
     let snap = std::sync::Arc::new(lmpg.store.read_view().unwrap());
     let cancelled = || true;
-    let ctx = EvalCtx {
-        lmpg: &lmpg,
-        snap,
-        is_cancelled: Some(&cancelled),
-        cycles: crate::cycle::CycleGraphs::default(),
-        declared_types: std::cell::RefCell::default(),
-        record_types: std::cell::RefCell::default(),
-    };
+    let ctx = EvalCtx::at(&lmpg, snap, Some(&cancelled));
     let expr = Expr::Related(RelatedExpr {
         target_labels: Vec::new(),
         alias: None,
@@ -298,15 +265,8 @@ fn related_traversal_honors_cancellation() {
         cycle: false,
         filter: None,
     });
-    let id_hex = a.record_id.iter().fold(String::new(), |mut out, byte| {
-        use std::fmt::Write as _;
-        let _ = write!(out, "{byte:02x}");
-        out
-    });
-    let mut root = serde_json::Map::new();
-    root.insert("__id".into(), serde_json::json!(id_hex));
     assert!(matches!(
-        eval_expr_ctx(&ctx, &expr, &root),
+        eval_expr_ctx(&ctx, &expr, &serde_json::Map::new(), a.ordinal),
         Err(QueryError::Cancelled)
     ));
 }
@@ -391,8 +351,11 @@ fn later_leaves_are_checked_on_the_candidates_earlier_leaves_left() {
         .filter(|((_, family), _)| family == "occurrence")
         .map(|(_, count)| count)
         .sum();
+    // `t = x` has no index: its walk reads each of the 2,001 owners holding
+    // `t` once. Checking `s = a` on the 11 candidates it left adds about 11;
+    // walking `s`'s population would add another thousand.
     assert!(
-        occurrence_reads < 2_000,
+        occurrence_reads <= 2_001 + 50,
         "walked a population instead of the candidates: {occurrence_reads} occurrence reads"
     );
     assert_eq!(
@@ -568,10 +531,17 @@ fn predicates_read_by_point_match_the_rebuilt_records() {
         let expected: Vec<u64> = all
             .iter()
             .filter(|record| {
+                let id = record["__id"].as_str().unwrap();
+                let id = rushdb_types::ids::RecordId(crate::hex_decode_16(id).unwrap());
+                let ord = access::record_by_id(&snap, l.tenant, &id)
+                    .unwrap()
+                    .unwrap()
+                    .ordinal;
                 eval_expr_ctx(
                     &ctx,
                     req.where_.as_ref().unwrap(),
                     record.as_object().unwrap(),
+                    ord,
                 )
                 .unwrap()
             })

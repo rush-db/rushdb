@@ -4,6 +4,7 @@
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
+use super::backend::CommitOps;
 #[cfg(test)]
 use super::Ordering;
 use super::{
@@ -26,7 +27,11 @@ impl Store {
             let derived = Self::derive_ops(self.deriver().as_ref(), commit_index, ops, &before)?;
             drop(before);
             if let Err(error) = backend
-                .apply(derived.as_deref().unwrap_or(ops), commit_index)
+                .apply_many(&[CommitOps {
+                    ci: commit_index,
+                    base: ops,
+                    derived: &derived,
+                }])
                 .map_err(StorageError::Durability)
             {
                 *self.health.guard(self.publisher_failure.lock())? = Some(error.clone());
@@ -97,7 +102,7 @@ impl Store {
     /// different tenants' commits persist in parallel.
     pub(super) fn persist_many_sharded(
         &self,
-        pairs: &[(u64, &[Op])],
+        pairs: &[CommitOps<'_>],
         batch: &[PendingCommit],
     ) -> Result<(), StorageError> {
         self.check_health()?;
@@ -110,7 +115,7 @@ impl Store {
         }
         let purged = pairs
             .iter()
-            .flat_map(|(_, ops)| ops.iter())
+            .flat_map(CommitOps::ops)
             .filter(|op| matches!(op, Op::Purge(_)))
             .count();
         if purged > 0 {
@@ -141,7 +146,7 @@ impl Store {
         let apply_started = std::time::Instant::now();
         let op_bytes: u64 = pairs
             .iter()
-            .flat_map(|(_, ops)| ops.iter())
+            .flat_map(CommitOps::ops)
             .map(|op| u64::try_from(op.encoded_len()).unwrap_or(u64::MAX))
             .sum();
         self.applied_bytes
@@ -154,10 +159,10 @@ impl Store {
     /// Apply a durable group to each commit's physical shard backend.
     pub(super) fn apply_sharded(
         &self,
-        pairs: &[(u64, &[Op])],
+        pairs: &[CommitOps<'_>],
         batch: &[PendingCommit],
     ) -> Result<(), StorageError> {
-        let mut by_shard: BTreeMap<usize, Vec<(u64, &[Op])>> = BTreeMap::new();
+        let mut by_shard: BTreeMap<usize, Vec<CommitOps<'_>>> = BTreeMap::new();
         for (pc, pair) in batch.iter().zip(pairs.iter()) {
             by_shard.entry(pc.shard).or_default().push(*pair);
         }
@@ -175,7 +180,7 @@ impl Store {
             }
             return Ok(());
         }
-        let backends: Vec<(usize, Option<Arc<dyn StorageBackend>>, Vec<(u64, &[Op])>)> = by_shard
+        let backends: Vec<(usize, Option<Arc<dyn StorageBackend>>, Vec<CommitOps<'_>>)> = by_shard
             .into_iter()
             .map(|(shard, shard_pairs)| (shard, self.backend(shard), shard_pairs))
             .collect();

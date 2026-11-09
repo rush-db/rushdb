@@ -436,10 +436,7 @@ impl ProtocolExecutor<'_> {
             Describe::ExplainVector { query } => Ok(Response::ExplainVector {
                 plan: self
                     .node
-                    .explain_vector_in_view(
-                        &query,
-                        std::sync::Arc::clone(execution_context.read_view()),
-                    )
+                    .explain_vector_in_view(&query, execution_context.read_view())
                     .map_err(execution_failed)?,
             }),
             Describe::Indexes => Ok(Response::Indexes {

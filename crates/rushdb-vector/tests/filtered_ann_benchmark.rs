@@ -1,10 +1,9 @@
 //! Filtered-ANN benchmark (P15/vector-search planning evidence).
 //!
-//! The engine's gather-then-filter ANN path protects recall via a degradation
-//! contract: if fewer than `k.min(ef)` gathered candidates survive the filter,
-//! it falls back to the bounded exact filtered scan. That means recall stays
-//! high but the filter can *defeat ANN efficiency* by silently converting
-//! approximate searches into exact scans. This benchmark measures:
+//! The engine filters an owner set during the graph walk (usearch's filtered
+//! search), so every gathered candidate passes; if fewer than `k.min(ef)` are
+//! found it still falls back to the exact filtered scan over the owners.
+//! This benchmark measures:
 //!
 //! - recall@10 of filtered ANN vs the exact filtered ground truth,
 //! - latency of filtered ANN vs exact (does the filter negate the ANN win?),
@@ -20,7 +19,7 @@ use rushdb_lmpg::{reader::TryRead, Lmpg, RecordRef};
 use rushdb_storage::Store;
 use rushdb_types::ids::{OwnerKind, TenantId};
 use rushdb_types::keys::{key, P_FAMILY_SIG};
-use rushdb_vector::{SourceRef, VectorEngine};
+use rushdb_vector::{Candidates, SourceRef, VectorEngine};
 
 const DIMS: usize = 64;
 const N_CATEGORIES: usize = 20;
@@ -50,6 +49,7 @@ fn category_of_ord(ord: u64) -> usize {
 struct Fixture {
     vecs: VectorEngine,
     n_categories: usize,
+    ords: Vec<u64>,
 }
 
 impl Fixture {
@@ -69,6 +69,7 @@ impl Fixture {
         }
 
         let mut rng = make_rng(seed ^ 0xABCD);
+        let mut ords = Vec::with_capacity(n);
         for i in 0..n as u64 {
             let r: RecordRef = lmpg
                 .create_record(
@@ -95,6 +96,7 @@ impl Fixture {
                 pid,
                 elem: 0,
             };
+            ords.push(r.ordinal);
             let cat = category_of_ord(r.ordinal);
             let vector: Vec<f32> = if correlated {
                 let mut v: Vec<f32> = (0..DIMS).map(|_| rng() * 0.08).collect();
@@ -110,6 +112,7 @@ impl Fixture {
         Fixture {
             vecs,
             n_categories: N_CATEGORIES,
+            ords,
         }
     }
 
@@ -119,9 +122,13 @@ impl Fixture {
         clippy::cast_sign_loss,
         reason = "selectivity is a fraction in [0,1] over a small category count, so the ceiling fits usize exactly"
     )]
-    fn allowed_for_selectivity(&self, selectivity: f64) -> std::collections::HashSet<usize> {
+    fn allowed_for_selectivity(&self, selectivity: f64) -> roaring::RoaringTreemap {
         let count = ((self.n_categories as f64) * selectivity).ceil() as usize;
-        (0..count.min(self.n_categories)).collect()
+        self.ords
+            .iter()
+            .copied()
+            .filter(|ord| category_of_ord(*ord) < count.min(self.n_categories))
+            .collect()
     }
 
     /// Queries uniformly over the space (not anchored to any allowed centroid),
@@ -133,12 +140,6 @@ impl Fixture {
             .map(|_| (0..DIMS).map(|_| rng() * 2.0 - 1.0).collect())
             .collect()
     }
-
-    fn allow_categories(
-        allowed: &std::collections::HashSet<usize>,
-    ) -> impl Fn(SourceRef) -> bool + '_ {
-        move |src| allowed.contains(&category_of_ord(src.owner_ord))
-    }
 }
 
 #[expect(
@@ -149,16 +150,19 @@ fn run_exact(
     vecs: &VectorEngine,
     queries: &[Vec<f32>],
     k: usize,
-    allowed: &std::collections::HashSet<usize>,
+    allowed: &roaring::RoaringTreemap,
 ) -> (Vec<Vec<u64>>, f64) {
     let snap = vecs.snapshot().unwrap();
     let space = vecs.lookup_space_in_view(&snap, "bench").unwrap().unwrap();
-    let candidate = Fixture::allow_categories(allowed);
+    let candidates = Candidates::Owners {
+        kind: OwnerKind::Record,
+        ords: allowed,
+    };
     let mut all = Vec::with_capacity(queries.len());
     let t = Instant::now();
     for q in queries {
         let hits = vecs
-            .search_exact_in_view(&snap, &space, q, k, Some(&candidate))
+            .search_exact_in_view(&snap, &space, q, k, candidates)
             .unwrap();
         all.push(hits.into_iter().map(|h| h.source.owner_ord).collect());
     }
@@ -174,16 +178,19 @@ fn run_ann(
     queries: &[Vec<f32>],
     k: usize,
     ef: usize,
-    allowed: &std::collections::HashSet<usize>,
+    allowed: &roaring::RoaringTreemap,
 ) -> (Vec<Vec<u64>>, f64) {
     let snap = vecs.snapshot().unwrap();
     let space = vecs.lookup_space_in_view(&snap, "bench").unwrap().unwrap();
-    let candidate = Fixture::allow_categories(allowed);
+    let candidates = Candidates::Owners {
+        kind: OwnerKind::Record,
+        ords: allowed,
+    };
     let mut all = Vec::with_capacity(queries.len());
     let t = Instant::now();
     for q in queries {
         let hits = vecs
-            .search_ann_in_view(&snap, &space, q, k, ef, Some(&candidate))
+            .search_ann_in_view(&snap, &space, q, k, ef, candidates)
             .unwrap();
         all.push(hits.into_iter().map(|h| h.source.owner_ord).collect());
     }

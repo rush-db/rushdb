@@ -72,9 +72,12 @@ flattens the top-level `$and` into conjuncts and classifies each one:
 
 - **Eligible leaves** can be answered from maintained structures: equality
   and `$in`, `$exists: true`, null checks, numeric ranges, and `$id`.
-- **Residual leaves** cannot: `$ne`, string matching, `$type`, nested
-  logic, and relationship predicates. They are evaluated later on the
-  candidates that survive.
+- **Residual leaves** cannot: `$ne`, string matching, `$type`, and nested
+  logic. They are evaluated later on the candidates that survive.
+- **Relationship predicates** (`$relation` blocks) are either expanded
+  from the records they match, when those are at most half as many as the
+  root's candidates, or left residual and checked per candidate (see
+  Traversal below).
 
 Each eligible leaf gets a cardinality estimate from derived rows — exact
 counts from counters and the value dictionary for equality, and a value
@@ -108,7 +111,15 @@ How a leaf's owners are found:
    label that carry the property at all, and their occurrence values
    decide the predicate. RushDB does **not** maintain automatic value
    postings; you declare the indexes you want
-   ([indexes](../indexes-and-search/indexes.md)).
+   ([indexes](../indexes-and-search/indexes.md)). The owners to check are
+   cut into parts of about 4,096: the candidates earlier leaves left by
+   rank, or the property's presence rows by ranges of record ordinals that
+   each part reads itself, bounds that depend only on the data. Parts read
+   the owners' values on threads lent by the intra-query budget
+   (`threads`), and their matches merge into the owner set in part order,
+   so the set, and whether it passes the owner budget, do not depend on
+   the threads lent. The request's cancellation is checked between rounds
+   of parts.
 3. **Full scan.** If the most selective eligible leaf would still
    materialize more than 2 million owners, or nothing is eligible, the
    executor scans the label (or every record) in bounded, cancellable
@@ -131,17 +142,47 @@ running the query ([query planning](../indexes-and-search/query-planning.md)).
 Relationship blocks resolve through adjacency rows: for a node and
 direction, the out- or in-adjacency prefix lists the relationship type,
 the other endpoint, and the relationship ordinal in one ordered scan.
-Multi-hop and cycle predicates walk adjacency hop by hop at the same
-snapshot. See [relationships and traversal](../query/relationships-and-traversal.md).
+
+A `$relation` block is a path predicate over trails (no relationship used
+twice). The planner answers it one of two ways:
+
+- **Backward expansion.** The block's own labels and predicate resolve
+  through the planner like any search (an ordered index makes an anchor a
+  lookup). A breadth-first walk from those targets against the block's
+  direction gives every record's distance to its nearest target; a
+  shortest path is always a trail, so a record `min`–`max` hops away
+  matches. The result is an owner bitmap intersected with the root's other
+  leaves, so the cost follows the targets' neighbourhood.
+- **Forward check per candidate.** Each candidate walks breadth-first
+  until it reaches a target.
+
+Both settle the remaining cases the same way: a record whose nearest
+target is closer than `min` hops, or a target checked against itself
+(which needs a closed trail through it), takes the shortest closed trail
+from the breadth-first search, then a depth-first trail search within a
+work budget. `$cycle` uses its own component-pruned search over the
+type's resident graph.
+
+Adjacency comes from storage scans or from a **resident graph**: one
+relationship type at one snapshot, in compressed sparse rows for both
+directions, kept in a per-snapshot cache under
+`resources.graph-cache-bytes`. Building one reads every adjacency row of
+the tenant, so traversals *rent* until the rows they have read at that
+snapshot equal one build, then *buy* (build and keep it). A commit starts
+a new snapshot and a new rent. See
+[relationships and traversal](../query/relationships-and-traversal.md).
 
 ### Ordering, pagination, and reconstruction
 
 After filtering, the executor holds the matching ordinals, orders them,
 applies `skip` and `limit`, and only then **reconstructs** the page: a
 prefix scan of each record's occurrences
-([LMPG layout](lmpg-layout.md#reconstruction)). A projection decodes only
-the selected properties. Records that a data-access policy hides are
-removed after reconstruction through the authorized view.
+([LMPG layout](lmpg-layout.md#reconstruction)). A projection (a `select` of
+field references only) is this same listing: it reads only the selected
+properties of the page's records, by one point read per property when each
+is a scalar, and returns them as rows. Records that a data-access policy
+hides are removed after reconstruction through the authorized view; a
+projection that names a hidden property is refused before planning.
 
 ### Cursors
 
@@ -156,9 +197,19 @@ lapses. Cursor ids are server-local and do not survive a restart. See
 
 ### Aggregation and facets
 
-Grouping and aggregate evaluation run over the matched set with a bounded
-group count and a working-set budget; reconstruction for aggregate inputs
-is admitted per record. Counts that derived rows can answer — records per
+An aggregate's candidates (the index plan's owner set or the label's
+members, both live records only, so no record header is read per
+candidate) are split into parts of a fixed number of ordinals. Each part
+evaluates the residual predicate, reads the referenced properties as typed
+values (one point read per scalar property, probing the property's typed
+definitions in the order most records of the labels hold them), and folds
+them into partial groups keyed by typed values; a group becomes JSON once,
+when it is rendered. Parts run on threads lent by the process-wide
+intra-query budget (`threads`) and merge in part order, so the result does
+not depend on the threads lent; floating-point sums are summed per part,
+then in part order. The group count is bounded, all partial groups are
+charged to the working-set budget, and the request's cancellation and
+deadline stop every part. Counts that derived rows can answer — records per
 label, owners per property, relationships per type — come from counters at
 the snapshot instead of scans. See [aggregations](../query/aggregations.md)
 and [facets](../query/facets.md).

@@ -579,9 +579,12 @@ pub fn expand_commit(ci: u64, batch: &CommitBatch, txn: &mut Txn) -> Result<(), 
                     binding.pid,
                     binding.elem,
                 );
-                let previous: Option<rushdb_types::occurrence::EmbeddingBinding> = txn
+                let previous = txn
                     .get(&bkey)?
-                    .map(|raw| serde_json::from_slice(&raw).map_err(ser_err))
+                    .map(|raw| {
+                        rushdb_types::occurrence::BindingValue::decode(&raw)
+                            .ok_or(StorageError::CorruptLog)
+                    })
                     .transpose()?;
                 if let Some(vec) = vector {
                     // Re-binding allocates a fresh slot; the superseded slot's
@@ -621,7 +624,7 @@ pub fn expand_commit(ci: u64, batch: &CommitBatch, txn: &mut Txn) -> Result<(), 
                 };
                 let mut to_store = binding.clone();
                 to_store.status = status;
-                txn.put(bkey, serde_json::to_vec(&to_store).map_err(ser_err)?);
+                txn.put(bkey, to_store.encode_value().to_vec());
                 bump_space_version(txn, t, binding.space_id, ci)?;
                 let ready = rushdb_types::occurrence::BindingStatus::Ready;
                 let was_ready = previous.is_some_and(|old| old.status == ready);
@@ -673,8 +676,8 @@ fn adjust_ready_count(
         // The scan already sees this commit's write, so no delta applies.
         let mut ready = 0u64;
         for (_, value) in txn.range_prefix(&emb_bindings_prefix(t, space))? {
-            let binding: rushdb_types::occurrence::EmbeddingBinding =
-                serde_json::from_slice(&value).map_err(ser_err)?;
+            let binding = rushdb_types::occurrence::BindingValue::decode(&value)
+                .ok_or(StorageError::CorruptLog)?;
             if binding.status == rushdb_types::occurrence::BindingStatus::Ready {
                 ready += 1;
             }

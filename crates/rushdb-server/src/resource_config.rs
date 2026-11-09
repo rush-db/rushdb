@@ -107,6 +107,13 @@ pub struct ResourceConfig {
     /// keeps no ANN resident: searches answer exactly. Default 256 MiB.
     #[arg(long, env = "RUSHDB_VECTOR_CACHE_BYTES", default_value = "256MiB")]
     pub vector_cache_bytes: ByteSize,
+    /// Bytes resident relationship graphs may hold (one relationship type
+    /// at one snapshot, ~32 B per relationship), a budget of its own under
+    /// managed-limit. Traversals build one once the adjacency rows they read
+    /// at a snapshot would pay for it. 0 keeps none: traversals read
+    /// adjacency from storage. Default 128 MiB.
+    #[arg(long, env = "RUSHDB_GRAPH_CACHE_BYTES", default_value = "128MiB")]
+    pub graph_cache_bytes: ByteSize,
     /// Byte budget of the evictable planner-statistics cache (value
     /// distributions loaded on demand), a child of the logical cache budget.
     /// 0 disables caching. Default 32 MiB.
@@ -336,8 +343,9 @@ pub struct ResourceConfig {
     /// search takes ~9 ms at 768 dimensions and ~13 ms at 1,536.
     #[arg(long, env = "RUSHDB_VECTOR_EXACT_MAX_POOL", default_value_t = 5_000)]
     pub vector_exact_max_pool: u64,
-    /// ANN gather breadth when a search does not set `ef`.
-    #[arg(long, env = "RUSHDB_VECTOR_DEFAULT_EF", default_value_t = 64)]
+    /// ANN breadth (graph walk and candidates reranked) when a search does
+    /// not set `ef`.
+    #[arg(long, env = "RUSHDB_VECTOR_DEFAULT_EF", default_value_t = 128)]
     pub vector_default_ef: usize,
     /// Longest text, in characters, that catalog introspection shows for a
     /// sample, listed value or bound (`describe` schema and properties,
@@ -391,6 +399,7 @@ impl Default for ResourceConfig {
             max_group_delay_ms: 0,
             logical_cache_bytes: ByteSize(128 * 1024 * 1024),
             vector_cache_bytes: ByteSize(storage.vector_cache_bytes),
+            graph_cache_bytes: ByteSize(storage.graph_cache_bytes),
             planner_stats_bytes: ByteSize(storage.planner_stats_bytes),
             planner_stats_idle_seconds: storage.planner_stats_idle_seconds,
             planner_stats_max_age_commits: storage.planner_stats_max_age_commits,
@@ -434,7 +443,7 @@ impl Default for ResourceConfig {
             bolt_advertised_address: None,
             require_vector_index_name: true,
             vector_exact_max_pool: 5_000,
-            vector_default_ef: 64,
+            vector_default_ef: 128,
             introspection_value_max_chars: 64,
         }
     }
@@ -479,6 +488,7 @@ impl ResourceConfig {
             max_group_delay_ms: self.max_group_delay_ms,
             logical_cache_bytes: self.logical_cache_bytes.0,
             vector_cache_bytes: self.vector_cache_bytes.0,
+            graph_cache_bytes: self.graph_cache_bytes.0,
             // Phase admission is bounded by the whole managed envelope; the
             // shared parent budget still caps the sum of all children. This
             // decouples concurrency from the (smaller) logical-cache budget.

@@ -1,9 +1,33 @@
 //! Live store observability hooks: per-commit latency, backend lock
 //! contention, and the conflict window's footprint (C0, cloud-capacity F12).
 
+use std::sync::atomic::Ordering;
 use std::sync::Arc;
 
 use super::Store;
+
+/// Cumulative write-path counters since the store opened. They are plain
+/// atomics, read live (no keyspace scan), so a metrics scrape reports them
+/// at every refresh.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct WriteCounters {
+    /// Bounded admission-lock waits (including timed-out waits).
+    pub admission_waits: u64,
+    /// Milliseconds spent waiting for admission-lock ownership.
+    pub admission_wait_ms: u64,
+    /// Durability checkpoints that wrote: a checkpoint with nothing new to
+    /// make durable is skipped and not counted.
+    pub checkpoints: u64,
+    /// Milliseconds spent in the checkpoints counted above.
+    pub checkpoint_wait_ms: u64,
+    /// Bytes appended to the WAL (framed records).
+    pub wal_bytes_appended: u64,
+    /// Encoded bytes of every op, base and derived, handed to the backends.
+    /// With `wal_bytes_appended`, the two write streams a commit produces;
+    /// compare against `rushdb.redb` growth and the process's block writes
+    /// to attribute write amplification.
+    pub applied_bytes: u64,
+}
 
 /// One timed step of the commit pipeline. Committer-side phases are
 /// observed once per commit; publisher-side phases once per publish group.
@@ -205,6 +229,19 @@ impl Store {
             .as_deref()
             .and_then(std::path::Path::parent)
             .map(std::path::Path::to_path_buf)
+    }
+
+    /// Cumulative write-path counters (live atomics, no scan).
+    #[must_use]
+    pub fn write_counters(&self) -> WriteCounters {
+        WriteCounters {
+            admission_waits: self.admission_waits.load(Ordering::Relaxed),
+            admission_wait_ms: self.admission_wait_ms.load(Ordering::Relaxed),
+            checkpoints: self.checkpoints.load(Ordering::Relaxed),
+            checkpoint_wait_ms: self.checkpoint_wait_ms.load(Ordering::Relaxed),
+            wal_bytes_appended: self.wal_bytes_appended.load(Ordering::Relaxed),
+            applied_bytes: self.applied_bytes.load(Ordering::Relaxed),
+        }
     }
 
     /// Bytes currently retained by the in-memory conflict window.
