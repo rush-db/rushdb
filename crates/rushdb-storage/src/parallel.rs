@@ -96,12 +96,31 @@ where
             .unwrap_or_else(std::sync::PoisonError::into_inner);
         guard[index] = Some(outcome);
     };
-    std::thread::scope(|scope| {
+    // Reads a helper does count toward the caller's per-thread read
+    // accounting, so a query's tally does not depend on which thread ran
+    // which part.
+    let helper_reads = std::thread::scope(|scope| {
+        // Every helper starts before the caller takes its share.
+        let mut helpers = Vec::with_capacity(workers - 1);
         for _ in 1..workers {
-            scope.spawn(work);
+            helpers.push(scope.spawn(|| {
+                work();
+                crate::read_accounting::take_local()
+            }));
         }
         work();
+        helpers
+            .into_iter()
+            .map(|helper| {
+                helper
+                    .join()
+                    .unwrap_or_else(|panic| std::panic::resume_unwind(panic))
+            })
+            .collect::<Vec<_>>()
     });
+    for reads in helper_reads {
+        crate::read_accounting::add_local(reads);
+    }
     drop(lease);
     slots
         .into_iter()
@@ -133,8 +152,19 @@ pub fn parts_for(units: u64, min_units: u64) -> usize {
 mod tests {
     use super::*;
 
+    /// The budget is process-wide: tests that lend from it run one at a
+    /// time.
+    static BUDGET_TESTS: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+    fn exclusive() -> std::sync::MutexGuard<'static, ()> {
+        BUDGET_TESTS
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
+
     #[test]
     fn parts_return_in_order_and_errors_by_lowest_part() {
+        let _serial = exclusive();
         set_threads(4);
         let out: Result<Vec<usize>, ()> = run_parts(16, |i| Ok(i * 2));
         assert_eq!(out.unwrap(), (0..16).map(|i| i * 2).collect::<Vec<_>>());
@@ -143,6 +173,21 @@ mod tests {
         assert_eq!(failed, Err(3));
         // Every lent thread came back.
         assert_eq!(FREE.load(Ordering::SeqCst), budget());
+    }
+
+    #[test]
+    fn reads_on_helper_threads_count_for_the_caller() {
+        let _serial = exclusive();
+        set_threads(4);
+        crate::read_accounting::enable(true);
+        let _ = crate::read_accounting::take_local();
+        let parts: Result<Vec<()>, ()> = run_parts(8, |part| {
+            crate::read_accounting::record("get", &[0x01, 0, 0, 0, 1, u8::try_from(part).unwrap()]);
+            Ok(())
+        });
+        parts.unwrap();
+        let counted: u64 = crate::read_accounting::take_local().values().sum();
+        assert_eq!(counted, 8, "every part's read is the caller's");
     }
 
     #[test]

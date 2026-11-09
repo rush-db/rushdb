@@ -38,6 +38,20 @@ pub(crate) fn record(op: &'static str, key: &[u8]) {
     *counts.entry((op, family)).or_default() += 1;
 }
 
+/// Add `counts` to the calling thread's tally: reads a helper thread did on
+/// this thread's behalf ([`crate::parallel::run_parts`]).
+pub(crate) fn add_local(counts: BTreeMap<(&'static str, String), u64>) {
+    if counts.is_empty() {
+        return;
+    }
+    LOCAL.with(|local| {
+        let mut local = local.borrow_mut();
+        for (key, count) in counts {
+            *local.entry(key).or_default() += count;
+        }
+    });
+}
+
 /// Take and reset the calling thread's counts.
 #[must_use]
 pub fn take_local() -> BTreeMap<(&'static str, String), u64> {
