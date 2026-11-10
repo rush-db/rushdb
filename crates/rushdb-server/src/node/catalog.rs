@@ -1068,53 +1068,89 @@ impl RequestScope<'_> {
         // building record JSON. Filtered support counts cover every match
         // (an oversized match set fails on the query working-set cap rather
         // than returning a partial count disguised as an exact one); the
-        // unfiltered read samples the first 10k records and takes exact
-        // counts from the catalog below.
+        // unfiltered read takes samples from the first 10k records and
+        // exact counts from the catalog below.
         let document = serde_json::json!({
             "labels": body.get("labels").cloned().unwrap_or(serde_json::Value::Array(vec![])),
             "where": body.get("where").cloned().unwrap_or_else(|| serde_json::json!({})),
         });
         let parsed =
             rushdb_query::document::parse_document(&document).map_err(|e| e.to_string())?;
-        let resolved;
-        let ords: &[u64] = match matched {
-            // The caller resolved this filtered query's match set already.
-            Some(ords) if !where_empty => ords,
-            // The unfiltered sample reads only the first records of each
-            // label (10k shared between the labels, at least 1k each), so
-            // the read does not grow with a label and a label written after
-            // others still has samples.
-            _ if where_empty => {
-                let labels = if parsed.search.labels.is_empty() {
-                    self.labels_in_view(view)?
-                } else {
-                    parsed.search.labels.clone()
-                };
-                let each = (10_000 / labels.len().max(1)).max(1_000);
-                let mut sample = Vec::new();
-                for label in labels {
-                    let search = rushdb_query::SearchRequest {
-                        labels: vec![label],
-                        ..parsed.search.clone()
-                    };
-                    sample.extend(self.facet_ordinals_first(view, &search, each, is_cancelled)?);
-                }
-                sample.sort_unstable();
-                sample.dedup();
-                resolved = sample;
-                &resolved
-            }
-            _ => {
-                resolved = self.facet_ordinals(view, &parsed.search, is_cancelled)?;
-                &resolved
-            }
-        };
         let described: std::collections::HashSet<u64> = meta
             .values()
             .flat_map(|defs| defs.iter().map(|(pid, _, _, _)| *pid))
             .chain(null_only.iter().map(|(pid, _)| *pid))
             .collect();
-        let stats = self.facet_property_stats(view.as_ref(), ords, &described, is_cancelled)?;
+        let (stats, catalog) = if where_empty {
+            // The unfiltered sample covers only the first records of each
+            // label (10k shared between the labels, at least 1k each), so
+            // the read does not grow with a label and a label written after
+            // others still has samples. Support, shape and ranges come from
+            // the catalog below, so only the samples are read, through each
+            // property's presence rows.
+            let labels = if parsed.search.labels.is_empty() {
+                self.labels_in_view(view)?
+            } else {
+                parsed.search.labels.clone()
+            };
+            let each = (10_000 / labels.len().max(1)).max(1_000);
+            let mut samples: std::collections::BTreeMap<String, Vec<u64>> =
+                std::collections::BTreeMap::new();
+            for label in labels {
+                let search = rushdb_query::SearchRequest {
+                    labels: vec![label.clone()],
+                    ..parsed.search.clone()
+                };
+                let mut ords = self.facet_ordinals_first(view, &search, each, is_cancelled)?;
+                ords.sort_unstable();
+                ords.dedup();
+                samples.insert(label, ords);
+            }
+            let catalog =
+                self.describe_properties_catalog(view, &meta, &null_only, &siblings_of, body)?;
+            let mut wanted = Vec::new();
+            for entry in &catalog {
+                let (Some(label), Some(pid)) =
+                    (entry.label.as_ref(), Self::private_property_id(&entry.id))
+                else {
+                    continue;
+                };
+                if entry.records_count == 0 || !described.contains(&pid) {
+                    continue;
+                }
+                // Every stored value is counted by the label's dictionary or
+                // long-value counter, so a property holding fewer distinct
+                // values than the cap is complete at that many samples.
+                let distinct = rushdb_lmpg::derived::label_distinct(
+                    view.as_ref(),
+                    self.tenant(),
+                    OwnerKind::Record,
+                    label,
+                    pid,
+                )
+                .map_err(|e| e.to_string())?;
+                let target = usize::try_from(distinct)
+                    .unwrap_or(usize::MAX)
+                    .min(super::SCHEMA_SAMPLE_CAP);
+                wanted.push((label.clone(), pid, target));
+            }
+            let stats =
+                self.facet_property_samples(view.as_ref(), &samples, &wanted, is_cancelled)?;
+            (stats, Some(catalog))
+        } else {
+            let resolved;
+            // The caller may have resolved this filtered query's match set.
+            let ords: &[u64] = if let Some(ords) = matched {
+                ords
+            } else {
+                resolved = self.facet_ordinals(view, &parsed.search, is_cancelled)?;
+                &resolved
+            };
+            (
+                self.facet_property_stats(view.as_ref(), ords, &described, is_cancelled)?,
+                None,
+            )
+        };
         let catalog_view = where_empty.then(|| Arc::clone(view));
         // The types each name holds on each label within the match set.
         let present: std::collections::BTreeSet<(&str, &str, String)> = stats
@@ -1184,8 +1220,8 @@ impl RequestScope<'_> {
             let mut exact: std::collections::BTreeMap<
                 (String, String),
                 rushdb_protocol::PropertyDescription,
-            > = self
-                .describe_properties_catalog(catalog_view, &meta, &null_only, &siblings_of, body)?
+            > = catalog
+                .unwrap_or_default()
                 .into_iter()
                 .filter_map(|entry| Some(((entry.label.clone()?, entry.id.clone()), entry)))
                 .collect();

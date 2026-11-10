@@ -892,3 +892,68 @@ fn every_label_has_samples_in_an_unfiltered_description() {
     );
     assert_eq!(late["recordsCount"], json!(2));
 }
+
+#[test]
+fn unfiltered_samples_match_a_scan_of_the_same_records() {
+    // The unfiltered description reads samples through presence rows and
+    // stops once each property's are complete; a filter matching every
+    // record reads them by scanning the records. Over the same records both
+    // must report the same samples: a property only late records hold, one
+    // with fewer distinct values than the cap, one holding only nulls, and
+    // array elements.
+    let handler = node(256 * 1024 * 1024);
+    let documents: Vec<Value> = (0..3_000)
+        .map(|i| {
+            let tier = ["free", "pro", "team"][i % 3];
+            let mut doc = json!({
+                "seq": i,
+                "tier": tier,
+                "gone": null,
+                "tags": [format!("t{}", i % 7), format!("u{}", i % 5)],
+            });
+            if i >= 2_500 {
+                doc["late"] = json!(format!("late-{i}"));
+            }
+            doc
+        })
+        .collect();
+    ingest(&handler, "S", &documents);
+    let describe = |predicate: Value| {
+        let out = call(
+            &handler,
+            &json!({ "kind": "describe", "describe": {
+                "kind": "properties", "query": { "labels": ["S"], "predicate": predicate } } }),
+        );
+        let mut samples: Vec<(String, Value)> = out["properties"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|p| {
+                (
+                    p["name"].as_str().unwrap().to_string(),
+                    p["sampleValues"].clone(),
+                )
+            })
+            .collect();
+        samples.sort_by(|a, b| a.0.cmp(&b.0));
+        samples
+    };
+    let unfiltered = describe(json!({}));
+    let scanned = describe(json!({ "seq": { "$gte": 0 } }));
+    assert_eq!(unfiltered, scanned);
+    let late = unfiltered
+        .iter()
+        .find(|(name, _)| name == "late")
+        .expect("late");
+    assert_eq!(
+        late.1,
+        json!((2_500..2_510)
+            .map(|i| format!("late-{i}"))
+            .collect::<Vec<_>>())
+    );
+    let tier = unfiltered
+        .iter()
+        .find(|(name, _)| name == "tier")
+        .expect("tier");
+    assert_eq!(tier.1, json!(["free", "pro", "team"]));
+}

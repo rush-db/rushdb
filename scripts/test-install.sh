@@ -67,8 +67,11 @@ port=$((20000 + $$ % 10000))
 # disk guard.
 export RUSHDB_DISK_SPACE_THRESHOLD_PERCENT=0
 rushdb up --data-dir /tmp/db --port "$port" --pgwire-port 0 >/tmp/up.log 2>&1 &
-for _ in $(seq 1 100); do rushdb health --url "http://127.0.0.1:$port" >/dev/null 2>&1 && break; sleep 0.1; done
+# `/health` answers 200 as soon as the listener is up, while storage may still
+# be opening; writes are served once `/ready` answers 200.
+for _ in $(seq 1 100); do curl -fs "http://127.0.0.1:$port/ready" >/dev/null 2>&1 && break; sleep 0.1; done
 rushdb health --url "http://127.0.0.1:$port"
+curl -fsS "http://127.0.0.1:$port/ready" >/dev/null
 curl -fsS "http://127.0.0.1:$port/protocol/v1/execute" \
   -H 'Authorization: Bearer local-token' -H 'Content-Type: application/json' \
   --data '{"protocolVersion":1,"context":{},"operation":{"kind":"mutate","mutation":{"kind":"putRecord","mode":"create","label":"BOOK","properties":{"title":"Install check"},"options":{}}}}' >/dev/null
