@@ -8,6 +8,7 @@ use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 
 use rushdb_lmpg::reader::try_access as access;
+use rushdb_lmpg::reader::TryRead;
 use rushdb_lmpg::reconstruct::{decode_value, is_empty_array_marker};
 use rushdb_query::SearchRequest;
 use rushdb_types::ids::OwnerKind;
@@ -130,6 +131,91 @@ impl RequestScope<'_> {
             .into_iter()
             .map(|((slot, pid), entry)| ((labels[slot].clone(), pid), entry))
             .collect())
+    }
+
+    /// Samples of each wanted `(label, pid, target)` over the records of
+    /// `samples[label]` (ascending ordinals), read through the property's
+    /// presence rows instead of every sampled record: values are observed
+    /// owner by owner in ordinal order, as a scan of the sample observes
+    /// them, until `target` samples are held. An entry is returned when a
+    /// sampled record holds the property (a value or only nulls); its
+    /// support, shape and range are left for the caller to fill.
+    pub(super) fn facet_property_samples(
+        &self,
+        view: &rushdb_storage::ReadView,
+        samples: &BTreeMap<String, Vec<u64>>,
+        wanted: &[(String, u64, usize)],
+        is_cancelled: &dyn Fn() -> bool,
+    ) -> Result<BTreeMap<(String, u64), PropertyScanStats>, String> {
+        use rushdb_types::keys::{presence_key, NULLNESS_NULL, NULLNESS_VALUE};
+        let tenant = self.tenant();
+        let mut out = BTreeMap::new();
+        for (label, pid, target) in wanted {
+            if is_cancelled() {
+                return Err("query cancelled".into());
+            }
+            let Some(ords) = samples.get(label) else {
+                continue;
+            };
+            let (Some(&first), Some(&last)) = (ords.first(), ords.last()) else {
+                continue;
+            };
+            let sampled_owners = |nullness: u8, visit: &mut dyn FnMut(u64) -> bool| {
+                let start = presence_key(tenant, OwnerKind::Record, label, *pid, nullness, first);
+                let end = presence_key(
+                    tenant,
+                    OwnerKind::Record,
+                    label,
+                    *pid,
+                    nullness,
+                    last.saturating_add(1),
+                );
+                view.for_each_key(&start, &end, &mut |key| {
+                    match rushdb_types::keys::parse_presence_key(key) {
+                        Some((_, _, _, _, owner)) if ords.binary_search(&owner).is_ok() => {
+                            visit(owner)
+                        }
+                        _ => true,
+                    }
+                })
+                .map_err(|e| e.to_string())
+            };
+            let mut entry = PropertyScanStats::default();
+            let mut seen = false;
+            let mut failed = None;
+            sampled_owners(NULLNESS_VALUE, &mut |owner| {
+                seen = true;
+                let observed =
+                    access::occurrences_of_pid(view, tenant, OwnerKind::Record, owner, *pid)
+                        .map_err(|e| e.to_string())
+                        .and_then(|rows| {
+                            rows.iter().try_for_each(|row| {
+                                decode_value(row.value, &row.payload)
+                                    .map(|value| entry.observe(&value))
+                                    .map_err(|e| e.to_string())
+                            })
+                        });
+                if let Err(error) = observed {
+                    failed = Some(error);
+                    return false;
+                }
+                entry.samples.len() < *target
+            })?;
+            if let Some(error) = failed {
+                return Err(error);
+            }
+            if !seen {
+                sampled_owners(NULLNESS_NULL, &mut |_| {
+                    seen = true;
+                    false
+                })?;
+            }
+            if seen {
+                entry.records_count = 1;
+                out.insert((label.clone(), *pid), entry);
+            }
+        }
+        Ok(out)
     }
 
     /// Distinct values of `property` over `ords`, as the records response

@@ -4,6 +4,20 @@ This project follows [Semantic Versioning](https://semver.org/). Release notes
 describe observable engine and protocol changes; migration instructions belong
 in [`docs/manual/operations/upgrading-from-2x.md`](docs/manual/operations/upgrading-from-2x.md).
 
+## Unreleased
+
+### Changed
+
+- **An unfiltered `describe.properties` with full detail reads its samples
+  through each property's presence rows.** It used to read every occurrence
+  of the first 10,000 records per call, although only the sample values came
+  from that read (counts, shape and ranges come from the catalog). Each
+  property's samples are now read from the sampled records that hold it, in
+  the same order, until they are complete: the cap of 10, or every distinct
+  value the label holds when that is fewer. The response is unchanged.
+  Measured on 10,000 drifting nested documents (3 labels), the four calls an
+  agent makes to describe a schema took 48 ms and now take 11 ms.
+
 ## 3.0.7 — 2026-11-09
 
 ### Fixed
