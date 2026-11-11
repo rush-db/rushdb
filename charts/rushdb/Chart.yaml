@@ -3,8 +3,8 @@ name: rushdb
 description: RushDB, the database for AI, as a single-node StatefulSet with a persistent volume.
 type: application
 # Released together with the engine; publish.yml sets both from the release tag.
-version: 3.0.8
-appVersion: '3.0.8'
+version: 3.0.9
+appVersion: '3.0.9'
 keywords:
   - rushdb
   - database
