@@ -1195,10 +1195,8 @@ pub fn for_each_dictionary_entry<R: TryRead + ?Sized>(
     Ok(())
 }
 
-/// The largest key starting with `prefix`, or `None`, with forward seeks
-/// only (storage has no reverse cursor): byte by byte, a binary search for
-/// the highest byte a key under the known head continues with. About nine
-/// seeks per byte after `prefix`.
+/// The largest key starting with `prefix`, or `None`
+/// ([`TryRead::last_key_before`] over the prefix's range).
 ///
 /// # Errors
 /// Returns [`StorageError`] if a seek fails.
@@ -1206,33 +1204,8 @@ pub fn last_key<R: TryRead + ?Sized>(
     r: &R,
     prefix: &[u8],
 ) -> Result<Option<Vec<u8>>, StorageError> {
-    if r.first_key(prefix)?.is_none() {
-        return Ok(None);
-    }
-    // Invariant: some key starts with `head`.
-    let mut head = prefix.to_vec();
-    loop {
-        let (_, end) = rushdb_storage::prefix_range(&head);
-        let at_least = |byte: u8| -> Result<bool, StorageError> {
-            let mut start = head.clone();
-            start.push(byte);
-            Ok(r.first_key_from(&start, &end)?.is_some())
-        };
-        // No longer key under `head`: `head` is the key.
-        if !at_least(0)? {
-            return Ok(Some(head));
-        }
-        let (mut low, mut high) = (0u8, 0xFF_u8);
-        while low < high {
-            let mid = low + (high - low).div_ceil(2);
-            if at_least(mid)? {
-                low = mid;
-            } else {
-                high = mid - 1;
-            }
-        }
-        head.push(low);
-    }
+    let (start, end) = rushdb_storage::prefix_range(prefix);
+    r.last_key_before(&start, &end)
 }
 
 /// The first and last entry of a value dictionary, `(min, max)`.

@@ -70,9 +70,14 @@ How the engine executes a page:
   matches are only counted for `total`.
 - With `order`, it keeps the best `offset + limit` records seen so far, so
   memory grows with the page depth, not with the number of matches.
-- Every request evaluates the query again from the beginning. Deep offsets
-  cost proportionally more, and writes that land between requests can shift
-  records across page boundaries.
+- When a source already in the requested order reaches the page sooner
+  (record id order, an ordered index on the sort property, the records
+  missing the property), the planner walks it and stops at the page; a page
+  past the middle of the matches is read from the far end. See
+  [Ordered pages](../indexes-and-search/query-planning.md#ordered-pages).
+- Every request evaluates the query again. A deep `offset` in the middle of
+  a large listing still costs about the records before it, and writes that
+  land between requests can shift records across page boundaries.
 
 For [aggregations](aggregations.md), `offset` and `limit` apply to the
 output rows after grouping and ordering.

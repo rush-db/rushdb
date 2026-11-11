@@ -100,6 +100,11 @@ impl<'a> WorkingSet<'a> {
         self.charged = self.charged.saturating_sub(bytes);
     }
 
+    /// The probe that stops the request.
+    pub(crate) fn is_cancelled(&self) -> &'a dyn Fn() -> bool {
+        self.is_cancelled
+    }
+
     /// Bytes currently charged.
     pub(crate) fn charged(&self) -> u64 {
         self.charged

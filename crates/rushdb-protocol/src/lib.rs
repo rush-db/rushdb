@@ -2335,6 +2335,22 @@ pub struct ValueOverlap {
     pub not_compared: Option<String>,
 }
 
+/// An ordered page's access path (`ExplainPlan::order_path`).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OrderPath {
+    /// `storage` (creation order), `id` (record id order) or `property`
+    /// (the records missing the property, then its holders sorted).
+    pub source: String,
+    /// The page is read from the far end of the order and reversed (a
+    /// page past the middle of the matches).
+    pub reverse_walk: bool,
+    /// Estimated rows this path reads.
+    pub estimated_reads: u64,
+    /// Rows reading every candidate and sorting would take.
+    pub predicate_first_reads: u64,
+}
+
 /// Query plan introspection for a `QueryDocument`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -2343,7 +2359,9 @@ pub struct ExplainPlan {
     /// ordered index, `property_walk:<property>` when an unindexed predicate
     /// leaf narrows the candidates (see `unindexedWalk`), `relation_expand`
     /// when a `$relation` block is answered by expanding from its targets
-    /// (see `relationExpansion`), else `label_scan` or `full_scan`.
+    /// (see `relationExpansion`), `id_order` when an unfiltered page ordered
+    /// by record id reads the records in id order and stops at the page,
+    /// else `label_scan` or `full_scan`.
     pub access_path: String,
     /// A `$relation` conjunct the planner answers by expanding backwards
     /// from the records its block matches, instead of checking every
@@ -2374,6 +2392,11 @@ pub struct ExplainPlan {
     /// by design, and must never be read as if it were exact.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub range_selectivity_estimate: Option<f64>,
+    /// How a page ordered by one key (or by creation order, deep in the
+    /// listing) is read when a source already in that order reaches the
+    /// page in fewer reads than reading every candidate; absent otherwise.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub order_path: Option<OrderPath>,
     /// Page bound applied by the query.
     pub limit: Option<u64>,
     /// Offset applied by the query.

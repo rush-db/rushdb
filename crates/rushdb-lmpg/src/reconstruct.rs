@@ -9,7 +9,9 @@ use rushdb_types::value::{ID_FIELD, LABEL_FIELD, SOURCE_FIELD, TARGET_FIELD, TYP
 use serde_json::{Map, Value as Json};
 use std::collections::{BTreeMap, HashSet};
 
-fn id_string(id: &[u8; 16]) -> String {
+/// A record id as records carry it in `__id`: lowercase hex, no dashes.
+#[must_use]
+pub fn id_string(id: &[u8; 16]) -> String {
     uuid::Uuid::from_bytes(*id).simple().to_string()
 }
 

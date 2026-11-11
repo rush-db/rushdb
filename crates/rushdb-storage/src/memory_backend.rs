@@ -15,7 +15,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, RwLock};
 
 use crate::backend::{CommitOps, LoadedState, StorageBackend, StorageReadView};
-use crate::read_view::{ReadLimits, ScanProjection};
+use crate::read_view::{ReadLimits, ScanDirection, ScanProjection};
 use crate::{wal, Op, StorageError, StorageStatistics, VersionEntry, LAST_APPLIED_KEY, LOG_PREFIX};
 
 /// Shared MVCC maps backing an in-memory store.
@@ -318,8 +318,9 @@ impl StorageReadView for MemoryReadView {
         upper: &Bound<Vec<u8>>,
         limits: ReadLimits,
         _include_history: bool,
+        direction: ScanDirection,
     ) -> Result<Option<Vec<u8>>, StorageError> {
-        if let Bound::Included(key) | Bound::Excluded(key) = lower {
+        if let Bound::Included(key) | Bound::Excluded(key) = direction.from(lower, upper) {
             crate::read_accounting::record("seek", key);
         }
         let data = self.health.guard(self.maps.data.read())?;
@@ -328,12 +329,20 @@ impl StorageReadView for MemoryReadView {
             lower.as_ref().map(Vec::as_slice),
             upper.as_ref().map(Vec::as_slice),
         );
-        let current = data.range::<[u8], _>(bounds).next().map(|(key, _)| key);
-        let old = history.range::<[u8], _>(bounds).next().map(|(key, _)| key);
-        let key = match (current, old) {
-            (Some(a), Some(b)) => Some(a.min(b)),
-            (a, b) => a.or(b),
+        let (current, old) = match direction {
+            ScanDirection::Forward => (
+                data.range::<[u8], _>(bounds).next(),
+                history.range::<[u8], _>(bounds).next().map(|(key, _)| key),
+            ),
+            ScanDirection::Reverse => (
+                data.range::<[u8], _>(bounds).next_back(),
+                history
+                    .range::<[u8], _>(bounds)
+                    .next_back()
+                    .map(|(key, _)| key),
+            ),
         };
+        let key = direction.first(current.map(|(key, _)| key), old);
         key.map(|key| {
             limits.check_item(key.len(), 0)?;
             Ok(key.clone())

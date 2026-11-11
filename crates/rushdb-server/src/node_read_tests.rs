@@ -209,9 +209,8 @@ fn native_record_enumeration_and_bulk_delete_preserve_label_selection() {
             .scope()
             .import_json_document("AB", &json!({"name": "two"}))
             .unwrap();
-        let records = node.scope().enumerate_records("A", None).unwrap();
-        assert_eq!(records.len(), 1);
-        assert_eq!(records[0].1, a.ordinal);
+        let records = node.scope().label_ordinals("A").unwrap();
+        assert_eq!(records, vec![a.ordinal]);
         node.scope()
             .delete_records(&json!({"labels": ["A"]}))
             .unwrap();
@@ -243,10 +242,7 @@ fn bulk_delete_streams_in_bounded_pages() {
             .unwrap();
         assert_eq!(affected, 1100);
         assert!(
-            node.scope()
-                .enumerate_records("Bulk", None)
-                .unwrap()
-                .is_empty(),
+            node.scope().label_ordinals("Bulk").unwrap().is_empty(),
             "all Bulk records must be deleted"
         );
     });
@@ -268,10 +264,7 @@ fn delete_records_with_cancel_aborts_before_deleting() {
             .unwrap_err();
         assert!(err.contains("operation cancelled"), "got: {err}");
         assert_eq!(
-            node.scope()
-                .enumerate_records("Cancel", None)
-                .unwrap()
-                .len(),
+            node.scope().label_ordinals("Cancel").unwrap().len(),
             10,
             "a cancelled delete must not remove records"
         );
@@ -641,10 +634,7 @@ fn delete_records_respects_caller_limit_and_skip() {
             .delete_records(&json!({"labels": ["Del"], "limit": 3}))
             .unwrap();
         assert_eq!(affected, 3, "limit must cap the delete");
-        assert_eq!(
-            node.scope().enumerate_records("Del", None).unwrap().len(),
-            7
-        );
+        assert_eq!(node.scope().label_ordinals("Del").unwrap().len(), 7);
 
         // skip leaves the first two matches in place; limit caps this call.
         let affected = node
@@ -652,10 +642,7 @@ fn delete_records_respects_caller_limit_and_skip() {
             .delete_records(&json!({"labels": ["Del"], "skip": 2, "limit": 2}))
             .unwrap();
         assert_eq!(affected, 2);
-        assert_eq!(
-            node.scope().enumerate_records("Del", None).unwrap().len(),
-            5
-        );
+        assert_eq!(node.scope().label_ordinals("Del").unwrap().len(), 5);
 
         // No limit drains the remainder (legacy behavior).
         let affected = node
@@ -663,11 +650,7 @@ fn delete_records_respects_caller_limit_and_skip() {
             .delete_records(&json!({"labels": ["Del"]}))
             .unwrap();
         assert_eq!(affected, 5);
-        assert!(node
-            .scope()
-            .enumerate_records("Del", None)
-            .unwrap()
-            .is_empty());
+        assert!(node.scope().label_ordinals("Del").unwrap().is_empty());
 
         // limit 0 deletes nothing.
         node.scope()
@@ -679,10 +662,7 @@ fn delete_records_respects_caller_limit_and_skip() {
                 .unwrap(),
             0
         );
-        assert_eq!(
-            node.scope().enumerate_records("Del", None).unwrap().len(),
-            1
-        );
+        assert_eq!(node.scope().label_ordinals("Del").unwrap().len(), 1);
     });
 }
 
@@ -1079,15 +1059,8 @@ fn label_delete_of_fat_records_removes_the_label() {
             .delete_records(&json!({"labels": ["Fat"]}))
             .unwrap();
         assert_eq!(affected, 20);
-        assert!(node
-            .scope()
-            .enumerate_records("Fat", None)
-            .unwrap()
-            .is_empty());
-        assert_eq!(
-            node.scope().enumerate_records("Keep", None).unwrap().len(),
-            1
-        );
+        assert!(node.scope().label_ordinals("Fat").unwrap().is_empty());
+        assert_eq!(node.scope().label_ordinals("Keep").unwrap().len(), 1);
     });
 }
 
@@ -1323,10 +1296,7 @@ fn require_vector_index_name_gate_refuses_derived_alias() {
         .unwrap_err();
     assert!(err.contains("require an explicit `index`"), "got: {err}");
     assert!(
-        node.scope()
-            .enumerate_records("Doc", None)
-            .unwrap()
-            .is_empty(),
+        node.scope().label_ordinals("Doc").unwrap().is_empty(),
         "a refused inline vector must not create the record"
     );
 
@@ -1558,4 +1528,128 @@ fn commit_phase_timings_are_exported() {
             assert!(count >= 1.0, "phase {} never observed", phase.label());
         }
     });
+}
+
+/// A node whose queries may hold at most `query_memory_max` bytes, with
+/// `reviews` `Review` records keyed `biz` = n % `businesses` and
+/// `businesses` `Business` records keyed `biz` = n.
+fn review_join_node(query_memory_max: usize, reviews: u64, businesses: u64) -> Node {
+    let mut cfg = crate::ServerConfig::default();
+    cfg.resources.query_memory_max = crate::resource_config::ByteSize(query_memory_max);
+    let node = Node::bootstrap(&mut cfg).unwrap();
+    let lmpg = node.scope().lmpg();
+    let records = (0..reviews)
+        .map(|n| ("Review", n % businesses))
+        .chain((0..businesses).map(|n| ("Business", n)))
+        .collect::<Vec<_>>();
+    for chunk in records.chunks(5_000) {
+        let mut tx = lmpg.begin_batch();
+        for &(label, biz) in chunk {
+            tx.ops.push(rushdb_lmpg::BatchOp::CreateRecord {
+                label: label.into(),
+                explicit_id: None,
+                fields: vec![(
+                    "biz".into(),
+                    rushdb_lmpg::plan::FieldChange::Set(json!(biz)),
+                )],
+            });
+        }
+        lmpg.run_batch(tx).unwrap();
+    }
+    node
+}
+
+fn review_of(source_predicate: serde_json::Value) -> rushdb_protocol::RelationshipMutation {
+    rushdb_protocol::RelationshipMutation {
+        relation_type: "REVIEW_OF".into(),
+        source: rushdb_protocol::RelationshipSelector {
+            label: "Review".into(),
+            property: Some("biz".into()),
+            predicate: source_predicate,
+        },
+        target: rushdb_protocol::RelationshipSelector {
+            label: "Business".into(),
+            property: Some("biz".into()),
+            predicate: json!({}),
+        },
+        direction: rushdb_protocol::Direction::Out,
+        allow_cartesian: false,
+        properties: json!({}),
+    }
+}
+
+#[test]
+fn a_key_join_larger_than_the_working_set_links_in_chunks() {
+    // 25,000 reviews of 1,000 businesses under a 1 MiB working set: the
+    // rebuilt records alone would exceed it. Ordinals and the businesses'
+    // keys fit, and the edges commit 10,000 at a time.
+    let node = review_join_node(1 << 20, 25_000, 1_000);
+    let before = node.store.committed_version();
+    let linked = node.scope().link_records(&review_of(json!({}))).unwrap();
+    assert_eq!(linked["created"], 25_000);
+    assert_eq!(linked["skipped_existing"], 0);
+    assert_eq!(node.store.committed_version(), before + 3, "three chunks");
+
+    // Unlinking deletes them in chunks too; linking again recreates them.
+    let unlinked = node.scope().unlink_records(&review_of(json!({}))).unwrap();
+    assert_eq!(unlinked["deleted"], 25_000);
+    let relinked = node.scope().link_records(&review_of(json!({}))).unwrap();
+    assert_eq!(relinked["created"], 25_000);
+    let again = node.scope().link_records(&review_of(json!({}))).unwrap();
+    assert_eq!(again["created"], 0);
+    assert_eq!(again["skipped_existing"], 25_000);
+}
+
+#[test]
+fn a_stopped_link_resumes_with_the_missing_edges() {
+    let node = review_join_node(256 << 20, 25_000, 1_000);
+    let before = node.store.committed_version();
+    // Stopped once the first chunk has committed.
+    let stop = || node.store.committed_version() > before;
+    let mut context = node
+        .scope()
+        .execution_context(rushdb_engine::OperationClass::Write, None)
+        .unwrap();
+    let error = node
+        .scope()
+        .link_records_with_execution_context(&mut context, &review_of(json!({})), &stop)
+        .unwrap_err();
+    assert!(error.contains("cancelled"), "{error}");
+    assert_eq!(node.store.committed_version(), before + 1);
+    let resumed = node.scope().link_records(&review_of(json!({}))).unwrap();
+    assert_eq!(resumed["created"], 15_000);
+    assert_eq!(resumed["skipped_existing"], 10_000);
+}
+
+#[test]
+fn a_key_join_is_charged_to_the_working_set() {
+    let node = review_join_node(4 * 1024, 2_000, 100);
+    let error = node
+        .scope()
+        .link_records(&review_of(json!({})))
+        .unwrap_err();
+    assert!(
+        error.contains("query working set would exceed query-memory-max (4096 bytes)"),
+        "{error}"
+    );
+}
+
+#[test]
+fn a_key_join_matches_values_of_the_same_type_only() {
+    let node = review_join_node(256 << 20, 0, 0);
+    for (label, biz) in [
+        ("Review", json!(1)),
+        ("Review", json!("1")),
+        ("Review", json!([2, 3])),
+        ("Business", json!(1)),
+        ("Business", json!(3)),
+        ("Business", json!("x")),
+    ] {
+        node.scope()
+            .import_json_document(label, &json!({ "biz": biz }))
+            .unwrap();
+    }
+    let linked = node.scope().link_records(&review_of(json!({}))).unwrap();
+    // 1 → 1 and [2, 3] → 3; the string "1" matches no number.
+    assert_eq!(linked["created"], 2);
 }

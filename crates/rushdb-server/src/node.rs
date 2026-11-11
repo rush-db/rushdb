@@ -11,6 +11,7 @@ mod hybrid;
 pub(crate) use hybrid::HybridError;
 mod indexes;
 mod ingest;
+mod key_join;
 mod long_text;
 mod metrics;
 mod observability;
@@ -48,7 +49,6 @@ use rushdb_types::keys::{key, P_FAMILY_SIG};
 
 type PropertyMetadata =
     BTreeMap<String, Vec<(u64, String, String, rushdb_types::model::LogicalType)>>;
-type IndexedRecord = (RecordId, u64, serde_json::Map<String, serde_json::Value>);
 
 type PropertyAggregate = (String, u64);
 type RelationshipAggregate = (u64, BTreeMap<String, PropertyAggregate>);
@@ -990,7 +990,7 @@ impl RequestScope<'_> {
         &self,
         query: &rushdb_protocol::QueryDocument,
     ) -> Result<rushdb_protocol::ExplainPlan, String> {
-        let snap = self.store.read_view().map_err(|e| e.to_string())?;
+        let snap = Arc::new(self.store.read_view().map_err(|e| e.to_string())?);
         self.explain_in_view(query, &snap)
     }
 
@@ -998,7 +998,7 @@ impl RequestScope<'_> {
     pub(crate) fn explain_in_view(
         &self,
         query: &rushdb_protocol::QueryDocument,
-        snap: &rushdb_storage::ReadView,
+        snap: &Arc<rushdb_storage::ReadView>,
     ) -> Result<rushdb_protocol::ExplainPlan, String> {
         let tenant = self.tenant();
         let mut estimate: u64 = 0;
@@ -1055,6 +1055,29 @@ impl RequestScope<'_> {
                 .map(|target_estimate| rushdb_protocol::RelationExpansion { target_estimate }),
             None => None,
         };
+        // A page ordered by one key (or deep in creation order) may be read
+        // from a source already in that order: the order planner's choice.
+        let order_path = match rushdb_query::document::parse_document(
+            &crate::protocol::query_document_to_parser_input(query),
+        ) {
+            Ok(parsed) => rushdb_query::explain_order(
+                &self.lmpg(),
+                &parsed.search,
+                snap,
+                usize::try_from(query.offset).unwrap_or(usize::MAX),
+                query.limit.map_or(usize::MAX, |limit| {
+                    usize::try_from(limit).unwrap_or(usize::MAX)
+                }),
+            )
+            .map_err(|e| e.to_string())?
+            .map(|order| rushdb_protocol::OrderPath {
+                source: order.source.to_string(),
+                reverse_walk: order.reverse_walk,
+                estimated_reads: order.estimated_reads,
+                predicate_first_reads: order.predicate_first_reads,
+            }),
+            Err(_) => None,
+        };
         Ok(rushdb_protocol::ExplainPlan {
             access_path: match (&index, &unindexed_walk, &relation_expansion) {
                 (Some(name), _, _) => format!("index:{name}"),
@@ -1070,6 +1093,7 @@ impl RequestScope<'_> {
             scan_estimate: estimate,
             estimated_cardinality,
             range_selectivity_estimate,
+            order_path,
             limit: query.limit,
             offset: query.offset,
         })

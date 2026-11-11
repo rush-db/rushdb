@@ -6,13 +6,15 @@ use crate::aggregate_rows::Cell;
 use crate::planner::{family_id, pids_of};
 use crate::{access, normalize, reconstruct, Expr, FieldPred, Json, QueryError, QuerySnapshot};
 use rushdb_lmpg::reader::TryRead;
+use rushdb_types::value::ID_FIELD;
 use serde_json::Map;
 
 /// Record properties read with one point read per typed definition instead
 /// of rebuilding the record (READ-1: sorting 667K matches, or checking an
 /// unindexed `age < 25` on them, rebuilt every one). Covers scalar record
-/// properties only; [`Self::resolve`] answers `None` for a system field or a
-/// property stored as an array anywhere, and the caller rebuilds the record.
+/// properties and the record id (`__id`, read from the record header);
+/// [`Self::resolve`] answers `None` for another system field or a property
+/// stored as an array anywhere, and the caller rebuilds the record.
 ///
 /// A record holds one value per property: a write deletes the value of
 /// every typed definition of the property before it stores the new one
@@ -21,7 +23,15 @@ use serde_json::Map;
 /// most records hold them: by descending owner support (under the read's
 /// labels). A CSV column inferred as both Int64 and Float64 is read with one
 /// point read per row for most rows, not two.
-pub struct PointFields(Vec<(String, Vec<u64>)>);
+pub struct PointFields(Vec<(String, Source)>);
+
+/// Where one point field is read from.
+enum Source {
+    /// The record id, from the record header.
+    Id,
+    /// The typed definitions of a scalar property, in probe order.
+    Pids(Vec<u64>),
+}
 
 impl PointFields {
     /// Point reads for `names`, each row keyed by the name as given; `None`
@@ -51,10 +61,15 @@ impl PointFields {
     ) -> Result<Option<Self>, QueryError> {
         let mut fields = Vec::new();
         for name in names {
-            let Some(pids) = scalar_pids(snap, tenant, labels, name)? else {
-                return Ok(None);
+            let source = if normalize(name) == ID_FIELD {
+                Source::Id
+            } else {
+                let Some(pids) = scalar_pids(snap, tenant, labels, name)? else {
+                    return Ok(None);
+                };
+                Source::Pids(pids)
             };
-            fields.push((name.to_owned(), pids));
+            fields.push((name.to_owned(), source));
         }
         Ok(Some(Self(fields)))
     }
@@ -86,12 +101,21 @@ impl PointFields {
         ord: u64,
     ) -> Result<Map<String, Json>, QueryError> {
         let mut row = Map::new();
-        for (field, pids) in &self.0 {
-            if let Some(occ) = held(snap, tenant, ord, pids)? {
-                row.insert(
-                    field.clone(),
-                    reconstruct::decode_value(occ.value, &occ.payload)?,
-                );
+        for (field, source) in &self.0 {
+            match source {
+                Source::Id => {
+                    if let Some(id) = record_id(snap, tenant, ord)? {
+                        row.insert(field.clone(), Json::String(id));
+                    }
+                }
+                Source::Pids(pids) => {
+                    if let Some(occ) = held(snap, tenant, ord, pids)? {
+                        row.insert(
+                            field.clone(),
+                            reconstruct::decode_value(occ.value, &occ.payload)?,
+                        );
+                    }
+                }
             }
         }
         Ok(row)
@@ -107,14 +131,27 @@ impl PointFields {
         out: &mut Vec<Option<Cell>>,
     ) -> Result<(), QueryError> {
         out.clear();
-        for (_, pids) in &self.0 {
-            out.push(match held(snap, tenant, ord, pids)? {
-                Some(occ) => Some(Cell::decode(occ.value, &occ.payload)?),
-                None => None,
+        for (_, source) in &self.0 {
+            out.push(match source {
+                Source::Id => record_id(snap, tenant, ord)?.map(Cell::Str),
+                Source::Pids(pids) => match held(snap, tenant, ord, pids)? {
+                    Some(occ) => Some(Cell::decode(occ.value, &occ.payload)?),
+                    None => None,
+                },
             });
         }
         Ok(())
     }
+}
+
+/// The id of record `ord`, as the rebuilt record carries it.
+fn record_id(
+    snap: &QuerySnapshot,
+    tenant: rushdb_types::ids::TenantId,
+    ord: u64,
+) -> Result<Option<String>, QueryError> {
+    Ok(access::record_by_ord(snap, tenant, ord)?
+        .map(|header| reconstruct::id_string(&header.record_id)))
 }
 
 /// The occurrence record `ord` holds under one of `pids` (probed in order).

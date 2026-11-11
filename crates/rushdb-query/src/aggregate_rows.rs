@@ -202,6 +202,10 @@ enum KeySource {
     Plain(Option<usize>),
     /// The time bucket of a field.
     TimeBucket(Option<usize>),
+    /// A related record's field through a traversal alias (`"$c.city"`):
+    /// its value, or the values of every bound record as an array. Missing
+    /// keys as the sentinel when grouping and is left out of a per-root row.
+    Alias { field: String, group: bool },
 }
 
 /// Where a metric reads its values.
@@ -277,13 +281,29 @@ impl<'r> RowPlan<'r> {
         let mut keys = Vec::new();
         if per_row {
             for (output, name) in &req.plain_fields {
-                keys.push((output.clone(), KeySource::Plain(field(name))));
+                let source = match name.split_once('.') {
+                    Some((alias, _)) if is_alias(alias) => KeySource::Alias {
+                        field: name.clone(),
+                        group: false,
+                    },
+                    _ => KeySource::Plain(field(name)),
+                };
+                keys.push((output.clone(), source));
             }
         }
         for g in &req.group_by {
-            // A group-by entry naming the time bucket is keyed by it.
-            if req.time_bucket_alias.as_deref() != Some(g.as_str()) {
-                keys.push((g.clone(), KeySource::Group(field(g))));
+            // A group-by entry naming the time bucket is keyed by it; an
+            // alias field is keyed by its property.
+            match g.split_once('.') {
+                Some((alias, prop)) if is_alias(alias) => keys.push((
+                    prop.to_owned(),
+                    KeySource::Alias {
+                        field: g.clone(),
+                        group: true,
+                    },
+                )),
+                _ if req.time_bucket_alias.as_deref() == Some(g.as_str()) => {}
+                _ => keys.push((g.clone(), KeySource::Group(field(g)))),
             }
         }
         if let Some(tb) = &req.time_bucket {
@@ -665,6 +685,31 @@ fn sum_numbers(values: &[Json], start: f64) -> Result<(f64, u64), QueryError> {
     Ok((sum, n))
 }
 
+/// The key of an alias field's `values` across a root's bound records: the
+/// value of one, the array of several (an array keys as its JSON text, as a
+/// stored array does), and when none holds it the missing sentinel
+/// (grouping) or nothing (a per-root field).
+fn alias_key(mut values: Vec<Json>, group: bool) -> Key {
+    let value = match values.len() {
+        0 if group => return Key::Str(MISSING_SENTINEL.into()),
+        0 => return Key::Absent,
+        1 => values.remove(0),
+        _ => Json::Array(values),
+    };
+    match &value {
+        Json::Null => Key::Null,
+        Json::Bool(b) => Key::Bool(*b),
+        Json::String(s) => Key::Str(s.clone()),
+        Json::Number(n) => n
+            .as_u64()
+            .map(Key::UInt)
+            .or_else(|| n.as_i64().map(Key::Int))
+            .or_else(|| n.as_f64().map(|f| Key::Float(f.to_bits())))
+            .unwrap_or_else(|| Key::Other(value.to_string())),
+        _ => Key::Other(value.to_string()),
+    }
+}
+
 /// The groups of one part of the candidates (or of all of them).
 #[derive(Default)]
 pub(crate) struct Partial {
@@ -697,6 +742,9 @@ impl Partial {
                         (Some(tb), Some(ms)) => Key::UInt(bucket_key(tb.floor_millis(ms))),
                         _ => Key::Str(MISSING_SENTINEL.into()),
                     }
+                }
+                KeySource::Alias { field, group } => {
+                    alias_key(ctx.values(plan, field)?.unwrap_or_default(), *group)
                 }
             });
         }

@@ -188,8 +188,22 @@ rdb '{
 
 Join keys compare values with their types (`17` does not match `"17"`), and
 a multi-value key matches when any of its values matches. Existing edges of
-the same type are skipped. Like the id-based operations, `linkRecords`
-writes every new edge in one atomic commit: all of them, or none.
+the same type are skipped (`skippedExisting` in the response).
+
+A join of any size runs in bounded memory: the engine holds the record
+ordinals of both sides and the key values of the smaller side (charged
+against `query-memory-max`), streams the larger side past them, and commits
+the new edges **10,000 at a time**. A join that creates up to 10,000 edges
+is one atomic commit; a larger one is not. If it stops partway (a
+cancelled request, a failed commit), the chunks already committed stay, and
+running the same `linkRecords` again creates only the edges still missing.
+Where all or nothing matters, keep each call to at most 10,000 new edges
+(narrow it with `predicate`), or use `linkRecordsPairs`, which commits each
+request atomically.
+
+A `predicate` on a large side is resolved like a query filter: declare an
+ordered index on the property it filters by, so its records are found
+without walking the label.
 
 ## Other ways to create relationships
 
@@ -246,8 +260,10 @@ rdb '{"protocolVersion":1,"operation":{"kind":"mutate","mutation":{
     "targetIds":["019a0000-0000-7000-8000-000000000002"]}}}}'
 ```
 
-`unlinkRecords` takes the same selector command as `linkRecords`. The
-response of both is `{"kind": "mutation", "affected": <deleted edges>}`.
+`unlinkRecords` takes the same selector command as `linkRecords` and deletes
+in the same way, 10,000 matched pairs per commit; running it again after a
+stop deletes what is left. The response of both is
+`{"kind": "mutation", "affected": <deleted edges>}`.
 
 ## Rename a relationship type
 

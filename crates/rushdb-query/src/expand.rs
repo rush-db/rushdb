@@ -335,7 +335,7 @@ fn related_targets(
         ..SearchRequest::default()
     };
     Ok(
-        run_matches(lmpg, &req, is_cancelled, snap, usize::MAX, None)?
+        run_matches(lmpg, &req, is_cancelled, snap, 0, usize::MAX, None)?
             .retained
             .into_iter()
             .collect(),

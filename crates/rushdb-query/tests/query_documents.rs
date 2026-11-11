@@ -1180,3 +1180,64 @@ fn unindexed_walks_above_the_threshold_are_counted() {
     assert_eq!(rows.len(), 5);
     assert!(rushdb_query::unindexed_walks_total() > before);
 }
+
+/// Records created with explicit ids in scrambled order (so ordinal order
+/// is not id order), 200 `BIG` and 5 `SMALL`, every third with `odd: true`.
+fn scrambled_ids() -> Lmpg {
+    let lmpg = setup();
+    let mut tx = lmpg.begin_batch();
+    for n in 0u64..205 {
+        let mut id = [0u8; 16];
+        id[..8].copy_from_slice(&n.wrapping_mul(0x9E37_79B9_7F4A_7C15).to_be_bytes());
+        id[8..].copy_from_slice(&n.to_be_bytes());
+        tx.ops.push(rushdb_lmpg::BatchOp::CreateRecord {
+            label: if n % 41 == 0 { "SMALL" } else { "BIG" }.into(),
+            explicit_id: Some(id),
+            fields: vec![
+                ("n".into(), FieldChange::Set(json!(n))),
+                ("odd".into(), FieldChange::Set(json!(n % 3 == 0))),
+            ],
+        });
+    }
+    lmpg.run_batch(tx).unwrap();
+    lmpg
+}
+
+fn ids(records: &[Value]) -> Vec<String> {
+    records
+        .iter()
+        .map(|record| record["__id"].as_str().unwrap().to_owned())
+        .collect()
+}
+
+#[test]
+fn id_ordered_pages_follow_ids_not_creation_order() {
+    let lmpg = scrambled_ids();
+    for labels in [
+        json!([]),
+        json!(["BIG"]),
+        json!(["SMALL"]),
+        json!(["BIG", "SMALL"]),
+    ] {
+        for filter in [json!({}), json!({ "odd": true })] {
+            let mut all = ids(&run(&lmpg, &json!({ "labels": labels, "where": filter })));
+            all.sort();
+            for descending in [false, true] {
+                let mut want = all.clone();
+                if descending {
+                    want.reverse();
+                }
+                let order = if descending { "desc" } else { "asc" };
+                for skip in [0usize, 3, 7, 190, 300] {
+                    let document = json!({ "labels": labels, "where": filter,
+                        "orderBy": order, "skip": skip, "limit": 10 });
+                    let q = parse_document(&document).unwrap();
+                    let page = find_records(&lmpg, &q.search).unwrap();
+                    let expected: Vec<String> = want.iter().skip(skip).take(10).cloned().collect();
+                    assert_eq!(ids(&page.records), expected, "{document}");
+                    assert_eq!(page.total_matched, want.len() as u64, "{document}");
+                }
+            }
+        }
+    }
+}
