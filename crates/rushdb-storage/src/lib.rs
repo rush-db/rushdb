@@ -59,7 +59,7 @@ pub use overlay_view::OverlayView;
 pub use planner_stats::PlannerStats;
 pub use read_view::{
     ReadCancellation, ReadLimits, ReadPin, ReadView, ScanBatch, ScanBounds, ScanCursor,
-    ScanProjection, ScanRow,
+    ScanDirection, ScanProjection, ScanRow,
 };
 
 #[cfg(test)]
@@ -1498,7 +1498,7 @@ impl Store {
         };
         let mut out: Vec<(Vec<u8>, Vec<u8>)> = Vec::new();
         let mut bytes = 0usize;
-        while let Some(key) = view.next_key(&lower, &upper, limits, true)? {
+        while let Some(key) = view.next_key(&lower, &upper, limits, true, ScanDirection::Forward)? {
             if let Some(value) = view.get_at(&key, snap, limits, ScanProjection::KeyValue)? {
                 bytes = bytes.saturating_add(key.len() + value.len());
                 if bytes > 64 * 1024 * 1024 {

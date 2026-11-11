@@ -100,7 +100,8 @@ Value rules:
 ## Grouping
 
 `groupBy` lists the properties to group on, as `"$record.field"` or
-`"field"`:
+`"field"`, or `"$alias.field"` for a property of a related record bound with
+`$alias` in the predicate:
 
 ```json
 {
@@ -131,6 +132,11 @@ Rules:
   output.
 - Records that lack a group property fall into a group whose key value is
   the string `"__missing__"`.
+- An `"$alias.field"` key is read from the records the alias binds and named
+  by its property (`"$c.city"` gives `city`). A record whose alias binds
+  several records with the property is grouped by the array of their values;
+  one binding none of them is in the `"__missing__"` group. An alias that no
+  `$alias` in the predicate binds is refused with `invalid_request`.
 - If every `groupBy` entry is the name of a `select` output, the query is a
   single global rollup. This is the idiom for KPI rows that combine several
   metrics:
@@ -151,7 +157,9 @@ Rules:
 ### Ordering and paging rows
 
 `order` sorts the rows by output name (metric or group key), and `offset` /
-`limit` then slice the sorted rows. Every group is computed before ordering,
+`limit` then slice the sorted rows. A key that names no output (a typo, for
+example) is refused with `invalid_request` listing the outputs it can order
+by; `"order": "asc"` or `"desc"` leaves the rows in their order. Every group is computed before ordering,
 so `limit` does not reduce the work or the group limit. Per-record rows
 (field references beside metrics, no `groupBy`) are the exception: they are
 not subject to the group limit, and without an `order` only the requested

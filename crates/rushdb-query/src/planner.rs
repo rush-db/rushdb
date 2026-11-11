@@ -24,7 +24,7 @@ use leaf_walk::{each_presence_owner, owners_matching};
 /// intersection is empty. `exact` is true when every leaf was answered AND
 /// there are no traversal predicates, so the caller may skip per-candidate
 /// evaluation and the exact-count rescan.
-pub(super) struct IndexPlan {
+pub(crate) struct IndexPlan {
     /// Candidate owners, ascending.
     pub(super) ords: OwnerSet,
     pub(super) exact: bool,
@@ -802,7 +802,7 @@ pub(super) fn range_scalar_matches(scalar: &Scalar, op: RangeOp, bound: f64) -> 
     }
 }
 
-pub(super) fn family_id<R: TryRead>(
+pub(crate) fn family_id<R: TryRead>(
     snap: &R,
     tenant: rushdb_types::ids::TenantId,
     normalized: &str,
@@ -859,7 +859,7 @@ pub(super) fn all_type_states() -> Vec<TypeState> {
 }
 
 /// Typed definitions `(pid)` of a property family, every type state.
-pub(super) fn pids_of<R: TryRead>(
+pub(crate) fn pids_of<R: TryRead>(
     snap: &R,
     tenant: rushdb_types::ids::TenantId,
     fid: u64,

@@ -60,6 +60,54 @@ pub trait TryRead {
         })?;
         Ok(found)
     }
+    /// The largest key `k` with `start <= k < end` (an empty `end` is
+    /// unbounded above), or `None`. Snapshot readers seek backwards once;
+    /// other readers search byte by byte with forward seeks (a binary search
+    /// for the highest byte a key in range continues with: about nine seeks
+    /// per key byte).
+    ///
+    /// # Errors
+    /// Returns the underlying storage error on scan failure.
+    fn last_key_before(
+        &self,
+        start: &[u8],
+        end: &[u8],
+    ) -> Result<Option<Vec<u8>>, rushdb_storage::StorageError> {
+        if self.first_key_from(start, end)?.is_none() {
+            return Ok(None);
+        }
+        // Invariant: some key in range starts with `head`.
+        let mut head = Vec::new();
+        loop {
+            let (_, head_end) = rushdb_storage::prefix_range(&head);
+            let upper: &[u8] = match (head_end.is_empty(), end.is_empty()) {
+                (true, _) => end,
+                (false, true) => &head_end,
+                (false, false) => head_end.as_slice().min(end),
+            };
+            let at_least = |byte: u8| -> Result<bool, rushdb_storage::StorageError> {
+                let mut from = head.clone();
+                from.push(byte);
+                Ok(self
+                    .first_key_from(from.as_slice().max(start), upper)?
+                    .is_some())
+            };
+            // No longer key in range under `head`: `head` is the key.
+            if !at_least(0)? {
+                return Ok(Some(head));
+            }
+            let (mut low, mut high) = (0u8, 0xFF_u8);
+            while low < high {
+                let mid = low + (high - low).div_ceil(2);
+                if at_least(mid)? {
+                    low = mid;
+                } else {
+                    high = mid - 1;
+                }
+            }
+            head.push(low);
+        }
+    }
     /// At most `limit` rows starting with `p`, in key order. Snapshot readers
     /// read only those rows.
     ///
@@ -155,6 +203,14 @@ impl TryRead for rushdb_storage::Store {
         end: &[u8],
     ) -> Result<KeyValueRows, rushdb_storage::StorageError> {
         self.read_view()?.range(start, end)
+    }
+
+    fn last_key_before(
+        &self,
+        start: &[u8],
+        end: &[u8],
+    ) -> Result<Option<Vec<u8>>, rushdb_storage::StorageError> {
+        TryRead::last_key_before(&self.read_view()?, start, end)
     }
 }
 
@@ -262,21 +318,33 @@ impl TryRead for rushdb_storage::ReadView {
         start: &[u8],
         end: &[u8],
     ) -> Result<Option<Vec<u8>>, rushdb_storage::StorageError> {
-        let bounds = rushdb_storage::ScanBounds {
-            start: std::ops::Bound::Included(start.to_vec()),
-            end: if end.is_empty() {
-                std::ops::Bound::Unbounded
-            } else {
-                std::ops::Bound::Excluded(end.to_vec())
-            },
-        };
-        let mut cursor = self.scan(bounds, rushdb_storage::ScanProjection::Keys)?;
+        let mut cursor = self.scan(bounds(start, end), rushdb_storage::ScanProjection::Keys)?;
         Ok(cursor
             .next_batch(1, usize::MAX)?
             .rows
             .into_iter()
             .next()
             .map(|row| row.key))
+    }
+
+    fn last_key_before(
+        &self,
+        start: &[u8],
+        end: &[u8],
+    ) -> Result<Option<Vec<u8>>, rushdb_storage::StorageError> {
+        self.last_key(bounds(start, end))
+    }
+}
+
+/// `start <= key < end`, an empty `end` unbounded above.
+fn bounds(start: &[u8], end: &[u8]) -> rushdb_storage::ScanBounds {
+    rushdb_storage::ScanBounds {
+        start: std::ops::Bound::Included(start.to_vec()),
+        end: if end.is_empty() {
+            std::ops::Bound::Unbounded
+        } else {
+            std::ops::Bound::Excluded(end.to_vec())
+        },
     }
 }
 
@@ -331,6 +399,13 @@ impl<R: TryRead + ?Sized> TryRead for &R {
         end: &[u8],
     ) -> Result<Option<Vec<u8>>, rushdb_storage::StorageError> {
         (*self).first_key_from(start, end)
+    }
+    fn last_key_before(
+        &self,
+        start: &[u8],
+        end: &[u8],
+    ) -> Result<Option<Vec<u8>>, rushdb_storage::StorageError> {
+        (*self).last_key_before(start, end)
     }
 
     fn range_prefix_limited(
@@ -393,6 +468,13 @@ impl<R: TryRead> TryRead for std::sync::Arc<R> {
         end: &[u8],
     ) -> Result<Option<Vec<u8>>, rushdb_storage::StorageError> {
         self.as_ref().first_key_from(start, end)
+    }
+    fn last_key_before(
+        &self,
+        start: &[u8],
+        end: &[u8],
+    ) -> Result<Option<Vec<u8>>, rushdb_storage::StorageError> {
+        self.as_ref().last_key_before(start, end)
     }
     fn range_prefix_limited(
         &self,

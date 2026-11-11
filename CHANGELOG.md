@@ -4,6 +4,86 @@ This project follows [Semantic Versioning](https://semver.org/). Release notes
 describe observable engine and protocol changes; migration instructions belong
 in [`docs/manual/operations/upgrading-from-2x.md`](docs/manual/operations/upgrading-from-2x.md).
 
+## 3.0.9 — 2026-11-12
+
+### Changed
+
+- **`linkRecords` and `unlinkRecords` commit in chunks of 10,000 pairs
+  (behaviour change).** They used to stage every edge of a join in one
+  atomic commit. A join that creates or deletes up to 10,000 edges is still
+  one atomic commit. A larger one now commits chunk by chunk, so a stop
+  partway leaves the committed chunks in place. Both stay idempotent:
+  running the same call again creates (or deletes) only what is left, and
+  `skippedExisting` counts the edges already there. Callers that need a
+  larger join to be all or nothing must split it themselves (narrower
+  `predicate`s, or `linkRecordsPairs` per request).
+
+### Fixed
+
+- **`$sum` over an arithmetic expression is in the rows** (#436).
+  `{"$sum": {"$multiply": ["$record.price", "$record.qty"]}}` was computed
+  but left out of every row; a global rollup over no matches gives `null`,
+  like `$sum` of a field.
+- **`"$alias.field"` reads the related record, in `groupBy` and in
+  `select`** (#437, #440). It was taken as a root property literally named
+  `alias.field`, so every record grouped under `"__missing__"` and the
+  projection was left out of every row. A group key is named by its
+  property (`"$c.city"` → `city`); a record whose alias binds several
+  records with the property gets the array of their values. A reference to
+  an alias that no `$alias` in the predicate binds is refused with
+  `invalid_request` instead of being read as a root property.
+- **An alias binds only the records that match the blocks nested below
+  it** (#438). In `{"ORDER": {"$alias": "$o", "PRODUCT": {"category":
+  "office"}}}`, alias metrics (`{"$count": "$o"}`) and `$collect` from `$o`
+  bound every order of the root record, not just those with an office
+  product; the root records were filtered right. The two walkers that built
+  alias paths are now one, and a path's level keeps its nested blocks.
+- **An aggregation's `order` must name one of its outputs** (#439). A key
+  naming no `select` output or group key (a typo) was ignored and, with a
+  `limit`, silently returned the wrong rows; it is now refused with
+  `invalid_request` listing the outputs. Listings still order by any
+  property.
+
+- **`linkRecords`, `unlinkRecords` and `joinPairs` no longer rebuild every
+  record of both sides.** Each side was read as full records through a
+  page whose 100,000 limit was never applied, so any side was read whole.
+  A join of a few million records to a smaller label failed with
+  `resource exhausted: query working set exceeded 268435456 bytes` before
+  linking anything.
+  - Both sides are now resolved to ordinals (8 bytes each).
+  - The smaller side's key values are held in a map charged against
+    `query-memory-max`.
+  - The larger side streams past it, reading only its key property.
+  - Memory follows the smaller side and one chunk, not the join. A request
+    cancelled or past its deadline stops between records.
+- **Ordered and deep pages stop at their rows.** The planner used to plan
+  a records page by its filter only and then read every candidate to order
+  it, so ordered pages and deep `offset`s cost the whole label (a page of 100
+  ordered by record id, or the last page of a listing, took seconds to
+  minutes on a store of millions). It now also costs reading a source
+  already in the requested order and stopping at the page ("order-first")
+  against reading every candidate, from the counters it already uses, and
+  takes the cheaper:
+  - Record id order (`"order": "asc"` / `"desc"`), from the identity rows,
+    either way.
+  - Creation order (no `order`) and id order from the far end, for a page
+    past the middle of the matches.
+  - One property (`{"field": …}`): the records missing it (first ascending,
+    last descending) are found without reading the property, and only the
+    property's holders are read and sorted. A property few records hold no
+    longer costs every record.
+  - An ordered index on the sort property, from either end, when the
+    property holds one type (integers, datetimes or strings) and every
+    label holding it has one.
+
+  A walk that passes more records than reading every candidate would gives
+  up and the page is read the plain way, so a wrong estimate costs at most
+  twice. Ids are read from the record header instead of rebuilding the
+  record. `describe.explain` reports the choice as `orderPath`. Storage
+  gained a reverse key seek for the descending walks; it also makes the
+  min/max lookups of value dictionaries one seek instead of about nine per
+  key byte.
+
 ## 3.0.8 — 2026-11-10
 
 ### Changed

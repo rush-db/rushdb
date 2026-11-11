@@ -441,7 +441,7 @@ impl ProtocolExecutor<'_> {
             Mutation::LinkRecords { command } => {
                 let result = self
                     .node
-                    .link_records_with_execution_context(execution_context, &command)
+                    .link_records_with_execution_context(execution_context, &command, is_cancelled)
                     .map_err(execution_failed)?;
                 Ok(Response::Linked {
                     created: response_u64(&result, "created")?,
@@ -451,7 +451,11 @@ impl ProtocolExecutor<'_> {
             Mutation::UnlinkRecords { command } => {
                 let result = self
                     .node
-                    .unlink_records_with_execution_context(execution_context, &command)
+                    .unlink_records_with_execution_context(
+                        execution_context,
+                        &command,
+                        is_cancelled,
+                    )
                     .map_err(execution_failed)?;
                 Ok(Response::mutation(response_u64(&result, "deleted")?))
             }

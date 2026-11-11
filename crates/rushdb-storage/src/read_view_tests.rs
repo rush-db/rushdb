@@ -1334,3 +1334,100 @@ fn borrowed_reads_resolve_across_shards() {
     drop(store);
     std::fs::remove_dir_all(dir).unwrap();
 }
+
+/// The last row a forward scan of `bounds` yields: the oracle for
+/// [`ReadView::last_key`].
+fn last_scanned(view: &ReadView, bounds: ScanBounds) -> Option<Vec<u8>> {
+    rows(view, bounds, ScanProjection::Keys)
+        .pop()
+        .map(|row| row.key)
+}
+
+#[test]
+fn last_key_is_the_last_row_a_forward_scan_yields() {
+    on_backends(|store| {
+        let mut keys = vec![vec![0], vec![0, 255], vec![1], vec![255], vec![255, 255]];
+        for i in (0..=255).step_by(5) {
+            keys.push(vec![42, i]);
+        }
+        commit(store, keys.iter().map(|k| (k.clone(), Some(vec![7]))));
+        let view = store.read_view().unwrap();
+        for start in [
+            Included(vec![0]),
+            Excluded(vec![0]),
+            Included(vec![42]),
+            Unbounded,
+        ] {
+            for end in [
+                Included(vec![255]),
+                Excluded(vec![255]),
+                Excluded(vec![42, 100]),
+                Included(vec![42, 100]),
+                Excluded(vec![42]),
+                Unbounded,
+            ] {
+                let bounds = ScanBounds {
+                    start: start.clone(),
+                    end: end.clone(),
+                };
+                let Ok(last) = view.last_key(bounds.clone()) else {
+                    // Inverted bounds: refused like a scan of them.
+                    assert!(view.scan(bounds, ScanProjection::Keys).is_err());
+                    continue;
+                };
+                assert_eq!(last, last_scanned(&view, bounds), "{start:?}..{end:?}");
+            }
+        }
+    });
+}
+
+#[test]
+fn last_key_reads_a_pinned_snapshot_not_the_current_keys() {
+    on_backends(|store| {
+        commit(
+            store,
+            vec![
+                (b"user/a".to_vec(), Some(vec![1])),
+                (b"user/c".to_vec(), Some(vec![1])),
+            ],
+        );
+        let old = store.read_view().unwrap();
+        // The newest key is deleted, a newer one appears after it, and
+        // `user/b` is written between: the old view still ends at `user/c`.
+        commit(
+            store,
+            vec![
+                (b"user/c".to_vec(), None),
+                (b"user/b".to_vec(), Some(vec![2])),
+                (b"user/d".to_vec(), Some(vec![2])),
+            ],
+        );
+        let deleted = store.read_view().unwrap();
+        commit(store, vec![(b"user/d".to_vec(), None)]);
+        let current = store.read_view().unwrap();
+        let prefix = || ScanBounds::prefix(b"user/");
+        assert_eq!(old.last_key(prefix()).unwrap(), Some(b"user/c".to_vec()));
+        assert_eq!(
+            deleted.last_key(prefix()).unwrap(),
+            Some(b"user/d".to_vec())
+        );
+        assert_eq!(
+            current.last_key(prefix()).unwrap(),
+            Some(b"user/b".to_vec())
+        );
+        for view in [&old, &deleted, &current] {
+            assert_eq!(
+                view.last_key(prefix()).unwrap(),
+                last_scanned(view, prefix())
+            );
+        }
+        let before_b = ScanBounds {
+            start: Included(b"user/".to_vec()),
+            end: Excluded(b"user/b".to_vec()),
+        };
+        assert_eq!(
+            current.last_key(before_b).unwrap(),
+            Some(b"user/a".to_vec())
+        );
+    });
+}

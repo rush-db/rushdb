@@ -1,5 +1,6 @@
-//! `derived::last_key` finds the largest key under a prefix with forward
-//! seeks only; it must agree with a full scan on any key set, including keys
+//! `TryRead::last_key_before` finds the largest key in a range with forward
+//! seeks only on readers without a reverse seek (transactions, overlays);
+//! it must agree with a full scan on any key set and range, including keys
 //! that are prefixes of others and bytes at 0x00 and 0xFF.
 
 use std::collections::BTreeMap;
@@ -68,6 +69,22 @@ fn last_key_matches_a_scan() {
                 want,
                 "round {round} prefix {prefix:?}"
             );
+        }
+        let bounds: [&[u8]; 6] = [&[], &[0x00], &[0x00, 0xFF], &[0x01], &[0x7F, 0x80], &[0xFF]];
+        for start in bounds {
+            for end in bounds {
+                let want = map
+                    .0
+                    .keys()
+                    .filter(|k| k.as_slice() >= start && (end.is_empty() || k.as_slice() < end))
+                    .max()
+                    .cloned();
+                assert_eq!(
+                    map.last_key_before(start, end).unwrap(),
+                    want,
+                    "round {round} range {start:?}..{end:?}"
+                );
+            }
         }
     }
 }

@@ -12,7 +12,7 @@
 //! view type behind this same seam; the point of the trait is that the write /
 //! durability contract is already isolated.
 
-use crate::read_view::{ReadLimits, ScanProjection};
+use crate::read_view::{ReadLimits, ScanDirection, ScanProjection};
 use crate::resources::ByteReservation;
 use crate::{Op, StorageError, StorageStatistics, VersionEntry};
 use std::collections::BTreeMap;
@@ -61,14 +61,16 @@ pub(crate) trait StorageReadView: Send + Sync {
         Ok(value)
     }
 
-    /// Smallest key in `(lower, upper)`; `include_history` widens to retained
-    /// versions for a non-current snapshot.
+    /// Smallest (`Forward`) or largest (`Reverse`) key in `(lower, upper)`;
+    /// `include_history` widens to retained versions for a non-current
+    /// snapshot.
     fn next_key(
         &self,
         lower: &Bound<Vec<u8>>,
         upper: &Bound<Vec<u8>>,
         limits: ReadLimits,
         include_history: bool,
+        direction: ScanDirection,
     ) -> Result<Option<Vec<u8>>, StorageError>;
 
     /// Ordered current-value range with the requested projection.

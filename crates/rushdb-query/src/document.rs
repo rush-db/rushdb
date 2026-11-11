@@ -28,6 +28,11 @@ pub enum QueryDocumentError {
     /// The document uses a construct this parser does not support.
     #[error("unsupported where construct: {0}")]
     Unsupported(String),
+    /// A `select`, `groupBy` or `order` entry names nothing the document
+    /// defines (an alias no `where` block binds, an output no `select` or
+    /// `groupBy` produces).
+    #[error("invalid query document: {0}")]
+    Document(String),
 }
 
 const OPS: &[&str] = &[
@@ -999,6 +1004,72 @@ fn select_math_expr(v: &Json) -> Result<Option<crate::OutputExpr>, QueryDocument
     Ok(Some(build_math_from_array(op.as_str(), args)?))
 }
 
+/// The alias and property of a `"$alias.field"` reference; `None` for a
+/// `$record.`/`$self.` reference or a plain field name.
+fn alias_reference(raw: &str) -> Option<(&str, &str)> {
+    if raw.starts_with("$record.") || raw.starts_with("$self.") {
+        return None;
+    }
+    raw.strip_prefix('$')?.split_once('.')
+}
+
+/// Whether `raw` reads a related record's field through an alias bound in
+/// `where`; an alias reference to an alias nothing binds is refused.
+fn check_alias_reference(raw: &str, aliases: &CollectAliasMap) -> Result<bool, QueryDocumentError> {
+    let Some((alias, _)) = alias_reference(raw) else {
+        return Ok(false);
+    };
+    if aliases.contains_key(alias) {
+        return Ok(true);
+    }
+    Err(QueryDocumentError::Document(format!(
+        "`{raw}` reads alias `${alias}`, which no `$alias` in `where` binds"
+    )))
+}
+
+/// The output name of a `groupBy` entry (as stored, without `$record.` or
+/// `$`): an alias field is keyed by its property.
+fn group_key_name<'g>(entry: &'g str, aliases: &CollectAliasMap) -> &'g str {
+    match entry.split_once('.') {
+        Some((alias, prop)) if aliases.contains_key(alias) => prop,
+        _ => entry,
+    }
+}
+
+/// An aggregate is ordered by its outputs: every `order` key must name a
+/// `select` output or a group key (`order: "asc"`/`"desc"`, the record id,
+/// leaves the row order as is).
+fn check_aggregate_order(
+    order_by: &[(String, bool)],
+    select: Option<&Json>,
+    group_by: &[String],
+    aliases: &CollectAliasMap,
+) -> Result<(), QueryDocumentError> {
+    let mut outputs: Vec<String> = select
+        .and_then(Json::as_object)
+        .map(|map| map.keys().cloned().collect())
+        .unwrap_or_default();
+    outputs.extend(
+        group_by
+            .iter()
+            .map(|g| group_key_name(g, aliases).to_owned()),
+    );
+    let known: std::collections::HashSet<String> = outputs.iter().map(|o| norm(o)).collect();
+    for (key, _) in order_by {
+        if key != ID_FIELD && !known.contains(&norm(key)) {
+            return Err(QueryDocumentError::Document(format!(
+                "`order` key `{key}` is no output of this aggregation; it can order by {}",
+                outputs
+                    .iter()
+                    .map(|o| format!("`{o}`"))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            )));
+        }
+    }
+    Ok(())
+}
+
 fn select_field(v: &Json) -> Result<String, QueryDocumentError> {
     let s = v
         .as_str()
@@ -1038,7 +1109,7 @@ fn projected_order(
 
 /// Parse an `orderBy` value (`"asc"|"desc"` or `{field:"asc"}`) into
 /// `(normalized_field, descending)` pairs.
-fn parse_order_by(v: Option<&Json>) -> Vec<(String, bool)> {
+pub(crate) fn parse_order_by(v: Option<&Json>) -> Vec<(String, bool)> {
     match v {
         Some(v) if v.is_string() => vec![(ID_FIELD.into(), v.as_str().unwrap() == "desc")],
         Some(v) => v
@@ -1069,37 +1140,22 @@ pub type CollectAliasMap = std::collections::HashMap<String, Vec<crate::Traversa
 /// Collect every traversal alias (and nested aliases) reachable in a `where`
 /// expression, recording the full path from the root to each alias level.
 pub fn collect_alias_map(expr: &crate::Expr, out: &mut CollectAliasMap) {
-    /// Split a level's filter into endpoint predicates and nested label-block
-    /// children (each child becomes a further path step).
-    fn split_level(
-        filter: Option<&crate::Expr>,
-        children: &mut Vec<crate::Expr>,
-    ) -> Option<crate::Expr> {
-        let f = filter?;
-        match f {
-            crate::Expr::And(items) => {
-                let mut preds: Vec<crate::Expr> = Vec::new();
-                for item in items {
-                    match item {
-                        crate::Expr::Related(_) => children.push(item.clone()),
-                        other => preds.push(other.clone()),
-                    }
-                }
-                match preds.len() {
-                    0 => None,
-                    1 => Some(preds.remove(0)),
-                    _ => Some(crate::Expr::And(preds)),
-                }
-            }
-            crate::Expr::Related(_) => {
-                children.push(f.clone());
-                None
-            }
-            other => Some(other.clone()),
-        }
-    }
+    out.extend(alias_paths(expr));
+}
 
-    fn walk(expr: &crate::Expr, path: &mut Vec<crate::TraversalStep>, out: &mut CollectAliasMap) {
+/// Every traversal alias in a `where` expression with its full path from the
+/// root, in the order the aliases appear. Each step keeps its level's whole
+/// filter, nested label blocks included: an alias binds only the records
+/// that satisfy every block below it as well (`ORDER {$alias: $o, PRODUCT:
+/// {...}}` binds the orders that have such a product). The nested blocks
+/// are also walked, for the aliases bound below.
+#[must_use]
+pub fn alias_paths(expr: &crate::Expr) -> Vec<(String, Vec<crate::TraversalStep>)> {
+    fn walk(
+        expr: &crate::Expr,
+        path: &mut Vec<crate::TraversalStep>,
+        out: &mut Vec<(String, Vec<crate::TraversalStep>)>,
+    ) {
         match expr {
             crate::Expr::And(items) | crate::Expr::Or(items) | crate::Expr::Nor(items) => {
                 for item in items {
@@ -1112,28 +1168,26 @@ pub fn collect_alias_map(expr: &crate::Expr, out: &mut CollectAliasMap) {
             }
             crate::Expr::Not(inner) => walk(inner, path, out),
             crate::Expr::Related(rel) => {
-                let mut children: Vec<crate::Expr> = Vec::new();
-                let filter = split_level(rel.filter.as_deref(), &mut children);
-                let step = crate::TraversalStep {
+                path.push(crate::TraversalStep {
                     target_labels: rel.target_labels.clone(),
                     rel_type: rel.rel_type.clone(),
                     direction: rel.direction,
-                    filter,
-                };
-                path.push(step);
+                    filter: rel.filter.as_deref().cloned(),
+                });
                 if let Some(alias) = &rel.alias {
-                    out.insert(alias.trim_start_matches('$').to_string(), path.clone());
+                    out.push((alias.trim_start_matches('$').to_string(), path.clone()));
                 }
-                for child in &children {
-                    walk(child, path, out);
+                if let Some(filter) = rel.filter.as_deref() {
+                    walk(filter, path, out);
                 }
                 path.pop();
             }
             crate::Expr::Field(_) => {}
         }
     }
-    let mut path: Vec<crate::TraversalStep> = Vec::new();
-    walk(expr, &mut path, out);
+    let mut out = Vec::new();
+    walk(expr, &mut Vec::new(), &mut out);
+    out
 }
 
 /// Parse a `$collect` expression into a `CollectSpec`. `from` (alias-based)
@@ -1331,6 +1385,15 @@ pub fn parse_document(document: &Json) -> Result<ParsedQuery, QueryDocumentError
     if let Some(where_expr) = &where_expr {
         collect_alias_map(where_expr, &mut aliases);
     }
+    for raw in obj
+        .get("groupBy")
+        .and_then(|x| x.as_array())
+        .into_iter()
+        .flatten()
+        .filter_map(|v| v.as_str())
+    {
+        check_alias_reference(raw, &aliases)?;
+    }
     let mut collects: Vec<crate::CollectSpec> = Vec::new();
     let mut projection: Vec<(String, String)> = Vec::new();
     let mut listing = group_by.is_empty();
@@ -1340,7 +1403,12 @@ pub fn parse_document(document: &Json) -> Result<ParsedQuery, QueryDocumentError
             for (key, val) in map {
                 if let Some(collect) = val.as_object().and_then(|o| o.get("$collect")) {
                     collects.push(parse_collect(key, collect, &aliases)?);
-                } else if val.is_string() {
+                } else if let Some(raw) = val.as_str() {
+                    // A related record's field is read per row through the
+                    // alias's traversal, which the aggregate rows do.
+                    if check_alias_reference(raw, &aliases)? {
+                        listing = false;
+                    }
                     projection.push((key.clone(), select_field(val)?));
                 } else {
                     listing = false;
@@ -1376,6 +1444,7 @@ pub fn parse_document(document: &Json) -> Result<ParsedQuery, QueryDocumentError
         agg.labels = labels;
         agg.where_.clone_from(&search.where_);
         agg.group_by.clone_from(&group_by);
+        check_aggregate_order(&order_by, select.as_ref(), &group_by, &aliases)?;
         agg.order_by.clone_from(&order_by);
         agg.skip = skip;
         agg.limit = limit;

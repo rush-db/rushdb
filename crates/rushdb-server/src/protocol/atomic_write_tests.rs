@@ -1,6 +1,7 @@
 //! Multi-step writes commit once (all or nothing): `putRecord` replace,
-//! query/ID link and unlink, by-ID relationship updates, `retypeRelations`
-//! and Mongo `*Many`. Each test caps `max-expanded-commit-bytes` between one
+//! ID link and unlink, query link and unlink of up to one chunk (10,000
+//! pairs; larger joins commit per chunk), by-ID relationship updates,
+//! `retypeRelations` and Mongo `*Many`. Each test caps `max-expanded-commit-bytes` between one
 //! item's commit and the whole operation's, so the operation is refused
 //! partway through its items and must leave nothing applied.
 

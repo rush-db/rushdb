@@ -892,6 +892,7 @@ fn unlink_query_uses_the_request_pinned_view() {
                 allow_cartesian: false,
                 properties: serde_json::json!({}),
             },
+            &|| false,
         )
         .unwrap();
     assert_eq!(result["deleted"], 0);
@@ -941,6 +942,7 @@ fn link_query_uses_the_request_pinned_view() {
                 allow_cartesian: false,
                 properties: serde_json::json!({}),
             },
+            &|| false,
         )
         .unwrap();
     assert_eq!(result["created"], 0);
@@ -6683,6 +6685,84 @@ fn explain_names_a_relation_answered_by_expanding_from_its_targets() {
     }}));
     assert_eq!(plan.access_path, "label_scan");
     assert!(plan.relation_expansion.is_none());
+}
+
+#[test]
+fn explain_names_the_ordered_path_of_a_page() {
+    use rushdb_lmpg::plan::FieldChange;
+    let node = Node::bootstrap(&mut config(false)).unwrap();
+    let lmpg = node.scope().lmpg();
+    for (label, count) in [("Item", 40), ("Rare", 2)] {
+        for i in 0..count {
+            let fields = if label == "Item" && i < 3 {
+                vec![("score".into(), FieldChange::Set(serde_json::json!(i)))]
+            } else {
+                vec![("n".into(), FieldChange::Set(serde_json::json!(i)))]
+            };
+            lmpg.create_record(label, None, fields).unwrap();
+        }
+    }
+    let explain = |labels: &[&str],
+                   predicate: serde_json::Value,
+                   order: serde_json::Value,
+                   offset: u64,
+                   limit: Option<u64>| {
+        let Response::Explain { plan } = run(
+            &node,
+            Operation::Describe {
+                describe: Describe::Explain {
+                    query: QueryDocument {
+                        labels: labels.iter().map(|l| (*l).to_owned()).collect(),
+                        predicate,
+                        order: Some(order),
+                        offset,
+                        limit,
+                        ..QueryDocument::default()
+                    },
+                },
+            },
+        ) else {
+            panic!("explain response")
+        };
+        plan.order_path.map(|path| (path.source, path.reverse_walk))
+    };
+    let all = serde_json::json!({});
+    let by_id = |dir: &str| serde_json::json!(dir);
+    assert_eq!(
+        explain(&[], all.clone(), by_id("desc"), 0, Some(10)),
+        Some(("id".into(), false))
+    );
+    // Two records of 42: reading the label is cheaper than the id order.
+    assert_eq!(
+        explain(&["Rare"], all.clone(), by_id("desc"), 0, Some(10)),
+        None
+    );
+    // No limit: every record is read either way.
+    assert_eq!(
+        explain(&["Item"], all.clone(), by_id("desc"), 0, None),
+        None
+    );
+    // The last page of creation order is read from the end.
+    assert_eq!(
+        explain(&["Item"], all.clone(), serde_json::json!({}), 35, Some(5)),
+        Some(("storage".into(), true))
+    );
+    // Three of 42 records hold `score`: the rest sort first ascending.
+    assert_eq!(
+        explain(&[], all, serde_json::json!({"score": "asc"}), 0, Some(5)),
+        Some(("property".into(), false))
+    );
+    // A filter whose total is unknown counts every match anyway.
+    assert_eq!(
+        explain(
+            &["Item"],
+            serde_json::json!({ "n": { "$ne": 1 } }),
+            by_id("desc"),
+            0,
+            Some(10)
+        ),
+        None
+    );
 }
 
 #[test]

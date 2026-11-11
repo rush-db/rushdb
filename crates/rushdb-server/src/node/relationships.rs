@@ -1,74 +1,8 @@
 //! Node relationships operations. Context entry points retain caller-owned
 //! snapshot, tenant, cancellation, and budget semantics.
 
-use super::{access, bytes_from_hex, Arc, IndexedRecord, RecordId, RequestScope};
-
-/// Value set of a property (scalar -> [scalar]; array -> elements). A pure
-/// helper, not tenant-dependent — kept as a free function rather than on
-/// `RequestScope` so its own lifetime parameter can't collide with the
-/// impl's request-scope lifetime.
-pub(super) fn key_values<'a>(
-    obj: &'a serde_json::Map<String, serde_json::Value>,
-    key: &str,
-) -> Vec<&'a serde_json::Value> {
-    let Some(v) = obj.get(key) else {
-        return Vec::new();
-    };
-    match v {
-        serde_json::Value::Array(items) => items.iter().collect(),
-        other => vec![other],
-    }
-}
-
-/// Reference `any(sourceValue IN targetValues)` — exact (type-strict)
-/// overlap after toString bucketing pre-filters.
-pub(super) fn values_overlap(a: &[&serde_json::Value], b: &[&serde_json::Value]) -> bool {
-    a.iter().any(|av| b.iter().any(|bv| av == bv))
-}
-
-/// The one key join behind link, unlink and the join query: visit every
-/// `(source, target)` pair whose key values overlap (type-strict), each pair
-/// once, in source order. Targets are bucketed by the text of each key
-/// value, so the cost is linear in the records plus the matches, never
-/// sources × targets. `visit` returns `false` to stop early.
-///
-/// # Errors
-/// Returns whatever `visit` returns.
-pub(super) fn for_each_key_match(
-    sources: &[IndexedRecord],
-    targets: &[IndexedRecord],
-    source_key: &str,
-    target_key: &str,
-    mut visit: impl FnMut(&IndexedRecord, &IndexedRecord) -> Result<bool, String>,
-) -> Result<(), String> {
-    let mut buckets: std::collections::HashMap<String, Vec<usize>> =
-        std::collections::HashMap::new();
-    for (index, (_, _, record)) in targets.iter().enumerate() {
-        for value in key_values(record, target_key) {
-            buckets.entry(value.to_string()).or_default().push(index);
-        }
-    }
-    let mut seen = std::collections::HashSet::new();
-    for source in sources {
-        let source_values = key_values(&source.2, source_key);
-        seen.clear();
-        for value in &source_values {
-            let Some(candidates) = buckets.get(&value.to_string()) else {
-                continue;
-            };
-            for &index in candidates {
-                let target = &targets[index];
-                if seen.insert(index)
-                    && values_overlap(&source_values, &key_values(&target.2, target_key))
-                    && !visit(source, target)?
-                {
-                    return Ok(());
-                }
-            }
-        }
-    }
-    Ok(())
-}
+use super::key_join::JoinSide;
+use super::{access, bytes_from_hex, Arc, RecordId, RequestScope};
 
 /// Commit `batch` as one atomic commit, unless it stages nothing.
 fn run_nonempty(lmpg: &rushdb_lmpg::Lmpg, batch: rushdb_lmpg::BatchTx) -> Result<(), String> {
@@ -76,6 +10,38 @@ fn run_nonempty(lmpg: &rushdb_lmpg::Lmpg, batch: rushdb_lmpg::BatchTx) -> Result
         lmpg.run_batch(batch).map_err(|e| e.to_reason())?;
     }
     Ok(())
+}
+
+/// Record ids of endpoint ordinals, read from their headers once per chunk.
+#[derive(Default)]
+struct RecordIds(std::collections::HashMap<u64, [u8; 16]>);
+
+impl RecordIds {
+    /// The record ref of `ord` at `snap`.
+    fn record(
+        &mut self,
+        snap: &rushdb_storage::ReadView,
+        tenant: rushdb_types::ids::TenantId,
+        ord: u64,
+    ) -> Result<rushdb_lmpg::RecordRef, String> {
+        let record_id = if let Some(id) = self.0.get(&ord) {
+            *id
+        } else {
+            let header = access::record_by_ord(snap, tenant, ord)
+                .map_err(|e| e.to_string())?
+                .ok_or_else(|| format!("record ordinal {ord} has no header"))?;
+            self.0.insert(ord, header.record_id);
+            header.record_id
+        };
+        Ok(rushdb_lmpg::RecordRef {
+            record_id,
+            ordinal: ord,
+        })
+    }
+
+    fn clear(&mut self) {
+        self.0.clear();
+    }
 }
 
 /// Relationships an unlink deletes or a by-id update rewrites, collected
@@ -222,53 +188,42 @@ impl RequestScope<'_> {
         if !(1..=10_000).contains(&query.limit) {
             return Err("join limit must be between 1 and 10000".to_string());
         }
-        let left_filter = query
-            .left
-            .filter
-            .as_object()
-            .filter(|value| !value.is_empty());
-        let right_filter = query
-            .right
-            .filter
-            .as_object()
-            .filter(|value| !value.is_empty());
-        let sources = self.enumerate_records_in_view(
-            &query.left.label,
-            left_filter.map(|_| &query.left.filter),
-            snap,
-        )?;
-        let targets = self.enumerate_records_in_view(
-            &query.right.label,
-            right_filter.map(|_| &query.right.filter),
-            snap,
-        )?;
+        let never = || false;
+        let is_cancelled = is_cancelled.unwrap_or(&never);
+        let deadline = context
+            .as_deref()
+            .and_then(rushdb_engine::ExecutionContext::deadline);
+        let mut meter = self.working_set(is_cancelled, deadline);
+        let limit = usize::try_from(query.limit).unwrap_or(usize::MAX);
         let mut pairs = std::collections::HashSet::<(u64, u64)>::new();
-        let mut last_source = None;
-        for_each_key_match(
-            &sources,
-            &targets,
-            left_property,
-            right_property,
-            |(source_id, source_ord, _), (target_id, target_ord, _)| {
-                if last_source != Some(*source_ord) {
-                    last_source = Some(*source_ord);
-                    if is_cancelled.is_some_and(|cancelled| cancelled()) {
-                        return Err("operation cancelled".to_string());
+        self.for_each_join_chunk(
+            snap,
+            &JoinSide {
+                label: &query.left.label,
+                predicate: &query.left.filter,
+                key: Some(left_property),
+            },
+            &JoinSide {
+                label: &query.right.label,
+                predicate: &query.right.filter,
+                key: Some(right_property),
+            },
+            query.exclude_same_record,
+            &mut meter,
+            &mut |chunk| {
+                for &pair in chunk {
+                    if pairs.len() >= limit {
+                        return Ok(false);
                     }
-                    if let Some(context) = context.as_deref_mut() {
-                        context
-                            .check_deadline()
-                            .map_err(|error| error.to_string())?;
-                        context
-                            .charge_bytes(std::mem::size_of::<(u64, u64)>())
-                            .map_err(|error| error.to_string())?;
+                    if pairs.insert(pair) {
+                        if let Some(context) = context.as_deref_mut() {
+                            context
+                                .charge_bytes(std::mem::size_of::<(u64, u64)>())
+                                .map_err(|error| error.to_string())?;
+                        }
                     }
                 }
-                if query.exclude_same_record && source_id == target_id {
-                    return Ok(true);
-                }
-                pairs.insert((*source_ord, *target_ord));
-                Ok(pairs.len() < query.limit as usize)
+                Ok(pairs.len() < limit)
             },
         )?;
         Ok(pairs.len() as u64)
@@ -288,17 +243,15 @@ impl RequestScope<'_> {
         command: &rushdb_protocol::RelationshipMutation,
     ) -> Result<serde_json::Value, String> {
         let snap = Arc::new(self.store.read_view().map_err(|e| e.to_string())?);
-        self.link_records_in_view(command, &snap)
+        self.link_records_in_view(command, &snap, None, None)
     }
 
-    #[expect(
-        clippy::too_many_lines,
-        reason = "single linear operation/reader; splitting it would scatter shared borrows and hurt auditability"
-    )]
     pub(super) fn link_records_in_view(
         &self,
         command: &rushdb_protocol::RelationshipMutation,
         snap: &Arc<rushdb_storage::ReadView>,
+        is_cancelled: Option<&dyn Fn() -> bool>,
+        deadline: Option<std::time::Instant>,
     ) -> Result<serde_json::Value, String> {
         let rel_type = command.relation_type.clone();
         let direction = command.direction;
@@ -326,8 +279,6 @@ impl RequestScope<'_> {
         let target_label = command.target.label.clone();
         let source_key = command.source.property.clone();
         let target_key = command.target.property.clone();
-        let source_where = Some(&command.source.predicate);
-        let target_where = Some(&command.target.predicate);
 
         let has_join_keys = source_key.is_some() && target_key.is_some();
         if !has_join_keys && !many_to_many {
@@ -353,65 +304,57 @@ impl RequestScope<'_> {
             );
         }
 
-        let sources = self.enumerate_records_in_view(&source_label, source_where, snap)?;
-        let targets = self.enumerate_records_in_view(&target_label, target_where, snap)?;
-
-        // One atomic commit for every new edge: a conflict or an oversized
-        // commit leaves nothing applied.
+        // Each chunk of matched pairs commits on its own (at most
+        // `JOIN_CHUNK` new edges per commit), so a join of any size runs in
+        // bounded memory. A pair whose edge exists, in the view or from an
+        // earlier chunk, is skipped: a retry after a failure creates only
+        // the edges still missing. Every pair comes once per call, so the
+        // pinned view is enough to tell existing edges from new ones.
         let lmpg = self.lmpg();
-        let mut batch = lmpg.begin_batch();
-        let mut staged_pairs = std::collections::HashSet::new();
+        let never = || false;
+        let is_cancelled = is_cancelled.unwrap_or(&never);
+        let mut meter = self.working_set(is_cancelled, deadline);
         let mut created = 0usize;
         let mut skipped_existing = 0usize;
-
-        let mut stage = |(sid, sord, _): &IndexedRecord,
-                         (tid, tord, _): &IndexedRecord|
-         -> Result<bool, String> {
-            // direction: out -> source->target ; in -> target->source
-            let (a_ord, a_id, b_ord, b_id) = if direction == rushdb_protocol::Direction::In {
-                (*tord, *tid, *sord, *sid)
-            } else {
-                (*sord, *sid, *tord, *tid)
-            };
-            // MERGE semantics: idempotent per pair, also within the call.
-            if access::edge_exists(snap, self.tenant(), a_ord, &rel_type, b_ord)
-                .map_err(|e| e.to_string())?
-                || !staged_pairs.insert((a_ord, b_ord))
-            {
-                skipped_existing += 1;
-                return Ok(true);
-            }
-            batch.ops.push(rushdb_lmpg::BatchOp::CreateRelationship {
-                rel_type: rel_type.clone(),
-                source: rushdb_lmpg::RecordRef {
-                    record_id: a_id.0,
-                    ordinal: a_ord,
-                },
-                target: rushdb_lmpg::RecordRef {
-                    record_id: b_id.0,
-                    ordinal: b_ord,
-                },
-                fields: props.clone(),
-            });
-            created += 1;
-            Ok(true)
-        };
-        match (source_key.as_deref(), target_key.as_deref()) {
-            (Some(source_key), Some(target_key)) => {
-                for_each_key_match(&sources, &targets, source_key, target_key, &mut stage)?;
-            }
-            _ => {
-                for source in &sources {
-                    for target in &targets {
-                        // self-exclusion when same label
-                        if source_label != target_label || target.0 != source.0 {
-                            stage(source, target)?;
-                        }
+        let mut ids = RecordIds::default();
+        self.for_each_join_chunk(
+            snap,
+            &JoinSide {
+                label: &source_label,
+                predicate: &command.source.predicate,
+                key: source_key.as_deref(),
+            },
+            &JoinSide {
+                label: &target_label,
+                predicate: &command.target.predicate,
+                key: target_key.as_deref(),
+            },
+            !has_join_keys,
+            &mut meter,
+            &mut |pairs| {
+                let mut batch = lmpg.begin_batch();
+                for &(sord, tord) in pairs {
+                    // direction: out -> source->target ; in -> target->source
+                    let (a_ord, b_ord) = directed(direction, sord, tord);
+                    if access::edge_exists(snap, self.tenant(), a_ord, &rel_type, b_ord)
+                        .map_err(|e| e.to_string())?
+                    {
+                        skipped_existing += 1;
+                        continue;
                     }
+                    batch.ops.push(rushdb_lmpg::BatchOp::CreateRelationship {
+                        rel_type: rel_type.clone(),
+                        source: ids.record(snap, self.tenant(), a_ord)?,
+                        target: ids.record(snap, self.tenant(), b_ord)?,
+                        fields: props.clone(),
+                    });
+                    created += 1;
                 }
-            }
-        }
-        run_nonempty(&lmpg, batch)?;
+                run_nonempty(&lmpg, batch)?;
+                ids.clear();
+                Ok(true)
+            },
+        )?;
 
         Ok(serde_json::json!({
             "message": "Relations have been successfully created",
@@ -420,17 +363,24 @@ impl RequestScope<'_> {
         }))
     }
 
-    /// Query-based relationship linking using the caller-owned execution view.
+    /// Query-based relationship linking: matched against the caller-owned
+    /// execution view, stopped by `is_cancelled` and the context's deadline
+    /// between chunks.
     pub(crate) fn link_records_with_execution_context(
         &self,
         context: &mut rushdb_engine::ExecutionContext,
         command: &rushdb_protocol::RelationshipMutation,
+        is_cancelled: &dyn Fn() -> bool,
     ) -> Result<serde_json::Value, String> {
         context
             .check_deadline()
             .map_err(|error| error.to_string())?;
-        let result = self.link_records_in_view(command, context.read_view())?;
-        Ok(result)
+        self.link_records_in_view(
+            command,
+            context.read_view(),
+            Some(is_cancelled),
+            context.deadline(),
+        )
     }
 
     /// Match record pairs, then delete typed relationships between them.
@@ -442,13 +392,15 @@ impl RequestScope<'_> {
         command: &rushdb_protocol::RelationshipMutation,
     ) -> Result<serde_json::Value, String> {
         let snap = Arc::new(self.store.read_view().map_err(|e| e.to_string())?);
-        self.unlink_records_in_view(command, &snap)
+        self.unlink_records_in_view(command, &snap, None, None)
     }
 
     pub(super) fn unlink_records_in_view(
         &self,
         command: &rushdb_protocol::RelationshipMutation,
         snap: &Arc<rushdb_storage::ReadView>,
+        is_cancelled: Option<&dyn Fn() -> bool>,
+        deadline: Option<std::time::Instant>,
     ) -> Result<serde_json::Value, String> {
         let rel_type = command.relation_type.clone();
         let source_label = command.source.label.clone();
@@ -481,33 +433,38 @@ impl RequestScope<'_> {
             );
         }
 
-        let sources =
-            self.enumerate_records_in_view(&source_label, Some(&command.source.predicate), snap)?;
-        let targets =
-            self.enumerate_records_in_view(&target_label, Some(&command.target.predicate), snap)?;
-        let mut doomed = MatchedEdges::default();
-        let mut doom =
-            |(_, sord, _): &IndexedRecord, (_, tord, _): &IndexedRecord| -> Result<bool, String> {
-                // `direction` names which endpoint the edge leaves, as in link.
-                let (from, to) = directed(command.direction, *sord, *tord);
-                doomed.edges_between(snap, self.tenant(), from, to, Some(&rel_type))?;
-                Ok(true)
-            };
-        match (source_key.as_deref(), target_key.as_deref()) {
-            (Some(source_key), Some(target_key)) => {
-                for_each_key_match(&sources, &targets, source_key, target_key, &mut doom)?;
-            }
-            _ => {
-                for source in &sources {
-                    for target in &targets {
-                        if source_label != target_label || target.0 != source.0 {
-                            doom(source, target)?;
-                        }
-                    }
+        // Like link: each chunk of matched pairs deletes its edges in one
+        // commit, and a retry finds only the edges still there.
+        let lmpg = self.lmpg();
+        let never = || false;
+        let is_cancelled = is_cancelled.unwrap_or(&never);
+        let mut meter = self.working_set(is_cancelled, deadline);
+        let mut deleted = 0usize;
+        self.for_each_join_chunk(
+            snap,
+            &JoinSide {
+                label: &source_label,
+                predicate: &command.source.predicate,
+                key: source_key.as_deref(),
+            },
+            &JoinSide {
+                label: &target_label,
+                predicate: &command.target.predicate,
+                key: target_key.as_deref(),
+            },
+            !has_join_keys,
+            &mut meter,
+            &mut |pairs| {
+                let mut doomed = MatchedEdges::default();
+                for &(sord, tord) in pairs {
+                    // `direction` names which endpoint the edge leaves, as in link.
+                    let (from, to) = directed(command.direction, sord, tord);
+                    doomed.edges_between(snap, self.tenant(), from, to, Some(&rel_type))?;
                 }
-            }
-        }
-        let deleted = doomed.delete(&self.lmpg())?;
+                deleted += doomed.delete(&lmpg)?;
+                Ok(true)
+            },
+        )?;
         Ok(
             serde_json::json!({ "message": "Relations have been successfully deleted", "deleted": deleted }),
         )
@@ -519,12 +476,17 @@ impl RequestScope<'_> {
         &self,
         context: &mut rushdb_engine::ExecutionContext,
         command: &rushdb_protocol::RelationshipMutation,
+        is_cancelled: &dyn Fn() -> bool,
     ) -> Result<serde_json::Value, String> {
         context
             .check_deadline()
             .map_err(|error| error.to_string())?;
-        let result = self.unlink_records_in_view(command, context.read_view())?;
-        Ok(result)
+        self.unlink_records_in_view(
+            command,
+            context.read_view(),
+            Some(is_cancelled),
+            context.deadline(),
+        )
     }
 
     /// Link records by explicit record IDs (attach semantics). Endpoints are

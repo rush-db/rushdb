@@ -9,7 +9,8 @@ use redb::{Database, ReadableDatabase, ReadableTable, ReadableTableMetadata, Tab
 use crate::backend::CommitOps;
 use crate::history_v2;
 use crate::{
-    Op, ReadLimits, ScanProjection, StorageError, StorageStatistics, VersionEntry, LAST_APPLIED_KEY,
+    Op, ReadLimits, ScanDirection, ScanProjection, StorageError, StorageStatistics, VersionEntry,
+    LAST_APPLIED_KEY,
 };
 
 const DATA: TableDefinition<&[u8], &[u8]> = TableDefinition::new("rushdb.data.v1");
@@ -819,18 +820,20 @@ impl RedbReadView {
         upper: &Bound<Vec<u8>>,
         limits: ReadLimits,
         include_history: bool,
+        direction: ScanDirection,
     ) -> Result<Option<Vec<u8>>, StorageError> {
         let data = self.data_table()?;
         let bounds = (
             lower.as_ref().map(Vec::as_slice),
             upper.as_ref().map(Vec::as_slice),
         );
-        let current = data
-            .range::<&[u8]>(bounds)
-            .map_err(read_error)?
-            .next()
-            .transpose()
-            .map_err(read_error)?;
+        let mut range = data.range::<&[u8]>(bounds).map_err(read_error)?;
+        let current = match direction {
+            ScanDirection::Forward => range.next(),
+            ScanDirection::Reverse => range.next_back(),
+        }
+        .transpose()
+        .map_err(read_error)?;
         if !include_history {
             return current
                 .map(|(key, _)| {
@@ -840,18 +843,17 @@ impl RedbReadView {
                 .transpose();
         }
         let history = self.tx.open_table(HISTORY).map_err(read_error)?;
-        let old = history
-            .range::<&[u8]>(bounds)
-            .map_err(read_error)?
-            .next()
-            .transpose()
-            .map_err(read_error)?;
-        let key = match (&current, &old) {
-            (Some((a, _)), Some((b, _))) => Some(a.value().min(b.value())),
-            (Some((a, _)), None) => Some(a.value()),
-            (None, Some((b, _))) => Some(b.value()),
-            (None, None) => None,
-        };
+        let mut range = history.range::<&[u8]>(bounds).map_err(read_error)?;
+        let old = match direction {
+            ScanDirection::Forward => range.next(),
+            ScanDirection::Reverse => range.next_back(),
+        }
+        .transpose()
+        .map_err(read_error)?;
+        let key = direction.first(
+            current.as_ref().map(|(a, _)| a.value()),
+            old.as_ref().map(|(b, _)| b.value()),
+        );
         key.map(|key| {
             limits.check_item(key.len(), 0)?;
             Ok(key.to_vec())
@@ -908,11 +910,12 @@ impl crate::backend::StorageReadView for RedbReadView {
         upper: &Bound<Vec<u8>>,
         limits: ReadLimits,
         include_history: bool,
+        direction: ScanDirection,
     ) -> Result<Option<Vec<u8>>, StorageError> {
-        if let Bound::Included(key) | Bound::Excluded(key) = lower {
+        if let Bound::Included(key) | Bound::Excluded(key) = direction.from(lower, upper) {
             crate::read_accounting::record("seek", key);
         }
-        RedbReadView::next_key(self, lower, upper, limits, include_history)
+        RedbReadView::next_key(self, lower, upper, limits, include_history, direction)
     }
 
     fn current_range<'a>(
@@ -1072,24 +1075,23 @@ impl MergedViews {
         })
     }
 
-    /// Smallest next key across shards within `(lower, upper)`.
+    /// Smallest (`Forward`) or largest (`Reverse`) key across shards within
+    /// `(lower, upper)`.
     pub(crate) fn next_key(
         &self,
         lower: &Bound<Vec<u8>>,
         upper: &Bound<Vec<u8>>,
         limits: ReadLimits,
         current: bool,
+        direction: ScanDirection,
     ) -> Result<Option<Vec<u8>>, StorageError> {
         if self.is_single() {
-            return self.views[0].next_key(lower, upper, limits, !current);
+            return self.views[0].next_key(lower, upper, limits, !current, direction);
         }
         let mut best: Option<Vec<u8>> = None;
         for view in &self.views {
-            if let Some(key) = view.next_key(lower, upper, limits, true)? {
-                if best.as_ref().is_none_or(|current| key < *current) {
-                    best = Some(key);
-                }
-            }
+            let key = view.next_key(lower, upper, limits, true, direction)?;
+            best = direction.first(best, key);
         }
         Ok(best)
     }

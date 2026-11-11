@@ -40,11 +40,15 @@ pub use aggregation::{
     aggregate_to_rows_in_view_with_budget, aggregate_with_cancel, aggregate_with_cancel_in_view,
 };
 use field_types::type_held;
+mod matches;
+mod order;
 mod page;
 mod planned;
 mod planner;
 mod point_fields;
 mod projection;
+pub use matches::{explain_order, OrderExplain};
+use matches::{filtered_row, is_match, run_matches, walk_total, OrderRow};
 pub use point_fields::PointFields;
 mod property_predicate;
 pub use hex::hex_decode_16;
@@ -177,8 +181,9 @@ pub struct TraversalStep {
     pub rel_type: Option<String>,
     /// Edge direction at this level.
     pub direction: Direction,
-    /// Endpoint predicates evaluated on the record at this level (nested label
-    /// blocks are separate steps, not part of this filter).
+    /// Predicates evaluated on the record at this level, its nested label
+    /// blocks included (a record is bound only when every block below it
+    /// matches too).
     pub filter: Option<Expr>,
 }
 
@@ -509,7 +514,7 @@ pub fn matching_ordinals(
     }
     let mut full = req.clone();
     full.pagination = Pagination::default();
-    Ok(run_matches(lmpg, &full, is_cancelled, &snap, usize::MAX, None)?.retained)
+    Ok(run_matches(lmpg, &full, is_cancelled, &snap, 0, usize::MAX, None)?.retained)
 }
 
 /// The first `keep` ordinals matching `req`, in match order: the same prefix
@@ -543,296 +548,7 @@ pub fn matching_ordinals_first(
     }
     let mut full = req.clone();
     full.pagination = Pagination::default();
-    Ok(run_matches(lmpg, &full, is_cancelled, &snap, keep, None)?.retained)
-}
-
-/// The matches a search keeps, and how many there are in all.
-struct Matches {
-    /// The first `keep` matches in query order.
-    retained: Vec<u64>,
-    /// Every match, retained or not.
-    total: u64,
-}
-
-/// One pass over the candidates in ascending ordinal order.
-///
-/// Keeps the first `keep` matches in query order and counts the rest
-/// without keeping them. Without `order_by` the pass stops once `keep`
-/// matches are held and the total is already known: from the caller (a
-/// cursor continuation on its pinned view), from counters (no predicate),
-/// or from the index plan's owner set when the index answered the whole
-/// predicate. With `order_by` it keeps the best `keep` rows seen so far.
-/// The working set (the candidate owner set, retained ordinals, ordering
-/// rows and the record being evaluated) is charged against
-/// `query-memory-max`.
-fn run_matches(
-    lmpg: &Lmpg,
-    req: &SearchRequest,
-    is_cancelled: &dyn Fn() -> bool,
-    snap: &QuerySnapshot,
-    keep: usize,
-    known_total: Option<u64>,
-) -> Result<Matches, QueryError> {
-    check_walk_budget(lmpg, snap, req)?;
-    let mut working = WorkingSet {
-        limit: working_set_budget(lmpg).map(|bytes| u64::try_from(bytes).unwrap_or(u64::MAX)),
-        charged: 0,
-    };
-    let CandidateSource {
-        mut candidates,
-        exact,
-        known,
-        predicate,
-    } = candidate_source(lmpg, req, is_cancelled, snap, known_total, &mut working)?;
-    let ctx = EvalCtx::at(lmpg, snap.clone(), Some(is_cancelled));
-    let mut session = reconstruct::ReconstructSession::new(snap, lmpg.tenant);
-    let order_fields = if req.order_by.is_empty() {
-        None
-    } else {
-        PointFields::resolve_in(
-            snap,
-            lmpg.tenant,
-            &req.labels,
-            req.order_by.iter().map(|(f, _)| f.as_str()),
-        )?
-    };
-    let predicate_fields = match &predicate {
-        Some(expr) => PointFields::for_predicate(snap, lmpg.tenant, &req.labels, expr)?,
-        None => None,
-    };
-    let mut retained: Vec<u64> = Vec::new();
-    // Ordered scans hold `(ordinal, row, row bytes)`, sorted and cut back to
-    // `keep` whenever they double, so memory follows `keep`, not the matches.
-    let mut ordered: Vec<OrderRow> = Vec::new();
-    let mut ordered_bytes: Vec<u64> = Vec::new();
-    let mut total: u64 = 0;
-    while let Some(ord) = candidates.next(is_cancelled)? {
-        if is_cancelled() {
-            return Err(QueryError::Cancelled);
-        }
-        if !exact
-            && !is_match(
-                &ctx,
-                req,
-                predicate.as_ref(),
-                predicate_fields.as_ref(),
-                &mut session,
-                &mut working,
-                ord,
-            )?
-        {
-            continue;
-        }
-        total += 1;
-        if req.order_by.is_empty() {
-            if retained.len() < keep {
-                working.charge(8, true)?;
-                retained.push(ord);
-            } else if known.is_some() {
-                break;
-            }
-            continue;
-        }
-        let row = read_row(order_fields.as_ref(), &mut session, snap, lmpg.tenant, ord)?;
-        let bytes =
-            serde_json::to_vec(&row).map_or(0, |v| u64::try_from(v.len()).unwrap_or(u64::MAX));
-        working.charge(bytes, true)?;
-        ordered.push((ord, row));
-        ordered_bytes.push(bytes);
-        if ordered.len() >= keep.saturating_mul(2).max(64) {
-            working.charged = working.charged.saturating_sub(cut_ordered(
-                &mut ordered,
-                &mut ordered_bytes,
-                req,
-                keep,
-            ));
-        }
-    }
-    if !req.order_by.is_empty() {
-        cut_ordered(&mut ordered, &mut ordered_bytes, req, keep);
-        retained = ordered.into_iter().map(|(ord, _)| ord).collect();
-    }
-    Ok(Matches {
-        retained,
-        total: known.unwrap_or(total),
-    })
-}
-
-/// Whether candidate `ord` matches: `predicate` holds on it and every
-/// relationship branch binds. Candidates are live records (a label's
-/// members, the tenant's record headers, or the index plan's owners, all
-/// written and deleted in the commit that writes and deletes the record),
-/// so the record header is not read again here.
-fn is_match(
-    ctx: &EvalCtx<'_>,
-    req: &SearchRequest,
-    predicate: Option<&Expr>,
-    fields: Option<&PointFields>,
-    session: &mut reconstruct::ReconstructSession<'_, QuerySnapshot>,
-    working: &mut WorkingSet,
-    ord: u64,
-) -> Result<bool, QueryError> {
-    let (snap, tenant) = (&ctx.snap, ctx.lmpg.tenant);
-    if let Some(expr) = predicate {
-        let obj = read_row(fields, session, snap, tenant, ord)?;
-        let bytes =
-            serde_json::to_vec(&obj).map_or(0, |v| u64::try_from(v.len()).unwrap_or(u64::MAX));
-        working.charge(bytes, false)?;
-        if !eval_expr_ctx(ctx, expr, &obj, ord)? {
-            return Ok(false);
-        }
-    }
-    for spec in &req.related {
-        if !related_exists(snap, tenant, ord, spec)? {
-            return Ok(false);
-        }
-    }
-    Ok(true)
-}
-
-/// The properties `predicate` reads of record `ord`, decoded through
-/// `reader` (which may meter the bytes): the predicate's own fields by
-/// name, or the whole record when it needs it (`$id`, a traversal, an
-/// array-typed property). A record the predicate cannot see is empty.
-fn filtered_row<R: rushdb_lmpg::reader::TryRead>(
-    reader: &R,
-    snap: &QuerySnapshot,
-    tenant: rushdb_types::ids::TenantId,
-    predicate: &Expr,
-    ord: u64,
-) -> Result<Map<String, Json>, QueryError> {
-    let mut session = reconstruct::ReconstructSession::new(reader, tenant);
-    let mut names = std::collections::BTreeSet::new();
-    let record = if point_fields::predicate_fields(predicate, &mut names) {
-        let selected: std::collections::HashSet<String> = names
-            .iter()
-            .flat_map(|name| [name.clone(), normalize(name)])
-            .collect();
-        session.reconstruct_record_selected(ord, &selected)?
-    } else {
-        session.reconstruct_record(ord)?
-    };
-    let _ = snap;
-    Ok(match record {
-        Some(Json::Object(map)) => map,
-        _ => Map::new(),
-    })
-}
-
-/// The properties `fields` names, by point reads, or the rebuilt record.
-fn read_row(
-    fields: Option<&PointFields>,
-    session: &mut reconstruct::ReconstructSession<'_, QuerySnapshot>,
-    snap: &QuerySnapshot,
-    tenant: rushdb_types::ids::TenantId,
-    ord: u64,
-) -> Result<Map<String, Json>, QueryError> {
-    match fields {
-        Some(fields) => fields.row(snap, tenant, ord),
-        None => Ok(session
-            .reconstruct_record(ord)?
-            .and_then(|record| match record {
-                Json::Object(map) => Some(map),
-                _ => None,
-            })
-            .unwrap_or_default()),
-    }
-}
-
-/// Where a search's candidates come from and what is left to check.
-struct CandidateSource<'v> {
-    candidates: scan::Candidates<'v>,
-    /// Every candidate is a live match: neither the predicate nor the
-    /// record's existence is checked per candidate.
-    exact: bool,
-    /// The total, when known without counting.
-    known: Option<u64>,
-    /// What is left to check per candidate: the conjuncts the owner set does
-    /// not answer, or the whole `where` on a walk.
-    predicate: Option<Expr>,
-}
-
-/// The index plan's owner set (charged to `working`), or a walk of the
-/// tenant's or labels' records.
-fn candidate_source<'v>(
-    lmpg: &Lmpg,
-    req: &SearchRequest,
-    is_cancelled: &dyn Fn() -> bool,
-    snap: &'v QuerySnapshot,
-    known_total: Option<u64>,
-    working: &mut WorkingSet,
-) -> Result<CandidateSource<'v>, QueryError> {
-    if let Some(plan) =
-        index_candidates_with_budget(lmpg, snap, req, working_set_budget(lmpg), is_cancelled)?
-    {
-        working.charge(
-            u64::try_from(plan.ords.serialized_size()).unwrap_or(u64::MAX),
-            true,
-        )?;
-        let known = known_total
-            .or(plan.known_total)
-            .or_else(|| plan.exact.then(|| plan.ords.len()));
-        return Ok(CandidateSource {
-            candidates: scan::Candidates::from_set(plan.ords),
-            exact: plan.exact,
-            known,
-            predicate: plan.residual,
-        });
-    }
-    let exact = req.where_.is_none() && req.related.is_empty();
-    let known = match known_total {
-        Some(total) => Some(total),
-        None if exact => Some(walk_total(lmpg, snap, &req.labels)?),
-        None => None,
-    };
-    Ok(CandidateSource {
-        candidates: scan::Candidates::walk(snap, lmpg.tenant, &req.labels)?,
-        exact,
-        known,
-        predicate: req.where_.clone(),
-    })
-}
-
-/// One ordering row: a match's ordinal and the properties it is ordered by.
-type OrderRow = (u64, Map<String, Json>);
-
-/// Sort the ordering buffer and keep its best `keep` rows; returns the bytes
-/// of the rows dropped.
-fn cut_ordered(
-    ordered: &mut Vec<OrderRow>,
-    bytes: &mut Vec<u64>,
-    req: &SearchRequest,
-    keep: usize,
-) -> u64 {
-    let mut rows: Vec<(OrderRow, u64)> = ordered.drain(..).zip(bytes.drain(..)).collect();
-    // Candidates arrive in ascending ordinal order and the sort is stable,
-    // so ties keep that order across cuts, exactly as one sort of every
-    // match would.
-    sort_ordered_rows(&mut rows, req);
-    let freed = rows.iter().skip(keep).map(|(_, b)| *b).sum();
-    rows.truncate(keep);
-    for (row, b) in rows {
-        ordered.push(row);
-        bytes.push(b);
-    }
-    freed
-}
-
-/// Live records of the tenant (`labels` empty) or of `labels`, from counters.
-fn walk_total(lmpg: &Lmpg, snap: &QuerySnapshot, labels: &[String]) -> Result<u64, QueryError> {
-    if labels.is_empty() {
-        return Ok(rushdb_lmpg::derived::tenant_usage(snap.as_ref(), lmpg.tenant)?.records);
-    }
-    let distinct: std::collections::BTreeSet<&String> = labels.iter().collect();
-    let mut total = 0u64;
-    for label in distinct {
-        total = total.saturating_add(rushdb_lmpg::derived::label_count(
-            snap.as_ref(),
-            lmpg.tenant,
-            label,
-        )?);
-    }
-    Ok(total)
+    Ok(run_matches(lmpg, &full, is_cancelled, &snap, 0, keep, None)?.retained)
 }
 
 /// Execute against a caller-owned statement view, allowing response metadata
@@ -1007,18 +723,11 @@ fn find_page(
     }
     let skip = usize::try_from(req.pagination.skip).unwrap_or(usize::MAX);
     let limit = usize::try_from(req.pagination.limit.unwrap_or(u64::MAX)).unwrap_or(usize::MAX);
-    let matches = run_matches(
-        lmpg,
-        req,
-        is_cancelled,
-        snap,
-        skip.saturating_add(limit),
-        known_total,
-    )?;
+    let matches = run_matches(lmpg, req, is_cancelled, snap, skip, limit, known_total)?;
     let page_roots: Vec<u64> = matches
         .retained
         .into_iter()
-        .skip(skip)
+        .skip(skip.saturating_sub(matches.offset))
         .take(limit)
         .collect();
     let budget = Cap::for_response(work_budget, lmpg.limits().query_memory_max_bytes());
@@ -1421,84 +1130,23 @@ fn traverse_alias(
     Ok(cur)
 }
 
-/// Collect the `where`-block related aliases (as [`RelatedSpec`]s) so aggregate
-/// `$count`/`$sum` targets can reference them. Aggregates keep `related` empty;
-/// the aliases live inside the `Expr::Related` nodes of `where_`.
+/// The traversal aliases of a `where` clause as alias specs, each with its
+/// full path ([`document::alias_paths`]).
 fn related_specs_from_where(expr: Option<&Expr>) -> Vec<RelatedSpec> {
-    /// Split a level's filter into its endpoint predicates and the nested
-    /// label-block children (each child becomes a further traversal step).
-    fn split_level(filter: Option<&Expr>, children: &mut Vec<Expr>) -> Option<Expr> {
-        let f = filter?;
-        match f {
-            Expr::And(items) => {
-                let mut preds: Vec<Expr> = Vec::new();
-                for item in items {
-                    match item {
-                        Expr::Related(_) => children.push(item.clone()),
-                        other => preds.push(other.clone()),
-                    }
-                }
-                match preds.len() {
-                    0 => None,
-                    1 => Some(preds.remove(0)),
-                    _ => Some(Expr::And(preds)),
-                }
-            }
-            Expr::Related(_) => {
-                children.push(f.clone());
-                None
-            }
-            other => Some(other.clone()),
-        }
-    }
-
-    fn walk(expr: &Expr, path: &mut Vec<TraversalStep>, out: &mut Vec<RelatedSpec>) {
-        match expr {
-            Expr::And(items) | Expr::Or(items) | Expr::Nor(items) => {
-                for e in items {
-                    walk(e, path, out);
-                }
-            }
-            Expr::Xor(a, b) => {
-                walk(a, path, out);
-                walk(b, path, out);
-            }
-            Expr::Not(b) => {
-                walk(b, path, out);
-            }
-            Expr::Related(rel) => {
-                let mut children: Vec<Expr> = Vec::new();
-                let filter = split_level(rel.filter.as_deref(), &mut children);
-                let step = TraversalStep {
-                    target_labels: rel.target_labels.clone(),
-                    rel_type: rel.rel_type.clone(),
-                    direction: rel.direction,
-                    filter,
-                };
-                path.push(step);
-                if let Some(alias) = &rel.alias {
-                    out.push(RelatedSpec {
-                        alias: Some(alias.trim_start_matches('$').to_string()),
-                        rel_type: rel.rel_type.clone(),
-                        direction: rel.direction,
-                        target_labels: rel.target_labels.clone(),
-                        steps: path.clone(),
-                    });
-                }
-                for child in &children {
-                    walk(child, path, out);
-                }
-                path.pop();
-            }
-            Expr::Field(_) => {}
-        }
-    }
-    let mut specs = Vec::new();
-    if let Some(e) = expr {
-        let mut path: Vec<TraversalStep> = Vec::new();
-        walk(e, &mut path, &mut specs);
-    }
-    specs
+    expr.map(document::alias_paths)
+        .unwrap_or_default()
+        .into_iter()
+        .filter_map(|(alias, steps)| {
+            let last = steps.last()?.clone();
+            Some(RelatedSpec {
+                alias: Some(alias),
+                rel_type: last.rel_type,
+                direction: last.direction,
+                target_labels: last.target_labels,
+                steps,
+            })
+        })
+        .collect()
 }
 
 /// Resolve `alias.field` values across a root's related records (the docs'
@@ -2059,3 +1707,5 @@ fn resolve_field(obj: &Map<String, Json>, field: &str) -> Option<Json> {
 
 #[cfg(test)]
 mod index_planner_tests;
+#[cfg(test)]
+mod order_tests;

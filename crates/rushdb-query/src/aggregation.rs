@@ -367,6 +367,7 @@ fn fill_absent_metrics(row: &mut Map<String, Json>, req: &AggregateRequest) {
         .iter()
         .chain(&req.avg_terms)
         .map(|(out, _)| out)
+        .chain(req.expr_sums.iter().map(|(out, _)| out))
         .chain(req.expr_avgs.iter().map(|(out, _)| out))
         .chain(req.mins.iter().map(|(out, _)| out))
         .chain(req.maxs.iter().map(|(out, _)| out))
@@ -537,9 +538,10 @@ pub fn aggregate_to_rows_in_view_with_budget(
             }
         }
         for out in req
-            .avg_terms
+            .expr_sums
             .iter()
             .map(|(out, _)| out)
+            .chain(req.avg_terms.iter().map(|(out, _)| out))
             .chain(req.expr_avgs.iter().map(|(out, _)| out))
         {
             if !req.hidden_outputs.contains(out) {

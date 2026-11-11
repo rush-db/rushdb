@@ -916,7 +916,7 @@ fn is_label_less_container(documents: &serde_json::Value) -> bool {
         })
 }
 
-fn query_document_to_parser_input(query: &QueryDocument) -> serde_json::Value {
+pub(crate) fn query_document_to_parser_input(query: &QueryDocument) -> serde_json::Value {
     let mut document = serde_json::json!({
         "labels": query.labels,
         "where": query.predicate,

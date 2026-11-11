@@ -42,8 +42,11 @@ every element.
 An ordered index does **not** answer `$ne`, `$nin`, `$contains`,
 `$endsWith`, `$type`, `$exists`, datetime-component operators (`$year`, …),
 or `$or`/`$not` groups. Those leaves are evaluated on the candidates other
-leaves produced (see [Query planning](query-planning.md)). Indexes are not
-used to produce sort order.
+leaves produced (see [Query planning](query-planning.md)). An ordered index
+on the property a page is ordered by lets the page be read in index order
+and stop at its rows, from either end, when the property holds one type
+(integers, datetimes or strings) and every label holding it has such an
+index ([Ordered pages](query-planning.md#ordered-pages)).
 
 ### Every requested label needs its own index
 

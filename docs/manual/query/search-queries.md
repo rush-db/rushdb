@@ -134,8 +134,14 @@ record containing just those fields:
 A field reference is a string: `"$record.field"` or `"$self.field"` (the
 current record), or `"$alias.field"` for a related record bound with
 `$alias` (see [Relationships and traversal](relationships-and-traversal.md#aliases)).
+An `"$alias.field"` reference holds the field of the record the alias binds,
+or an array of the values when it binds several, and is left out when none
+holds it. An alias that no `$alias` in the predicate binds is refused with
+`invalid_request`.
 
-A plain projection runs as a listing, not as an aggregation: it matches,
+A plain projection of the record's own fields runs as a listing, not as an
+aggregation (with an `"$alias.field"` it runs as per-record aggregate rows,
+which read the related records): it matches,
 orders and pages exactly like a listing with the same `predicate`, `order`,
 `offset` and `limit`, and reads only the selected fields of the records on
 the page. `order` may name an output key; it sorts by the field that key

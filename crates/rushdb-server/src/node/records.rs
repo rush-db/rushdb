@@ -6,7 +6,7 @@ use std::sync::Arc;
 use rushdb_lmpg::reader::try_access as access;
 use rushdb_types::ids::RecordId;
 
-use super::{bytes_from_hex, hex_simple, IndexedRecord, RequestScope};
+use super::{bytes_from_hex, hex_simple, RequestScope};
 
 impl RequestScope<'_> {
     // ---- record mutation ------------------------------------------------
@@ -983,63 +983,11 @@ impl RequestScope<'_> {
         self.get_record(&hex_simple(id))
     }
 
-    // ---- relationships: create-many / delete-many / search --------------
-
-    /// Enumerate records of a label matching an optional `where`, returning
-    /// (`record_id`, ordinal, reconstructed object).
+    /// The ordinals of every record of `label`, ascending.
     #[cfg(test)]
-    pub(super) fn enumerate_records(
-        &self,
-        label: &str,
-        where_: Option<&serde_json::Value>,
-    ) -> Result<Vec<IndexedRecord>, String> {
+    pub(super) fn label_ordinals(&self, label: &str) -> Result<Vec<u64>, String> {
         let snap = Arc::new(self.store.read_view().map_err(|e| e.to_string())?);
-        self.enumerate_records_in_view(label, where_, &snap)
-    }
-
-    pub(super) fn enumerate_records_in_view(
-        &self,
-        label: &str,
-        where_: Option<&serde_json::Value>,
-        snap: &Arc<rushdb_storage::ReadView>,
-    ) -> Result<Vec<IndexedRecord>, String> {
-        let document = match where_ {
-            Some(w) => serde_json::json!({
-                "labels": [label],
-                "where": w,
-                "pagination": { "skip": 0, "limit": 100_000 }
-            }),
-            None => serde_json::json!({
-                "labels": [label],
-                "pagination": { "skip": 0, "limit": 100_000 }
-            }),
-        };
-        let parsed =
-            rushdb_query::document::parse_document(&document).map_err(|e| e.to_string())?;
-        let lmpg = self.lmpg();
-        let page =
-            rushdb_query::find_records_in_view(&lmpg, &parsed.search, &|| false, Arc::clone(snap))
-                .map_err(|e| e.to_string())?;
-        let mut out = Vec::new();
-        for rec in &page.records {
-            let obj = rec.as_object().cloned().unwrap_or_default();
-            let Some(id_hex) = obj
-                .get(rushdb_types::value::ID_FIELD)
-                .and_then(|v| v.as_str())
-            else {
-                continue;
-            };
-            let Some(bytes) = rushdb_lmpg::import::decode_simple_hex(id_hex) else {
-                continue;
-            };
-            if let Some(hdr) =
-                rushdb_lmpg::reader::try_access::record_by_id(snap, self.tenant(), &RecordId(bytes))
-                    .map_err(|e| e.to_string())?
-            {
-                out.push((RecordId(bytes), hdr.ordinal, obj));
-            }
-        }
-        Ok(out)
+        self.selector_ordinals(label, None, &snap, &|| false)
     }
 }
 

@@ -553,6 +553,7 @@ impl ReadView {
         &self,
         lower: &Bound<Vec<u8>>,
         upper: &Bound<Vec<u8>>,
+        direction: ScanDirection,
     ) -> Result<Option<Vec<u8>>, StorageError> {
         self.health.check()?;
         self.cancellation.check()?;
@@ -561,7 +562,32 @@ impl ReadView {
             .views
             .as_ref()
             .expect("root read view owns backend views");
-        views.next_key(lower, upper, self.limits, self.native_current)
+        views.next_key(lower, upper, self.limits, self.native_current, direction)
+    }
+
+    /// The largest key within `bounds` that holds a value in this view, or
+    /// `None`: one reverse seek per key passed over (a key whose only
+    /// versions are outside this snapshot is skipped).
+    ///
+    /// # Errors
+    /// Returns [`StorageError::Cancelled`] if the view is cancelled,
+    /// [`StorageError::InvalidRead`] if the bounds are inverted, or a
+    /// storage read error.
+    pub fn last_key(&self, bounds: ScanBounds) -> Result<Option<Vec<u8>>, StorageError> {
+        if bounds.is_empty()? {
+            return Ok(None);
+        }
+        let mut upper = bounds.end;
+        while let Some(key) = self.next_key(&bounds.start, &upper, ScanDirection::Reverse)? {
+            if self
+                .read_value_with_limits(&key, ScanProjection::Keys, self.limits)?
+                .is_some()
+            {
+                return Ok(Some(key));
+            }
+            upper = Bound::Excluded(key);
+        }
+        Ok(None)
     }
 
     /// `ScanCursor`'s v2 native-iterator fast path (B7 follow-up): a real
@@ -667,6 +693,40 @@ impl ScanBounds {
                     && (!matches!(self.start, Included(_)) || !matches!(self.end, Included(_))))
             }
             _ => Ok(false),
+        }
+    }
+}
+
+/// Which end of a key range a seek starts from.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ScanDirection {
+    /// Ascending: the smallest key first.
+    Forward,
+    /// Descending: the largest key first.
+    Reverse,
+}
+
+impl ScanDirection {
+    /// The bound a seek in this direction starts from.
+    pub(crate) fn from<'b>(
+        self,
+        lower: &'b Bound<Vec<u8>>,
+        upper: &'b Bound<Vec<u8>>,
+    ) -> &'b Bound<Vec<u8>> {
+        match self {
+            Self::Forward => lower,
+            Self::Reverse => upper,
+        }
+    }
+
+    /// Whichever of `a` and `b` a seek in this direction meets first.
+    pub(crate) fn first<T: Ord>(self, a: Option<T>, b: Option<T>) -> Option<T> {
+        match (a, b) {
+            (Some(a), Some(b)) => Some(match self {
+                Self::Forward => a.min(b),
+                Self::Reverse => a.max(b),
+            }),
+            (a, b) => a.or(b),
         }
     }
 }
@@ -779,7 +839,10 @@ impl ScanCursor<'_> {
             done: self.done,
         };
         while !self.done && batch.rows.len() < row_limit {
-            let Some(key) = self.view.next_key(&self.lower, &self.upper)? else {
+            let Some(key) = self
+                .view
+                .next_key(&self.lower, &self.upper, ScanDirection::Forward)?
+            else {
                 self.done = true;
                 break;
             };

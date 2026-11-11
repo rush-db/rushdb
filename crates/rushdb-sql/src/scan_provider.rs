@@ -718,7 +718,7 @@ fn next_label_batch(
 }
 
 /// One candidate's selected columns: by point reads when every selected
-/// column is a scalar property, else from the rebuilt record. `None` when
+/// column is a scalar property or `__id`, else from the rebuilt record. `None` when
 /// the record is gone.
 fn read_row(
     state: &LabelScanState,
@@ -728,7 +728,13 @@ fn read_row(
     if let RowReads::Points(points) = &state.reads {
         return points
             .row(&state.snapshot, state.lmpg.tenant, ordinal)
-            .map(|row| Some(Json::Object(row)))
+            .map(|mut row| {
+                // `__id` in the wire form, as the rebuilt record gives it.
+                if let Some(id) = row.remove(ID_FIELD) {
+                    row.insert(ID_FIELD.into(), crate::dashed_id(id));
+                }
+                Some(Json::Object(row))
+            })
             .map_err(|error| datafusion::common::DataFusionError::External(Box::new(error)));
     }
     session
