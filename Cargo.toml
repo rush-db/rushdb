@@ -76,7 +76,7 @@ grafeo-core = { version = "=0.5.42", default-features = false, features = ["lpg"
 grafeo-engine = { version = "=0.5.42", default-features = false, features = ["lpg", "gql", "cypher", "gremlin", "sql-pgq", "regex", "text-index"] }
 datafusion = { version = "=54.1.0", default-features = false, features = ["sql", "nested_expressions", "datetime_expressions", "encoding_expressions", "regex_expressions", "string_expressions", "unicode_expressions", "math_expressions", "crypto_expressions", "recursive_protection"] }
 arrow = { version = "=58.4.0", default-features = false }
-arrow-json = "=58.4.0"
+arrow-json = "=60.1.0"
 
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }
