@@ -22,7 +22,9 @@ esac
 crates=$(cargo metadata --format-version 1 --no-deps --locked | python3 -c '
 import json, sys
 packages = {p["name"]: p for p in json.load(sys.stdin)["packages"] if p.get("publish") is None or p["publish"]}
-deps = {name: {d["name"] for d in p["dependencies"] if d["name"] in packages} for name, p in packages.items()}
+# A crate naming itself (a path-only dev-dependency that turns on its own
+# test features) is no ordering constraint: cargo strips it when packaging.
+deps = {name: {d["name"] for d in p["dependencies"] if d["name"] in packages and d["name"] != name} for name, p in packages.items()}
 order = []
 while deps:
     ready = sorted(name for name, needs in deps.items() if not needs)
