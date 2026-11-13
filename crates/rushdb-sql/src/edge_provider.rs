@@ -14,6 +14,7 @@ use std::collections::VecDeque;
 use std::ops::Bound;
 use std::sync::Arc;
 
+use arrow::array::RecordBatch;
 use arrow::datatypes::{Schema, SchemaRef};
 use arrow_json::reader::infer_json_schema_from_iterator;
 use datafusion::catalog::Session;
@@ -113,24 +114,33 @@ impl EdgeRows {
         self.done = page.done || page.rows.is_empty();
         for member in &page.rows {
             let ordinal = ordinal_suffix(&member.key, &self.prefix)?;
-            let header = access::relationship_by_ord(self.snapshot.as_ref(), self.tenant, ordinal)?
-                .ok_or(StorageError::CorruptLog)?;
-            if header.rel_type != self.rel_type
-                || !self.endpoints_visible(header.source_ord, header.target_ord)?
-            {
-                continue;
-            }
-            let mut row = reconstruct_relationship(self.snapshot.as_ref(), self.tenant, ordinal)?
-                .ok_or(StorageError::CorruptLog)?;
-            if let Json::Object(object) = &mut row {
-                for field in [ID_FIELD, SOURCE_FIELD, TARGET_FIELD] {
-                    let id = object.remove(field).unwrap_or(Json::Null);
-                    object.insert(field.into(), dashed_id(id));
-                }
+            if let Some(row) = self.row(ordinal)? {
                 self.pending.push_back(row);
             }
         }
         Ok(())
+    }
+
+    /// Relationship `ordinal` as a row (ids dashed), when it is of this
+    /// type and visible.
+    fn row(&self, ordinal: u64) -> Result<Option<Json>, SqlError> {
+        let header = access::relationship_by_ord(self.snapshot.as_ref(), self.tenant, ordinal)?
+            .ok_or(StorageError::CorruptLog)?;
+        if header.rel_type != self.rel_type
+            || !self.endpoints_visible(header.source_ord, header.target_ord)?
+        {
+            return Ok(None);
+        }
+        let mut row = reconstruct_relationship(self.snapshot.as_ref(), self.tenant, ordinal)?
+            .ok_or(StorageError::CorruptLog)?;
+        if let Json::Object(object) = &mut row {
+            for field in [ID_FIELD, SOURCE_FIELD, TARGET_FIELD] {
+                let id = object.remove(field).unwrap_or(Json::Null);
+                object.insert(field.into(), dashed_id(id));
+            }
+            return Ok(Some(row));
+        }
+        Ok(None)
     }
 
     /// The next row, or `None` at the end.
@@ -161,6 +171,7 @@ fn ordinal_suffix(storage_key: &[u8], prefix: &[u8]) -> Result<u64, StorageError
 pub(crate) struct EdgeTable {
     snapshot: Arc<ReadView>,
     tenant: TenantId,
+    limits: rushdb_lmpg::QueryLimits,
     rel_type: String,
     schema: SchemaRef,
     rows: usize,
@@ -181,6 +192,7 @@ impl EdgeTable {
     pub(crate) fn new(
         snapshot: Arc<ReadView>,
         tenant: TenantId,
+        limits: rushdb_lmpg::QueryLimits,
         rel_type: &str,
         visible: CatalogAccess,
     ) -> Result<Self, SqlError> {
@@ -188,11 +200,19 @@ impl EdgeTable {
         Ok(Self {
             snapshot,
             tenant,
+            limits,
             rel_type: rel_type.to_string(),
             schema: Arc::new(schema),
             rows: usize::try_from(rows).unwrap_or(usize::MAX),
             visible,
         })
+    }
+}
+
+impl EdgeTable {
+    /// The type's row count from the relationship catalog.
+    pub(crate) fn rows(&self) -> usize {
+        self.rows
     }
 }
 
@@ -306,24 +326,359 @@ impl TableProvider for EdgeTable {
         let partition = Arc::new(EdgePartition {
             snapshot: Arc::clone(&self.snapshot),
             tenant: self.tenant,
+            limits: self.limits,
             rel_type: self.rel_type.clone(),
             schema: Arc::clone(&self.schema),
             visible: self.visible.clone(),
         });
-        Ok(Arc::new(StreamingTableExec::try_new(
+        let plan = StreamingTableExec::try_new(
             Arc::clone(&self.schema),
             vec![partition],
             projection,
             Vec::<datafusion::physical_expr::LexOrdering>::new(),
             false,
             limit,
-        )?))
+        )?;
+        Ok(Arc::new(crate::lookup_join::RushScanExec::new(
+            Arc::new(plan),
+            crate::lookup_join::ScanTarget::Edge(EdgeLookup {
+                snapshot: Arc::clone(&self.snapshot),
+                tenant: self.tenant,
+                limits: self.limits,
+                rel_type: self.rel_type.clone(),
+                schema: Arc::clone(&self.schema),
+                visible: self.visible.clone(),
+            }),
+            projection.cloned(),
+            Vec::new(),
+            self.rows,
+        )))
+    }
+}
+
+/// What a lookup join needs of a relationship table to fetch the
+/// relationships of given endpoints through adjacency.
+#[derive(Clone)]
+pub(crate) struct EdgeLookup {
+    snapshot: Arc<ReadView>,
+    tenant: TenantId,
+    limits: rushdb_lmpg::QueryLimits,
+    rel_type: String,
+    schema: SchemaRef,
+    visible: CatalogAccess,
+}
+
+impl std::fmt::Debug for EdgeLookup {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.rel_type)
+    }
+}
+
+impl EdgeLookup {
+    pub(crate) fn rel_type(&self) -> &str {
+        &self.rel_type
+    }
+
+    /// Whether the request's deadline has passed.
+    pub(crate) fn expired(&self) -> bool {
+        self.limits.expired()
+    }
+
+    /// The relationships of this type whose `endpoint` (`__source_id` or
+    /// `__target_id`) is one of `ids`, read through the endpoints'
+    /// adjacency, as batches of the scan's `projection` with each row's
+    /// endpoint id: at most a scan batch of rows at a time, however many
+    /// relationships one endpoint has.
+    pub(crate) fn fetch(
+        &self,
+        ids: Vec<String>,
+        endpoint: &str,
+        projection: Option<&Vec<usize>>,
+    ) -> EdgeFetch {
+        let fields: Vec<usize> = match projection {
+            Some(projection) => projection.clone(),
+            None => (0..self.schema.fields().len()).collect(),
+        };
+        // Endpoint ids and the type alone come from adjacency, without
+        // rebuilding a relationship; not under a policy, which checks each
+        // endpoint's label.
+        let endpoint_only = !self.visible.enforced()
+            && fields.iter().all(|&index| {
+                let name = self.schema.field(index).name();
+                name == SOURCE_FIELD || name == TARGET_FIELD || name == TYPE_FIELD
+            });
+        EdgeFetch {
+            rows_of: (!endpoint_only).then(|| {
+                EdgeRows::new(
+                    Arc::clone(&self.snapshot),
+                    self.tenant,
+                    &self.rel_type,
+                    self.visible.clone(),
+                )
+            }),
+            lookup: self.clone(),
+            ids: ids.into_iter(),
+            outgoing: endpoint == SOURCE_FIELD,
+            fields,
+            seen: std::collections::HashSet::new(),
+            far_ids: std::collections::HashMap::new(),
+            current: None,
+        }
+    }
+}
+
+/// [`EdgeLookup::fetch`]'s batches, read as they are pulled.
+pub(crate) struct EdgeFetch {
+    lookup: EdgeLookup,
+    ids: std::vec::IntoIter<String>,
+    outgoing: bool,
+    fields: Vec<usize>,
+    /// Rebuilds full relationship rows; `None` on the endpoint-only path.
+    rows_of: Option<EdgeRows>,
+    seen: std::collections::HashSet<u64>,
+    /// Far endpoint ids already read (endpoint-only path), bounded.
+    far_ids: std::collections::HashMap<u64, String>,
+    /// The endpoint being read.
+    current: Option<Endpoint>,
+}
+
+/// One endpoint's adjacency of the type, paged from the view.
+struct Endpoint {
+    /// Its id, the key of every row it yields.
+    near: String,
+    prefix: Vec<u8>,
+    lower: Bound<Vec<u8>>,
+    upper: Bound<Vec<u8>>,
+    /// Read but not yet yielded: (far endpoint ordinal, relationship ordinal).
+    pending: VecDeque<(u64, u64)>,
+    done: bool,
+}
+
+impl Endpoint {
+    fn new(near: String, prefix: Vec<u8>) -> Self {
+        let bounds = ScanBounds::prefix(&prefix);
+        Self {
+            near,
+            prefix,
+            lower: bounds.start,
+            upper: bounds.end,
+            pending: VecDeque::new(),
+            done: false,
+        }
+    }
+
+    /// The next (far ordinal, relationship ordinal), reading a page of
+    /// adjacency keys (`prefix` + 8-byte far ordinal + `/` + 8-byte
+    /// relationship ordinal) when none is pending.
+    fn next(&mut self, snapshot: &ReadView) -> Result<Option<(u64, u64)>, StorageError> {
+        while self.pending.is_empty() && !self.done {
+            let mut cursor = snapshot.scan(
+                ScanBounds {
+                    start: self.lower.clone(),
+                    end: self.upper.clone(),
+                },
+                ScanProjection::Keys,
+            )?;
+            let page = cursor.next_batch(BATCH_ROWS, 1024 * 1024)?;
+            if let Some(last) = page.rows.last() {
+                self.lower = Bound::Excluded(last.key.clone());
+            }
+            self.done = page.done || page.rows.is_empty();
+            for row in &page.rows {
+                let rest = row
+                    .key
+                    .strip_prefix(self.prefix.as_slice())
+                    .filter(|rest| rest.len() == 17 && rest[8] == b'/')
+                    .ok_or(StorageError::CorruptLog)?;
+                let ordinal = |bytes: &[u8]| {
+                    bytes
+                        .try_into()
+                        .map(u64::from_be_bytes)
+                        .map_err(|_| StorageError::CorruptLog)
+                };
+                self.pending
+                    .push_back((ordinal(&rest[..8])?, ordinal(&rest[9..])?));
+            }
+        }
+        Ok(self.pending.pop_front())
+    }
+}
+
+/// Far endpoint ids an endpoint-only fetch keeps: a hub's neighbours repeat,
+/// but the cache must not grow with them.
+const FAR_ID_CACHE: usize = 64 * 1024;
+
+/// One batch's rows: endpoint pairs, or rebuilt relationships.
+enum Rows {
+    Endpoints(Vec<String>, Vec<String>),
+    Full(Vec<Json>),
+}
+
+impl EdgeFetch {
+    /// The next endpoint among the ids, ready to page its adjacency.
+    fn next_endpoint(&mut self) -> DFResult<Option<Endpoint>> {
+        let lookup = &self.lookup;
+        for id in self.ids.by_ref() {
+            if lookup.expired() {
+                return Err(DataFusionError::External(Box::new(SqlError::Cancelled)));
+            }
+            let Ok(uuid) = uuid::Uuid::parse_str(&id) else {
+                continue;
+            };
+            let record = rushdb_types::ids::RecordId(*uuid.as_bytes());
+            let Some(header) =
+                access::record_by_id(lookup.snapshot.as_ref(), lookup.tenant, &record)
+                    .map_err(|error| DataFusionError::External(Box::new(error)))?
+            else {
+                continue;
+            };
+            if !self.seen.insert(header.ordinal) {
+                continue;
+            }
+            let direction: &[u8] = if self.outgoing { b"out" } else { b"in" };
+            // The type's own keys: `/` ends the type name, so a longer name
+            // sharing this one's prefix is not read.
+            let mut prefix = rushdb_lmpg::reader::keys_ext::adj_prefix_typed(
+                lookup.tenant,
+                direction,
+                header.ordinal,
+                &lookup.rel_type,
+            );
+            prefix.push(b'/');
+            let near = uuid::Uuid::from_bytes(header.record_id)
+                .hyphenated()
+                .to_string();
+            return Ok(Some(Endpoint::new(near, prefix)));
+        }
+        Ok(None)
+    }
+
+    fn far_id(&mut self, far_ord: u64) -> DFResult<String> {
+        if let Some(far) = self.far_ids.get(&far_ord) {
+            return Ok(far.clone());
+        }
+        let lookup = &self.lookup;
+        let header = access::record_by_ord(lookup.snapshot.as_ref(), lookup.tenant, far_ord)
+            .map_err(|error| DataFusionError::External(Box::new(error)))?
+            .ok_or_else(|| DataFusionError::External(Box::new(StorageError::CorruptLog)))?;
+        let far = uuid::Uuid::from_bytes(header.record_id)
+            .hyphenated()
+            .to_string();
+        if self.far_ids.len() >= FAR_ID_CACHE {
+            self.far_ids.clear();
+        }
+        self.far_ids.insert(far_ord, far.clone());
+        Ok(far)
+    }
+
+    /// Up to a scan batch of rows and their endpoint ids, or `None` when
+    /// every id's relationships are read.
+    fn next_rows(&mut self) -> DFResult<Option<(Rows, Vec<String>)>> {
+        let mut rows = if self.rows_of.is_some() {
+            Rows::Full(Vec::new())
+        } else {
+            Rows::Endpoints(Vec::new(), Vec::new())
+        };
+        let mut keys = Vec::new();
+        while keys.len() < BATCH_ROWS {
+            let Some(endpoint) = &mut self.current else {
+                match self.next_endpoint()? {
+                    Some(endpoint) => self.current = Some(endpoint),
+                    None => break,
+                }
+                continue;
+            };
+            let next = endpoint
+                .next(&self.lookup.snapshot)
+                .map_err(|error| DataFusionError::External(Box::new(error)))?;
+            let Some((far_ord, rel_ord)) = next else {
+                self.current = None;
+                continue;
+            };
+            let near = endpoint.near.clone();
+            match &mut rows {
+                Rows::Full(full) => {
+                    let rows_of = self.rows_of.as_ref().ok_or_else(|| {
+                        DataFusionError::Internal("edge fetch lost its row reader".into())
+                    })?;
+                    match rows_of
+                        .row(rel_ord)
+                        .map_err(|error| DataFusionError::External(Box::new(error)))?
+                    {
+                        Some(row) => full.push(row),
+                        None => continue,
+                    }
+                }
+                Rows::Endpoints(sources, targets) => {
+                    let far = self.far_id(far_ord)?;
+                    let (source, target) = if self.outgoing {
+                        (near.clone(), far)
+                    } else {
+                        (far, near.clone())
+                    };
+                    sources.push(source);
+                    targets.push(target);
+                }
+            }
+            keys.push(near);
+        }
+        Ok((!keys.is_empty()).then_some((rows, keys)))
+    }
+
+    fn batch(&self, rows: Rows, keys: usize) -> DFResult<RecordBatch> {
+        let schema = &self.lookup.schema;
+        match rows {
+            Rows::Full(rows) => {
+                Ok(crate::scan_provider::batch_from_rows(schema, rows)?.project(&self.fields)?)
+            }
+            Rows::Endpoints(sources, targets) => {
+                let columns: Vec<arrow::array::ArrayRef> = self
+                    .fields
+                    .iter()
+                    .map(|&index| -> arrow::array::ArrayRef {
+                        match schema.field(index).name().as_str() {
+                            name if name == SOURCE_FIELD => {
+                                Arc::new(arrow::array::StringArray::from(sources.clone()))
+                            }
+                            name if name == TARGET_FIELD => {
+                                Arc::new(arrow::array::StringArray::from(targets.clone()))
+                            }
+                            _ => Arc::new(arrow::array::StringArray::from(vec![
+                                self.lookup
+                                    .rel_type
+                                    .as_str();
+                                keys
+                            ])),
+                        }
+                    })
+                    .collect();
+                let options = arrow::array::RecordBatchOptions::new().with_row_count(Some(keys));
+                Ok(RecordBatch::try_new_with_options(
+                    Arc::new(schema.project(&self.fields)?),
+                    columns,
+                    &options,
+                )?)
+            }
+        }
+    }
+}
+
+impl Iterator for EdgeFetch {
+    type Item = DFResult<(RecordBatch, Vec<String>)>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let (rows, keys) = match self.next_rows() {
+            Ok(rows) => rows?,
+            Err(error) => return Some(Err(error)),
+        };
+        Some(self.batch(rows, keys.len()).map(|batch| (batch, keys)))
     }
 }
 
 struct EdgePartition {
     snapshot: Arc<ReadView>,
     tenant: TenantId,
+    limits: rushdb_lmpg::QueryLimits,
     rel_type: String,
     schema: SchemaRef,
     visible: CatalogAccess,
@@ -354,12 +709,19 @@ impl PartitionStream for EdgePartition {
             self.visible.clone(),
         );
         let schema = Arc::clone(&self.schema);
+        let limits = self.limits;
         Box::pin(RecordBatchStreamAdapter::new(
             Arc::clone(&self.schema),
             futures::stream::unfold(Some(rows), move |state| {
                 let schema = Arc::clone(&schema);
                 async move {
                     let mut rows = state?;
+                    if limits.expired() {
+                        return Some((
+                            Err(DataFusionError::External(Box::new(SqlError::Cancelled))),
+                            None,
+                        ));
+                    }
                     let mut batch = Vec::new();
                     while batch.len() < BATCH_ROWS {
                         match rows.next_row() {

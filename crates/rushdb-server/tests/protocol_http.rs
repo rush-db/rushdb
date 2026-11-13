@@ -980,3 +980,27 @@ fn only_the_boot_token_may_change_a_tenant_policy() {
     assert_eq!(status, 200, "{body}");
     assert_eq!(body["response"]["kind"], "policy", "{body}");
 }
+
+#[test]
+fn a_single_tenant_server_refuses_a_tenant_header() {
+    // The header names a keyspace this server does not have: refused, as on
+    // gRPC and Bolt, not served from the only tenant.
+    let (mut router, port) = new_router(ServerConfig {
+        port: 0,
+        pgwire_port: 0,
+        token: "test-token".into(),
+        ..Default::default()
+    })
+    .unwrap();
+    std::thread::spawn(move || router.serve_forever());
+    let (status, body) = call(
+        port,
+        "/protocol/v1/execute",
+        &labels_request(),
+        Some("tenant-a"),
+    );
+    assert_eq!(status, 403, "{body}");
+    assert_eq!(body["error"]["code"], "scope_mismatch", "{body}");
+    let (status, body) = call(port, "/protocol/v1/execute", &labels_request(), None);
+    assert_eq!(status, 200, "{body}");
+}

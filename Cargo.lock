@@ -4215,6 +4215,7 @@ dependencies = [
 name = "rushdb-lmpg"
 version = "3.0.9"
 dependencies = [
+ "rushdb-lmpg",
  "rushdb-protocol",
  "rushdb-storage",
  "rushdb-types",
@@ -4253,6 +4254,7 @@ version = "3.0.9"
 dependencies = [
  "roaring",
  "rushdb-lmpg",
+ "rushdb-query",
  "rushdb-storage",
  "rushdb-types",
  "serde",
@@ -4366,6 +4368,7 @@ version = "3.0.9"
 dependencies = [
  "crc32fast",
  "redb",
+ "rushdb-storage",
  "rushdb-types",
  "rustix",
  "serde",

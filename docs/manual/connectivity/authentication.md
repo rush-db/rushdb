@@ -91,7 +91,7 @@ A token is `<claims>.<signature>`, where:
 | `scope` | string | Space-separated permissions: `read`, `write`, or `*` for all. |
 | `tenant` | string | The one tenant the token may use. Required on a multitenant server; must be absent on a single-tenant server. |
 | `iat` | integer | Issued-at, Unix seconds. |
-| `exp` | integer | Expiry, Unix seconds. An expired token is rejected. |
+| `exp` | integer | Expiry, Unix seconds. An expired token is rejected. HTTP and gRPC check it on every request; the PostgreSQL wire and Bolt check it when a session logs in, so a session opened before the expiry runs until it closes. |
 
 ### Minting a token
 

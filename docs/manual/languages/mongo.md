@@ -113,8 +113,8 @@ See [Full-text search](../indexes-and-search/full-text-search.md#from-statement-
 | Stage | Support |
 |---|---|
 | `$match` | Filter, as in `find`. |
-| `$group` | `_id` names the group key field (`"$field"`). Accumulators: `$sum` (`1` counts), `$avg`, `$min`, `$max`, `$count`, `$first`. |
-| `$sort` | `1` or `-1` per field. |
+| `$group` | One per pipeline. `_id` names the group key field (`"$field"`), or is `null` for one group over every match; a compound `_id` is rejected. Accumulators: `$sum` (`1` counts), `$avg`, `$min`, `$max`, `$count`, `$first`. |
+| `$sort` | `1` or `-1` per field. After `$group`, `{ "_id": 1 }` sorts by the group key. A `$sort` before `$group` only orders the group's input and is dropped; with `$first` (which would depend on it) the pipeline is rejected with `unsupported`. |
 | `$skip`, `$limit` | Pagination of the output. |
 | `$count` | `{ "$count": "n" }` returns the match count as `n`. |
 | `$project`, `$lookup`, `$geoNear`, `$unwind`, others | Rejected with `unsupported`. The output columns come from `$group`/`$count`. |

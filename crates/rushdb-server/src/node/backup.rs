@@ -215,53 +215,9 @@ impl Node {
             .map_err(|e| e.to_string())
     }
 
-    /// Export an incremental snapshot: the WAL delta `(base_ci, to_ci]` as a
-    /// checksummed segment stream (V2 PITR). Combine with a base at `base_ci`
-    /// (a physical checkpoint or an equivalent store) to reconstruct `to_ci`.
-    /// # Errors
-    ///
-    /// Returns an error message when `base_ci > to_ci` or `to_ci` is newer than
-    /// the committed version, or the export fails.
-    pub fn export_incremental_snapshot<W: std::io::Write>(
-        &self,
-        writer: &mut W,
-        base_ci: u64,
-        to_ci: u64,
-    ) -> Result<u64, String> {
-        let committed = self.store.committed_version();
-        if base_ci > to_ci {
-            return Err(format!("base commit {base_ci} exceeds target {to_ci}"));
-        }
-        if to_ci > committed {
-            return Err(format!(
-                "target commit {to_ci} exceeds committed version {committed}"
-            ));
-        }
-        self.store
-            .export_wal_segments(writer, base_ci.saturating_add(1), to_ci)
-            .map_err(|e| e.to_string())?;
-        Ok(to_ci)
-    }
-
-    /// Restore an incremental snapshot onto this node: replay the WAL delta
-    /// produced by [`Self::export_incremental_snapshot`] over the base state.
-    /// Returns the final commit index.
-    /// # Errors
-    ///
-    /// Returns an error message when the segment is corrupt or a batch cannot
-    /// be applied.
-    pub fn restore_incremental_snapshot<R: std::io::Read>(
-        &self,
-        reader: &mut R,
-    ) -> Result<u64, String> {
-        self.store
-            .replay_wal_segments(reader)
-            .map_err(|e| e.to_string())
-    }
-
-    /// Archive the committed WAL range since the last archived LSN into `dir`
-    /// (durability A1). Returns the new watermark, or `None` when nothing is
-    /// new.
+    /// Archive the next committed WAL range since the last archived LSN into
+    /// `dir` as one bounded segment (durability A1). Returns the new
+    /// watermark, or `None` when nothing is new.
     /// # Errors
     ///
     /// Returns a message when the export or the durable write fails.
@@ -384,25 +340,5 @@ impl Node {
             }
         }
         Ok(out)
-    }
-
-    /// Logical integrity check: scrub every tenant's graph for invariant
-    /// violations. Returns the number of violations found.
-    /// # Errors
-    ///
-    /// Returns a message when the store cannot be read.
-    pub fn verify(&self) -> Result<usize, String> {
-        let view = self.store.read_view().map_err(|e| e.to_string())?;
-        let tenants = Self::enumerate_tenants(&view)?;
-        let mut violations = 0usize;
-        for (tenant, _) in tenants {
-            let report =
-                rushdb_lmpg::scrub::scrub_report(&view, tenant).map_err(|e| e.to_string())?;
-            if !report.complete {
-                return Err("scrub did not complete".into());
-            }
-            violations += report.violations.len();
-        }
-        Ok(violations)
     }
 }

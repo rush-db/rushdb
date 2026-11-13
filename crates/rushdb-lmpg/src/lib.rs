@@ -19,6 +19,9 @@ pub mod expand;
 /// the driver loops until the tenant is empty.
 const PURGE_CHUNK_KEYS: usize = 4096;
 
+/// SELF-HEAL: reporting derived rows that disagree with base rows, and the
+/// logged re-derive that repairs them.
+pub mod heal;
 /// NDJSON/CSV/JSON importers that coerce external documents into LMPG
 /// records, relationships and vector drafts.
 pub mod import;
@@ -34,7 +37,9 @@ pub mod plan;
 /// Read-only accessors over committed LMPG state.
 pub mod reader;
 
-/// Integrity checks that report LMPG invariant violations in a snapshot.
+/// Integrity checks that report LMPG invariant violations in a snapshot:
+/// the tests' oracle, compiled with the `test-support` feature only.
+#[cfg(feature = "test-support")]
 pub mod scrub;
 /// Tenant directory resolution and registration.
 pub mod tenancy;
@@ -1065,6 +1070,8 @@ fn sort_rank(m: &Mutation) -> (u8, u64) {
         Mutation::ReclaimEmbeddingSlots { .. } => (8, 4),
         Mutation::DeleteRawKey { .. } => (8, 5),
         Mutation::PutRawKey { .. } => (8, 6),
+        Mutation::RederiveLabel { .. } => (8, 10),
+        Mutation::MarkSuspect { .. } => (8, 11),
         Mutation::DefineIndex { .. }
         | Mutation::IndexBackfill { .. }
         | Mutation::DropIndex { .. }
@@ -1410,6 +1417,11 @@ impl Lmpg {
                             pl.push_precondition(Precondition::exists(
                                 rushdb_types::keys::record_id_key(tenant, &owner_public_id),
                             ));
+                            // A record created earlier in this batch was
+                            // authorized when its create was planned.
+                            if let Some(hdr) = record_header_in(txn, tenant, &owner_public_id)? {
+                                authorize(&hdr.label)?;
+                            }
                             for (name, change) in &fields {
                                 plan_field_write(&mut pl, owner, owner_ord, name, change)
                                     .map_err(|e| LmpgError::Plan(e).to_reason())?;
@@ -1459,6 +1471,7 @@ impl Lmpg {
                         ));
                         let hdr = record_header_in(txn, tenant, &record.record_id)?
                             .ok_or_else(|| "record vanished".to_string())?;
+                        authorize(&hdr.label)?;
                         cascade_record_delete(&mut pl, record.ordinal)
                             .map_err(|e| LmpgError::Plan(e).to_reason())?;
                         pl.mutations.push(Mutation::DeleteRecordHeader {
@@ -1478,6 +1491,7 @@ impl Lmpg {
                             .ok_or_else(|| "relationship vanished".to_string())?;
                         let hdr: RelationshipHeader =
                             serde_json::from_slice(&raw).map_err(|e| e.to_string())?;
+                        authorize_rel(&hdr.rel_type)?;
                         stage_all_owner_occurrences(&mut pl, OwnerKind::Relationship, rel.ordinal)
                             .map_err(|e| e.to_string())?;
                         pl.mutations.push(Mutation::DeleteRelationshipHeader {

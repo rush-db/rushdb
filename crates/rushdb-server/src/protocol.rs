@@ -25,6 +25,63 @@ use rushdb_protocol::{
 
 use crate::node::Node;
 
+/// Whether `operation` reads only what an enforced data-access policy
+/// allows: every read path that routes through `authorize_search_in_view`,
+/// `CatalogAccess` or an equivalent check, and every write (authorized at
+/// commit). Each variant is classified here without a catch-all, so a new
+/// adapter is refused under a policy until it is audited.
+fn intersects_policy(operation: &Operation) -> bool {
+    match operation {
+        Operation::Query { query } => match query {
+            Query::Statement { language, .. } => match language {
+                StatementLanguage::Sql => true,
+                StatementLanguage::Gql
+                | StatementLanguage::Cypher
+                | StatementLanguage::Gremlin
+                | StatementLanguage::SqlPgq
+                | StatementLanguage::Mongo => false,
+            },
+            Query::Records { .. }
+            | Query::Cursor { .. }
+            | Query::Record { .. }
+            | Query::Relationships { .. }
+            | Query::PropertyValues { .. }
+            | Query::Vector { .. }
+            | Query::Hybrid { .. }
+            | Query::ExportCsv { .. }
+            | Query::SearchValues { .. } => true,
+            // Bytecode becomes a Gremlin statement before dispatch.
+            Query::GremlinBytecode { .. }
+            | Query::JoinPairs(_)
+            | Query::VectorIndexCandidates { .. }
+            | Query::Text { .. } => false,
+        },
+        Operation::Describe { describe } => match describe {
+            Describe::Schema { .. }
+            | Describe::Labels { .. }
+            | Describe::Properties { .. }
+            | Describe::QueryLanguages
+            | Describe::Capabilities
+            | Describe::BuildInfo
+            | Describe::ExplainVector { .. }
+            | Describe::Indexes
+            | Describe::VectorIndexes
+            | Describe::VectorIndex { .. }
+            | Describe::Names { .. }
+            | Describe::SchemaSummary { .. }
+            | Describe::ValueOverlap { .. } => true,
+            Describe::Explain { .. } => false,
+        },
+        Operation::Mutate { .. }
+        | Operation::Ingest { .. }
+        | Operation::Index { .. }
+        | Operation::Transaction { .. }
+        | Operation::PurgeTenant
+        | Operation::Policy { .. } => true,
+        Operation::Backup { .. } => false,
+    }
+}
+
 #[cfg(test)]
 mod test_access {
     use rushdb_lmpg::reader::try_access;
@@ -298,10 +355,15 @@ impl<'a> ProtocolExecutor<'a> {
         is_cancelled: &dyn Fn() -> bool,
     ) -> Result<ResponseEnvelope, ProtocolError> {
         let limits = request_limits(&request.context, self.node.request_timeout_ms())?;
+        // A shutting-down store cancels every request, whatever transport
+        // brought it: work still running would hold the store open and keep
+        // redb from closing cleanly.
+        let store = self.node.store();
+        let is_cancelled = || is_cancelled() || store.maintenance_aborted();
         ProtocolExecutor {
             node: self.node.clone().with_request_limits(limits),
         }
-        .execute_scoped(request, is_cancelled)
+        .execute_scoped(request, &is_cancelled)
     }
 
     #[expect(
@@ -441,32 +503,9 @@ impl<'a> ProtocolExecutor<'a> {
                 "operation cancelled",
             ));
         }
-        // Fail closed for operations that cannot yet intersect the active
-        // data-access policy. Every other read path routes through
-        // `authorize_search_in_view` or an equivalent policy check; these do
-        // not, so allowing them would leak labeled/typed data outside the
-        // policy's allowed set.
-        if policy_enforced
-            && matches!(
-                &request.operation,
-                Operation::Backup { .. }
-                    | Operation::Query {
-                        query: Query::Statement {
-                            language: StatementLanguage::Gql
-                                | StatementLanguage::Cypher
-                                | StatementLanguage::Gremlin
-                                | StatementLanguage::SqlPgq
-                                | StatementLanguage::Mongo,
-                            ..
-                        } | Query::JoinPairs(_)
-                            | Query::VectorIndexCandidates { .. }
-                            | Query::Text { .. }
-                    }
-                    | Operation::Describe {
-                        describe: Describe::Explain { .. }
-                    }
-            )
-        {
+        // Fail closed for operations that cannot intersect the active
+        // data-access policy (`intersects_policy` classifies every one).
+        if policy_enforced && !intersects_policy(&request.operation) {
             return Err(ProtocolError::new(
                 ErrorCode::Unauthorized,
                 "policy-enforced reads are unavailable for this adapter",

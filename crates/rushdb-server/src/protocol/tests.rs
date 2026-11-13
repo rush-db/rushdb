@@ -472,7 +472,9 @@ fn bulk_delete_uses_the_request_pinned_view() {
         .scope()
         .delete_records_with_execution_context(
             &mut context,
-            &serde_json::json!({"labels": ["AfterPin"]}),
+            &rushdb_query::document::parse_document(&serde_json::json!({"labels": ["AfterPin"]}))
+                .unwrap()
+                .search,
             &|| false,
         )
         .unwrap();
@@ -3831,10 +3833,11 @@ fn delete_extremum_moves_describe_min_max() {
         min_max(),
         (Some(serde_json::json!(1)), Some(serde_json::json!(3)), 3)
     );
-    let deleted = node
-        .scope()
-        .delete_records(&serde_json::json!({"labels": ["Ship"], "where": {"rank": 1}}))
-        .unwrap();
+    let deleted = crate::node::node_read_tests::bulk_delete(
+        &node,
+        &serde_json::json!({"labels": ["Ship"], "where": {"rank": 1}}),
+    )
+    .unwrap();
     assert_eq!(deleted, 1);
     assert_eq!(
         min_max(),
@@ -7607,4 +7610,29 @@ fn a_policy_installed_over_the_wire_limits_reads_to_its_visible_properties() {
         })
         .unwrap_err();
     assert_eq!(error.code, ErrorCode::InvalidRequest, "{error:?}");
+}
+
+#[test]
+fn only_audited_adapters_run_under_an_enforced_policy() {
+    let statement = |language| Operation::Query {
+        query: Query::Statement {
+            language,
+            statement: String::new(),
+            parameters: None,
+        },
+    };
+    assert!(intersects_policy(&statement(StatementLanguage::Sql)));
+    for language in [
+        StatementLanguage::Gql,
+        StatementLanguage::Cypher,
+        StatementLanguage::Gremlin,
+        StatementLanguage::SqlPgq,
+        StatementLanguage::Mongo,
+    ] {
+        assert!(!intersects_policy(&statement(language)));
+    }
+    assert!(!intersects_policy(&Operation::Backup {
+        request: rushdb_protocol::BackupRequest::default(),
+    }));
+    assert!(intersects_policy(&Operation::PurgeTenant));
 }

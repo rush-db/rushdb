@@ -19,60 +19,67 @@ const BATCH_ROWS: usize = 4096;
 /// Bytes fetched per scan batch.
 const BATCH_BYTES: usize = 8 * 1024 * 1024;
 
-/// One key scan yielding the ordinal that ends each key: ascending in
-/// batches, or descending one reverse seek per key.
-pub(crate) struct OrdinalScan<'v> {
+/// A key and, when asked for, its value.
+type KeyRow = (Vec<u8>, Option<Vec<u8>>);
+
+/// One key scan of a prefix: ascending in batches (the first
+/// [`FIRST_BATCH_ROWS`] rows, doubling up to [`BATCH_ROWS`]), or descending
+/// one reverse seek per key. Every scan below reads its keys through one.
+pub(crate) struct KeyWalk<'v> {
     snap: &'v QuerySnapshot,
     /// Ascending: a cursor over the keys; descending: `None`.
     cursor: Option<rushdb_storage::ScanCursor<'v>>,
     prefix: Vec<u8>,
     /// Descending: the exclusive end of the next seek.
     before: std::ops::Bound<Vec<u8>>,
-    parse: fn(&[u8], usize) -> Option<u64>,
-    buffered: std::collections::VecDeque<u64>,
+    /// Whether each key comes with its value.
+    values: bool,
+    buffered: std::collections::VecDeque<KeyRow>,
     batch_rows: usize,
     done: bool,
 }
 
-impl<'v> OrdinalScan<'v> {
+impl<'v> KeyWalk<'v> {
     fn new(
         snap: &'v QuerySnapshot,
-        prefix: &[u8],
-        parse: fn(&[u8], usize) -> Option<u64>,
+        prefix: Vec<u8>,
         descending: bool,
+        values: bool,
     ) -> Result<Self, QueryError> {
-        let bounds = rushdb_storage::ScanBounds::prefix(prefix);
+        let bounds = rushdb_storage::ScanBounds::prefix(&prefix);
         let before = bounds.end.clone();
+        let projection = if values {
+            rushdb_storage::ScanProjection::KeyValue
+        } else {
+            rushdb_storage::ScanProjection::Keys
+        };
         Ok(Self {
             snap,
             cursor: if descending {
                 None
             } else {
-                Some(snap.scan(bounds, rushdb_storage::ScanProjection::Keys)?)
+                Some(snap.scan(bounds, projection)?)
             },
-            prefix: prefix.to_vec(),
+            prefix,
             before,
-            parse,
+            values,
             buffered: std::collections::VecDeque::new(),
             batch_rows: FIRST_BATCH_ROWS,
             done: false,
         })
     }
 
-    fn next(&mut self, is_cancelled: &dyn Fn() -> bool) -> Result<Option<u64>, QueryError> {
+    /// The next key (with its value, when asked for).
+    fn next(&mut self, is_cancelled: &dyn Fn() -> bool) -> Result<Option<KeyRow>, QueryError> {
         while self.buffered.is_empty() && !self.done {
             if is_cancelled() {
                 return Err(QueryError::Cancelled);
             }
-            let parse = |key: &[u8]| {
-                (self.parse)(key, self.prefix.len()).ok_or(rushdb_storage::StorageError::CorruptLog)
-            };
             if let Some(cursor) = &mut self.cursor {
                 let batch = cursor.next_batch(self.batch_rows, BATCH_BYTES)?;
                 self.batch_rows = (self.batch_rows * 2).min(BATCH_ROWS);
-                for row in batch.rows {
-                    self.buffered.push_back(parse(&row.key)?);
-                }
+                self.buffered
+                    .extend(batch.rows.into_iter().map(|row| (row.key, row.value)));
                 self.done = batch.done;
                 continue;
             }
@@ -82,13 +89,58 @@ impl<'v> OrdinalScan<'v> {
             };
             match self.snap.last_key(bounds)? {
                 Some(key) => {
-                    self.buffered.push_back(parse(&key)?);
-                    self.before = std::ops::Bound::Excluded(key);
+                    let value = if self.values {
+                        Some(
+                            self.snap
+                                .get(&key)?
+                                .ok_or(rushdb_storage::StorageError::CorruptLog)?,
+                        )
+                    } else {
+                        None
+                    };
+                    self.before = std::ops::Bound::Excluded(key.clone());
+                    self.buffered.push_back((key, value));
                 }
                 None => self.done = true,
             }
         }
         Ok(self.buffered.pop_front())
+    }
+
+    /// Descending: go on below `key`, passing over every key at or after it.
+    fn continue_below(&mut self, key: Vec<u8>) {
+        self.buffered.clear();
+        self.before = std::ops::Bound::Excluded(key);
+    }
+}
+
+/// One key scan yielding the ordinal that ends each key.
+pub(crate) struct OrdinalScan<'v> {
+    walk: KeyWalk<'v>,
+    parse: fn(&[u8], usize) -> Option<u64>,
+}
+
+impl<'v> OrdinalScan<'v> {
+    fn new(
+        snap: &'v QuerySnapshot,
+        prefix: &[u8],
+        parse: fn(&[u8], usize) -> Option<u64>,
+        descending: bool,
+    ) -> Result<Self, QueryError> {
+        Ok(Self {
+            walk: KeyWalk::new(snap, prefix.to_vec(), descending, false)?,
+            parse,
+        })
+    }
+
+    fn next(&mut self, is_cancelled: &dyn Fn() -> bool) -> Result<Option<u64>, QueryError> {
+        let Some((key, _)) = self.walk.next(is_cancelled)? else {
+            return Ok(None);
+        };
+        Ok(Some(
+            (self.parse)(&key, self.walk.prefix.len())
+                .ok_or(rushdb_storage::StorageError::CorruptLog)?,
+        ))
     }
 }
 
@@ -96,8 +148,8 @@ impl<'v> OrdinalScan<'v> {
 pub(crate) enum Candidates<'v> {
     /// The index plan's owner set, ascending.
     Set(Box<roaring::treemap::IntoIter>),
-    /// Ordinals in a given order (an owner set walked from its far end).
-    Listed(std::vec::IntoIter<u64>),
+    /// The index plan's owner set, descending.
+    SetDescending(Box<std::iter::Rev<roaring::treemap::IntoIter>>),
     /// Merged key scans, ascending or descending by ordinal: the tenant's
     /// records, the members of labels, or presence rows. The streams are
     /// disjoint (a record has one primary label, and holds a property under
@@ -114,34 +166,15 @@ pub(crate) enum Candidates<'v> {
     Index(Box<IndexMerge<'v>>),
 }
 
-/// One ordered index's entries `(value, owner)`: ascending in batches, or
-/// descending one reverse seek per entry.
+/// One ordered index's entries `(value, owner)`.
 pub(crate) struct EntryScan<'v> {
-    snap: &'v QuerySnapshot,
-    prefix: Vec<u8>,
-    cursor: Option<rushdb_storage::ScanCursor<'v>>,
-    before: std::ops::Bound<Vec<u8>>,
-    buffered: std::collections::VecDeque<(Vec<u8>, u64)>,
-    batch_rows: usize,
-    done: bool,
+    walk: KeyWalk<'v>,
 }
 
 impl<'v> EntryScan<'v> {
     fn new(snap: &'v QuerySnapshot, prefix: Vec<u8>, descending: bool) -> Result<Self, QueryError> {
-        let bounds = rushdb_storage::ScanBounds::prefix(&prefix);
-        let before = bounds.end.clone();
         Ok(Self {
-            snap,
-            cursor: if descending {
-                None
-            } else {
-                Some(snap.scan(bounds, rushdb_storage::ScanProjection::Keys)?)
-            },
-            prefix,
-            before,
-            buffered: std::collections::VecDeque::new(),
-            batch_rows: FIRST_BATCH_ROWS,
-            done: false,
+            walk: KeyWalk::new(snap, prefix, descending, false)?,
         })
     }
 
@@ -149,50 +182,61 @@ impl<'v> EntryScan<'v> {
         &mut self,
         is_cancelled: &dyn Fn() -> bool,
     ) -> Result<Option<(Vec<u8>, u64)>, QueryError> {
-        while self.buffered.is_empty() && !self.done {
-            if is_cancelled() {
-                return Err(QueryError::Cancelled);
-            }
-            let parse = |key: &[u8]| {
-                rushdb_types::keys::parse_index_entry_key(key, &self.prefix)
-                    .map(|(entry, owner)| (entry.to_vec(), owner))
-                    .ok_or(rushdb_storage::StorageError::CorruptLog)
+        let Some((key, _)) = self.walk.next(is_cancelled)? else {
+            return Ok(None);
+        };
+        let (entry, owner) = rushdb_types::keys::parse_index_entry_key(&key, &self.walk.prefix)
+            .ok_or(rushdb_storage::StorageError::CorruptLog)?;
+        Ok(Some((entry.to_vec(), owner)))
+    }
+
+    /// The owners of `value`'s entries, ascending, and this scan moved on
+    /// below them (descending).
+    fn take_run(&mut self, value: &[u8]) -> Result<RunScan<'v>, QueryError> {
+        let mut prefix = self.walk.prefix.clone();
+        prefix.extend_from_slice(value);
+        self.walk.continue_below(prefix.clone());
+        Ok(RunScan {
+            walk: KeyWalk::new(self.walk.snap, prefix, false, false)?,
+        })
+    }
+}
+
+/// The owners of one index value, ascending: the keys under
+/// `index prefix ‖ value` that end right after an 8-byte owner. (A string
+/// value ends in NUL, so a longer string sharing it as a prefix only shows
+/// up here when it holds an interior NUL, and its keys are longer.)
+pub(crate) struct RunScan<'v> {
+    walk: KeyWalk<'v>,
+}
+
+impl RunScan<'_> {
+    fn next(&mut self, is_cancelled: &dyn Fn() -> bool) -> Result<Option<u64>, QueryError> {
+        while let Some((key, _)) = self.walk.next(is_cancelled)? {
+            let Some(owner) = key.strip_prefix(self.walk.prefix.as_slice()) else {
+                return Err(rushdb_storage::StorageError::CorruptLog.into());
             };
-            if let Some(cursor) = &mut self.cursor {
-                let batch = cursor.next_batch(self.batch_rows, BATCH_BYTES)?;
-                self.batch_rows = (self.batch_rows * 2).min(BATCH_ROWS);
-                for row in batch.rows {
-                    self.buffered.push_back(parse(&row.key)?);
-                }
-                self.done = batch.done;
-                continue;
-            }
-            let bounds = rushdb_storage::ScanBounds {
-                start: std::ops::Bound::Included(self.prefix.clone()),
-                end: self.before.clone(),
-            };
-            match self.snap.last_key(bounds)? {
-                Some(key) => {
-                    self.buffered.push_back(parse(&key)?);
-                    self.before = std::ops::Bound::Excluded(key);
-                }
-                None => self.done = true,
+            if let Ok(owner) = <[u8; 8]>::try_from(owner) {
+                return Ok(Some(u64::from_be_bytes(owner)));
             }
         }
-        Ok(self.buffered.pop_front())
+        Ok(None)
     }
 }
 
 /// Ordered indexes of several labels merged by value: ascending by `(value,
 /// owner)`, or descending by value with each value's owners ascending (so
-/// equal values keep the ordinal order a sort keeps).
+/// equal values keep the ordinal order a sort keeps). A descending value's
+/// owners stream from an ascending scan of that value, so a value held by
+/// millions of records yields its first owner after one batch.
 pub(crate) struct IndexMerge<'v> {
     scans: Vec<EntryScan<'v>>,
     heads: Vec<Option<(Vec<u8>, u64)>>,
     started: bool,
     descending: bool,
-    /// Owners of the value being emitted, ascending.
-    pending: std::collections::VecDeque<u64>,
+    /// Descending: the owners of the value being emitted, one ascending scan
+    /// per index holding it, merged by owner.
+    run: Vec<(RunScan<'v>, Option<u64>)>,
 }
 
 impl IndexMerge<'_> {
@@ -202,9 +246,6 @@ impl IndexMerge<'_> {
                 *head = scan.next(is_cancelled)?;
             }
             self.started = true;
-        }
-        if let Some(owner) = self.pending.pop_front() {
-            return Ok(Some(owner));
         }
         if !self.descending {
             let Some((_, i)) = self
@@ -220,27 +261,42 @@ impl IndexMerge<'_> {
             self.heads[i] = self.scans[i].next(is_cancelled)?;
             return Ok(owner);
         }
-        let Some(value) = self
-            .heads
-            .iter()
-            .flatten()
-            .map(|(value, _)| value)
-            .max()
-            .cloned()
-        else {
-            return Ok(None);
-        };
-        // Every owner of the largest value, from every scan, ascending.
-        let mut owners = Vec::new();
-        for (scan, head) in self.scans.iter_mut().zip(self.heads.iter_mut()) {
-            while head.as_ref().is_some_and(|(entry, _)| *entry == value) {
-                owners.extend(head.take().map(|(_, owner)| owner));
+        loop {
+            if let Some(i) = self
+                .run
+                .iter()
+                .enumerate()
+                .filter_map(|(i, (_, head))| head.map(|owner| (owner, i)))
+                .min()
+                .map(|(_, i)| i)
+            {
+                let (scan, head) = &mut self.run[i];
+                let owner = *head;
                 *head = scan.next(is_cancelled)?;
+                return Ok(owner);
+            }
+            self.run.clear();
+            let Some(value) = self
+                .heads
+                .iter()
+                .flatten()
+                .map(|(value, _)| value)
+                .max()
+                .cloned()
+            else {
+                return Ok(None);
+            };
+            // Every index holding the largest value hands over its owners
+            // and moves on below it.
+            for (scan, head) in self.scans.iter_mut().zip(self.heads.iter_mut()) {
+                if head.as_ref().is_some_and(|(entry, _)| *entry == value) {
+                    let mut run = scan.take_run(&value)?;
+                    let first = run.next(is_cancelled)?;
+                    self.run.push((run, first));
+                    *head = scan.next(is_cancelled)?;
+                }
             }
         }
-        owners.sort_unstable();
-        self.pending.extend(owners);
-        Ok(self.pending.pop_front())
     }
 }
 
@@ -298,21 +354,12 @@ impl<'v> Merged<'v> {
 }
 
 /// The tenant's record identity rows (`RECORD_ID`: id → ordinal, in id byte
-/// order, which is the order of `__id` strings), ascending in batches or
-/// descending one reverse seek per row, keeping the records of `labels`
-/// (all when empty) by their header's label.
+/// order, which is the order of `__id` strings), keeping the records of
+/// `labels` (all when empty) by their header's label.
 pub(crate) struct IdScan<'v> {
-    snap: &'v QuerySnapshot,
+    walk: KeyWalk<'v>,
     tenant: rushdb_types::ids::TenantId,
     labels: std::collections::BTreeSet<String>,
-    prefix: Vec<u8>,
-    /// Ascending: a cursor over the rows; descending: the last key read,
-    /// the exclusive end of the next seek.
-    ascending: Option<rushdb_storage::ScanCursor<'v>>,
-    before: std::ops::Bound<Vec<u8>>,
-    buffered: std::collections::VecDeque<u64>,
-    batch_rows: usize,
-    done: bool,
     /// Records of other labels passed over, and how many may be.
     passed: u64,
     passing: u64,
@@ -325,35 +372,18 @@ impl<'v> IdScan<'v> {
         labels: &[String],
         descending: bool,
     ) -> Result<Self, QueryError> {
-        let prefix = rushdb_types::keys::record_id_prefix(tenant);
-        let bounds = rushdb_storage::ScanBounds::prefix(&prefix);
-        let ascending = if descending {
-            None
-        } else {
-            Some(snap.scan(bounds.clone(), rushdb_storage::ScanProjection::KeyValue)?)
-        };
         Ok(Self {
-            snap,
+            walk: KeyWalk::new(
+                snap,
+                rushdb_types::keys::record_id_prefix(tenant),
+                descending,
+                true,
+            )?,
             tenant,
             labels: labels.iter().cloned().collect(),
-            prefix,
-            ascending,
-            before: bounds.end,
-            buffered: std::collections::VecDeque::new(),
-            batch_rows: FIRST_BATCH_ROWS,
-            done: false,
             passed: 0,
             passing: u64::MAX,
         })
-    }
-
-    /// The ordinal of an identity row's value.
-    fn ordinal(value: &[u8]) -> Result<u64, QueryError> {
-        Ok(u64::from_be_bytes(
-            value
-                .try_into()
-                .map_err(|_| rushdb_storage::StorageError::CorruptLog)?,
-        ))
     }
 
     /// Whether record `ord` is one of the scanned labels' (always, without
@@ -363,56 +393,30 @@ impl<'v> IdScan<'v> {
             return Ok(true);
         }
         Ok(
-            rushdb_lmpg::reader::try_access::record_by_ord(self.snap, self.tenant, ord)?
+            rushdb_lmpg::reader::try_access::record_by_ord(self.walk.snap, self.tenant, ord)?
                 .is_some_and(|header| self.labels.contains(&header.label)),
         )
     }
 
     fn next(&mut self, is_cancelled: &dyn Fn() -> bool) -> Result<Option<u64>, QueryError> {
-        loop {
-            if let Some(ord) = self.buffered.pop_front() {
-                if self.admits(ord)? {
-                    return Ok(Some(ord));
-                }
-                self.passed += 1;
-                if self.passed > self.passing {
-                    self.done = true;
-                    self.buffered.clear();
-                    return Ok(None);
-                }
-                continue;
-            }
-            if self.done {
+        while self.passed <= self.passing {
+            let Some((_, value)) = self.walk.next(is_cancelled)? else {
                 return Ok(None);
-            }
-            if is_cancelled() {
-                return Err(QueryError::Cancelled);
-            }
-            if let Some(cursor) = &mut self.ascending {
-                let batch = cursor.next_batch(self.batch_rows, BATCH_BYTES)?;
-                self.batch_rows = (self.batch_rows * 2).min(BATCH_ROWS);
-                for row in batch.rows {
-                    self.buffered
-                        .push_back(Self::ordinal(row.value.as_deref().unwrap_or_default())?);
-                }
-                self.done = batch.done;
-                continue;
-            }
-            let bounds = rushdb_storage::ScanBounds {
-                start: std::ops::Bound::Included(self.prefix.clone()),
-                end: self.before.clone(),
             };
-            let Some(key) = self.snap.last_key(bounds)? else {
-                self.done = true;
-                continue;
-            };
-            let value = self
-                .snap
-                .get(&key)?
-                .ok_or(rushdb_storage::StorageError::CorruptLog)?;
-            self.buffered.push_back(Self::ordinal(&value)?);
-            self.before = std::ops::Bound::Excluded(key);
+            // The identity row's value is the ordinal.
+            let ord = u64::from_be_bytes(
+                value
+                    .as_deref()
+                    .unwrap_or_default()
+                    .try_into()
+                    .map_err(|_| rushdb_storage::StorageError::CorruptLog)?,
+            );
+            if self.admits(ord)? {
+                return Ok(Some(ord));
+            }
+            self.passed += 1;
         }
+        Ok(None)
     }
 }
 
@@ -483,11 +487,9 @@ impl<'v> Candidates<'v> {
         Self::Set(Box::new(set.into_iter()))
     }
 
-    /// The owner set walked from its largest ordinal down.
+    /// The owner set walked from its largest ordinal down, as it is read.
     pub(crate) fn from_set_descending(set: OwnerSet) -> Self {
-        let mut ords: Vec<u64> = set.into_iter().collect();
-        ords.reverse();
-        Self::Listed(ords.into_iter())
+        Self::SetDescending(Box::new(set.into_iter().rev()))
     }
 
     /// Every record of the tenant (`labels` empty) or of `labels`, ascending
@@ -597,7 +599,7 @@ impl<'v> Candidates<'v> {
             heads,
             started: false,
             descending,
-            pending: std::collections::VecDeque::new(),
+            run: Vec::new(),
         })))
     }
 
@@ -608,7 +610,7 @@ impl<'v> Candidates<'v> {
     ) -> Result<Option<u64>, QueryError> {
         match self {
             Self::Set(owners) => Ok(owners.next()),
-            Self::Listed(owners) => Ok(owners.next()),
+            Self::SetDescending(owners) => Ok(owners.next()),
             Self::Scans(merged) => Ok(merged.next(is_cancelled)?.map(|(ord, _)| ord)),
             Self::Ids(scan) => scan.next(is_cancelled),
             Self::Missing(scan) => scan.next(is_cancelled),

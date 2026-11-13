@@ -394,89 +394,65 @@ fn native_sql_dml_catalog_and_queries_survive_reopen() {
     rushdb_storage::remove_store(&path).unwrap();
 }
 
-/// `PeakTrackingMemoryPool` must expose the real
-/// high-water mark across a reservation's lifetime, not just whatever is
-/// currently resident — the gap `MemoryPool::reserved()` alone cannot
-/// close, and the reason `record_real_memory_peak` can charge the actual
-/// `DataFusion` peak instead of staying at the flat `DATAFUSION_PHASE_OVERHEAD`
-/// estimate forever.
+/// A statement's pool charges the store's shared SQL budget as it grows and
+/// releases it as it shrinks, so concurrent statements together stay within
+/// it; the shared budget's refusal is told apart from the statement's cap.
 #[test]
-fn peak_tracking_memory_pool_records_the_high_water_mark_not_current_usage() {
-    use datafusion::execution::memory_pool::{MemoryConsumer, MemoryPool};
-    let pool = Arc::new(PeakTrackingMemoryPool::new(1024 * 1024));
-    let pool_dyn: Arc<dyn MemoryPool> = Arc::clone(&pool) as Arc<dyn MemoryPool>;
-    let reservation = MemoryConsumer::new("test").register(&pool_dyn);
-
-    reservation.grow(900_000);
-    reservation.shrink(800_000);
-
-    // Current usage dropped back down, but the peak must still reflect the
-    // highest point reached — exactly what a bare `reserved()` read at this
-    // point would miss (it would report 100_000, not 900_000).
-    assert_eq!(reservation.size(), 100_000);
-    assert_eq!(pool_dyn.reserved(), 100_000);
-    assert_eq!(pool.peak(), 900_000);
-    assert!(pool.peak() > pool_dyn.reserved());
-
-    // Growing past the old peak raises it further.
-    reservation.grow(50_000);
-    assert_eq!(
-        pool.peak(),
-        900_000,
-        "150_000 current is still under the prior 900_000 peak"
-    );
-    reservation.grow(900_000);
-    assert_eq!(pool.peak(), 1_050_000);
-}
-
-/// `DataFusionContext::record_real_memory_peak`
-/// must resize the *store-level* `sql-phase` child reservation to the
-/// tracked pool's real peak, not leave it at the flat
-/// `DATAFUSION_PHASE_OVERHEAD` estimate `context_in_view_with_budget`
-/// charges up front. The pool's own peak-tracking correctness is proven in
-/// isolation above; this proves the glue between that pool and the
-/// `ByteBudget` tree an operator's `/metrics` gauge actually reads.
-#[test]
-fn record_real_memory_peak_resizes_the_store_level_reservation() {
+fn a_statement_pool_charges_the_shared_sql_budget_live() {
     use datafusion::execution::memory_pool::{MemoryConsumer, MemoryPool};
     let graph = Lmpg::new(Arc::new(Store::new_in_memory()), TenantId::from_ordinal(70));
     let snapshot = Arc::new(graph.store.read_view().unwrap());
-    let mut context =
-        context_in_view_with_budget(&graph, &snapshot, Some(64 * 1024 * 1024), None).unwrap();
     let budget = graph.store.sql_phase_budget().unwrap();
+    let limit = budget.snapshot().limit;
+    let context = context_in_view(&graph, &snapshot, None).unwrap();
     assert_eq!(
         budget.snapshot().used,
         DATAFUSION_PHASE_OVERHEAD,
-        "construction charges the flat overhead estimate up front"
+        "admission charges the overhead"
     );
+    let pool = Arc::clone(&context.pool) as Arc<dyn MemoryPool>;
+    let reservation = MemoryConsumer::new("sort").register(&pool);
+    let grown = DATAFUSION_PHASE_OVERHEAD + 5 * 1024 * 1024;
+    reservation.try_grow(grown).unwrap();
+    assert_eq!(budget.snapshot().used, grown, "charged as the pool grows");
+    reservation.shrink(grown);
+    assert_eq!(budget.snapshot().used, DATAFUSION_PHASE_OVERHEAD);
 
-    // Simulate `DataFusion` allocating well past that flat estimate during
-    // execution (provoking a specific real allocation size from an actual
-    // query is covered by the broader SQL test suite's budget tests, not
-    // needed here to prove this glue is wired correctly).
-    let pool = context
-        .peak_pool
-        .clone()
-        .expect("budgeted context tracks a pool");
-    let pool_dyn: Arc<dyn MemoryPool> = pool as Arc<dyn MemoryPool>;
-    let reservation = MemoryConsumer::new("simulated").register(&pool_dyn);
-    let simulated_peak = DATAFUSION_PHASE_OVERHEAD + 5 * 1024 * 1024;
-    reservation.grow(simulated_peak);
-    reservation.shrink(simulated_peak);
-    assert_eq!(
-        budget.snapshot().used,
-        DATAFUSION_PHASE_OVERHEAD,
-        "simulating pool activity alone must not yet touch the store-level reservation"
-    );
+    // A second statement takes the rest of the shared budget: the first one
+    // can no longer grow, and says so as `Busy`, not as its own cap.
+    let other = context_in_view(&graph, &snapshot, None).unwrap();
+    let other_pool = Arc::clone(&other.pool) as Arc<dyn MemoryPool>;
+    let hog = MemoryConsumer::new("hog").register(&other_pool);
+    // 1 MiB of the shared budget stays free; the first statement asks for
+    // 2 MiB past its admission charge.
+    hog.try_grow(limit - DATAFUSION_PHASE_OVERHEAD - 1024 * 1024)
+        .unwrap();
+    let refused = reservation
+        .try_grow(DATAFUSION_PHASE_OVERHEAD + 2 * 1024 * 1024)
+        .unwrap_err();
+    assert_eq!(pool.reserved(), 0, "a refused grow holds nothing");
+    assert!(matches!(context.stream_error(&refused), SqlError::Busy(_)));
+    drop(hog);
+    drop(other_pool);
+    drop(other);
+    assert_eq!(budget.snapshot().used, DATAFUSION_PHASE_OVERHEAD);
 
-    context.record_real_memory_peak();
-
-    assert_eq!(
-        budget.snapshot().used,
-        simulated_peak,
-        "resized to the real measured peak, not the flat estimate"
-    );
-    assert!(budget.snapshot().peak >= simulated_peak);
+    // Past the statement's own cap the refusal is its memory limit.
+    let capped = Lmpg::new(Arc::clone(&graph.store), TenantId::from_ordinal(71))
+        .with_request_limits(rushdb_lmpg::RequestLimits {
+            query_memory_max_bytes: Some(1024 * 1024),
+            ..Default::default()
+        });
+    let capped_context = context_in_view(&capped, &snapshot, None).unwrap();
+    let capped_pool = Arc::clone(&capped_context.pool) as Arc<dyn MemoryPool>;
+    let over = MemoryConsumer::new("sort")
+        .register(&capped_pool)
+        .try_grow(2 * 1024 * 1024)
+        .unwrap_err();
+    assert!(matches!(
+        capped_context.stream_error(&over),
+        SqlError::MemoryLimit(cap) if cap == 1024 * 1024
+    ));
 }
 
 #[test]

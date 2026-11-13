@@ -261,6 +261,19 @@ pub enum Mutation {
         /// Canonical tenant-scoped key to remove.
         key: Vec<u8>,
     },
+    /// Record that one label's derived rows disagree with its base rows
+    /// (SELF-HEAL): its suspect marker survives restarts and replicates.
+    MarkSuspect {
+        /// The record label found disagreeing.
+        label: String,
+    },
+    /// Re-derive one label's record rows from its base rows (SELF-HEAL):
+    /// every node that applies the commit recomputes them through the same
+    /// deriver, so a repair converges everywhere it is replayed.
+    RederiveLabel {
+        /// The record label whose derived rows are recomputed.
+        label: String,
+    },
     /// Put one tenant-scoped raw key during an explicit maintenance fixture
     /// or rebuild operation.
     PutRawKey {

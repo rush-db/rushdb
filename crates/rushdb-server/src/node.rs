@@ -249,6 +249,12 @@ pub struct Node {
     /// Acknowledged floors for active transaction/replica/backup/index
     /// consumers. Slow consumers protect history from retention pruning.
     retention_consumers: std::sync::Mutex<crate::retention::RetentionConsumers>,
+    /// Suspect labels too large to re-derive while writes flow, already
+    /// logged (SELF-HEAL).
+    heal_deferred: std::sync::Mutex<std::collections::BTreeSet<(TenantId, String)>>,
+    /// How long the store must be quiet before a large re-derive runs
+    /// (`compact-quiesce-seconds`, as for compaction).
+    heal_quiet: std::time::Duration,
     /// Owns the optional Raft runtime so it shuts down with the node instead
     /// of being leaked after bootstrap.
     raft_runtime: Option<tokio::runtime::Runtime>,
@@ -607,6 +613,8 @@ impl Node {
             vector_exact_max_pool: cfg.resources.vector_exact_max_pool,
             vector_default_ef: cfg.resources.vector_default_ef,
             introspection_value_max_chars: cfg.resources.introspection_value_max_chars,
+            heal_deferred: std::sync::Mutex::new(std::collections::BTreeSet::new()),
+            heal_quiet: std::time::Duration::from_secs(cfg.resources.compact_quiesce_seconds),
             retention_consumers: std::sync::Mutex::new(
                 crate::retention::RetentionConsumers::with_lease(std::time::Duration::from_secs(
                     cfg.resources.retention_consumer_lease_seconds,
@@ -651,6 +659,11 @@ impl Node {
             boot_phases.push(("migrations", phase_started.elapsed()));
         }
         node.restore_retention_consumers()?;
+        // Labels found suspect before the restart stay answered from base
+        // rows until their re-derive (SELF-HEAL).
+        for tenant in node.durable_tenants()? {
+            rushdb_lmpg::heal::load_suspects(&node.store, tenant).map_err(|e| e.to_string())?;
+        }
         // Every durable commit feeds the latency histogram (C0: it was never
         // observed, so `rushdb_commit_latency_seconds` stayed empty).
         node.store
@@ -1098,23 +1111,6 @@ impl RequestScope<'_> {
             offset: query.offset,
         })
     }
-    /// Vector query plan introspection for `Describe::ExplainVector`: the
-    /// access path (`vector_index`), the resolved alias, the predicate-resolved
-    /// candidate count (filter-before-top-k), the top-k, and the path the
-    /// search would take. Does not execute.
-    ///
-    /// # Errors
-    ///
-    /// Returns a message when the read view cannot be created, the filter
-    /// document cannot be parsed/evaluated, or the index is missing.
-    pub fn explain_vector(
-        &self,
-        query: &rushdb_protocol::VectorQuery,
-    ) -> Result<rushdb_protocol::ExplainVectorPlan, String> {
-        let snap = Arc::new(self.store.read_view().map_err(|e| e.to_string())?);
-        self.explain_vector_in_view(query, &snap)
-    }
-
     /// Build a tenant-scoped engine handle bound to this node's store,
     /// authorizer and the request's bounds.
     #[must_use]
@@ -1286,26 +1282,6 @@ impl RequestScope<'_> {
             related: restricted.related,
             ..request.clone()
         })
-    }
-
-    /// Current active policy + generation + fingerprint, or an error if no
-    /// policy has been persisted yet.
-    ///
-    /// # Errors
-    ///
-    /// Returns a message when the active policy cannot be loaded or when no
-    /// policy has been persisted.
-    pub fn security_policy(&self) -> Result<serde_json::Value, String> {
-        let lmpg = self.lmpg();
-        match rushdb_authz::load_active_policy(&lmpg).map_err(|e| e.to_string())? {
-            Some(ap) => Ok(serde_json::json!({
-                "generation": ap.generation,
-                "mode": format!("{:?}", ap.mode),
-                "fingerprint": ap.fingerprint,
-                "policy": ap.policy,
-            })),
-            None => Err("no active policy".to_string()),
-        }
     }
 
     /// Persist a policy (bumping the generation); returned JSON carries the
@@ -1600,7 +1576,7 @@ fn hex_byte(c: u8) -> Result<u8, String> {
 
 #[cfg(test)]
 #[path = "node_read_tests.rs"]
-mod node_read_tests;
+pub(crate) mod node_read_tests;
 
 #[cfg(test)]
 #[path = "node/transaction_reaper_tests.rs"]

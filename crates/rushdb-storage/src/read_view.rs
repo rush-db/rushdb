@@ -109,6 +109,8 @@ pub struct ReadView {
     planner_stats: Arc<crate::PlannerStats>,
     // The store's per-snapshot owner-set cache (READ-2).
     owner_sets: Arc<crate::owner_sets::OwnerSets>,
+    // The store's registry of suspect labels (SELF-HEAL).
+    derived_health: Arc<crate::derived_health::DerivedHealth>,
     graphs: Arc<crate::graph_cache::GraphCache>,
     // Generation of the `ReadPin` entry this view admitted into. Guards Drop
     // against decrementing a newer pin at the same CI after lease expiry.
@@ -286,6 +288,7 @@ impl Store {
             deriver,
             planner_stats: Arc::clone(&self.planner_stats),
             owner_sets: Arc::clone(&self.owner_sets),
+            derived_health: Arc::clone(&self.derived_health),
             graphs: Arc::clone(&self.graphs),
             pin_generation,
             native_current: ci == visible,
@@ -336,6 +339,13 @@ impl ReadView {
     #[must_use]
     pub fn planner_stats_cache(&self) -> &crate::PlannerStats {
         &self.planner_stats
+    }
+
+    /// The store's registry of suspect labels (SELF-HEAL): a read that finds
+    /// derived rows disagreeing with base rows reports it here.
+    #[must_use]
+    pub fn derived_health(&self) -> &crate::derived_health::DerivedHealth {
+        &self.derived_health
     }
 
     /// The store's owner-set cache, keyed by this view's commit index.
@@ -397,6 +407,7 @@ impl ReadView {
             deriver: self.deriver.clone(),
             planner_stats: Arc::clone(&self.planner_stats),
             owner_sets: Arc::clone(&self.owner_sets),
+            derived_health: Arc::clone(&self.derived_health),
             graphs: Arc::clone(&self.graphs),
             pin_generation: self.pin_generation,
             native_current: self.native_current,

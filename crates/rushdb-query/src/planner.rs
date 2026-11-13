@@ -24,6 +24,7 @@ use leaf_walk::{each_presence_owner, owners_matching};
 /// intersection is empty. `exact` is true when every leaf was answered AND
 /// there are no traversal predicates, so the caller may skip per-candidate
 /// evaluation and the exact-count rescan.
+#[derive(Clone)]
 pub(crate) struct IndexPlan {
     /// Candidate owners, ascending.
     pub(super) ords: OwnerSet,
@@ -77,7 +78,9 @@ pub(super) fn index_candidates_with_budget(
     is_cancelled: &dyn Fn() -> bool,
 ) -> Result<Option<IndexPlan>, QueryError> {
     let owner_limit = budget.map_or(usize::MAX, |bytes| bytes / OWNER_SET_BYTES_PER_OWNER);
-    if req.force_scan {
+    // A suspect label's derived rows are untrusted (SELF-HEAL): its records
+    // are walked and their base rows evaluated until it is repaired.
+    if req.force_scan || rushdb_lmpg::heal::untrusted(snap.as_ref(), lmpg.tenant, &req.labels) {
         return Ok(None);
     }
     let Some(expr) = &req.where_ else {
@@ -248,6 +251,11 @@ pub(super) fn index_candidates_with_budget(
         for ord in outside {
             out.remove(ord);
         }
+    }
+    // Building the owner sets may have found a label's derived rows wrong:
+    // then this plan is not trusted either.
+    if rushdb_lmpg::heal::untrusted(snap.as_ref(), lmpg.tenant, &req.labels) {
+        return Ok(None);
     }
     let exact = !has_residual && exactable && req.related.is_empty();
     Ok(Some(IndexPlan {
@@ -924,6 +932,10 @@ fn presence_prefixes<R: TryRead>(
 /// Owner ordinals carrying `name` (any value, or only nulls with
 /// `null_only`) under `labels`, from presence rows. `None` when not
 /// indexable.
+///
+/// Reading every presence row of a label's property, it checks them against
+/// the label's support counter for that property: both derive from the same
+/// base rows, so a difference is reported (SELF-HEAL).
 pub(super) fn owners_with_presence<R: TryRead>(
     snap: &R,
     tenant: rushdb_types::ids::TenantId,
@@ -932,13 +944,53 @@ pub(super) fn owners_with_presence<R: TryRead>(
     labels: &[String],
     owner_limit: usize,
 ) -> Result<Option<OwnerSet>, QueryError> {
-    let Some(prefixes) = presence_prefixes(snap, tenant, name, null_only, labels)? else {
+    let norm = normalize(name);
+    if norm.is_empty() || rushdb_types::value::is_reserved_name(&norm) {
         return Ok(None);
+    }
+    let Some(fid) = family_id(snap, tenant, &norm)? else {
+        return Ok(Some(OwnerSet::new()));
+    };
+    let record = rushdb_types::ids::OwnerKind::Record;
+    let nullness: &[u8] = if null_only {
+        &[rushdb_types::keys::NULLNESS_NULL]
+    } else {
+        &[
+            rushdb_types::keys::NULLNESS_VALUE,
+            rushdb_types::keys::NULLNESS_NULL,
+        ]
     };
     let mut set = OwnerSet::new();
     let mut owners = BoundedOwners::new(&mut set, owner_limit);
-    for prefix in prefixes {
-        each_presence_owner(snap, &prefix, None, None, &mut |owner| owners.insert(owner))?;
+    for pid in pids_of(snap, tenant, fid)? {
+        for label in labels_for(snap, tenant, pid, labels)? {
+            let mut rows = 0u64;
+            for &nullness in nullness {
+                let prefix = rushdb_types::keys::presence_nullness_prefix(
+                    tenant, record, &label, pid, nullness,
+                );
+                each_presence_owner(snap, &prefix, None, None, &mut |owner| {
+                    rows += 1;
+                    owners.insert(owner)
+                })?;
+            }
+            if null_only {
+                continue;
+            }
+            let support =
+                rushdb_lmpg::derived::prop_support_label(snap, tenant, record, pid, &label)?;
+            if support != rows {
+                rushdb_lmpg::heal::report(
+                    snap,
+                    tenant,
+                    &label,
+                    "presence_count",
+                    format!(
+                        "property {norm} ({pid}): {rows} presence rows, support counter {support}"
+                    ),
+                );
+            }
+        }
     }
     Ok(Some(set))
 }

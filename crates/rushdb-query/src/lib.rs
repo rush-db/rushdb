@@ -338,20 +338,6 @@ impl TimeBucketSpec {
         }
     }
 
-    /// A bucket spanning `size` `unit`s.
-    ///
-    /// # Panics
-    ///
-    /// Panics when `size` is zero.
-    pub fn sized(field: impl Into<String>, unit: TimeUnit, size: u64) -> Self {
-        assert!(size > 0, "timeBucket size must be positive");
-        TimeBucketSpec {
-            field: field.into(),
-            unit,
-            size,
-        }
-    }
-
     #[expect(
         clippy::cast_possible_truncation,
         reason = "epoch-ms is a bounded timestamp; the saturating float-to-int cast matches the reference calendar flooring"
@@ -668,6 +654,7 @@ pub fn find_records_in_view_with_budget(
 ///
 /// Returns [`QueryError::Cancelled`] when the probe requests a stop, and
 /// propagates storage/engine read errors and predicate evaluation failures.
+#[cfg(any(test, feature = "test-support"))]
 pub fn find_records_streaming(
     lmpg: &Lmpg,
     req: &SearchRequest,
@@ -1108,7 +1095,7 @@ fn traverse_alias(
                             )
                         }),
                     );
-                    let obj = filtered_row(&reader, snap, tenant, pred, other)?;
+                    let obj = filtered_row(&reader, tenant, pred, other)?;
                     if !eval_expr_ctx(&ctx, pred, &obj, other)? {
                         continue;
                     }

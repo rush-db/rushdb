@@ -24,6 +24,8 @@ use rushdb_types::stats::Histogram;
 
 use crate::reader::{keys_ext, TryRead};
 
+mod rederive;
+
 // ---------------------------------------------------------------------------
 // Deriver
 // ---------------------------------------------------------------------------
@@ -448,6 +450,16 @@ impl Deriver for LmpgDeriver {
             }
         }
         crate::index::derive(&touched.index, before, &after, &mut changes.rows)?;
+        // A re-derive commit carries its marker alone: the label's rows are
+        // recomputed from the state it applies to.
+        for op in ops {
+            if let Op::Del(key) = op {
+                if let Some((tenant, label)) = k::parse_rederive_key(key) {
+                    rederive::rederive_label(before, tenant, label, &mut changes)?;
+                    crate::index::rederive_label(before, tenant, label, &mut changes.rows)?;
+                }
+            }
+        }
         materialize(changes, before)
     }
 
@@ -917,20 +929,6 @@ pub fn degree<R: TryRead + ?Sized>(
     node: u64,
 ) -> Result<u64, StorageError> {
     counter(r, &k::degree_key(t, node, direction == AdjDirection::Out))
-}
-
-/// Relationships of `(type, source label, target label)`.
-///
-/// # Errors
-/// Returns [`StorageError`] if the counter cannot be read or is malformed.
-pub fn rel_catalog_count<R: TryRead + ?Sized>(
-    r: &R,
-    t: TenantId,
-    rel_type: &str,
-    source: &str,
-    target: &str,
-) -> Result<u64, StorageError> {
-    counter(r, &k::rel_catalog_key(t, rel_type, source, target))
 }
 
 /// Relationships of `(type, source label, target label)` carrying each pid:

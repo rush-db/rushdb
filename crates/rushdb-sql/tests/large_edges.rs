@@ -131,15 +131,15 @@ fn edge_columns_come_from_the_catalog() {
         })
         .collect();
     let expected = [
-        ("__id", "Utf8"),
-        ("__source_id", "Utf8"),
-        ("__target_id", "Utf8"),
-        ("__type", "Utf8"),
-        ("at", "Utf8"),
-        ("mixed", "Float64"),
-        ("note", "Utf8"),
-        ("ok", "Boolean"),
-        ("stars", "Int64"),
+        ("__id", "text"),
+        ("__source_id", "text"),
+        ("__target_id", "text"),
+        ("__type", "text"),
+        ("at", "text"),
+        ("mixed", "double precision"),
+        ("note", "text"),
+        ("ok", "boolean"),
+        ("stars", "bigint"),
     ];
     for (name, data_type) in expected {
         assert!(
@@ -148,9 +148,8 @@ fn edge_columns_come_from_the_catalog() {
         );
     }
     assert!(
-        columns
-            .iter()
-            .any(|(c, t)| c == "tags" && t.starts_with("List")),
+        // Lists are sent as `jsonb` over the PostgreSQL wire.
+        columns.iter().any(|(c, t)| c == "tags" && t == "jsonb"),
         "{columns:?}"
     );
     assert!(!columns.iter().any(|(c, _)| c == "since"), "{columns:?}");

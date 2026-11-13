@@ -18,7 +18,7 @@ use std::collections::{HashMap, HashSet};
 use std::ops::Bound;
 use std::sync::Arc;
 
-use arrow::array::RecordBatch;
+use arrow::array::{Array, RecordBatch};
 use arrow::datatypes::{Schema, SchemaRef};
 use arrow_json::reader::infer_json_schema_from_iterator;
 use datafusion::catalog::Session;
@@ -270,6 +270,9 @@ pub struct LabelTable {
     /// label catalog). Surfaced to `DataFusion` as `Precision::Exact` so join and
     /// scan costing does not fall back to guesses.
     row_count: usize,
+    /// The label's derived rows are trusted: not suspect (SELF-HEAL). When
+    /// they are, `row_count` is an estimate and rows are counted by reading.
+    trusted: bool,
 }
 
 impl std::fmt::Debug for LabelTable {
@@ -319,6 +322,8 @@ impl LabelTable {
             &snapshot, tenant, &label,
         )?)
         .unwrap_or(usize::MAX);
+        let trusted =
+            !rushdb_lmpg::heal::untrusted(snapshot.as_ref(), tenant, std::slice::from_ref(&label));
         Ok(Self {
             lmpg,
             label,
@@ -326,6 +331,7 @@ impl LabelTable {
             schema: Arc::new(schema),
             columns: Arc::new(columns),
             row_count,
+            trusted,
         })
     }
 }
@@ -406,7 +412,11 @@ impl TableProvider for LabelTable {
     /// rows; it is never an approximation.
     fn statistics(&self) -> Option<Statistics> {
         Some(Statistics {
-            num_rows: Precision::Exact(self.row_count),
+            num_rows: if self.trusted {
+                Precision::Exact(self.row_count)
+            } else {
+                Precision::Inexact(self.row_count)
+            },
             ..Default::default()
         })
     }
@@ -438,7 +448,7 @@ impl TableProvider for LabelTable {
         filters: &[Expr],
         limit: Option<usize>,
     ) -> DFResult<Arc<dyn ExecutionPlan>> {
-        if filters.is_empty() && projection.is_some_and(Vec::is_empty) {
+        if self.trusted && filters.is_empty() && projection.is_some_and(Vec::is_empty) {
             return counted_rows(limit.map_or(self.row_count, |l| l.min(self.row_count)));
         }
         let pushdown = translate_filters(filters);
@@ -479,8 +489,170 @@ impl TableProvider for LabelTable {
             false,
             limit,
         )?;
-        Ok(Arc::new(plan))
+        Ok(Arc::new(crate::lookup_join::RushScanExec::new(
+            Arc::new(plan),
+            crate::lookup_join::ScanTarget::Label(self.lookup()),
+            projection.cloned(),
+            filters.to_vec(),
+            self.estimate(filters)?,
+        )))
     }
+}
+
+/// What a lookup join needs of a label table to fetch its records by id.
+#[derive(Clone)]
+pub(crate) struct LabelLookup {
+    lmpg: Arc<Lmpg>,
+    label: String,
+    snapshot: Arc<ReadView>,
+    schema: SchemaRef,
+    columns: Arc<HashMap<String, ColumnFacts>>,
+}
+
+impl std::fmt::Debug for LabelLookup {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.label)
+    }
+}
+
+impl LabelTable {
+    pub(crate) fn lookup(&self) -> LabelLookup {
+        LabelLookup {
+            lmpg: Arc::clone(&self.lmpg),
+            label: self.label.clone(),
+            snapshot: Arc::clone(&self.snapshot),
+            schema: Arc::clone(&self.schema),
+            columns: Arc::clone(&self.columns),
+        }
+    }
+
+    /// The rows a scan with `filters` yields, as the planner counts them:
+    /// the label's exact count, or the most selective pushed condition's
+    /// exact count when the planner has one.
+    ///
+    /// # Errors
+    /// A storage read error of the estimate (the scan would fail on it too).
+    pub(crate) fn estimate(&self, filters: &[Expr]) -> DFResult<usize> {
+        let conditions: Vec<rushdb_query::Expr> = translate_filters(filters)
+            .iter()
+            .filter_map(|(column, op, lit)| native_condition(column, *op, lit, &self.columns))
+            .collect();
+        if conditions.is_empty() {
+            return Ok(self.row_count);
+        }
+        let expr = rushdb_query::Expr::And(conditions);
+        let estimate = rushdb_query::explain_cardinality(
+            &self.snapshot,
+            self.lmpg.tenant,
+            std::slice::from_ref(&self.label),
+            &expr,
+        )
+        .map_err(|error| datafusion::common::DataFusionError::External(Box::new(error)))?;
+        Ok(estimate
+            .and_then(|n| usize::try_from(n).ok())
+            .map_or(self.row_count, |n| n.min(self.row_count)))
+    }
+}
+
+impl LabelLookup {
+    pub(crate) fn label(&self) -> &str {
+        &self.label
+    }
+
+    /// Whether the request's deadline has passed.
+    pub(crate) fn expired(&self) -> bool {
+        self.lmpg.limits().expired()
+    }
+
+    /// The records of this label among `ids` (dashed or plain record ids;
+    /// others are skipped), as a batch of the scan's `projection` with its
+    /// exact `filters` applied, and each row's `__id`.
+    pub(crate) fn fetch(
+        &self,
+        ids: &[&str],
+        projection: Option<&Vec<usize>>,
+        filters: &[Expr],
+    ) -> DFResult<(RecordBatch, Vec<String>)> {
+        let external = |error: rushdb_storage::StorageError| {
+            datafusion::common::DataFusionError::External(Box::new(error))
+        };
+        let tenant = self.lmpg.tenant;
+        let mut ordinals = Vec::new();
+        let mut seen = HashSet::new();
+        for id in ids {
+            let Ok(uuid) = uuid::Uuid::parse_str(id) else {
+                continue;
+            };
+            let record = rushdb_types::ids::RecordId(*uuid.as_bytes());
+            if let Some(header) = try_access::record_by_id(self.snapshot.as_ref(), tenant, &record)
+                .map_err(external)?
+            {
+                if header.label == self.label && seen.insert(header.ordinal) {
+                    ordinals.push(header.ordinal);
+                }
+            }
+        }
+        ordinals.sort_unstable();
+        let strict: Pushdown = filters
+            .iter()
+            .filter_map(|filter| exact_conjuncts(filter, &self.columns))
+            .flatten()
+            .collect();
+        let mut projected = selected_properties(&self.schema, projection, None);
+        projected.insert(ID_FIELD.to_owned());
+        let projected = Arc::new(projected);
+        let prefix = rushdb_types::keys::label_member_prefix(tenant, &self.label);
+        let bounds = ScanBounds::prefix(&prefix);
+        let mut state = LabelScanState {
+            lmpg: Arc::clone(&self.lmpg),
+            label: self.label.clone(),
+            snapshot: Arc::clone(&self.snapshot),
+            schema: Arc::clone(&self.schema),
+            source: Source::Listed(ordinals.into_iter()),
+            prefix,
+            lower: bounds.start,
+            upper: bounds.end,
+            done: false,
+            selected: with_strict(&projected, &strict),
+            strict,
+            projected,
+            reads: RowReads::Unresolved,
+        };
+        let mut batches = Vec::new();
+        while let Some(batch) = next_label_batch(&mut state) {
+            batches.push(batch?);
+        }
+        let batch = arrow::compute::concat_batches(&self.schema, &batches)?;
+        let ids = string_column(&batch, batch.schema().index_of(ID_FIELD)?)?;
+        let batch = match projection {
+            Some(projection) => batch.project(projection)?,
+            None => batch,
+        };
+        Ok((batch, ids))
+    }
+}
+
+/// The values of a Utf8 column of `batch` (null as empty).
+pub(crate) fn string_column(batch: &RecordBatch, index: usize) -> DFResult<Vec<String>> {
+    let column = arrow::compute::cast(batch.column(index), &arrow::datatypes::DataType::Utf8)?;
+    let strings = column
+        .as_any()
+        .downcast_ref::<arrow::array::StringArray>()
+        .ok_or_else(|| {
+            datafusion::common::DataFusionError::Internal(format!(
+                "{} is not a string column",
+                batch.schema().field(index).name()
+            ))
+        })?;
+    Ok((0..strings.len())
+        .map(|i| {
+            if strings.is_null(i) {
+                String::new()
+            } else {
+                strings.value(i).to_owned()
+            }
+        })
+        .collect())
 }
 
 /// One scan partition: incrementally reconstructs label records into bounded
@@ -550,6 +722,9 @@ enum Source {
     Unplanned(Vec<rushdb_query::Expr>),
     /// The index plan's candidates.
     Planned(Box<PlannedCandidates>),
+    /// Records a lookup join named by id, already resolved to this label's
+    /// ordinals.
+    Listed(std::vec::IntoIter<u64>),
     /// The label's membership keys, streamed.
     Walk,
 }
@@ -781,6 +956,11 @@ fn next_ordinals(
     } else {
         BATCH_ROWS
     };
+    if let Source::Listed(ordinals) = &mut state.source {
+        let ordinals: Vec<u64> = ordinals.by_ref().take(rows).collect();
+        state.done = ordinals.len() < rows;
+        return Ok(ordinals);
+    }
     if let Source::Planned(candidates) = &mut state.source {
         let ordinals: Vec<u64> = candidates.by_ref().take(rows).collect();
         state.done = ordinals.len() < rows;
@@ -848,13 +1028,16 @@ pub(crate) fn batch_from_rows(
         .with_coerce_primitive(true)
         .build(std::io::Cursor::new(ndjson))
         .map_err(|e| datafusion::common::DataFusionError::External(Box::new(e)))?;
-    let mut batches = reader
+    let batches = reader
         .collect::<std::result::Result<Vec<_>, _>>()
         .map_err(|e| datafusion::common::DataFusionError::External(Box::new(e)))?;
-    match batches.pop() {
-        Some(batch) => Ok(batch),
-        None => Ok(empty_batch(schema)),
+    if batches.is_empty() {
+        return Ok(empty_batch(schema));
     }
+    Ok(arrow::compute::concat_batches(
+        &Arc::new(schema.clone()),
+        &batches,
+    )?)
 }
 
 /// An unfiltered scan that reads no column (`count(*)`): `rows` rows of no

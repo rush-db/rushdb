@@ -21,5 +21,8 @@ serde_json = { workspace = true }
 uuid = { workspace = true }
 thiserror = { workspace = true }
 
+[dev-dependencies]
+rushdb-storage = { workspace = true, features = ["test-support"] }
+
 [lints]
 workspace = true

@@ -122,12 +122,15 @@ Boot then:
 
 ### Shutdown
 
-On a shutdown signal the server stops accepting work, cancels in-flight
-maintenance scans, drains transports (30 s deadline), waits for maintenance
-closures, and runs a **final checkpoint** so the next open needs no WAL
-replay. A shutdown step that times out makes the process exit unsuccessfully
-rather than claim a clean close. An unclean stop is still safe: the WAL is
-the durable truth, and the next boot replays it.
+On a shutdown signal the server stops accepting work and cancels what is
+running: maintenance steps stop between bounded steps, and requests on every
+transport stop at their next check (their reads are cancelled). It drains
+HTTP (30 s deadline), closes PostgreSQL-wire, gRPC and Bolt sessions, waits
+for maintenance closures (30 s), runs a **final checkpoint** so the next open
+needs no WAL replay, then waits (30 s) until nothing holds the store and redb
+closes, so the next open needs no repair. A step that times out makes the
+process exit unsuccessfully rather than claim a clean close. An unclean stop
+is still safe: the WAL is the durable truth, and the next boot replays it.
 
 ## Crate map
 

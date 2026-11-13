@@ -60,47 +60,6 @@ fn raw_commit(
 }
 
 #[test]
-fn scrub_repair_removes_bounded_orphan_occurrences() {
-    let store = Arc::new(Store::new_in_memory());
-    let tenant = TenantId::from_ordinal(70);
-    let _lmpg = Lmpg::new(Arc::clone(&store), tenant);
-    let orphan = occ_key(tenant, rushdb_types::ids::OwnerKind::Record, 1, 2, 0);
-    raw_commit(
-        &store,
-        tenant,
-        rushdb_types::command::Mutation::PutRawKey {
-            key: orphan.clone(),
-            value: rushdb_types::occurrence::encode_occ_value(
-                false,
-                rushdb_types::occurrence::OccurrenceValue::ExplicitNull,
-                None,
-            ),
-        },
-    )
-    .unwrap();
-    let before = store.read_view().unwrap();
-    let report = rushdb_lmpg::scrub::scrub_report(&before, tenant).unwrap();
-    assert_eq!(report.occurrence_rows, 1, "{report:?}");
-    assert!(report
-        .violations
-        .iter()
-        .any(|v| v.what == "occurrence_orphaned"));
-    let plan = rushdb_lmpg::scrub::plan_orphan_occurrences(&before, tenant, 1).unwrap();
-    assert_eq!(plan.keys, vec![orphan]);
-    assert!(plan.complete);
-    drop(before);
-    assert_eq!(
-        rushdb_lmpg::scrub::repair_orphan_occurrences(&store, tenant, 1).unwrap(),
-        1
-    );
-    let after = store.read_view().unwrap();
-    let report = rushdb_lmpg::scrub::scrub_report(&after, tenant).unwrap();
-    // Repair removes the base row; apply-time derivation removes the
-    // presence and counters it produced, so nothing is left to flag.
-    assert!(report.violations.is_empty(), "{:?}", report.violations);
-}
-
-#[test]
 fn crash_at_every_commit_boundary_converges() {
     let primary = Arc::new(Store::new_in_memory());
     let tenant = TenantId::from_ordinal(9);

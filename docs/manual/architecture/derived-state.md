@@ -156,12 +156,35 @@ proportional to the WAL tail rather than to the data size:
 With `--require-index-warmup` (single-tenant only), `/ready` reports `503`
 until every vector index has caught up with its source records.
 
-## Verifying derived state
+## Exact by construction, repaired when not
 
-The derived rows of a tenant must equal what the deriver produces from
-scratch from its base rows. `rushdb serve --data-dir <dir> --verify` checks
-this, together with the base-row invariants, for every tenant and reports
-the number of violations.
+The derived rows of a tenant equal what the deriver produces from scratch
+from its base rows: one deriver writes them in the same batch and at the
+same commit index as the base rows, on every path that applies a commit.
+The test suite checks this after every commit of randomized write sequences
+against a from-scratch derivation; there is no offline check or repair step
+to run.
+
+If a deriver bug ever breaks it, the engine finds it while reading: a
+label's presence rows for a property are counted against its support
+counter whenever a query reads them all. A disagreement is logged (`derived
+rows disagree with their base rows`), counted in
+`rushdb_derived_inconsistency_total{kind}`, and the label becomes
+**suspect**: its queries are planned from base rows (record walks with the
+filter evaluated per record, totals counted), exact but slower, and its
+counter shortcuts (single-label counts, dictionary group counts, SQL row
+statistics) are not used. The next maintenance tick stores the label's
+suspect marker (it survives restarts and replicates, so the label stays
+answered from base rows until repaired) and repairs it with a logged
+`RederiveLabel` command: every node that applies the command recomputes the
+label's derived rows (record count, presence, support, dictionary, distinct
+counts, array markers, ordered-index entries, and its properties' null
+counts across the tenant) from its own base rows through the same deriver,
+deletes the marker, and the label is trusted again. A repair that reads more
+than 200,000 records (the label's, or the tenant's for the null counts)
+holds the writer for its one commit, so it waits until no commit has landed
+for `compact-quiesce-seconds`, as compaction does; the label is answered
+from base rows meanwhile.
 
 ## See also
 

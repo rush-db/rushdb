@@ -28,9 +28,8 @@ use rushdb_types::value::ID_FIELD;
 use serde_json::Value as Json;
 
 use crate::{
-    append_batch_rows_with_budget, bind_parameters, canonical_uuid, context_in_view_with_budget,
-    map_stream_error, memory_cap, planning_error, with_table_hint, Row, SqlError,
-    SqlMutationResult,
+    append_batch_rows_with_budget, bind_parameters, canonical_uuid, context_in_view,
+    planning_error, with_table_hint, Row, SqlError, SqlMutationResult,
 };
 
 /// Output column holding the touched row's `__id`.
@@ -381,7 +380,7 @@ impl Writes<'_> {
         }
         self.charged = self.charged.saturating_add(bytes);
         match self.limit {
-            Some(limit) if self.charged > limit => Err(SqlError::ResourceLimit(self.charged)),
+            Some(limit) if self.charged > limit => Err(SqlError::ResultTooLarge(limit)),
             _ => Ok(()),
         }
     }
@@ -496,7 +495,7 @@ pub(crate) async fn execute(
     let plan = plan(sql)?;
     let snapshot_version = snapshot.commit_index();
     let label = target_label(lmpg, &snapshot, &plan.target)?;
-    let mut context = context_in_view_with_budget(lmpg, &snapshot, max_result_bytes, text)?;
+    let context = context_in_view(lmpg, &snapshot, text)?;
     let insert_columns = if plan.kind == DmlKind::Insert && plan.columns.is_empty() {
         let provider = context
             .context
@@ -534,7 +533,7 @@ pub(crate) async fn execute(
     let mut stream = dataframe
         .execute_stream()
         .await
-        .map_err(|error| map_stream_error(&error, max_result_bytes, memory_cap(lmpg)))?;
+        .map_err(|error| context.stream_error(&error))?;
     let mut writes = Writes {
         lmpg,
         snapshot: &snapshot,
@@ -548,8 +547,7 @@ pub(crate) async fn execute(
         limit: max_result_bytes,
     };
     while let Some(batch) = stream.next().await {
-        let batch =
-            batch.map_err(|error| map_stream_error(&error, max_result_bytes, memory_cap(lmpg)))?;
+        let batch = batch.map_err(|error| context.stream_error(&error))?;
         let mut rows = Vec::new();
         let mut decoded = 0usize;
         append_batch_rows_with_budget(&batch, &mut rows, &mut decoded, None)?;
@@ -557,7 +555,6 @@ pub(crate) async fn execute(
             writes.row(row, &names)?;
         }
     }
-    context.record_real_memory_peak();
     let affected = writes.affected;
     let commit_index = if writes.batch.ops.is_empty() {
         snapshot_version

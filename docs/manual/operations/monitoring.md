@@ -104,6 +104,7 @@ verbosity with `RUST_LOG`; the default is
 | `suppressing internal execution error detail` | warn / error | A client got `internal execution error`; this line has the real cause. |
 | `replication follower: ...` | warn / error | Follower progress problems; see [Replication](replication.md#monitoring-replication). |
 | `shutdown signal received; closing the store cleanly` | info | `SIGTERM`/`SIGINT` received. |
+| `the store is still in use at the close deadline; the next open repairs it` | error | Shutdown could not close redb cleanly; the next start repairs the file (slow on a large store). |
 | `raft replication is EXPERIMENTAL ...` | warn | The Raft Preview is enabled. |
 
 ## What to alert on

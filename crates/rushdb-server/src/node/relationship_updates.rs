@@ -5,22 +5,6 @@ use super::relationships::{directed, MatchedEdges};
 use super::{bytes_from_hex, RecordId, RequestScope};
 
 impl RequestScope<'_> {
-    /// Update the properties of the existing `relation_type` relationships
-    /// between every source and every target record, in the given
-    /// direction. A pair without such a relationship is skipped; a dangling
-    /// id fails the call before anything is written, and every update
-    /// commits in one batch. Returns how many relationships were updated.
-    /// # Errors
-    ///
-    /// Returns an error message when the operation fails.
-    pub fn update_relationships_by_id(
-        &self,
-        command: &rushdb_protocol::UpdateRelationshipsMutation,
-    ) -> Result<serde_json::Value, String> {
-        let snap = self.store.read_view().map_err(|e| e.to_string())?;
-        self.update_relationships_by_id_in_view(command, &snap)
-    }
-
     pub(super) fn update_relationships_by_id_in_view(
         &self,
         command: &rushdb_protocol::UpdateRelationshipsMutation,

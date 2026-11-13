@@ -169,7 +169,6 @@ These flags perform a task and exit without starting the server. See
 | `--backup-base` | `PATH` | Offline physical base backup of `--data-dir`. |
 | `--restore-pitr` | `BASE_DIR` | Restore a base backup plus archived WAL into a new `--data-dir`. |
 | `--to-lsn` | `LSN` | Stop point for `--restore-pitr`. |
-| `--verify` | — | Logical integrity check of `--data-dir`. |
 | `--verify-base` | `BASE_DIR` | Check a base backup's manifest and file CRCs. |
 
 ## Startup validation rules

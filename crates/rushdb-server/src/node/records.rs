@@ -276,59 +276,6 @@ impl RequestScope<'_> {
         self.record_value_in_view(view, hdr.ordinal)
     }
 
-    /// PATCH semantics: merge incoming properties onto the existing record.
-    /// # Errors
-    ///
-    /// Returns an error message when the operation fails.
-    pub fn merge_record(
-        &self,
-        id_hex: &str,
-        properties: &serde_json::Value,
-        vectors: &[serde_json::Value],
-    ) -> Result<serde_json::Value, String> {
-        use rushdb_lmpg::import::{BfsPlan, InlineVectorEntry, UpsertIdMap, VectorDraft};
-
-        let id_bytes = bytes_from_hex(id_hex)?;
-        let id = RecordId(id_bytes);
-        let lmpg = self.lmpg();
-        let snap = self.store.read_view().map_err(|e| e.to_string())?;
-        let hdr = rushdb_lmpg::reader::try_access::record_by_id(&snap, self.tenant(), &id)
-            .map_err(|e| e.to_string())?
-            .ok_or_else(|| "record not found".to_string())?;
-        let props = Self::props_from_properties(properties)?;
-        let rr = rushdb_lmpg::RecordRef {
-            record_id: hdr.record_id,
-            ordinal: hdr.ordinal,
-        };
-        let mut vector_plan = BfsPlan::default();
-        if !vectors.is_empty() {
-            let entries: Vec<InlineVectorEntry> =
-                serde_json::from_value(serde_json::Value::Array(vectors.to_vec()))
-                    .map_err(|error| format!("invalid inline vectors: {error}"))?;
-            if !entries.is_empty() {
-                vector_plan.vector_drafts.push(VectorDraft {
-                    draft_id: id_bytes,
-                    label: hdr.label.clone(),
-                    entries,
-                });
-            }
-        }
-        self.validate_inline_vectors(&vector_plan.vector_drafts)?;
-        lmpg.update_fields(rr, props).map_err(|e| e.to_reason())?;
-        if let Err(error) = self.bind_inline_vectors(
-            &vector_plan.vector_drafts,
-            &[UpsertIdMap {
-                draft_id: id_bytes,
-                persisted_id: id_bytes,
-            }],
-        ) {
-            return Err(format!(
-                "vector binding failed after partial merge; retry is idempotent: {error}"
-            ));
-        }
-        self.record_value(hdr.ordinal)
-    }
-
     /// PATCH semantics using the caller-owned request snapshot for target
     /// lookup and reconstruction inputs.
     /// Merge updates the record when `id_hex` exists and otherwise creates
@@ -395,83 +342,6 @@ impl RequestScope<'_> {
         ) {
             return Err(format!(
                 "vector binding failed after partial merge; retry is idempotent: {error}"
-            ));
-        }
-        self.record_value(hdr.ordinal)
-    }
-
-    /// PUT semantics: replace all properties on the existing record.
-    /// # Errors
-    ///
-    /// Returns an error message when the operation fails.
-    pub fn replace_record(
-        &self,
-        id_hex: &str,
-        properties: &serde_json::Value,
-        vectors: &[serde_json::Value],
-    ) -> Result<serde_json::Value, String> {
-        use rushdb_lmpg::import::{BfsPlan, InlineVectorEntry, UpsertIdMap, VectorDraft};
-
-        let id_bytes = bytes_from_hex(id_hex)?;
-        let id = RecordId(id_bytes);
-        let lmpg = self.lmpg();
-        let snap = self.store.read_view().map_err(|e| e.to_string())?;
-        let hdr = rushdb_lmpg::reader::try_access::record_by_id(&snap, self.tenant(), &id)
-            .map_err(|e| e.to_string())?
-            .ok_or_else(|| "record not found".to_string())?;
-        let rr = rushdb_lmpg::RecordRef {
-            record_id: hdr.record_id,
-            ordinal: hdr.ordinal,
-        };
-
-        let mut vector_plan = BfsPlan::default();
-        if !vectors.is_empty() {
-            let entries: Vec<InlineVectorEntry> =
-                serde_json::from_value(serde_json::Value::Array(vectors.to_vec()))
-                    .map_err(|error| format!("invalid inline vectors: {error}"))?;
-            if !entries.is_empty() {
-                vector_plan.vector_drafts.push(VectorDraft {
-                    draft_id: id_bytes,
-                    label: hdr.label.clone(),
-                    entries,
-                });
-            }
-        }
-        self.validate_inline_vectors(&vector_plan.vector_drafts)?;
-
-        // remove current properties then write the provided set
-        let existing: Vec<String> =
-            rushdb_lmpg::reconstruct::reconstruct_record(&snap, self.tenant(), hdr.ordinal)
-                .map_err(|e| e.to_string())?
-                .and_then(|r| r.as_object().cloned())
-                .map(|o| {
-                    o.keys()
-                        .filter(|k| !rushdb_types::value::is_reserved_name(k))
-                        .cloned()
-                        .collect()
-                })
-                .unwrap_or_default();
-        // One commit: the new properties, plus a delete of every existing
-        // one they do not name. A refused commit leaves the record as it was.
-        let mut fields = Self::props_from_properties(properties)?;
-        let named: std::collections::HashSet<String> =
-            fields.iter().map(|(name, _)| name.clone()).collect();
-        fields.extend(
-            existing
-                .into_iter()
-                .filter(|name| !named.contains(name))
-                .map(|name| (name, rushdb_lmpg::plan::FieldChange::Delete)),
-        );
-        lmpg.update_fields(rr, fields).map_err(|e| e.to_reason())?;
-        if let Err(error) = self.bind_inline_vectors(
-            &vector_plan.vector_drafts,
-            &[UpsertIdMap {
-                draft_id: id_bytes,
-                persisted_id: id_bytes,
-            }],
-        ) {
-            return Err(format!(
-                "vector binding failed after partial replacement; retry is idempotent: {error}"
             ));
         }
         self.record_value(hdr.ordinal)
@@ -658,125 +528,28 @@ impl RequestScope<'_> {
     }
 
     /// Bulk record delete in bounded pages, honoring the caller's window.
-    /// The match set is snapshotted once (ordinals, not reconstructed JSON)
-    /// and each page commits atomically (`ceil(deleted / 500)` commits).
-    /// `skip` records are left in place; `limit` caps the total deleted
-    /// (`None` drains every match). Inserts that land after the snapshot are
-    /// not deleted. Records that vanish before their page commits are skipped.
-    /// Returns the number of deleted records.
-    /// # Errors
-    ///
-    /// Returns an error message when the operation fails.
-    pub fn delete_records(&self, body: &serde_json::Value) -> Result<u64, String> {
-        self.delete_records_with_cancel(body, &|| false)
-    }
-
-    /// [`Self::delete_records`] polling `is_cancelled` during the match scan and
-    /// between page commits, so a long delete can be aborted mid-flight (E4
-    /// operator trust). Pages already committed stay applied; the call returns
-    /// `"operation cancelled"`.
-    /// # Errors
-    ///
-    /// Returns an error message when the operation fails.
-    pub fn delete_records_with_cancel(
-        &self,
-        body: &serde_json::Value,
-        is_cancelled: &dyn Fn() -> bool,
-    ) -> Result<u64, String> {
-        const DELETE_PAGE_SIZE: usize = 500;
-        let document_result =
-            rushdb_query::document::parse_document(body).map_err(|e| e.to_string())?;
-        let skip = document_result.search.pagination.skip;
-        let limit = document_result.search.pagination.limit;
-        if limit == Some(0) {
-            return Ok(0);
-        }
-        if is_cancelled() {
-            return Err("operation cancelled".into());
-        }
-        // One snapshot of the match set. Pagination is applied here, not inside
-        // the matcher, so a label delete does not rescan after every page.
-        // Inserts that land after this snapshot are not deleted.
-        let lmpg = self.lmpg();
-        let snap = Arc::new(self.store.read_view().map_err(|e| e.to_string())?);
-        let ords = rushdb_query::matching_ordinals(
-            &lmpg,
-            &document_result.search,
-            is_cancelled,
-            snap.clone(),
-        )
-        .map_err(|e| {
-            if matches!(e, rushdb_query::QueryError::Cancelled) {
-                "operation cancelled".to_string()
-            } else {
-                e.to_string()
-            }
-        })?;
-        let start = usize::try_from(skip).unwrap_or(usize::MAX).min(ords.len());
-        let take = limit.map_or(usize::MAX, |n| usize::try_from(n).unwrap_or(usize::MAX));
-        let selected = &ords[start..];
-        let selected = &selected[..selected.len().min(take)];
-        let mut refs = Vec::with_capacity(selected.len());
-        for &ord in selected {
-            if is_cancelled() {
-                return Err("operation cancelled".into());
-            }
-            let Some(hdr) =
-                access::record_by_ord(&snap, self.tenant(), ord).map_err(|e| e.to_string())?
-            else {
-                continue;
-            };
-            refs.push(rushdb_lmpg::RecordRef {
-                record_id: hdr.record_id,
-                ordinal: hdr.ordinal,
-            });
-        }
-        let mut affected = 0u64;
-        for chunk in refs.chunks(DELETE_PAGE_SIZE) {
-            if is_cancelled() {
-                return Err("operation cancelled".into());
-            }
-            let page_snap = self.store.read_view().map_err(|e| e.to_string())?;
-            let mut batch = lmpg.begin_batch();
-            let mut staged = 0u64;
-            for rec in chunk {
-                if access::record_by_ord(&page_snap, self.tenant(), rec.ordinal)
-                    .map_err(|e| e.to_string())?
-                    .is_none()
-                {
-                    continue;
-                }
-                batch
-                    .ops
-                    .push(rushdb_lmpg::BatchOp::DeleteRecord { record: *rec });
-                staged += 1;
-            }
-            if staged == 0 {
-                continue;
-            }
-            lmpg.run_batch(batch).map_err(|e| e.to_reason())?;
-            affected += staged;
-        }
-        Ok(affected)
-    }
-
-    /// Bulk deletion using the caller-owned execution view for matching and
-    /// record identity resolution. Page commits still validate liveness against
-    /// the latest store state so concurrent deletes remain idempotent.
+    /// The records `search` matches (already narrowed to what the tenant's
+    /// policy shows, as a search is) are snapshotted once in the caller's
+    /// execution view, as ordinals, and deleted in pages of 500, each its own
+    /// atomic commit. `skip` records are left in place; `limit` caps the total
+    /// deleted (`None` drains every match). Inserts that land after the
+    /// snapshot are not deleted; records that vanish before their page commits
+    /// are skipped, so concurrent deletes stay idempotent. `is_cancelled` is
+    /// polled during the match and between pages: pages already committed
+    /// stay applied and the call returns `"operation cancelled"`. Returns the
+    /// number of deleted records.
     pub(crate) fn delete_records_with_execution_context(
         &self,
         context: &mut rushdb_engine::ExecutionContext,
-        body: &serde_json::Value,
+        search: &rushdb_query::SearchRequest,
         is_cancelled: &dyn Fn() -> bool,
     ) -> Result<u64, String> {
         const DELETE_PAGE_SIZE: usize = 500;
         context
             .check_deadline()
             .map_err(|error| error.to_string())?;
-        let document_result =
-            rushdb_query::document::parse_document(body).map_err(|e| e.to_string())?;
-        let skip = document_result.search.pagination.skip;
-        let limit = document_result.search.pagination.limit;
+        let skip = search.pagination.skip;
+        let limit = search.pagination.limit;
         if limit == Some(0) {
             return Ok(0);
         }
@@ -785,19 +558,14 @@ impl RequestScope<'_> {
         }
         let lmpg = self.lmpg();
         let snap = Arc::clone(context.read_view());
-        let ords = rushdb_query::matching_ordinals(
-            &lmpg,
-            &document_result.search,
-            is_cancelled,
-            snap.clone(),
-        )
-        .map_err(|e| {
-            if matches!(e, rushdb_query::QueryError::Cancelled) {
-                "operation cancelled".to_string()
-            } else {
-                e.to_string()
-            }
-        })?;
+        let ords = rushdb_query::matching_ordinals(&lmpg, search, is_cancelled, snap.clone())
+            .map_err(|e| {
+                if matches!(e, rushdb_query::QueryError::Cancelled) {
+                    "operation cancelled".to_string()
+                } else {
+                    e.to_string()
+                }
+            })?;
         let start = usize::try_from(skip).unwrap_or(usize::MAX).min(ords.len());
         let take = limit.map_or(usize::MAX, |n| usize::try_from(n).unwrap_or(usize::MAX));
         let selected = &ords[start..];
@@ -850,18 +618,6 @@ impl RequestScope<'_> {
             .check_deadline()
             .map_err(|error| error.to_string())?;
         Ok(affected)
-    }
-
-    /// Remove a property family (field) from the tenant atomically: all
-    /// occurrences on records and relationships, the family row/signature, and
-    /// its definitions. Returns the number of occurrences removed.
-    /// # Errors
-    ///
-    /// Returns an error message when the operation fails.
-    pub fn delete_property(&self, name: &str) -> Result<serde_json::Value, String> {
-        let snap = self.store.read_view().map_err(|e| e.to_string())?;
-        self.delete_property_in_view(name, &snap)?
-            .ok_or_else(|| format!("property `{name}` does not exist"))
     }
 
     /// `None` when no property has this name.

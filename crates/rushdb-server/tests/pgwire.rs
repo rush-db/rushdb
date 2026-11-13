@@ -506,24 +506,153 @@ async fn pgwire_query_with_deadline_config_still_succeeds_fast_queries() {
 }
 
 #[tokio::test]
-async fn transaction_control_is_refused_as_unsupported() {
-    let port = start(false, None);
+async fn transaction_blocks_run_reads_and_refuse_writes() {
+    // JDBC with autocommit off opens a block around its reads. Each
+    // statement reads its own snapshot (read committed); a write would
+    // commit on its own, so it is refused inside a block.
+    let (http_port, port) = start_gateway(false, None, true);
+    put_record(
+        http_port,
+        None,
+        "NOTE",
+        &serde_json::json!({ "name": "alpha" }),
+    );
     let client = connect(port, "rushdb", "pgwire-token").await.unwrap();
+    for (open, close) in [
+        ("BEGIN", "COMMIT"),
+        (
+            "START TRANSACTION ISOLATION LEVEL READ COMMITTED",
+            "ROLLBACK",
+        ),
+        ("BEGIN READ ONLY", "END"),
+    ] {
+        client.simple_query(open).await.unwrap();
+        let rows = client.query("SELECT name FROM note", &[]).await.unwrap();
+        assert_eq!(rows[0].get::<_, String>("name"), "alpha");
+        let write = client
+            .simple_query("INSERT INTO note (name) VALUES ('beta')")
+            .await
+            .unwrap_err();
+        let code = db_code(&write);
+        assert!(
+            code.starts_with("0A000") || code.starts_with("25006"),
+            "{open}: {code}"
+        );
+        client.simple_query(close).await.unwrap();
+    }
+    // The extended protocol opens and closes blocks the same way.
+    client.execute("BEGIN", &[]).await.unwrap();
+    client.execute("COMMIT", &[]).await.unwrap();
+    // Outside a block the write commits.
+    client
+        .simple_query("INSERT INTO note (name) VALUES ('beta')")
+        .await
+        .unwrap();
+    // A block cannot keep one snapshot, and savepoints are not offered.
     for statement in [
-        "BEGIN",
-        "START TRANSACTION",
-        "COMMIT",
-        "ROLLBACK",
+        "BEGIN ISOLATION LEVEL REPEATABLE READ",
+        "START TRANSACTION ISOLATION LEVEL SERIALIZABLE",
         "SAVEPOINT a",
     ] {
-        let simple = client.simple_query(statement).await.unwrap_err();
-        let extended = client.query(statement, &[]).await.unwrap_err();
-        for error in [simple, extended] {
-            let error = error.as_db_error().expect("a database error");
-            assert_eq!(error.code().code(), "0A000", "{statement}: {error}");
-            assert!(error.message().contains("autocommit"), "{error}");
-        }
+        let error = client.simple_query(statement).await.unwrap_err();
+        let code = db_code(&error);
+        assert!(
+            code.starts_with("0A000") || code.starts_with("22023"),
+            "{statement}: {code}"
+        );
     }
+}
+
+#[tokio::test]
+async fn jdbc_session_characteristics_are_answered() {
+    // The PostgreSQL JDBC driver reads the isolation level of every pooled
+    // connection (Metabase could not connect while this was refused) and
+    // sets the session's characteristics before its queries.
+    let (http_port, port) = start_gateway(false, None, true);
+    put_record(
+        http_port,
+        None,
+        "NOTE",
+        &serde_json::json!({ "name": "alpha" }),
+    );
+    let client = connect(port, "rushdb", "pgwire-token").await.unwrap();
+    let shown = |rows: Vec<tokio_postgres::Row>| rows[0].get::<_, String>(0);
+    assert_eq!(
+        shown(
+            client
+                .query("SHOW TRANSACTION ISOLATION LEVEL", &[])
+                .await
+                .unwrap()
+        ),
+        "read committed"
+    );
+    client
+        .execute(
+            "SET SESSION CHARACTERISTICS AS TRANSACTION ISOLATION LEVEL READ UNCOMMITTED",
+            &[],
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        shown(
+            client
+                .query("SHOW transaction_isolation", &[])
+                .await
+                .unwrap()
+        ),
+        "read uncommitted"
+    );
+    let serializable = client
+        .simple_query("SET SESSION CHARACTERISTICS AS TRANSACTION ISOLATION LEVEL SERIALIZABLE")
+        .await
+        .unwrap_err();
+    assert!(db_code(&serializable).starts_with("22023"));
+    client
+        .simple_query("SET SESSION CHARACTERISTICS AS TRANSACTION READ ONLY")
+        .await
+        .unwrap();
+    assert_eq!(
+        shown(
+            client
+                .query("SHOW transaction_read_only", &[])
+                .await
+                .unwrap()
+        ),
+        "on"
+    );
+    let write = client
+        .simple_query("INSERT INTO note (name) VALUES ('beta')")
+        .await
+        .unwrap_err();
+    assert!(db_code(&write).starts_with("25006"), "{}", db_code(&write));
+    client
+        .simple_query("SET SESSION CHARACTERISTICS AS TRANSACTION READ WRITE")
+        .await
+        .unwrap();
+    client
+        .simple_query("INSERT INTO note (name) VALUES ('beta')")
+        .await
+        .unwrap();
+    // Catalog queries with the session's own functions bound.
+    let schemas = client
+        .query(
+            "SELECT nspname, current_database() AS db FROM pg_catalog.pg_namespace \
+             WHERE nspname = (pg_catalog.current_schemas(false))[1]",
+            &[],
+        )
+        .await
+        .unwrap();
+    assert_eq!(schemas[0].get::<_, String>("nspname"), "public");
+    assert_eq!(schemas[0].get::<_, String>("db"), "rushdb");
+    let tables = client
+        .query(
+            "SELECT relname FROM pg_class c JOIN pg_namespace n ON c.relnamespace = n.oid \
+             WHERE n.nspname = 'public'",
+            &[],
+        )
+        .await
+        .unwrap();
+    assert_eq!(tables[0].get::<_, String>("relname"), "NOTE");
 }
 
 #[tokio::test]
@@ -1058,4 +1187,79 @@ async fn a_capability_is_a_password_on_a_loopback_cleartext_listener_too() {
     assert!(connect(port, "tenant-a", &token).await.is_ok());
     let rejected = connect(port, "tenant-b", &token).await.unwrap_err();
     assert!(db_code(&rejected).starts_with("28P01"), "{rejected}");
+}
+
+/// Install `policy` (enforced) as the single tenant's data-access policy.
+fn put_policy(http_port: u16, policy: &serde_json::Value) {
+    let body = serde_json::json!({
+        "protocolVersion": 1,
+        "operation": {
+            "kind": "policy",
+            "policy": { "kind": "put", "policy": policy, "enforced": true }
+        }
+    })
+    .to_string();
+    let mut stream = TcpStream::connect(("127.0.0.1", http_port)).unwrap();
+    let request = format!(
+        "POST /protocol/v1/execute HTTP/1.1\r\nHost: localhost\r\nX-RushDB-Token: pgwire-token\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+        body.len()
+    );
+    stream.write_all(request.as_bytes()).unwrap();
+    let mut response = String::new();
+    stream.read_to_string(&mut response).unwrap();
+    assert!(response.starts_with("HTTP/1.1 200"), "{response}");
+}
+
+#[tokio::test]
+async fn describing_a_statement_shows_only_what_the_policy_shows() {
+    // SEC-2: Parse/Describe planned against the whole catalog, so a session
+    // under an enforced policy learned hidden tables' and columns' names and
+    // types from the RowDescription.
+    let (http_port, port) = start_gateway(false, None, true);
+    put_record(
+        http_port,
+        None,
+        "NOTE",
+        &serde_json::json!({ "title": "t", "secret": "s" }),
+    );
+    put_record(
+        http_port,
+        None,
+        "VAULT",
+        &serde_json::json!({ "code": "c" }),
+    );
+    put_policy(
+        http_port,
+        &serde_json::json!({
+            "allowedLabels": ["NOTE"],
+            "visibleProperties": { "NOTE": ["title"] }
+        }),
+    );
+    let client = connect(port, "rushdb", "pgwire-token").await.unwrap();
+    for (sql, code) in [
+        ("SELECT code FROM vault", "42P01"),
+        ("SELECT secret FROM note", "42703"),
+    ] {
+        let error = client.prepare(sql).await.unwrap_err();
+        assert!(
+            db_code(&error).starts_with(code),
+            "{sql}: {}",
+            db_code(&error)
+        );
+    }
+    let statement = client.prepare("SELECT * FROM note").await.unwrap();
+    let names: Vec<&str> = statement
+        .columns()
+        .iter()
+        .map(tokio_postgres::Column::name)
+        .collect();
+    assert!(
+        names.contains(&"title") && !names.contains(&"secret"),
+        "{names:?}"
+    );
+    let error = client
+        .prepare("UPDATE note SET title = $1")
+        .await
+        .unwrap_err();
+    assert!(db_code(&error).starts_with("42501"), "{}", db_code(&error));
 }

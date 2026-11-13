@@ -19,6 +19,7 @@ serde_json = { workspace = true }
 uuid = { workspace = true }
 
 [dev-dependencies]
+rushdb-storage = { workspace = true, features = ["test-support"] }
 uuid = { workspace = true }
 
 [lints]

@@ -47,6 +47,7 @@ pub(crate) fn dictionary_grouped_count(
         || !req.expr_sums.is_empty()
         || !req.expr_avgs.is_empty()
         || !req.avg_terms.is_empty()
+        || rushdb_lmpg::heal::untrusted(snap.as_ref(), lmpg.tenant, &req.labels)
     {
         return Ok(None);
     }

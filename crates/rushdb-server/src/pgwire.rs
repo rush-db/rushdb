@@ -17,6 +17,7 @@ use pgwire::api::{
     RandomPidSecretKeyGenerator, Type,
 };
 use pgwire::error::{ErrorInfo, PgWireError, PgWireResult};
+use pgwire::messages::response::TransactionStatus;
 use pgwire::messages::startup::Authentication;
 use pgwire::messages::{PgWireBackendMessage, PgWireFrontendMessage};
 use pgwire::tokio::process_socket;
@@ -93,7 +94,7 @@ impl PgWireServer {
     /// invariant), if the Tokio runtime cannot be built, or if the pre-bound
     /// listener cannot be adopted by Tokio.
     /// # Errors
-    /// Returns an error when sessions do not finish within the drain deadline.
+    /// Returns an error when accepting a connection fails.
     pub fn serve_forever(&mut self) -> Result<(), String> {
         let Some(l) = self.listener.take() else {
             // sql language disabled: nothing to serve.
@@ -132,16 +133,13 @@ impl PgWireServer {
                     }
                 }
             }
-            let drain = async { while connections.join_next().await.is_some() {} };
-            if tokio::time::timeout(std::time::Duration::from_secs(5), drain)
-                .await
-                .is_err()
-            {
-                tracing::warn!("pgwire transport drain deadline elapsed");
-                connections.abort_all();
-                while connections.join_next().await.is_some() {}
-                return Err("pgwire shutdown drain deadline elapsed".into());
-            }
+            // A fast shutdown, as PostgreSQL's: sessions are closed at once.
+            // A session waiting for its client has nothing to finish (pooled
+            // clients keep idle sessions open indefinitely); a statement still
+            // running stops on the store's shutdown and releases the node on
+            // its own, which the server waits for before closing the store.
+            connections.abort_all();
+            while connections.join_next().await.is_some() {}
             Ok(())
         });
         rt.shutdown_timeout(std::time::Duration::from_secs(1));
@@ -450,23 +448,8 @@ impl QueryParser for SqlQueryParser {
     where
         C: ClientInfo + Unpin + Send + Sync,
     {
-        if is_transaction_control(sql) {
-            return Err(err("0A000", TRANSACTIONS_UNSUPPORTED.to_owned()));
-        }
-        if let Some(command) = settings::parse(sql) {
-            if let settings::Command::Unsupported(name) = command {
-                return Err(settings::unsupported(&name));
-            }
-            return Ok(PreparedSql {
-                sql: sql.to_owned(),
-                parameter_types: Vec::new(),
-                result_fields: match command {
-                    settings::Command::Show(setting) => {
-                        vec![(setting.name().to_owned(), Type::TEXT)]
-                    }
-                    _ => Vec::new(),
-                },
-            });
+        if let Some(prepared) = session_statement(sql) {
+            return prepared;
         }
         if let Some(result_fields) = builtin_result_fields(sql) {
             return Ok(PreparedSql {
@@ -486,11 +469,20 @@ impl QueryParser for SqlQueryParser {
                 result_fields: Vec::new(),
             });
         }
+        let lmpg = RequestScope::new(&self.node, tenant).lmpg();
+        let visible = catalog_access(&lmpg)?;
         if mutation_tag(sql).is_some() {
             // DML has a separate descriptor because the read descriptor
             // deliberately rejects mutations. This gives a standard client
             // concrete parameter OIDs before Bind without executing a write.
-            let lmpg = RequestScope::new(&self.node, tenant).lmpg();
+            // Under an enforced policy SQL DML does not run, so it is not
+            // described either (describing would show hidden columns).
+            if visible.enforced() {
+                return Err(err(
+                    "42501",
+                    "SQL DML is not available under an enforced data-access policy",
+                ));
+            }
             let description =
                 rushdb_sql::describe_sql_mutation_async(&lmpg, sql, Some(self.node.text_indexes()))
                     .await;
@@ -515,9 +507,9 @@ impl QueryParser for SqlQueryParser {
                 result_fields: Vec::new(),
             });
         }
-        let lmpg = RequestScope::new(&self.node, tenant).lmpg();
         let description =
-            rushdb_sql::describe_sql_async(&lmpg, sql, Some(self.node.text_indexes())).await;
+            rushdb_sql::describe_sql_async(&lmpg, sql, Some(self.node.text_indexes()), &visible)
+                .await;
         let description = description.map_err(described_err)?;
 
         let inferred = description
@@ -562,22 +554,7 @@ impl QueryParser for SqlQueryParser {
 }
 
 fn pg_type(data_type: &rushdb_sql::SqlType) -> Type {
-    use rushdb_sql::SqlType;
-    match data_type {
-        SqlType::Boolean => Type::BOOL,
-        SqlType::Int16 | SqlType::UInt16 => Type::INT2,
-        SqlType::Int32 | SqlType::UInt32 => Type::INT4,
-        SqlType::Int64 | SqlType::UInt64 => Type::INT8,
-        SqlType::Float32 => Type::FLOAT4,
-        SqlType::Float64 => Type::FLOAT8,
-        SqlType::Utf8 => Type::TEXT,
-        SqlType::Binary => Type::BYTEA,
-        SqlType::Date => Type::DATE,
-        SqlType::Time => Type::TIME,
-        SqlType::Timestamp => Type::TIMESTAMP,
-        SqlType::Json => Type::JSONB,
-        SqlType::Unknown => Type::UNKNOWN,
-    }
+    Type::from_oid(data_type.pg_oid()).unwrap_or(Type::UNKNOWN)
 }
 
 fn prepared_fields(fields: &[(String, Type)], format: &Format) -> Vec<FieldInfo> {
@@ -599,6 +576,126 @@ fn err(c: &str, m: impl Into<String>) -> PgWireError {
     PgWireError::UserError(Box::new(ErrorInfo::new("ERROR".into(), c.into(), m.into())))
 }
 
+/// A statement the session answers itself (a transaction block, a
+/// setting), prepared without the catalog; `None` for any other.
+fn session_statement(sql: &str) -> Option<PgWireResult<PreparedSql>> {
+    let prepared = |result_fields| {
+        Ok(PreparedSql {
+            sql: sql.to_owned(),
+            parameter_types: Vec::new(),
+            result_fields,
+        })
+    };
+    if block_command(sql).is_some() {
+        return Some(prepared(Vec::new()));
+    }
+    if is_transaction_control(sql) {
+        return Some(Err(err("0A000", TRANSACTIONS_UNSUPPORTED.to_owned())));
+    }
+    Some(match settings::parse(sql)? {
+        settings::Command::Unsupported(name) => Err(settings::unsupported(&name)),
+        settings::Command::Show(setting) => prepared(vec![(setting.name().to_owned(), Type::TEXT)]),
+        _ => prepared(Vec::new()),
+    })
+}
+
+/// What the tenant's data-access policy lets a statement see, read as
+/// execution reads it: a statement that cannot see a table or column cannot
+/// describe it either.
+fn catalog_access(lmpg: &rushdb_lmpg::Lmpg) -> PgWireResult<rushdb_lmpg::CatalogAccess> {
+    let view = lmpg
+        .store
+        .read_view()
+        .map_err(|error| err("XX000", error.to_string()))?;
+    let active = rushdb_authz::load_active_policy_in_view(&view, lmpg.tenant)
+        .map_err(|error| err("XX000", error.to_string()))?;
+    Ok(rushdb_lmpg::CatalogAccess::new(active.map(Arc::new)))
+}
+
+/// A write in a session set `READ ONLY` fails as in PostgreSQL; one inside
+/// a transaction block fails too, as it would commit on its own.
+fn refuse_write<C: ClientInfo>(
+    c: &C,
+    session: settings::SessionLimits,
+    sql: &str,
+) -> PgWireResult<()> {
+    let Some(tag) = mutation_tag(sql) else {
+        return Ok(());
+    };
+    if session.read_only {
+        return Err(err(
+            "25006",
+            format!("cannot execute {tag} in a read-only transaction"),
+        ));
+    }
+    if c.transaction_status() != TransactionStatus::Idle {
+        return Err(err(
+            "0A000",
+            format!(
+                "cannot execute {tag} inside a transaction block: every write commits on its \
+                 own; send it in autocommit mode"
+            ),
+        ));
+    }
+    Ok(())
+}
+
+/// A statement that opens or closes a transaction block.
+#[derive(Debug, PartialEq, Eq)]
+enum Block {
+    /// `BEGIN`/`START TRANSACTION` and the modes after it.
+    Begin(String),
+    Commit,
+    Rollback,
+}
+
+fn block_command(sql: &str) -> Option<Block> {
+    let sql = sql.trim().trim_end_matches(';').trim();
+    let (first, rest) = sql
+        .split_once(char::is_whitespace)
+        .map_or((sql, ""), |(first, rest)| (first, rest.trim()));
+    let rest_upper = rest.to_ascii_uppercase();
+    match first.to_ascii_uppercase().as_str() {
+        "BEGIN" => {
+            let modes = rest_upper
+                .strip_prefix("TRANSACTION")
+                .or_else(|| rest_upper.strip_prefix("WORK"))
+                .unwrap_or(&rest_upper);
+            Some(Block::Begin(modes.trim().to_owned()))
+        }
+        "START" => rest_upper
+            .strip_prefix("TRANSACTION")
+            .map(|modes| Block::Begin(modes.trim().to_owned())),
+        "COMMIT" | "END" if !rest_upper.contains("PREPARED") => Some(Block::Commit),
+        "ROLLBACK" | "ABORT" if !rest_upper.contains("TO") && !rest_upper.contains("PREPARED") => {
+            Some(Block::Rollback)
+        }
+        _ => None,
+    }
+}
+
+/// A transaction block over statements that each read their own snapshot:
+/// PostgreSQL's `read committed`. Reads run in it as they would alone;
+/// writes are refused ([`refuse_write`]), so ending it changes nothing.
+fn block_response<C: ClientInfo>(c: &C, block: Block) -> PgWireResult<Response> {
+    Ok(match block {
+        Block::Begin(modes) => {
+            let isolation = settings::block_isolation(&modes)?
+                .unwrap_or_else(|| settings::isolation(c.metadata()));
+            if isolation == "repeatable read" {
+                return Err(err(
+                    "0A000",
+                    "a transaction block reads each statement at its own snapshot \
+                     (read committed); repeatable read holds only for a statement on its own",
+                ));
+            }
+            Response::TransactionStart(Tag::new("BEGIN"))
+        }
+        Block::Commit => Response::TransactionEnd(Tag::new("COMMIT")),
+        Block::Rollback => Response::TransactionEnd(Tag::new("ROLLBACK")),
+    })
+}
+
 /// Answer a session-settings statement: `SHOW` returns its value,
 /// `SET`/`RESET` their command tags.
 fn setting_response<C: ClientInfo>(
@@ -607,7 +704,7 @@ fn setting_response<C: ClientInfo>(
     format: &Format,
 ) -> PgWireResult<Response> {
     let tag = match command {
-        settings::Command::Set(_, Some(_)) => "SET",
+        settings::Command::Set(_, Some(_)) | settings::Command::Transaction(_) => "SET",
         _ => "RESET",
     };
     Ok(match settings::apply(c.metadata_mut(), command)? {
@@ -719,7 +816,7 @@ fn builtin_result_fields(sql: &str) -> Option<Vec<(String, Type)>> {
     }
 }
 /// The user every pgwire session runs as, as `current_user` answers.
-const SESSION_USER: &str = "rushdb";
+const SESSION_USER: &str = rushdb_sql::SESSION_OWNER;
 
 /// `sql` with PostgreSQL's session information functions bound to this
 /// session's values, so they work beside other expressions (the exact
@@ -1110,10 +1207,14 @@ impl SimpleQueryHandler for DbHandler {
     where
         C: ClientInfo + Unpin + Send + Sync,
     {
+        if let Some(block) = block_command(s) {
+            return Ok(vec![block_response(c, block)?]);
+        }
         if let Some(command) = settings::parse(s) {
             return Ok(vec![setting_response(c, command, &Format::UnifiedText)?]);
         }
         let session = settings::limits(c.metadata())?;
+        refuse_write(c, session, s)?;
         let s = &if builtin_result_fields(s).is_some() {
             s.to_owned()
         } else {
@@ -1139,8 +1240,10 @@ impl SimpleQueryHandler for DbHandler {
         let f = if r.is_empty() {
             let tenant = scope(c, self.multitenant);
             let lmpg = RequestScope::new(&self.node, tenant).lmpg();
+            let visible = catalog_access(&lmpg)?;
             let description =
-                rushdb_sql::describe_sql_async(&lmpg, s, Some(self.node.text_indexes())).await;
+                rushdb_sql::describe_sql_async(&lmpg, s, Some(self.node.text_indexes()), &visible)
+                    .await;
             Arc::new(prepared_fields(
                 &description
                     .map_err(described_err)?
@@ -1178,11 +1281,15 @@ impl ExtendedQueryHandler for DbHandler {
     where
         C: ClientInfo + Unpin + Send + Sync,
     {
+        if let Some(block) = block_command(&p.statement.statement.sql) {
+            return block_response(c, block);
+        }
         if let Some(command) = settings::parse(&p.statement.statement.sql) {
             return setting_response(c, command, &p.result_column_format);
         }
         let parameters = portal_parameters(p)?;
         let session = settings::limits(c.metadata())?;
+        refuse_write(c, session, &p.statement.statement.sql)?;
         let execution = run_async(
             Arc::clone(&self.node),
             scope(c, self.multitenant),
@@ -1240,7 +1347,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn shutdown_bounds_an_idle_pgwire_session() {
+    fn shutdown_closes_an_idle_pgwire_session_at_once() {
         use std::io::{Read as _, Write as _};
         use std::time::Duration;
 
@@ -1259,11 +1366,14 @@ mod tests {
         let mut reply = [0];
         client.read_exact(&mut reply).unwrap();
         assert_eq!(reply, [b'N']);
+        let shutdown = std::time::Instant::now();
         node.store().begin_shutdown();
         let outcome = result.recv_timeout(Duration::from_secs(8)).unwrap();
-        assert_eq!(
-            outcome.unwrap_err(),
-            "pgwire shutdown drain deadline elapsed"
+        assert_eq!(outcome, Ok(()));
+        assert!(
+            shutdown.elapsed() < Duration::from_secs(2),
+            "{:?}",
+            shutdown.elapsed()
         );
         worker.join().unwrap();
         assert!(matches!(client.read(&mut reply), Ok(0) | Err(_)));

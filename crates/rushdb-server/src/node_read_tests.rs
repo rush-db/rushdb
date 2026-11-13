@@ -2,6 +2,19 @@ use super::*;
 use rushdb_types::command::{CommitBatch, IsolationMode, COMMAND_VERSION};
 use serde_json::json;
 
+/// Delete the records `body` matches through the protocol's bulk delete
+/// path (in a fresh write context, under no policy).
+pub(crate) fn bulk_delete(node: &Node, body: &serde_json::Value) -> Result<u64, String> {
+    let search = rushdb_query::document::parse_document(body)
+        .map_err(|error| error.to_string())?
+        .search;
+    let mut context = node
+        .scope()
+        .execution_context(rushdb_engine::OperationClass::Write, None)?;
+    node.scope()
+        .delete_records_with_execution_context(&mut context, &search, &|| false)
+}
+
 fn on_backends(test: impl Fn(&Node)) {
     let dir = rushdb_storage::TempPath::dir("node-native");
     for persistent in [false, true] {
@@ -211,9 +224,7 @@ fn native_record_enumeration_and_bulk_delete_preserve_label_selection() {
             .unwrap();
         let records = node.scope().label_ordinals("A").unwrap();
         assert_eq!(records, vec![a.ordinal]);
-        node.scope()
-            .delete_records(&json!({"labels": ["A"]}))
-            .unwrap();
+        bulk_delete(node, &json!({"labels": ["A"]})).unwrap();
         assert!(node.scope().get_record(&hex_simple(&a.record_id)).is_err());
         assert_eq!(
             node.scope().get_record(&hex_simple(&b.record_id)).unwrap()["properties"]["name"],
@@ -236,10 +247,7 @@ fn bulk_delete_streams_in_bounded_pages() {
                 .import_json_document("Bulk", &json!({"n": i}))
                 .unwrap();
         }
-        let affected = node
-            .scope()
-            .delete_records(&json!({"labels": ["Bulk"]}))
-            .unwrap();
+        let affected = bulk_delete(node, &json!({"labels": ["Bulk"]})).unwrap();
         assert_eq!(affected, 1100);
         assert!(
             node.scope().label_ordinals("Bulk").unwrap().is_empty(),
@@ -249,19 +257,27 @@ fn bulk_delete_streams_in_bounded_pages() {
 }
 
 #[test]
-fn delete_records_with_cancel_aborts_before_deleting() {
+fn a_cancelled_bulk_delete_deletes_nothing() {
     on_backends(|node| {
         for i in 0..10 {
             node.scope()
                 .import_json_document("Cancel", &json!({"n": i}))
                 .unwrap();
         }
+        let search = rushdb_query::document::parse_document(&json!({"labels": ["Cancel"]}))
+            .unwrap()
+            .search;
+        let delete = |is_cancelled: &dyn Fn() -> bool| {
+            let mut context = node
+                .scope()
+                .execution_context(rushdb_engine::OperationClass::Write, None)
+                .unwrap();
+            node.scope()
+                .delete_records_with_execution_context(&mut context, &search, is_cancelled)
+        };
         // Cancel before the first page: nothing is deleted and the call reports
         // cancellation (E4: a long delete must be abortable, not silent).
-        let err = node
-            .scope()
-            .delete_records_with_cancel(&json!({"labels": ["Cancel"]}), &|| true)
-            .unwrap_err();
+        let err = delete(&|| true).unwrap_err();
         assert!(err.contains("operation cancelled"), "got: {err}");
         assert_eq!(
             node.scope().label_ordinals("Cancel").unwrap().len(),
@@ -269,12 +285,7 @@ fn delete_records_with_cancel_aborts_before_deleting() {
             "a cancelled delete must not remove records"
         );
         // Uncanceled, the same call completes.
-        assert_eq!(
-            node.scope()
-                .delete_records(&json!({"labels": ["Cancel"]}))
-                .unwrap(),
-            10
-        );
+        assert_eq!(delete(&|| false).unwrap(), 10);
     });
 }
 
@@ -319,7 +330,14 @@ fn relationship_scans_exclude_ordinal_rows_and_propagate_header_corruption() {
             .unwrap_err()
             .contains("corrupt relationship header"));
         let command = serde_json::from_value(json!({"sourceLabel": "A", "targetLabel": "B", "sourceType": "LINK", "targetType": "NEW"})).unwrap();
-        assert!(node.scope().retype_relations(&command).is_err());
+        let mut context = node
+            .scope()
+            .execution_context(rushdb_engine::OperationClass::Write, None)
+            .unwrap();
+        assert!(node
+            .scope()
+            .retype_relations_with_execution_context(&mut context, &command)
+            .is_err());
     });
 }
 
@@ -629,26 +647,18 @@ fn delete_records_respects_caller_limit_and_skip() {
                 .import_json_document("Del", &json!({"n": i}))
                 .unwrap();
         }
-        let affected = node
-            .scope()
-            .delete_records(&json!({"labels": ["Del"], "limit": 3}))
-            .unwrap();
+        let affected = bulk_delete(node, &json!({"labels": ["Del"], "limit": 3})).unwrap();
         assert_eq!(affected, 3, "limit must cap the delete");
         assert_eq!(node.scope().label_ordinals("Del").unwrap().len(), 7);
 
         // skip leaves the first two matches in place; limit caps this call.
-        let affected = node
-            .scope()
-            .delete_records(&json!({"labels": ["Del"], "skip": 2, "limit": 2}))
-            .unwrap();
+        let affected =
+            bulk_delete(node, &json!({"labels": ["Del"], "skip": 2, "limit": 2})).unwrap();
         assert_eq!(affected, 2);
         assert_eq!(node.scope().label_ordinals("Del").unwrap().len(), 5);
 
         // No limit drains the remainder (legacy behavior).
-        let affected = node
-            .scope()
-            .delete_records(&json!({"labels": ["Del"]}))
-            .unwrap();
+        let affected = bulk_delete(node, &json!({"labels": ["Del"]})).unwrap();
         assert_eq!(affected, 5);
         assert!(node.scope().label_ordinals("Del").unwrap().is_empty());
 
@@ -657,9 +667,7 @@ fn delete_records_respects_caller_limit_and_skip() {
             .import_json_document("Del", &json!({"n": 1}))
             .unwrap();
         assert_eq!(
-            node.scope()
-                .delete_records(&json!({"labels": ["Del"], "limit": 0}))
-                .unwrap(),
+            bulk_delete(node, &json!({"labels": ["Del"], "limit": 0})).unwrap(),
             0
         );
         assert_eq!(node.scope().label_ordinals("Del").unwrap().len(), 1);
@@ -871,9 +879,7 @@ fn catalog_detail_counts_match_the_member_scan() {
     node.scope()
         .retype_record(&hex_simple(&moved.record_id), "A", "C")
         .unwrap();
-    node.scope()
-        .delete_records(&json!({"labels": ["A"], "where": {"name": "a0"}}))
-        .unwrap();
+    bulk_delete(&node, &json!({"labels": ["A"], "where": {"name": "a0"}})).unwrap();
 
     let view = Arc::new(node.store.read_view().unwrap());
     let meta = node.scope().property_meta_in_view(&view).unwrap();
@@ -1054,10 +1060,7 @@ fn label_delete_of_fat_records_removes_the_label() {
         node.scope()
             .import_json_document("Keep", &json!({"n": 1}))
             .unwrap();
-        let affected = node
-            .scope()
-            .delete_records(&json!({"labels": ["Fat"]}))
-            .unwrap();
+        let affected = bulk_delete(node, &json!({"labels": ["Fat"]})).unwrap();
         assert_eq!(affected, 20);
         assert!(node.scope().label_ordinals("Fat").unwrap().is_empty());
         assert_eq!(node.scope().label_ordinals("Keep").unwrap().len(), 1);
@@ -1652,4 +1655,77 @@ fn a_key_join_matches_values_of_the_same_type_only() {
     let linked = node.scope().link_records(&review_of(json!({}))).unwrap();
     // 1 → 1 and [2, 3] → 3; the string "1" matches no number.
     assert_eq!(linked["created"], 2);
+}
+
+/// The real deriver with a bug: `Bad`'s presence rows are lost.
+struct LosesPresence;
+
+impl rushdb_storage::Deriver for LosesPresence {
+    fn derive(
+        &self,
+        ci: u64,
+        ops: &[rushdb_storage::Op],
+        before: &dyn rushdb_storage::DeriveRead,
+    ) -> Result<Vec<rushdb_storage::Op>, rushdb_storage::StorageError> {
+        use rushdb_types::keys as k;
+        Ok(rushdb_lmpg::derived::LmpgDeriver
+            .derive(ci, ops, before)?
+            .into_iter()
+            .filter(|op| match op {
+                rushdb_storage::Op::Put(key, _) => k::parse_tenant(key).is_none_or(|tenant| {
+                    !key.starts_with(&k::presence_label_prefix(
+                        tenant,
+                        rushdb_types::ids::OwnerKind::Record,
+                        "Bad",
+                    ))
+                }),
+                _ => true,
+            })
+            .collect())
+    }
+
+    fn is_derived_key(&self, key: &[u8]) -> bool {
+        rushdb_storage::Deriver::is_derived_key(&rushdb_lmpg::derived::LmpgDeriver, key)
+    }
+
+    fn prefix_reaches_derived(&self, prefix: &[u8]) -> bool {
+        rushdb_storage::Deriver::prefix_reaches_derived(&rushdb_lmpg::derived::LmpgDeriver, prefix)
+    }
+}
+
+#[test]
+fn maintenance_marks_and_repairs_a_label_a_read_found_wrong() {
+    let mut cfg = crate::ServerConfig::default();
+    let node = Node::bootstrap(&mut cfg).unwrap();
+    let store = node.store();
+    store.set_deriver(Arc::new(LosesPresence));
+    for i in 0..4 {
+        node.scope()
+            .import_json_document("Bad", &json!({ "tag": format!("t{i}") }))
+            .unwrap();
+    }
+    store.set_deriver(Arc::new(rushdb_lmpg::derived::LmpgDeriver));
+    let tenant = node.scope().tenant();
+    let search = rushdb_query::document::parse_document(
+        &json!({"labels": ["Bad"], "where": {"tag": {"$exists": true}}}),
+    )
+    .unwrap()
+    .search;
+    let found = |node: &Node| {
+        rushdb_query::find_records(&node.scope().lmpg(), &search)
+            .unwrap()
+            .total_matched
+    };
+    // The read that finds it is exact, and leaves the label suspect.
+    assert_eq!(found(&node), 4);
+    let health = rushdb_storage::Store::derived_health(&store);
+    assert!(health.is_suspect(tenant, "Bad"));
+    // A small store is repaired at once: the marker the tick stored is
+    // gone with the re-derive, and the label is trusted again.
+    node.heal_derived();
+    assert!(!health.is_suspect(tenant, "Bad"));
+    let marker = rushdb_types::keys::rederive_key(tenant, "Bad");
+    assert_eq!(store.read_view().unwrap().get(&marker).unwrap(), None);
+    assert_eq!(found(&node), 4);
+    assert!(health.take_findings().is_empty());
 }

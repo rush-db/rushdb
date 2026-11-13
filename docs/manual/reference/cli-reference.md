@@ -99,11 +99,10 @@ rejects the run.
 | `--verify-base <BASE_DIR>` | — | Recompute every file's size and CRC32 and compare with the manifest. | `verify-base: OK at commit index N` |
 | `--restore-pitr <BASE_DIR>` | new `--data-dir` (must not exist), `--wal-archive-dir` | Verify the base, copy it into `--data-dir`, then replay archived WAL segments from the base's commit index up to `--to-lsn` (default: the newest archived commit). | `restore-pitr: replayed archived WAL to commit index N` |
 | `--to-lsn <LSN>` | `--restore-pitr` | Last commit index to replay. | — |
-| `--verify` | `--data-dir`, server stopped | Logical integrity check of every tenant. | `verify: no violations` |
 
 Only one command runs per invocation. If several are given, the first in
 this order runs: `--print-config`, `--init`, `--export`, `--restore`,
-`--compact`, `--backup-base`, `--restore-pitr`, `--verify`, `--verify-base`.
+`--compact`, `--backup-base`, `--restore-pitr`, `--verify-base`.
 
 ### Exit codes
 
@@ -111,7 +110,7 @@ this order runs: `--print-config`, `--init`, `--export`, `--restore`,
 |---|---|
 | `0` | Success (server shut down cleanly, or the command succeeded). |
 | `1` | Server bootstrap failed (for example the port could not be bound, or `config.yml` validation failed), shutdown was incomplete, or `--backup-base` could not register the base with the retention coordinator or the WAL archive. |
-| `2` | Invalid arguments (`--raft` without `--experimental-raft`, bad `--languages`, non-hex capability secret), or a one-shot command failed. `--verify` also exits 2 when it finds invariant violations. |
+| `2` | Invalid arguments (`--raft` without `--experimental-raft`, bad `--languages`, non-hex capability secret), or a one-shot command failed. |
 
 ## Examples
 

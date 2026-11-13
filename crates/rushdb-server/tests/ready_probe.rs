@@ -33,7 +33,9 @@ fn readiness_reports_a_compaction_that_holds_the_database() {
         ..Default::default()
     })
     .unwrap();
-    let store = router.store().expect("the node is alive");
+    let node = router.node().upgrade().expect("the node is alive");
+    let store = std::sync::Arc::clone(&rushdb_server::RequestScope::new(&node, None).lmpg().store);
+    drop(node);
     std::thread::spawn(move || router.serve_forever());
     std::thread::sleep(Duration::from_millis(50));
 

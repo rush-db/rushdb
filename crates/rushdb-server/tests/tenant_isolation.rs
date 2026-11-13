@@ -655,3 +655,92 @@ fn policy_rotation_mid_transaction_aborts_commit_and_is_scoped_per_tenant() {
 // different tenant is unaffected) is covered where the policy now actually
 // lives: `rushdb-engine/src/scheduler.rs`'s
 // `per_tenant_cap_rejects_work_before_global_queue_is_full`.
+
+/// Records of each label in `scope`, read without a policy in the way.
+fn count(node: &Node, scope: &str, label: &str) -> u64 {
+    let lmpg = RequestScope::new(node, Some(scope.to_string())).lmpg();
+    let snap = std::sync::Arc::new(lmpg.store.read_view().unwrap());
+    rushdb_lmpg::derived::label_count(&snap, lmpg.tenant, label).unwrap()
+}
+
+fn delete_where(
+    node: &Node,
+    scope: &str,
+    labels: &[&str],
+    predicate: serde_json::Value,
+) -> Result<u64, rushdb_protocol::ProtocolError> {
+    let response = rushdb_server::protocol::ProtocolExecutor::new(node, Some(scope.to_string()))
+        .execute(RequestEnvelope {
+            protocol_version: 1,
+            request_id: Some("delete-where".into()),
+            context: RequestContext {
+                scope: Some(scope.to_string()),
+                deadline_ms: None,
+                ..Default::default()
+            },
+            operation: Operation::Mutate {
+                mutation: Mutation::DeleteRecords {
+                    query: QueryDocument {
+                        labels: labels.iter().map(|label| (*label).to_string()).collect(),
+                        predicate,
+                        ..Default::default()
+                    },
+                },
+            },
+        })?;
+    let Response::Mutation { affected, .. } = response.response else {
+        panic!("expected a mutation response, got {:?}", response.response);
+    };
+    Ok(affected)
+}
+
+/// SEC-1: deleting by filter selects its victims as a search does, under the
+/// tenant's enforced policy: a denied label's records are neither deleted
+/// nor usable to pick which records go.
+#[test]
+fn delete_by_filter_sees_only_what_the_policy_shows() {
+    let node = multitenant();
+    for (label, value) in [("NOTE", "a"), ("NOTE", "b"), ("SECRET", "classified")] {
+        put_mode(
+            &node,
+            "tenant-a",
+            PutMode::Create,
+            None,
+            Some(label),
+            serde_json::json!({ "value": value }),
+        )
+        .unwrap();
+    }
+    RequestScope::new(&node, Some("tenant-a".to_string()))
+        .security_put_policy(
+            &DataAccessPolicy {
+                allowed_labels: vec!["NOTE".into()],
+                ..Default::default()
+            },
+            AuthorizationMode::PolicyEnforced,
+        )
+        .unwrap();
+    // The denied label by name is refused, as a search of it is.
+    let refused = delete_where(&node, "tenant-a", &["SECRET"], serde_json::json!({})).unwrap_err();
+    assert_eq!(refused.code, ErrorCode::Unauthorized);
+    // Across every label, a filter matching only the denied record deletes
+    // nothing.
+    assert_eq!(
+        delete_where(
+            &node,
+            "tenant-a",
+            &[],
+            serde_json::json!({ "value": "classified" })
+        )
+        .unwrap(),
+        0
+    );
+    assert_eq!(count(&node, "tenant-a", "SECRET"), 1);
+    // The allowed label's records are deleted as asked.
+    assert_eq!(
+        delete_where(&node, "tenant-a", &[], serde_json::json!({})).unwrap(),
+        2
+    );
+    assert_eq!(count(&node, "tenant-a", "NOTE"), 0);
+    assert_eq!(count(&node, "tenant-a", "SECRET"), 1);
+}

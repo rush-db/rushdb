@@ -21,5 +21,13 @@ serde_json = { workspace = true }
 thiserror = { workspace = true }
 uuid = { workspace = true }
 
+[features]
+# Hooks the test suites use; not part of the shipped engine.
+test-support = []
+
+[dev-dependencies]
+rushdb-storage = { workspace = true, features = ["test-support"] }
+rushdb-query = { path = ".", features = ["test-support"] }
+
 [lints]
 workspace = true

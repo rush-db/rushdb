@@ -14,6 +14,13 @@
 //! does; a value the server cannot honour (an encoding other than UTF8, a
 //! date style other than ISO) is refused. `SET` of any other parameter is
 //! refused as unsupported.
+//!
+//! JDBC drivers also read and set the session's transaction
+//! characteristics on every pooled connection. Each statement reads its own
+//! snapshot, which is PostgreSQL's `read committed` (the default here);
+//! `read uncommitted` is met by it, `repeatable read` too for a statement
+//! on its own (not across a transaction block), and `serializable` is
+//! refused. `read only` refuses the session's writes as PostgreSQL does.
 
 use std::collections::HashMap;
 
@@ -39,9 +46,12 @@ pub(super) enum Setting {
     IntervalStyle,
     StandardConformingStrings,
     ClientMinMessages,
+    // Transaction characteristics: each statement is one transaction.
+    TransactionIsolation,
+    TransactionReadOnly,
 }
 
-const SETTINGS: [Setting; 13] = [
+const SETTINGS: [Setting; 15] = [
     Setting::StatementTimeout,
     Setting::WorkMem,
     Setting::DisallowFullTableScans,
@@ -55,6 +65,8 @@ const SETTINGS: [Setting; 13] = [
     Setting::IntervalStyle,
     Setting::StandardConformingStrings,
     Setting::ClientMinMessages,
+    Setting::TransactionIsolation,
+    Setting::TransactionReadOnly,
 ];
 
 impl Setting {
@@ -73,10 +85,21 @@ impl Setting {
             Setting::IntervalStyle => "IntervalStyle",
             Setting::StandardConformingStrings => "standard_conforming_strings",
             Setting::ClientMinMessages => "client_min_messages",
+            Setting::TransactionIsolation => "default_transaction_isolation",
+            Setting::TransactionReadOnly => "default_transaction_read_only",
         }
     }
 
     fn of(name: &str) -> Option<Self> {
+        // Outside an explicit transaction (there are none here) the current
+        // transaction's characteristics are the session defaults.
+        let name = match name.to_ascii_lowercase().as_str() {
+            "transaction_isolation" | "transaction isolation level" => {
+                "default_transaction_isolation"
+            }
+            "transaction_read_only" => "default_transaction_read_only",
+            _ => name,
+        };
         SETTINGS
             .into_iter()
             .find(|setting| setting.name().eq_ignore_ascii_case(name))
@@ -89,7 +112,7 @@ impl Setting {
         match self {
             Setting::StatementTimeout | Setting::LargeFullScanRows => "0",
             Setting::WorkMem => "server",
-            Setting::DisallowFullTableScans => "off",
+            Setting::DisallowFullTableScans | Setting::TransactionReadOnly => "off",
             Setting::ApplicationName => "",
             Setting::ClientEncoding => "UTF8",
             Setting::DateStyle => "ISO, MDY",
@@ -99,6 +122,8 @@ impl Setting {
             Setting::IntervalStyle => "postgres",
             Setting::StandardConformingStrings => "on",
             Setting::ClientMinMessages => "notice",
+            // Each statement reads its own snapshot: PostgreSQL's default.
+            Setting::TransactionIsolation => "read committed",
         }
     }
 
@@ -155,6 +180,22 @@ impl Setting {
                 .filter(|on| *on)
                 .map(|_| "on".to_owned())
                 .ok_or_else(|| "only on is offered".to_owned()),
+            Setting::TransactionIsolation => {
+                let level = value.split_whitespace().collect::<Vec<_>>().join(" ");
+                match level.to_ascii_lowercase().as_str() {
+                    level @ ("read uncommitted" | "read committed" | "repeatable read") => {
+                        Ok(level.to_owned())
+                    }
+                    "serializable" => Err(
+                        "a statement reads one snapshot (repeatable read); serializable is not offered"
+                            .to_owned(),
+                    ),
+                    _ => Err("expected read uncommitted, read committed or repeatable read".to_owned()),
+                }
+            }
+            Setting::TransactionReadOnly => {
+                boolean(value).map(|on| if on { "on" } else { "off" }.to_owned())
+            }
         }
     }
 }
@@ -167,6 +208,9 @@ pub(super) enum Command {
     /// `RESET ALL`.
     ResetAll,
     Show(Setting),
+    /// `SET [SESSION CHARACTERISTICS AS] TRANSACTION mode, …`: several
+    /// settings at once.
+    Transaction(Vec<(Setting, String)>),
     /// `SET`/`RESET` of a parameter this module does not offer, named as
     /// written.
     Unsupported(String),
@@ -187,6 +231,13 @@ pub(super) fn parse(sql: &str) -> Option<Command> {
         )),
         "SET" => {
             let rest = strip_word(rest, "SESSION").unwrap_or(rest);
+            if let Some(modes) = strip_word(rest, "TRANSACTION").or_else(|| {
+                strip_word(rest, "CHARACTERISTICS")
+                    .and_then(|rest| strip_word(rest, "AS"))
+                    .and_then(|rest| strip_word(rest, "TRANSACTION"))
+            }) {
+                return Some(transaction_modes(modes));
+            }
             // `SET TIME ZONE x` and `SET NAMES x` are PostgreSQL's spellings
             // of `TimeZone` and `client_encoding`.
             let (setting, value) = if let Some(value) =
@@ -218,6 +269,82 @@ pub(super) fn parse(sql: &str) -> Option<Command> {
     }
 }
 
+/// `ISOLATION LEVEL level`, `READ ONLY`, `READ WRITE` and `[NOT]
+/// DEFERRABLE`, separated by commas or spaces.
+fn transaction_modes(modes: &str) -> Command {
+    let words: Vec<String> = modes
+        .split(|c: char| c == ',' || c.is_whitespace())
+        .filter(|word| !word.is_empty())
+        .map(str::to_ascii_lowercase)
+        .collect();
+    let mut set = Vec::new();
+    let mut at = 0;
+    while at < words.len() {
+        match words[at..] {
+            [ref a, ref b, ..] if a == "isolation" && b == "level" => {
+                let rest: Vec<&str> = words[at + 2..].iter().map(String::as_str).collect();
+                let level = match rest.as_slice() {
+                    ["read", "uncommitted", ..] => "read uncommitted",
+                    ["read", "committed", ..] => "read committed",
+                    ["repeatable", "read", ..] => "repeatable read",
+                    ["serializable", ..] => "serializable",
+                    _ => return Command::Unsupported(format!("TRANSACTION {modes}")),
+                };
+                at += 2 + level.split(' ').count();
+                set.push((Setting::TransactionIsolation, level.to_owned()));
+            }
+            [ref a, ref b, ..] if a == "read" && (b == "only" || b == "write") => {
+                set.push((
+                    Setting::TransactionReadOnly,
+                    if b == "only" { "on" } else { "off" }.to_owned(),
+                ));
+                at += 2;
+            }
+            // Deferrable only matters to serializable read-only transactions.
+            [ref a, ref b, ..] if a == "not" && b == "deferrable" => at += 2,
+            [ref a, ..] if a == "deferrable" => at += 1,
+            _ => return Command::Unsupported(format!("TRANSACTION {modes}")),
+        }
+    }
+    if set.is_empty() {
+        return Command::Unsupported(format!("TRANSACTION {modes}"));
+    }
+    Command::Transaction(set)
+}
+
+/// The session's isolation level.
+pub(super) fn isolation(metadata: &HashMap<String, String>) -> String {
+    let setting = Setting::TransactionIsolation;
+    metadata
+        .iter()
+        .find(|(key, _)| key.eq_ignore_ascii_case(setting.name()))
+        .and_then(|(_, value)| setting.normalize(value).ok())
+        .unwrap_or_else(|| setting.unset().to_owned())
+}
+
+/// The isolation level `BEGIN`/`START TRANSACTION` modes ask for, if they
+/// name one; an unknown mode is refused.
+pub(super) fn block_isolation(modes: &str) -> PgWireResult<Option<String>> {
+    if modes.trim().is_empty() {
+        return Ok(None);
+    }
+    match transaction_modes(modes) {
+        Command::Transaction(set) => {
+            let mut level = None;
+            for (setting, value) in set {
+                let canonical = setting
+                    .normalize(&value)
+                    .map_err(|reason| invalid(setting, &value, &reason))?;
+                if setting == Setting::TransactionIsolation {
+                    level = Some(canonical);
+                }
+            }
+            Ok(level)
+        }
+        _ => Err(unsupported(&format!("TRANSACTION {modes}"))),
+    }
+}
+
 /// Apply `command` to the session; `SHOW` answers its one row.
 pub(super) fn apply(
     metadata: &mut HashMap<String, String>,
@@ -236,6 +363,18 @@ pub(super) fn apply(
         Command::ResetAll => {
             for setting in SETTINGS {
                 metadata.remove(setting.name());
+            }
+        }
+        Command::Transaction(modes) => {
+            let mut normalized = Vec::with_capacity(modes.len());
+            for (setting, value) in modes {
+                let canonical = setting
+                    .normalize(&value)
+                    .map_err(|reason| invalid(setting, &value, &reason))?;
+                normalized.push((setting, canonical));
+            }
+            for (setting, value) in normalized {
+                metadata.insert(setting.name().to_owned(), value);
             }
         }
         Command::Unsupported(name) => return Err(unsupported(&name)),
@@ -260,6 +399,8 @@ pub(super) struct SessionLimits {
     pub(super) timeout_ms: Option<u64>,
     pub(super) query_memory_max_bytes: Option<u64>,
     pub(super) unindexed_walk_max_owners: Option<u64>,
+    /// `transaction_read_only`: the session's writes are refused.
+    pub(super) read_only: bool,
 }
 
 /// The session's bounds. A startup parameter is read here, so a malformed
@@ -283,10 +424,12 @@ pub(super) fn limits(metadata: &HashMap<String, String>) -> PgWireResult<Session
     let rows = read(Setting::LargeFullScanRows)?
         .and_then(|value| value.parse().ok())
         .unwrap_or(0);
+    let read_only = read(Setting::TransactionReadOnly)?.is_some_and(|value| value == "on");
     Ok(SessionLimits {
         timeout_ms,
         query_memory_max_bytes,
         unindexed_walk_max_owners: disallow.then_some(rows),
+        read_only,
     })
 }
 
@@ -410,6 +553,32 @@ fn split_word<'a>(rest: &'a str, word: &str) -> Option<(&'a str, &'a str)> {
 mod tests {
     use super::*;
 
+    #[test]
+    fn transaction_characteristics_parse_as_jdbc_sends_them() {
+        let metadata = session(&[
+            "SET SESSION CHARACTERISTICS AS TRANSACTION ISOLATION LEVEL READ UNCOMMITTED",
+            "SET TRANSACTION READ ONLY, NOT DEFERRABLE",
+        ]);
+        assert_eq!(isolation(&metadata), "read uncommitted");
+        assert!(limits(&metadata).unwrap().read_only);
+        let metadata = session(&["SET SESSION CHARACTERISTICS AS TRANSACTION READ WRITE"]);
+        assert!(!limits(&metadata).unwrap().read_only);
+        assert_eq!(isolation(&metadata), "read committed");
+        assert_eq!(
+            parse("SHOW TRANSACTION ISOLATION LEVEL"),
+            Some(Command::Show(Setting::TransactionIsolation))
+        );
+        assert_eq!(
+            block_isolation("ISOLATION LEVEL REPEATABLE READ READ ONLY").unwrap(),
+            Some("repeatable read".to_owned())
+        );
+        assert!(block_isolation("ISOLATION LEVEL SNAPSHOT").is_err());
+        assert!(matches!(
+            parse("SET TRANSACTION SNAPSHOT '0001'"),
+            Some(Command::Unsupported(_))
+        ));
+    }
+
     fn session(statements: &[&str]) -> HashMap<String, String> {
         let mut metadata = HashMap::new();
         for sql in statements {
@@ -460,6 +629,7 @@ mod tests {
                 timeout_ms: Some(2_000),
                 query_memory_max_bytes: Some(64 << 20),
                 unindexed_walk_max_owners: Some(1_000),
+                read_only: false,
             }
         );
         // `disallow_full_table_scans` alone refuses every walk.
@@ -583,7 +753,7 @@ mod tests {
         // PGW-1: not "send writes as mutate.statement".
         for sql in [
             "SET enable_seqscan = off",
-            "SET SESSION CHARACTERISTICS AS TRANSACTION READ ONLY",
+            "SET SESSION CHARACTERISTICS AS TRANSACTION SNAPSHOT '0001'",
             "RESET enable_seqscan",
         ] {
             let command = parse(sql).expect(sql);

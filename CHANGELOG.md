@@ -4,6 +4,146 @@ This project follows [Semantic Versioning](https://semver.org/). Release notes
 describe observable engine and protocol changes; migration instructions belong
 in [`docs/manual/operations/upgrading-from-2x.md`](docs/manual/operations/upgrading-from-2x.md).
 
+## 3.0.10 — 2026-11-13
+
+### Added
+
+- **Self-healing derived state.** Derived rows (counts, presence,
+  dictionaries, index entries) are exact by construction; if a bug ever
+  breaks that, the engine notices while reading (a label's presence rows
+  against its support counter), logs it, counts it in
+  `rushdb_derived_inconsistency_total`, answers that label from its base rows
+  until repaired, and repairs it within a maintenance tick with a logged
+  re-derive every node applies the same way. A suspect label's marker is
+  stored, so it survives restarts and replicates until the repair; a repair
+  over 200,000 records waits for a quiet store (`compact-quiesce-seconds`).
+  A randomized test checks the deriver against a from-scratch derivation
+  after every commit.
+
+### Removed
+
+- **`rushdb serve --verify`.** There is no offline integrity check or manual
+  repair step to run: derived state is checked as it is read and repaired by
+  the engine (see Added).
+
+### Fixed
+
+- **SQL joins through relationship tables start from the selective side and
+  fetch the rest by key.** `DataFusion` joined tables in the order a
+  statement names them, with no row counts, and built a hash table of the
+  first one: `review JOIN rushdb_edges.has_business JOIN business WHERE
+  business.is_open = 0` collected every review (millions, with their text)
+  before the business filter narrowed anything, so even `LIMIT 100` ran out
+  of memory.
+  - A chain of inner joins is now ordered from its smallest table outward,
+    using the store's exact counts (label and relationship-type counters,
+    the planner's count for a pushed filter).
+  - A join on a label's `__id` fetches the matching records by id, and a join
+    on a relationship table's `__source_id` or `__target_id` fetches each
+    record's relationships through its adjacency (`LookupJoinExec` in
+    `EXPLAIN`). Such a join reads only the rows that match and holds one
+    batch at a time, instead of scanning the table into a hash table.
+  - On a store of 10M records, that query's first 100 rows went from refused
+    to under 4 s, reading the 135,402 matching reviews by id.
+- **SQL top-k queries read wide columns for the rows they return.** `SELECT
+  DISTINCT r.__id, r.stars, r.text, b.name ... ORDER BY r.stars LIMIT 100`
+  read every match's `text` and grouped all of them before keeping 100 rows.
+  - A label column the statement does not filter, join or order by is now
+    fetched by `__id` after the cut, for the k rows returned only: a record's
+    columns are fixed by its id, so ordering and deduplicating without them
+    gives the same rows.
+  - `DISTINCT ... ORDER BY ... LIMIT k` keeps the k smallest distinct rows as
+    they stream (`DistinctTopKExec`), in memory for k rows instead of every
+    distinct row.
+  - A count over a `DISTINCT` query (how a client totals a search: `SELECT
+    count(*) FROM (<query>)`) deduplicates on the record ids alone.
+  - A relationship-table lookup that reads only endpoint ids builds its rows
+    from adjacency, without rebuilding each relationship.
+  - On a store of 10M records, the 654,598 reviews of open businesses ordered
+    by stars: a page of 100 went from 43 s to 12.5 s, its total from 46 s to
+    10 s.
+- **A SQL statement's working memory is `query-memory-max`, not the response
+  size.** Sorts, groups and joins were limited to the response budget plus
+  16 MiB (32 MiB with the default 16 MiB body limit) even under a 256 MiB
+  `query-memory-max`. The response budget now bounds only the rows returned.
+  Each statement charges the server's shared SQL budget as its memory grows
+  (concurrent statements stay within it; a statement it cannot hold is
+  refused as retryable), and `query-memory-max = 0` means 256 MiB for SQL,
+  never unbounded. RushDB's own SQL operators (top-k `DISTINCT`, lookup
+  joins) count their rows against it too.
+  A result whose rows came from a sort could also be refused for the size of
+  the sort's whole buffer rather than its own rows; the rows are now metered
+  by their encoded size.
+- **SQL lookup joins read their own key.** A join chain's rows repeat
+  column names (`__id`, `__target_id`); a lookup join took the first column
+  of that name, so a three-hop join could look relationships up by the wrong
+  table's ids and return nothing.
+- **An outer join under `ORDER BY … LIMIT` keeps its unmatched rows.** A
+  wide column of the null-padded side was fetched back by an inner join on
+  its `__id`, dropping every row without a match.
+- **A relationship lookup reads an endpoint's relationships a batch at a
+  time and stops at the deadline**, however many relationships the endpoint
+  has; full relationship-table scans stop at the deadline too.
+- **MongoDB `$group` then `$sort: {_id: 1}` works again.** The aggregate
+  order check refused `_id`; it now sorts by the group key. A `$sort` before
+  `$group` (which only orders its input) is dropped, and refused with
+  `$first`; a compound `_id` and a second `$group` are refused instead of
+  run as something else.
+- **Ordered pages hold bounded memory.** A deep page read from the end of a
+  large index match walked the owner set backwards by copying it; a
+  descending index page over a value held by many records read every one of
+  them before its first row. Both now stream. `describe.explain` plans the
+  order path from counters only (none is reported for a filtered page), and
+  a page whose ordered walk gives up reuses its predicate plan.
+- **PostgreSQL clients and BI tools can connect and list the database.**
+  Metabase could not connect: the JDBC driver asks `SHOW TRANSACTION
+  ISOLATION LEVEL`, which was refused.
+  - The session's transaction characteristics are answered and set
+    (`transaction_isolation`, default `read committed`;
+    `transaction_read_only`, which refuses writes with `25006`).
+  - `BEGIN … COMMIT/ROLLBACK` blocks run their reads; a write inside a
+    block is refused, as it would commit on its own.
+  - `pg_catalog` (`pg_namespace`, `pg_class`, `pg_attribute`, `pg_type`, …)
+    and `information_schema` (now with PostgreSQL's columns and type names:
+    `data_type` is `bigint`, `text`, …, no longer Arrow's names) list what
+    the session can see, with the catalog functions tools call and
+    `format()`. Checked end to end with Metabase 0.65.
+- **Deleting by filter and batch writes obey an enforced data-access
+  policy.** A delete-by-filter could remove records of a denied label, or
+  choose them through a denied relationship type; a batch could delete or
+  update a denied label's records or delete a denied relationship. Both are
+  refused now, the first like a search of the same filter.
+- **Describing a statement over the PostgreSQL wire shows only what the
+  policy shows.** Parse/Describe planned against the whole catalog, so a
+  restricted session could learn hidden tables' and columns' names and
+  types.
+- **Shutdown closes the store cleanly.** A request still running at
+  shutdown (on the PostgreSQL wire, gRPC or Bolt), an idle pooled
+  PostgreSQL connection, or a long maintenance step could hold the store
+  past the drain, and the next start repaired the whole file. Requests on
+  every transport and open reads are cancelled, PostgreSQL sessions closed,
+  maintenance stops between steps, and the process exits only after the
+  store has closed.
+- **A malformed `since` on the replication WAL tail is refused** instead of
+  replaying from the first commit; an online base backup writes only inside
+  the data directory's `backups` folder; a single-tenant HTTP request with an
+  `X-RushDB-Tenant` header is refused like gRPC and Bolt already were; a
+  `$relation` hops search fails past one million reached records instead of
+  growing without bound.
+- **SQL limit errors name the limit that tripped.** Every SQL resource
+  refusal said "SQL snapshot exceeds the 100000 row safety limit", followed
+  by a byte count when the limit was the response size or the memory pool.
+  Now:
+  - "SQL result exceeds the 100000 row safety limit (N rows); add a LIMIT or
+    narrow the query";
+  - "response would exceed the response size limit (N bytes); raise
+    --body-limit or add a LIMIT";
+  - "query working set exceeded" for `query-memory-max`;
+  - a retryable refusal when the SQL memory shared by concurrent statements
+    is in use.
+
+  Clients matching the old message must match the new ones.
+
 ## 3.0.9 — 2026-11-12
 
 ### Changed

@@ -18,6 +18,12 @@ pub trait TryRead {
     fn owner_sets(&self) -> Option<(&rushdb_storage::owner_sets::OwnerSets, u64)> {
         None
     }
+    /// The store's registry of suspect labels, for a reader of committed
+    /// state (SELF-HEAL); `None` (the default) for transactions and overlays,
+    /// whose staged rows are derived as they are read.
+    fn derived_health(&self) -> Option<&rushdb_storage::derived_health::DerivedHealth> {
+        None
+    }
     /// Returns the value stored at `k`, or `None` if absent.
     ///
     /// # Errors
@@ -223,6 +229,9 @@ impl TryRead for rushdb_storage::ReadView {
             self.commit_index(),
         ))
     }
+    fn derived_health(&self) -> Option<&rushdb_storage::derived_health::DerivedHealth> {
+        Some(rushdb_storage::ReadView::derived_health(self))
+    }
     fn get(&self, key: &[u8]) -> Result<Option<Vec<u8>>, rushdb_storage::StorageError> {
         rushdb_storage::ReadView::get(self, key)
     }
@@ -370,6 +379,9 @@ impl<R: TryRead + ?Sized> TryRead for &R {
     fn owner_sets(&self) -> Option<(&rushdb_storage::owner_sets::OwnerSets, u64)> {
         (*self).owner_sets()
     }
+    fn derived_health(&self) -> Option<&rushdb_storage::derived_health::DerivedHealth> {
+        (*self).derived_health()
+    }
     fn get(&self, key: &[u8]) -> Result<Option<Vec<u8>>, rushdb_storage::StorageError> {
         (*self).get(key)
     }
@@ -442,6 +454,9 @@ impl<R: TryRead + ?Sized> TryRead for &R {
 impl<R: TryRead> TryRead for std::sync::Arc<R> {
     fn owner_sets(&self) -> Option<(&rushdb_storage::owner_sets::OwnerSets, u64)> {
         self.as_ref().owner_sets()
+    }
+    fn derived_health(&self) -> Option<&rushdb_storage::derived_health::DerivedHealth> {
+        self.as_ref().derived_health()
     }
     fn get(&self, key: &[u8]) -> Result<Option<Vec<u8>>, rushdb_storage::StorageError> {
         self.as_ref().get(key)
@@ -536,14 +551,6 @@ fn stream_rows(
     }
 }
 
-/// Decodes up to eight big-endian bytes into a `u64`, left-zero-padded.
-#[must_use]
-pub fn be_to_u64(b: &[u8]) -> u64 {
-    let mut buf = [0u8; 8];
-    buf[8 - b.len().min(8)..].copy_from_slice(&b[..b.len().min(8)]);
-    u64::from_be_bytes(buf)
-}
-
 /// Canonical LMPG key constructors shared by the expander, planner and
 /// readers, so every layer derives byte-identical keys.
 pub mod keys_ext {
@@ -621,29 +628,6 @@ pub mod keys_ext {
     #[must_use]
     pub fn rel_group_key(tenant: TenantId, rel_id: &[u8; 16]) -> Vec<u8> {
         key(tenant, &[P_REL_GROUP, rel_id])
-    }
-
-    /// Adjacency key entry for a directed edge from `node` to `other`.
-    #[must_use]
-    pub fn adj_entry(
-        tenant: TenantId,
-        dir: &[u8],
-        node: u64,
-        rel_type: &str,
-        other: u64,
-        rel_ord: u64,
-    ) -> Vec<u8> {
-        key(
-            tenant,
-            &[
-                b"adj",
-                dir,
-                &u64be(node),
-                rel_type.as_bytes(),
-                &u64be(other),
-                &u64be(rel_ord),
-            ],
-        )
     }
 
     /// Prefix over one node's outgoing/incoming edges of a given type.

@@ -45,6 +45,17 @@ use crate::{
 /// answer it (a target closer than `min` hops).
 pub(crate) const TRAIL_SEARCH_BUDGET: usize = 100_000;
 
+/// Records one breadth-first search may reach: past it the check fails
+/// rather than hold (and walk) an unbounded part of the graph.
+pub(crate) const TRAIL_VISIT_BUDGET: usize = 1_000_000;
+
+fn visits_exceeded() -> QueryError {
+    QueryError::ResourceLimit(
+        "$relation hops search reaches more records than its budget; narrow hops or add a filter"
+            .into(),
+    )
+}
+
 /// Whether a record carries one of `labels` (any record when empty), read
 /// from its header once per query.
 pub(crate) struct LabelGate<'a> {
@@ -89,6 +100,8 @@ pub(crate) struct TrailCheck<'a> {
     /// Is this record a target? Only asked of passable records.
     pub(crate) target: &'a dyn Fn(u64) -> Result<bool, QueryError>,
     pub(crate) cancel: &'a dyn Fn() -> Result<(), QueryError>,
+    /// Records a breadth-first search may reach ([`TRAIL_VISIT_BUDGET`]).
+    pub(crate) visits: usize,
 }
 
 /// Whether a trail of `min..=max` hops leads forward from `start` to a
@@ -129,6 +142,9 @@ pub(crate) fn trail_exists(check: &TrailCheck<'_>, start: u64) -> Result<bool, Q
                         continue;
                     }
                     let branch = if node == start { other } else { branch };
+                    if seen.len() >= check.visits {
+                        return Err(visits_exceeded());
+                    }
                     seen.insert(other, (depth + 1, branch, Some(rel)));
                     if (check.target)(other)? {
                         if depth + 1 >= check.min {
@@ -245,6 +261,9 @@ pub(crate) fn reaching_owners(
                 if hops.contains_key(&other) {
                     continue;
                 }
+                if hops.len() >= check.visits {
+                    return Err(visits_exceeded());
+                }
                 hops.insert(other, depth);
                 if depth >= check.min {
                     if root(other)? {
@@ -304,7 +323,7 @@ pub(crate) fn related_holds(
         let Some(filter) = &rel.filter else {
             return Ok(true);
         };
-        let row = filtered_row(snap, &ctx.snap, tenant, filter, other)?;
+        let row = filtered_row(snap, tenant, filter, other)?;
         eval_expr_ctx(ctx, filter, &row, other)
     };
     let (min, max) = hop_bounds(rel);
@@ -316,6 +335,7 @@ pub(crate) fn related_holds(
             passable: &passable,
             target: &target,
             cancel: &cancel,
+            visits: TRAIL_VISIT_BUDGET,
         },
         ord,
     )
@@ -387,9 +407,70 @@ pub(crate) fn expand_relation(
             passable: &passable,
             target: &target,
             cancel: &cancel,
+            visits: TRAIL_VISIT_BUDGET,
         },
         &targets,
         &root,
         owner_limit,
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A chain `0 -> 1 -> … -> len - 1`.
+    struct Chain(u64);
+
+    impl Adjacency for Chain {
+        fn neighbours(
+            &self,
+            node: u64,
+            forward: bool,
+            out: &mut Vec<(u64, u64)>,
+        ) -> Result<(), QueryError> {
+            match (forward, node) {
+                (true, n) if n + 1 < self.0 => out.push((n + 1, n)),
+                (false, n) if n > 0 => out.push((n - 1, n - 1)),
+                _ => {}
+            }
+            Ok(())
+        }
+
+        fn undirected(&self) -> bool {
+            false
+        }
+    }
+
+    #[test]
+    fn a_hops_search_stops_at_its_visit_budget() {
+        let chain = Chain(50);
+        let yes = |_: u64| Ok(true);
+        let last = |ord: u64| Ok(ord == 49);
+        let cancel = || Ok(());
+        let check = |visits| TrailCheck {
+            adjacency: &chain,
+            min: 1,
+            max: 100,
+            passable: &yes,
+            target: &last,
+            cancel: &cancel,
+            visits,
+        };
+        assert!(trail_exists(&check(TRAIL_VISIT_BUDGET), 0).unwrap());
+        assert!(matches!(
+            trail_exists(&check(10), 0),
+            Err(QueryError::ResourceLimit(_))
+        ));
+        let targets: OwnerSet = [49].into_iter().collect();
+        assert!(
+            reaching_owners(&check(TRAIL_VISIT_BUDGET), &targets, &yes, usize::MAX)
+                .unwrap()
+                .contains(0)
+        );
+        assert!(matches!(
+            reaching_owners(&check(10), &targets, &yes, usize::MAX),
+            Err(QueryError::ResourceLimit(_))
+        ));
+    }
 }

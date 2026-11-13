@@ -459,3 +459,65 @@ fn match_after_group_or_paging_and_project_are_refused() {
         assert!(error.contains("unsupported"), "{pipeline}: {error}");
     }
 }
+
+#[test]
+fn sorting_grouped_rows_by_id_sorts_by_the_group_key() {
+    let lmpg = setup();
+    for (direction, expected) in [
+        (1, ["Galactic Republic", "Jedi Order", "Sith Order"]),
+        (-1, ["Sith Order", "Jedi Order", "Galactic Republic"]),
+    ] {
+        let (_, rows) = aggregate(
+            &lmpg,
+            &json!([
+                { "$group": { "_id": "$name", "count": { "$sum": 1 } } },
+                { "$sort": { "_id": direction } }
+            ]),
+        )
+        .unwrap();
+        let names: Vec<&str> = rows
+            .iter()
+            .map(|row| row["name"].as_str().unwrap())
+            .collect();
+        assert_eq!(names, expected, "{rows:?}");
+    }
+    // One group (`_id: null`): sorting by `_id` keeps the single row.
+    let (_, rows) = aggregate(
+        &lmpg,
+        &json!([
+            { "$group": { "_id": null, "count": { "$sum": 1 } } },
+            { "$sort": { "_id": 1 } }
+        ]),
+    )
+    .unwrap();
+    assert_eq!(rows.len(), 1, "{rows:?}");
+    assert_eq!(rows[0]["count"], json!(3));
+}
+
+#[test]
+fn a_sort_before_group_orders_only_its_input() {
+    let lmpg = setup();
+    let (_, rows) = aggregate(
+        &lmpg,
+        &json!([
+            { "$sort": { "name": 1 } },
+            { "$group": { "_id": "$name", "count": { "$sum": 1 } } }
+        ]),
+    )
+    .unwrap();
+    assert_eq!(rows.len(), 3, "{rows:?}");
+    for pipeline in [
+        json!([
+            { "$sort": { "name": 1 } },
+            { "$group": { "_id": "$name", "first": { "$first": "$name" } } }
+        ]),
+        json!([{ "$group": { "_id": { "name": "$name" } } }]),
+        json!([{ "$group": { "_id": "$name" } }, { "$group": { "_id": "$name" } }]),
+    ] {
+        let error = aggregate(&lmpg, &pipeline).expect_err(&pipeline.to_string());
+        assert!(
+            error.contains("unsupported") || error.contains("must be"),
+            "{pipeline}: {error}"
+        );
+    }
+}

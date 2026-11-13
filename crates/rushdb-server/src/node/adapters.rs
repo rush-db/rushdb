@@ -19,19 +19,6 @@ impl RequestScope<'_> {
         result
     }
 
-    /// Execute a parameterized SQL statement, returning rows as JSON maps.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error message when the operation fails.
-    pub fn sql_with_parameters(
-        &self,
-        sql: &str,
-        parameters: Option<&serde_json::Value>,
-    ) -> Result<Vec<rushdb_sql::Row>, String> {
-        self.sql_with_parameters_budget(sql, parameters, None)
-    }
-
     /// Execute parameterized SQL with an optional response working-byte
     /// budget supplied by the caller's execution context.
     ///

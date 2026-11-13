@@ -133,15 +133,6 @@ impl RequestScope<'_> {
             .map_err(|e| e.to_string())
     }
 
-    /// Execute the transport-neutral LMPG property join primitive.
-    /// # Errors
-    ///
-    /// Returns an error message when the operation fails.
-    pub fn query_join_pairs(&self, query: &rushdb_protocol::JoinPairsQuery) -> Result<u64, String> {
-        let snap = Arc::new(self.store.read_view().map_err(|e| e.to_string())?);
-        self.query_join_pairs_in_view(query, &snap, None, None)
-    }
-
     /// Execute a property join against the request's pinned view and budget.
     /// The transport path uses this entry point so a join cannot silently
     /// switch snapshots or bypass the shared execution deadline.
@@ -726,20 +717,6 @@ impl RequestScope<'_> {
         Ok(result)
     }
 
-    /// Delete the relationships between every source and every target
-    /// record: of the listed types (every type when none are listed), in the
-    /// given direction (both directions when none is given).
-    /// # Errors
-    ///
-    /// Returns an error message when the operation fails.
-    pub fn unlink_records_by_id(
-        &self,
-        command: &rushdb_protocol::UnlinkRecordsMutation,
-    ) -> Result<serde_json::Value, String> {
-        let snap = self.store.read_view().map_err(|e| e.to_string())?;
-        self.unlink_records_by_id_in_view(command, &snap)
-    }
-
     pub(super) fn unlink_records_by_id_in_view(
         &self,
         command: &rushdb_protocol::UnlinkRecordsMutation,
@@ -802,17 +779,6 @@ impl RequestScope<'_> {
     /// preserved, direction honored), then removed. Returns the number of
     /// relationships retyped. Mirrors the Neo4j `retype_existing_relationship`
     /// used by relationship-pattern approval.
-    /// # Errors
-    ///
-    /// Returns an error message when the operation fails.
-    pub fn retype_relations(
-        &self,
-        command: &rushdb_protocol::RetypeRelationsMutation,
-    ) -> Result<serde_json::Value, String> {
-        let snap = self.store.read_view().map_err(|e| e.to_string())?;
-        self.retype_relations_in_view(command, &snap)
-    }
-
     pub(super) fn retype_relations_in_view(
         &self,
         command: &rushdb_protocol::RetypeRelationsMutation,

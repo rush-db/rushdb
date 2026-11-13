@@ -655,6 +655,46 @@ fn coverage_changes(before: Option<IndexState>, after: Option<IndexState>) -> Ve
         .collect()
 }
 
+/// The entries of `label`'s ordered indexes recomputed from base rows into
+/// `rows` (SELF-HEAL): present exactly when an owner's occurrences imply
+/// them under the index's coverage.
+///
+/// # Errors
+/// Returns [`StorageError`] if a read fails or a row is corrupt.
+pub(crate) fn rederive_label(
+    view: &dyn DeriveRead,
+    t: TenantId,
+    label: &str,
+    rows: &mut BTreeMap<Vec<u8>, Option<Vec<u8>>>,
+) -> Result<(), StorageError> {
+    let members = members_in(view, view, t, label, (0, u64::MAX))?;
+    for (_, raw) in view.range_prefix(&k::index_def_prefix(t))? {
+        let def = decode_def(&raw)?;
+        if def.kind != IndexKind::Ordered || def.label != label {
+            continue;
+        }
+        let pids = property_pids(view, t, &def.property)?;
+        let mut expected = BTreeSet::new();
+        for &owner in &members {
+            for entry in owner_entries(view, t, &def, &pids, owner)? {
+                expected.insert(k::index_entry_key(t, def.id, &entry, owner));
+            }
+        }
+        let stored: BTreeSet<Vec<u8>> = view
+            .range_prefix(&k::index_entry_prefix(t, def.id))?
+            .into_iter()
+            .map(|(key, _)| key)
+            .collect();
+        for key in stored.difference(&expected) {
+            rows.insert(key.clone(), None);
+        }
+        for key in expected.difference(&stored) {
+            rows.insert(key.clone(), Some(Vec::new()));
+        }
+    }
+    Ok(())
+}
+
 /// Derived `INDEX_ENTRY` changes of one commit, as final row values
 /// (`Some(empty)` = present, `None` = absent).
 ///
