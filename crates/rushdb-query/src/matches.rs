@@ -50,30 +50,37 @@ pub(crate) fn run_matches(
 ) -> Result<Matches, QueryError> {
     check_walk_budget(lmpg, snap, req)?;
     let page = (skip, limit);
-    if let Some(matches) = run_pass(lmpg, req, is_cancelled, snap, page, known_total, true)? {
+    let plan = plan_page(lmpg, req, is_cancelled, snap, page, known_total, true)?;
+    let Some(fallback) = plan.predicate_first() else {
+        return Ok(run_pass(lmpg, req, is_cancelled, snap, page, plan, 0)?
+            .expect("a predicate-first pass always completes"));
+    };
+    // The predicate plan is kept for the fallback rather than planned again;
+    // its owner set counts against the working set meanwhile.
+    let held = fallback.owner_set_bytes();
+    if let Some(matches) = run_pass(lmpg, req, is_cancelled, snap, page, plan, held)? {
         return Ok(matches);
     }
-    Ok(
-        run_pass(lmpg, req, is_cancelled, snap, page, known_total, false)?
-            .expect("a predicate-first pass always completes"),
-    )
+    Ok(run_pass(lmpg, req, is_cancelled, snap, page, fallback, 0)?
+        .expect("a predicate-first pass always completes"))
 }
 
-/// One [`run_matches`] pass; `None` when its order-first walk (allowed by
-/// `order_first`) gave up.
+/// One [`run_matches`] pass over `plan`, with `held` bytes already in use;
+/// `None` when its order-first walk gave up.
 pub(crate) fn run_pass(
     lmpg: &Lmpg,
     req: &SearchRequest,
     is_cancelled: &dyn Fn() -> bool,
     snap: &QuerySnapshot,
     (skip, limit): (usize, usize),
-    known_total: Option<u64>,
-    order_first: bool,
+    plan: PagePlan,
+    held: u64,
 ) -> Result<Option<Matches>, QueryError> {
     let mut working = WorkingSet {
         limit: working_set_budget(lmpg).map(|bytes| u64::try_from(bytes).unwrap_or(u64::MAX)),
         charged: 0,
     };
+    working.charge(held, true)?;
     let CandidateSource {
         phases,
         exact,
@@ -81,16 +88,7 @@ pub(crate) fn run_pass(
         predicate,
         member_of,
         plan,
-    } = candidate_source(
-        lmpg,
-        req,
-        is_cancelled,
-        snap,
-        (skip, limit),
-        known_total,
-        order_first,
-        &mut working,
-    )?;
+    } = candidate_source(lmpg, req, snap, plan, &mut working)?;
     let mirror = plan.as_ref().is_some_and(order::OrderPlan::mirror);
     let budget = plan.as_ref().map(|plan| plan.predicate_first_reads);
     let ctx = EvalCtx::at(lmpg, snap.clone(), Some(is_cancelled));
@@ -327,7 +325,6 @@ pub(crate) fn is_match(
 /// array-typed property). A record the predicate cannot see is empty.
 pub(crate) fn filtered_row<R: rushdb_lmpg::reader::TryRead>(
     reader: &R,
-    snap: &QuerySnapshot,
     tenant: rushdb_types::ids::TenantId,
     predicate: &Expr,
     ord: u64,
@@ -343,7 +340,6 @@ pub(crate) fn filtered_row<R: rushdb_lmpg::reader::TryRead>(
     } else {
         session.reconstruct_record(ord)?
     };
-    let _ = snap;
     Ok(match record {
         Some(Json::Object(map)) => map,
         _ => Map::new(),
@@ -380,6 +376,28 @@ pub(crate) struct PagePlan {
     order: Option<order::OrderPlan>,
 }
 
+impl PagePlan {
+    /// This plan without its order-first walk, when it has one: what the
+    /// page is read by if the walk gives up.
+    pub(crate) fn predicate_first(&self) -> Option<PagePlan> {
+        self.order.as_ref()?;
+        Some(PagePlan {
+            index_plan: self.index_plan.clone(),
+            exact: self.exact,
+            known: self.known,
+            predicate: self.predicate.clone(),
+            order: None,
+        })
+    }
+
+    /// The bytes the plan's owner set takes, as charged to a working set.
+    fn owner_set_bytes(&self) -> u64 {
+        self.index_plan.as_ref().map_or(0, |plan| {
+            u64::try_from(plan.ords.serialized_size()).unwrap_or(u64::MAX)
+        })
+    }
+}
+
 /// Plan the page `skip..skip + limit` of `req`: the predicate planner first,
 /// then, when `order_first` is allowed, the order planner on its numbers.
 pub(crate) fn plan_page(
@@ -393,6 +411,9 @@ pub(crate) fn plan_page(
 ) -> Result<PagePlan, QueryError> {
     let index_plan =
         index_candidates_with_budget(lmpg, snap, req, working_set_budget(lmpg), is_cancelled)?;
+    // A suspect label's counters are untrusted (SELF-HEAL): its matches are
+    // counted, and its order is not planned from them.
+    let untrusted = rushdb_lmpg::heal::untrusted(snap.as_ref(), lmpg.tenant, &req.labels);
     let (exact, known, predicate, candidates) = if let Some(plan) = &index_plan {
         let known = known_total
             .or(plan.known_total)
@@ -401,7 +422,7 @@ pub(crate) fn plan_page(
     } else {
         let exact = req.where_.is_none() && req.related.is_empty();
         let records = walk_total(lmpg, snap, &req.labels)?;
-        let known = known_total.or_else(|| exact.then_some(records));
+        let known = known_total.or_else(|| (exact && !untrusted).then_some(records));
         (exact, known, req.where_.clone(), records)
     };
     // An owner set cut to the page (the bounded `$exists` plan) holds only
@@ -409,7 +430,7 @@ pub(crate) fn plan_page(
     let whole_set = index_plan
         .as_ref()
         .is_none_or(|plan| plan.known_total.is_none());
-    let order = if order_first && whole_set {
+    let order = if order_first && whole_set && !untrusted {
         order::plan_order(
             snap.as_ref(),
             lmpg.tenant,
@@ -448,11 +469,14 @@ pub struct OrderExplain {
     pub predicate_first_reads: u64,
 }
 
-/// The order-first plan of the page `skip..skip + limit` of `req`, if one
-/// wins; it does not read the page.
+/// The order-first path a page of `req` would take, from counters alone:
+/// explain never reads the matches. An unfiltered page's total is a counter,
+/// so its path is the one execution takes; a filtered page's choice rests on
+/// its exact match count, which only reading the matches gives, so none is
+/// reported for it.
 ///
 /// # Errors
-/// Returns storage read errors from the planners' counters.
+/// Returns storage read errors from the counters and the property catalog.
 pub fn explain_order(
     lmpg: &Lmpg,
     req: &SearchRequest,
@@ -460,8 +484,23 @@ pub fn explain_order(
     skip: usize,
     limit: usize,
 ) -> Result<Option<OrderExplain>, QueryError> {
-    let plan = plan_page(lmpg, req, &|| false, snap, (skip, limit), None, true)?;
-    Ok(plan.order.map(|order| OrderExplain {
+    if req.where_.is_some() || !req.related.is_empty() {
+        return Ok(None);
+    }
+    let records = walk_total(lmpg, snap, &req.labels)?;
+    let order = order::plan_order(
+        snap.as_ref(),
+        lmpg.tenant,
+        &order::PageShape {
+            labels: &req.labels,
+            order_by: &req.order_by,
+            skip,
+            limit,
+            matches: Some(records),
+            candidates: records,
+        },
+    )?;
+    Ok(order.map(|order| OrderExplain {
         source: order.source(),
         reverse_walk: order.mirror(),
         estimated_reads: order.order_first_reads,
@@ -497,45 +536,24 @@ pub(crate) struct CandidateSource<'v> {
     plan: Option<order::OrderPlan>,
 }
 
-/// The candidates of a search: the index plan's owner set (charged to
-/// `working`) or a walk of the tenant's or labels' records, unless
-/// `order_first` is allowed and an order-first plan reads the page in fewer
-/// rows ([`order::plan_order`]).
-#[expect(
-    clippy::too_many_arguments,
-    reason = "the pass's inputs, each used once to choose its source"
-)]
+/// The candidates of a search planned by `page`: the index plan's owner
+/// set (charged to `working`) or a walk of the tenant's or labels' records,
+/// unless the page has an order-first plan ([`order::plan_order`]).
 pub(crate) fn candidate_source<'v>(
     lmpg: &Lmpg,
     req: &SearchRequest,
-    is_cancelled: &dyn Fn() -> bool,
     snap: &'v QuerySnapshot,
-    (skip, limit): (usize, usize),
-    known_total: Option<u64>,
-    order_first: bool,
+    page: PagePlan,
     working: &mut WorkingSet,
 ) -> Result<CandidateSource<'v>, QueryError> {
+    working.charge(page.owner_set_bytes(), true)?;
     let PagePlan {
         index_plan,
         exact,
         known,
         predicate,
         order: plan,
-    } = plan_page(
-        lmpg,
-        req,
-        is_cancelled,
-        snap,
-        (skip, limit),
-        known_total,
-        order_first,
-    )?;
-    if let Some(plan) = &index_plan {
-        working.charge(
-            u64::try_from(plan.ords.serialized_size()).unwrap_or(u64::MAX),
-            true,
-        )?;
-    }
+    } = page;
     let in_order = |candidates| Phase {
         candidates,
         sorted: false,

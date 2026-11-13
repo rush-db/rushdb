@@ -138,9 +138,6 @@ pub struct ServeArgs {
     /// Stop at this commit index/LSN during `--restore-pitr` (default: latest).
     #[arg(long, value_name = "LSN")]
     to_lsn: Option<u64>,
-    /// Logical integrity check of `--data-dir` (scrub every tenant) and exit.
-    #[arg(long)]
-    verify: bool,
     /// Verify a base backup's manifest and file CRCs (`BASE_DIR`) and exit.
     #[arg(long, value_name = "BASE_DIR")]
     verify_base: Option<std::path::PathBuf>,
@@ -239,9 +236,6 @@ pub fn run(args: ServeArgs, explicit_flags: std::collections::BTreeSet<String>) 
     if let Some(base_dir) = args.restore_pitr {
         restore_pitr(&cfg, &base_dir, args.to_lsn);
     }
-    if args.verify {
-        verify_store(&cfg);
-    }
     if let Some(base_dir) = args.verify_base {
         verify_base(&base_dir);
     }
@@ -297,13 +291,32 @@ pub fn run(args: ServeArgs, explicit_flags: std::collections::BTreeSet<String>) 
         tenancy = if args.multitenant { "multitenant" } else { "single" },
         "rushdb listening"
     );
+    let node = router.node();
     let http_outcome = router.serve_forever();
-    if let Err(failures) = transports.shutdown() {
-        tracing::error!(?failures, "database shutdown incomplete");
-        std::process::exit(1);
+    let transport_outcome = transports.shutdown();
+    drop(transports);
+    drop(router);
+    // The store closes (redb cleanly, so the next open needs no repair) when
+    // its last holder lets go: the transports above, and requests still
+    // running, which stop on the shutdown. Only then may the process exit.
+    let holders = rushdb_server::http::node_released(&node, std::time::Duration::from_secs(30));
+    let mut failed = false;
+    if let Err(failures) = transport_outcome {
+        tracing::error!(?failures, "transport shutdown incomplete");
+        failed = true;
     }
     if let Err(error) = http_outcome {
         tracing::error!(%error, "HTTP shutdown incomplete");
+        failed = true;
+    }
+    if holders > 0 {
+        tracing::error!(
+            holders,
+            "the store is still in use at the close deadline; the next open repairs it"
+        );
+        failed = true;
+    }
+    if failed {
         std::process::exit(1);
     }
 }
@@ -545,31 +558,6 @@ fn restore_pitr(cfg: &ServerConfig, base_dir: &std::path::Path, to_lsn: Option<u
         }
         Err(e) => {
             eprintln!("restore-pitr: {e}");
-            std::process::exit(2);
-        }
-    }
-}
-
-/// Logical integrity check of `--data-dir`: scrub every tenant's graph.
-fn verify_store(cfg: &ServerConfig) -> ! {
-    let node = match Node::bootstrap(&mut cfg.clone()) {
-        Ok(node) => node,
-        Err(e) => {
-            eprintln!("verify: {e}");
-            std::process::exit(2);
-        }
-    };
-    match node.verify() {
-        Ok(0) => {
-            eprintln!("verify: no violations");
-            std::process::exit(0);
-        }
-        Ok(n) => {
-            eprintln!("verify: {n} invariant violation(s) found");
-            std::process::exit(2);
-        }
-        Err(e) => {
-            eprintln!("verify: {e}");
             std::process::exit(2);
         }
     }

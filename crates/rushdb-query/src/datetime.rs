@@ -38,18 +38,6 @@ pub fn parse_components(map: &serde_json::Map<String, serde_json::Value>) -> Opt
     )
 }
 
-/// Epoch milliseconds at the start of `year` (January 1st, 00:00:00.000).
-#[must_use]
-pub fn year_start(year: i64) -> i64 {
-    rushdb_types::datetime::components_to_epoch_ms(year, 1, 1, 0, 0, 0, 0)
-}
-
-/// Epoch milliseconds at the start of the year after `year` (exclusive end).
-#[must_use]
-pub fn year_end(year: i64) -> i64 {
-    rushdb_types::datetime::components_to_epoch_ms(year + 1, 1, 1, 0, 0, 0, 0)
-}
-
 fn get(map: &serde_json::Map<String, serde_json::Value>, key: &str) -> Option<i64> {
     map.get(key).and_then(|value| {
         value

@@ -412,16 +412,25 @@ impl ProtocolExecutor<'_> {
             }
             Mutation::DeleteRecords { query } => {
                 let document = query_document_to_parser_input(&query);
+                let parsed =
+                    rushdb_query::document::parse_document(&document).map_err(|error| {
+                        ProtocolError::new(ErrorCode::InvalidRequest, error.to_string())
+                    })?;
+                // The victims are chosen as a search's matches are: under the
+                // tenant's policy, from what it shows.
+                let search = self
+                    .node
+                    .authorize_search_in_view(
+                        execution_context.read_view().as_ref(),
+                        &parsed.search,
+                    )
+                    .map_err(|error| ProtocolError::new(ErrorCode::Unauthorized, error))?;
                 // The affected count comes from the batched delete itself:
                 // pre-counting here would materialize the full match set a
                 // second time (the same unbounded read the batching removes).
                 let affected = self
                     .node
-                    .delete_records_with_execution_context(
-                        execution_context,
-                        &document,
-                        is_cancelled,
-                    )
+                    .delete_records_with_execution_context(execution_context, &search, is_cancelled)
                     .map_err(execution_failed)?;
                 Ok(Response::mutation(affected))
             }

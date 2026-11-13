@@ -70,9 +70,10 @@ size. A record that lacks a property reads as `NULL` in that column.
 Relationship tables are read-only. They stream like label tables: resolving
 `rushdb_edges.knows` reads the type's columns and row count from the
 relationship catalog, without reading a relationship, and a scan reads the
-relationships in batches, so there is no relationship cap. A scan still reads
-past the relationships of other types (there is no per-type index yet), so
-its cost grows with the graph, not only with the type.
+relationships in batches, so there is no relationship cap. A full scan still
+reads past the relationships of other types (there is no per-type index yet),
+so its cost grows with the graph, not only with the type; a join on
+`__source_id` or `__target_id` does not scan (see [Joins](#joins)).
 
 > **Note:** Labels that differ only in letter case (`Person` and `PERSON`)
 > resolve to the same SQL table name. Keep label names case-distinct if you
@@ -117,6 +118,42 @@ JOIN rushdb_edges.knows e ON p.__id = e.__source_id
 WHERE e.since >= 2020
 ORDER BY e.since;
 ```
+
+### Joins
+
+A join on a key the store can find rows by is answered by lookups instead of
+a scan: a label table joined on `__id` fetches each matching record by id,
+and a relationship table joined on `__source_id` or `__target_id` fetches
+each record's relationships of that type through its adjacency. The join
+reads only the rows that match and holds one batch at a time, so its cost
+follows the other side of the join, not the table.
+
+A chain of inner joins is ordered from its smallest table outward, using
+the store's exact counts: a label's record count, a relationship type's
+count, and the planner's count for a filter pushed to a label (an indexed or
+dictionary-counted condition). Written in any order,
+
+```sql
+SELECT r.stars, b.name
+FROM review r
+JOIN rushdb_edges.has_business e ON e.__source_id = r.__id
+JOIN business b ON b.__id = e.__target_id
+WHERE b.is_open = 0
+ORDER BY r.stars LIMIT 100;
+```
+
+reads the closed businesses, their `has_business` relationships through
+adjacency and then those reviews by id, never every review. `EXPLAIN` shows
+`LookupJoinExec` for each lookup. Joins on other columns, outer joins and
+joins with extra conditions run as `DataFusion`'s hash joins.
+
+A query with `ORDER BY ... LIMIT k` reads first only the columns it filters,
+joins, orders and deduplicates by. A label's other columns (a long `text`,
+say) are fetched by `__id` for the k rows it returns, since a record's
+columns are fixed by its id. `DISTINCT` with `ORDER BY ... LIMIT k` keeps the
+k best distinct rows as they stream (`DistinctTopKExec`) instead of every
+distinct row. Always give a search a `LIMIT`: without one, every match is read
+in full and returned.
 
 Search a text index with the `text_search` table function, which returns
 `(id, score)` rows best first; join them to a label table on `__id`:
@@ -287,9 +324,10 @@ transaction operations or a single DML statement that covers all of them.
 | Limit | Value | Error |
 |---|---|---|
 | Writes one `INSERT`, `UPDATE` or `DELETE` plans (ids and new values) | the request's response budget | `resource_exhausted` |
-| Result rows per statement | 100,000 | `resource_exhausted` |
-| Result bytes | the request's response budget (the body limit, 16 MiB) | `resource_exhausted` |
-| Working memory (sorts, groups, joins) | the response budget plus 16 MiB, and at most `query-memory-max` (256 MiB) or the request's smaller cap (`work_mem` over pgwire) | `resource_exhausted` |
+| Result rows per statement | 100,000 (`SQL result exceeds the 100000 row safety limit`) | `resource_exhausted` |
+| Result bytes | the request's response budget, the body limit (16 MiB) (`response would exceed the response size limit`) | `resource_exhausted` |
+| Working memory of one statement (sorts, groups, joins, top-k) | `query-memory-max` (256 MiB; 256 MiB too when set to `0`) or the request's smaller cap (`work_mem` over pgwire), whatever the response budget (`query working set exceeded`) | `resource_exhausted` |
+| Working memory of all statements together | the server's SQL share of the phase budget, charged as each statement's memory grows (`the shared SQL memory budget cannot hold …`) | `resource_exhausted`, retryable |
 | Time | `request-timeout-ms` (none), or the request's shorter deadline (`statement_timeout` over pgwire) | `cancelled` |
 | Records an unindexed filter walks | none, unless `unindexed-walk-max-owners` or the request sets a limit (`disallow_full_table_scans` over pgwire) | `invalid_request` |
 
@@ -299,7 +337,9 @@ or `DELETE` finds its rows like a `SELECT` with the same `WHERE` (planned on the
 indexes), and only the rows it touches are held until the single atomic commit,
 so a statement can change any number of records within the request budget.
 Relationship tables stream too; a join with them is bounded by working
-memory, not a row count. For deep traversals, the
+memory, not a row count. A join that looks relationships up by endpoint
+reads them a batch at a time, so an endpoint with millions of relationships
+is joined in bounded memory and stops at the deadline. For deep traversals, the
 [native query document](../query/search-queries.md) walks relationships
 without joins.
 
@@ -326,7 +366,8 @@ with `unauthorized`.
 | A value that does not cast (a mixed-type column compared with a number), division by zero, overflow | `invalid_request` | `22P02`, `22012`, `22003` |
 | Unsupported DML form (multi-statement, relationship table, non-DML on the write path, `RETURNING`, `ON CONFLICT`, `ORDER BY`/`LIMIT` in DML) | `unsupported` | `0A000` |
 | A statement that is neither a read nor DML/index DDL (`SET`, `PREPARE`, `LISTEN`/`NOTIFY`, cursors, `COPY`, `CREATE TABLE` and other table DDL), multiple statements, or a type or feature DataFusion does not implement (`::jsonb`) | `unsupported` | `0A000` |
-| Limit exceeded | `resource_exhausted` | `53200` |
+| Limit exceeded (the message names the limit: result rows, response size or working set) | `resource_exhausted` | `53200` |
+| The SQL working memory shared by concurrent statements is in use (retryable) | `resource_exhausted` | `53200` |
 | Cancelled or deadline elapsed | `cancelled` | `57014` |
 | Syntax error, a statement that does not plan (ambiguous name, operand types that do not combine), or DML sent through `query.statement` | `invalid_request` | `42601` |
 | A filter without a usable index over more records than the server's or the request's unindexed-walk limit | `invalid_request` | `42601` |
@@ -340,8 +381,10 @@ with `unauthorized`.
 - Writes to relationship tables.
 - Vector or full-text search from SQL. Use the protocol's `vector`, `text`,
   and `hybrid` queries ([Vector search](../indexes-and-search/vector-search.md)).
-- PostgreSQL system catalogs (`pg_catalog`, `information_schema`), extensions,
-  and PostgreSQL-specific functions that DataFusion does not implement.
+- PostgreSQL system catalogs beyond the listing ones in
+  [PostgreSQL wire protocol](../connectivity/postgresql-wire.md#catalogs),
+  extensions, and PostgreSQL-specific functions that DataFusion does not
+  implement.
 
 ## See also
 

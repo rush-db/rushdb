@@ -65,7 +65,7 @@ fn acknowledged_commits_and_idempotency_survive_reopen() {
     let lmpg = Lmpg::new(store.clone(), TENANT);
     assert_eq!(store.committed_version(), 3);
     assert_eq!(
-        store.outcome_for(first_commit_key),
+        store.try_outcome_for(first_commit_key).unwrap(),
         Some(OutcomeKind::Committed(1))
     );
     let snap = lmpg.store.read_view().unwrap();
@@ -476,7 +476,7 @@ fn commit_metadata_retention_prunes_log_but_preserves_state_and_outcomes() {
         // Canonical state and the committed status outcome survive.
         assert_eq!(store.committed_version(), 200);
         assert_eq!(
-            store.outcome_for(old_commit_key),
+            store.try_outcome_for(old_commit_key).unwrap(),
             Some(OutcomeKind::Committed(1)),
             "the receipt answers retries for its whole window"
         );
@@ -502,7 +502,7 @@ fn commit_metadata_retention_prunes_log_but_preserves_state_and_outcomes() {
         200
     );
     assert_eq!(
-        store.outcome_for(old_commit_key),
+        store.try_outcome_for(old_commit_key).unwrap(),
         Some(OutcomeKind::Committed(1))
     );
     scrub_clean(&store);

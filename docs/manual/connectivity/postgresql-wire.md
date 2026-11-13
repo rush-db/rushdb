@@ -8,10 +8,10 @@ does not support. It is for anyone connecting SQL tools or PostgreSQL drivers.
 
 > **Note:** The compatibility suite exercises the `tokio-postgres` 0.7 client
 > (simple queries, extended queries, prepared statements with typed
-> parameters, DML, and tenant isolation). `psql`, node-postgres (`pg` 8) and
-> psycopg 3 were checked by hand against the examples on this page. Other
-> drivers, ORMs, and GUI tools are not certified; anything that depends on
-> PostgreSQL system catalogs will not work.
+> parameters, DML, and tenant isolation) and the catalog queries the
+> PostgreSQL JDBC driver and Metabase send. `psql`, node-postgres (`pg` 8),
+> psycopg 3 and Metabase 0.65 (see [Metabase](#metabase)) were checked by
+> hand. Other drivers, ORMs, and GUI tools are not certified.
 
 ## Enabling the listener
 
@@ -60,9 +60,10 @@ rushdb=> SELECT name FROM NOTE WHERE position > 5;
 (1 row)
 ```
 
-Meta-commands that read the PostgreSQL catalogs (`\d`, `\dt`, `\l`) do not
-work, because RushDB has no `pg_catalog`. `information_schema.tables` and
-`information_schema.columns` list the tables and their columns.
+`information_schema.tables` and `information_schema.columns` list the tables
+and their columns with PostgreSQL's names and types (see
+[Catalogs](#catalogs)). `psql`'s meta-commands (`\d`, `\dt`, `\l`) query
+catalogs and functions beyond those and do not work.
 
 ### node-postgres (JavaScript)
 
@@ -148,6 +149,19 @@ assert_eq!(inserted, 1);
 
 Integer properties are `INT8` (`BIGINT`): bind `i64` values for them.
 
+### Metabase
+
+Add RushDB as a **PostgreSQL** database: host and port of the listener,
+database `rushdb` (or the tenant, on a multitenant server), user `rushdb`,
+and the token (or a capability) as the password. Metabase syncs the label
+tables of `public` and the relationship tables of `rushdb_edges`, and its
+questions, filters, groupings and native SQL run as SQL reads.
+
+Datetime properties are epoch milliseconds in SQL (see
+[SQL](../languages/sql.md)). To group or filter them by date in Metabase, set
+the field's **Cast to a specific data type** to *UNIX timestamp
+(milliseconds)* in the table metadata.
+
 ## Selecting a tenant
 
 On a multitenant server, the `database` startup parameter selects the tenant.
@@ -201,10 +215,15 @@ Each message carries **one** SQL statement:
   mutation, like `mutate.statement` over HTTP.
 - Everything else runs as a read.
 
-There are no explicit transactions: every DML statement is its own atomic
-commit. `BEGIN`, `START TRANSACTION`, `COMMIT`, `END`, `ROLLBACK`, `ABORT`,
-`SAVEPOINT` and `RELEASE` fail with SQLSTATE `0A000`, so run drivers in
-autocommit mode. Multi-statement strings are not supported.
+Every DML statement is its own atomic commit, and every statement reads
+its own snapshot: PostgreSQL's `read committed`. Drivers that open a
+transaction block around their reads (JDBC with autocommit off) work:
+`BEGIN`/`START TRANSACTION`, `COMMIT`/`END` and `ROLLBACK`/`ABORT` are
+accepted, and reads run in the block as they would alone. A write inside a
+block would still commit on its own, so it fails with `0A000`; send writes in
+autocommit mode. A block at `repeatable read` (it would need one snapshot for
+all its statements) fails with `0A000`, as do `SAVEPOINT` and `RELEASE`.
+Multi-statement strings are not supported.
 
 See [SQL](../languages/sql.md) for the table mapping, supported SQL, and row
 limits.
@@ -255,6 +274,50 @@ recorded, so `SHOW` answers them, but they change nothing the server does:
 A value the server cannot honour fails with `22023`. `SET` or `RESET` of any
 other parameter fails with `0A000`, naming the parameters it accepts.
 
+### Transaction characteristics
+
+JDBC reads and sets these on every pooled connection. They are set with
+`SET SESSION CHARACTERISTICS AS TRANSACTION …` (or `SET TRANSACTION …`) or by
+name, and read with `SHOW`:
+
+| Parameter | Accepted values | `SHOW` when unset |
+|---|---|---|
+| `default_transaction_isolation`, `transaction_isolation` (also `SHOW TRANSACTION ISOLATION LEVEL`) | `read uncommitted`, `read committed`, `repeatable read`; `serializable` fails with `22023` | `read committed` |
+| `default_transaction_read_only`, `transaction_read_only` | `on`/`off` (`READ ONLY`/`READ WRITE`); `on` refuses the session's writes with `25006`, as PostgreSQL does | `off` |
+
+Each statement reads one snapshot taken when it starts, which meets
+`read uncommitted`, `read committed`, and `repeatable read` for a statement
+on its own.
+
+## Catalogs
+
+`pg_catalog` and `information_schema` describe the tables the session can
+see (under an enforced data-access policy, only what the policy shows), so
+tools that list a database through them work:
+
+- `pg_catalog`: `pg_namespace`, `pg_class`, `pg_attribute`, `pg_type`,
+  `pg_tables` and `pg_stat_user_tables` (row counts) list the schemas
+  `public` and `rushdb_edges`, their tables and columns. `pg_index`,
+  `pg_constraint`, `pg_attrdef`, `pg_description`, `pg_am`, `pg_enum`,
+  `pg_inherits`, `pg_views` and `pg_matviews` have PostgreSQL's columns and no
+  rows: RushDB has no PostgreSQL indexes, keys, defaults, comments or views.
+  An unqualified catalog name (`pg_class`) is `pg_catalog`'s, as in
+  PostgreSQL.
+- `information_schema`: `tables`, `columns` (with `data_type`, `udt_name`
+  and the other PostgreSQL columns), `schemata`, and empty `views`,
+  `table_constraints`, `key_column_usage`, `constraint_column_usage` and
+  `referential_constraints`.
+- Functions: `current_schemas`, `format_type`, `format`, `pg_get_userbyid`,
+  `pg_encoding_to_char`; `has_table_privilege` and the other privilege
+  checks are true (what is listed is usable); `obj_description`,
+  `col_description`, `pg_get_expr` and `pg_get_indexdef` are null.
+  `'pg_class'::regclass` is that catalog's object id, and a cast to `oid` or
+  `regtype` is a cast to `bigint`.
+
+Object ids are assigned per statement, in schema and table order: they join
+one catalog to another within a statement, and are not stable across
+statements.
+
 ## SQLSTATE mapping
 
 Engine errors are reported as PostgreSQL `ErrorResponse` messages with these
@@ -293,11 +356,12 @@ SQLSTATE codes:
 ## Not supported
 
 - SCRAM-SHA-256, channel binding, and certificate authentication.
-- Explicit transactions, savepoints, cursors, and bounded portal fetches.
+- Writes inside a transaction block, savepoints, cursors, and bounded portal
+  fetches.
 - SQL `PREPARE`/`EXECUTE` (prepare through the extended query flow instead).
 - `COPY`, `LISTEN`/`NOTIFY`, and replication connections.
-- PostgreSQL system catalogs, type casts specific to PostgreSQL, and
-  extensions.
+- PostgreSQL system catalogs beyond those in [Catalogs](#catalogs), type
+  casts specific to PostgreSQL, and extensions.
 - Graph languages (use [Bolt](bolt.md) for Cypher, or the
   [HTTP API](http-api.md) for everything else).
 - Vector and full-text search.

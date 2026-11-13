@@ -2,7 +2,7 @@
 //! candidate read and sorted), which is the definition of the order.
 
 use super::*;
-use crate::matches::{run_pass, Matches};
+use crate::matches::{plan_page, run_pass, Matches};
 use rushdb_lmpg::plan::FieldChange;
 use serde_json::json;
 
@@ -89,9 +89,17 @@ fn both_ways(lmpg: &Lmpg, req: &SearchRequest, skip: usize, limit: usize) -> [(V
     [
         page(run_matches(lmpg, req, &|| false, &snap, skip, limit, None).unwrap()),
         page(
-            run_pass(lmpg, req, &|| false, &snap, (skip, limit), None, false)
-                .unwrap()
-                .unwrap(),
+            run_pass(
+                lmpg,
+                req,
+                &|| false,
+                &snap,
+                (skip, limit),
+                plan_page(lmpg, req, &|| false, &snap, (skip, limit), None, false).unwrap(),
+                0,
+            )
+            .unwrap()
+            .unwrap(),
         ),
     ]
 }
@@ -150,4 +158,28 @@ fn order_first_pages_equal_predicate_first_pages() {
             "{source:?} never planned: {sources:?}"
         );
     }
+}
+
+#[test]
+fn explain_plans_the_order_from_counters_alone() {
+    // Under a working-set cap no owner set fits in, explain still answers:
+    // it reads counters, never the matches.
+    let lmpg = store().with_request_limits(rushdb_lmpg::RequestLimits {
+        query_memory_max_bytes: Some(1),
+        ..Default::default()
+    });
+    let snap: QuerySnapshot = Arc::new(lmpg.store.read_view().unwrap());
+    let unfiltered =
+        document::parse_document(&json!({"labels": ["A"], "orderBy": "desc", "limit": 5}))
+            .unwrap()
+            .search;
+    let order = explain_order(&lmpg, &unfiltered, &snap, 0, 5).unwrap();
+    assert_eq!(order.map(|order| order.source), Some("id"));
+    // A filtered page's choice rests on its exact match count: not reported.
+    let filtered = document::parse_document(
+        &json!({"labels": ["A"], "where": {"g": "hit"}, "orderBy": "desc", "limit": 5}),
+    )
+    .unwrap()
+    .search;
+    assert_eq!(explain_order(&lmpg, &filtered, &snap, 0, 5).unwrap(), None);
 }

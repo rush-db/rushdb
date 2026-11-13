@@ -15,7 +15,7 @@ request and response shapes with examples, see the
 | `POST` | `/protocol/v1/execute` | token or capability (`read` or `write` by operation) | Execute one Protocol v1 request envelope. | 200 with a response envelope |
 | `GET` | `/internal/replication/wal` | boot token only | Node-to-node: a follower fetches WAL records. Not a client API. | 200 `{"records":[{"lsn":N,"command_b64":"..."}],"caught_up":bool}` |
 | `POST` | `/internal/replication/promote` | boot token only | Stop following the leader and accept writes. | 200 `{"promoted":true,"persisted":true}` |
-| `POST` | `/internal/backup/base?out=PATH` | boot token only | Online base backup into `PATH` on the server's filesystem. | 200 `{"commitIndex":N,"files":N}` |
+| `POST` | `/internal/backup/base?out=PATH` | boot token only | Online base backup into `PATH` inside the data directory's `backups` folder. | 200 `{"commitIndex":N,"files":N}` |
 | `POST` | `/internal/usage` | boot token only | Usage figures of a list of tenants, and their total. | 200 `{"commitIndex":N,"tenants":[...],"total":{...}}` |
 | any | any other path | — | — | 404 `{"error":"route not found"}` |
 
@@ -60,7 +60,7 @@ While the node is still opening its store, `/health` returns 200 with
 ### `/internal/replication/wal`
 
 Query parameters: `follower_id` (required) and `since` (first LSN wanted,
-default 1). Returns at most 2,000 records per call. Status 409 with
+default 1; a value that is not a number is refused with 400). Returns at most 2,000 records per call. Status 409 with
 `{"error":{"code":"resync_required","oldestAvailableLsn":N}}` means the
 leader no longer retains the requested history. See
 [Replication](../operations/replication.md).
@@ -74,8 +74,9 @@ following, or 503 if the follower did not stop in time.
 
 ### `/internal/backup/base`
 
-Takes a physical base backup of the running server into `out` (which must
-not exist; 409 otherwise). The store files are copied while quiescent at a
+Takes a physical base backup of the running server into `out`: a name in the
+data directory's `backups` folder, or a path inside it (400 otherwise,
+including any `..`). `out` must not exist (409 otherwise). The store files are copied while quiescent at a
 durable commit: reads continue and commits wait for the copy. The base is
 registered as a `backup` retention consumer at its commit index. See
 [Backup and restore](../operations/backup-and-restore.md#2-take-a-base-backup).

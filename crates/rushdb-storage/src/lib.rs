@@ -22,6 +22,7 @@ mod copy_on_write;
 pub use copy_on_write::CopyOnWrite;
 mod conflict_window;
 mod derive;
+pub mod derived_health;
 mod fair_gate;
 pub mod graph_cache;
 pub mod history_v2;
@@ -80,6 +81,7 @@ mod writer_tests;
 ///
 /// # Errors
 /// Returns the I/O error of the removal.
+#[cfg(any(test, feature = "test-support"))]
 pub fn remove_store(path: &std::path::Path) -> std::io::Result<()> {
     std::fs::remove_file(path)
 }
@@ -623,6 +625,8 @@ pub struct Store {
     adapter_budgets: adapter_budgets::AdapterBudgets,
     planner_stats: Arc<planner_stats::PlannerStats>,
     owner_sets: Arc<owner_sets::OwnerSets>,
+    /// Labels whose derived rows a read found disagreeing (SELF-HEAL).
+    derived_health: Arc<derived_health::DerivedHealth>,
     graphs: Arc<graph_cache::GraphCache>,
     resource_config: resources::StorageResources,
     data: Arc<RwLock<BTreeMap<Vec<u8>, Vec<u8>>>>,
@@ -827,6 +831,7 @@ impl Store {
             adapter_budgets,
             planner_stats,
             owner_sets,
+            derived_health: Arc::new(derived_health::DerivedHealth::default()),
             graphs,
             resource_config: config,
             data: Arc::clone(&maps.data),
@@ -890,6 +895,7 @@ impl Store {
     /// Mark a physical compaction as holding (or releasing) the database.
     /// Set by compaction itself; public for tests of what observes it.
     #[doc(hidden)]
+    #[cfg(any(test, feature = "test-support"))]
     pub fn mark_compacting(&self, on: bool) {
         self.compacting.store(on, Ordering::Relaxed);
     }
@@ -1339,22 +1345,6 @@ impl Store {
         self.published.load(Ordering::SeqCst)
     }
 
-    /// Public idempotency probe: durable commit index for a commit key.
-    pub fn committed_index_for(&self, commit_key: Uuid) -> Option<u64> {
-        self.lookup_outcome(commit_key)
-            .filter(|(st, _)| matches!(st, OutcomeStatus::Committed))
-            .map(|(_, ci)| ci)
-    }
-
-    /// Public outcome probe for transaction coordinators: distinguishes a
-    /// durable committed index from a durable aborted outcome.
-    pub fn outcome_for(&self, commit_key: Uuid) -> Option<OutcomeKind> {
-        self.lookup_outcome(commit_key).map(|(st, ci)| match st {
-            OutcomeStatus::Committed => OutcomeKind::Committed(ci),
-            OutcomeStatus::Aborted => OutcomeKind::Aborted,
-        })
-    }
-
     /// Durably record an aborted outcome under a commit key (used by
     /// rollback so a later commit attempt discovers `aborted`, never false
     /// success). No data is published.
@@ -1634,7 +1624,8 @@ impl Store {
     }
 
     /// [`Self::gc_tick`] in batches of `max_keys` until the history sweep
-    /// completes or `budget` has elapsed, so reclamation keeps up with the
+    /// completes, `budget` has elapsed, or the store shuts down, so
+    /// reclamation keeps up with the
     /// write rate instead of retiring a fixed number of keys per maintenance
     /// tick (SOAK-1: 512 keys per 5 s fell behind ~750 rewrites/s and history
     /// grew without bound). Returns whether the sweep completed.
@@ -1651,7 +1642,8 @@ impl Store {
             if self.gc_tick(max_keys)? {
                 return Ok(true);
             }
-            if started.elapsed() >= budget {
+            // The rest waits for the next tick, or for the next start.
+            if started.elapsed() >= budget || self.maintenance_aborted() {
                 return Ok(false);
             }
         }
@@ -1697,6 +1689,21 @@ impl Store {
     /// below this floor fail, even if an individual key still has older bytes.
     pub fn gc_watermark(&self) -> u64 {
         self.gc_watermark.load(std::sync::atomic::Ordering::SeqCst)
+    }
+
+    /// The store's registry of suspect labels (SELF-HEAL).
+    #[must_use]
+    pub fn derived_health(&self) -> &derived_health::DerivedHealth {
+        &self.derived_health
+    }
+
+    /// Cancel every open read view: its next read fails with
+    /// [`StorageError::Cancelled`]. Its lease is still released when it drops.
+    pub(crate) fn cancel_reads(&self) {
+        let cancellations = self.health.cleanup(self.read_cancellations.lock());
+        for handle in cancellations.values().flatten() {
+            handle.cancel();
+        }
     }
 
     /// Expire retained read leases older than `max_age_ms` (P06: reader age
@@ -1787,6 +1794,7 @@ impl Store {
 
     /// Replace the receipt clock (tests age receipts with a mock clock).
     #[doc(hidden)]
+    #[cfg(test)]
     pub fn set_receipt_clock(&self, clock: Arc<dyn Fn() -> u64 + Send + Sync>) {
         *self.health.cleanup(self.receipt_clock.write()) = clock;
     }
@@ -1830,10 +1838,6 @@ impl Store {
                 .map_err(StorageError::Durability)?;
         }
         Ok(())
-    }
-
-    fn lookup_outcome(&self, commit_key: Uuid) -> Option<(OutcomeStatus, u64)> {
-        self.lookup_outcome_checked(commit_key).ok().flatten()
     }
 
     fn lookup_outcome_checked(

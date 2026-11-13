@@ -41,7 +41,7 @@ change `server.port` in `config.yml`.
 
 ### Store is locked / maintenance command fails
 
-One-shot commands (`--compact`, `--export`, `--backup-base`, `--verify`)
+One-shot commands (`--compact`, `--export`, `--backup-base`, `--verify-base`)
 open the store themselves and fail while the server is running. Stop the
 server first.
 

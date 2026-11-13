@@ -171,7 +171,8 @@ pub(crate) fn query_failed(error: rushdb_query::QueryError) -> ProtocolError {
 }
 
 /// SQL failures carry their class in the error type: statement errors are
-/// the client's, the row safety limit is a fixed property of the query.
+/// the client's; the row, response and working-set limits are fixed
+/// properties of the query; shared SQL memory in use can be retried.
 #[expect(
     clippy::needless_pass_by_value,
     reason = "used directly as a `map_err` adapter, which supplies the owned error value"
@@ -195,8 +196,11 @@ pub(crate) fn sql_failed(error: rushdb_sql::SqlError) -> ProtocolError {
         SqlError::Unsupported(_) | SqlError::UnsupportedMutation(_) => {
             ProtocolError::new(ErrorCode::Unsupported, message)
         }
-        SqlError::ResourceLimit(_) | SqlError::MemoryLimit(_) => {
+        SqlError::RowLimit(_) | SqlError::ResultTooLarge(_) | SqlError::MemoryLimit(_) => {
             ProtocolError::new(ErrorCode::ResourceExhausted, message).with_retryable(false)
+        }
+        SqlError::Busy(_) => {
+            ProtocolError::new(ErrorCode::ResourceExhausted, message).with_retryable(true)
         }
         SqlError::Cancelled => ProtocolError::new(ErrorCode::Cancelled, message),
         SqlError::WriteConflict(_) => ProtocolError::new(ErrorCode::WriteConflict, message),

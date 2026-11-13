@@ -1137,12 +1137,6 @@ pub(crate) fn parse_order_by(v: Option<&Json>) -> Vec<(String, bool)> {
 /// aliases keep every step; alias `$count`/`$sum` share the same shape.
 pub type CollectAliasMap = std::collections::HashMap<String, Vec<crate::TraversalStep>>;
 
-/// Collect every traversal alias (and nested aliases) reachable in a `where`
-/// expression, recording the full path from the root to each alias level.
-pub fn collect_alias_map(expr: &crate::Expr, out: &mut CollectAliasMap) {
-    out.extend(alias_paths(expr));
-}
-
 /// Every traversal alias in a `where` expression with its full path from the
 /// root, in the order the aliases appear. Each step keeps its level's whole
 /// filter, nested label blocks included: an alias binds only the records
@@ -1383,7 +1377,7 @@ pub fn parse_document(document: &Json) -> Result<ParsedQuery, QueryDocumentError
     // aggregate.
     let mut aliases = CollectAliasMap::new();
     if let Some(where_expr) = &where_expr {
-        collect_alias_map(where_expr, &mut aliases);
+        aliases.extend(alias_paths(where_expr));
     }
     for raw in obj
         .get("groupBy")

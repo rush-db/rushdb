@@ -972,6 +972,10 @@ impl VectorEngine {
             .collect();
         let mut changed = 0;
         for (space_id, cached) in spaces {
+            // A shutting-down store waits for this pass: stop between spaces.
+            if self.store.maintenance_aborted() {
+                break;
+            }
             #[allow(
                 irrefutable_let_patterns,
                 reason = "refutable only with --features turbovec, which adds AnnBacking::Provider"
@@ -1004,7 +1008,9 @@ impl VectorEngine {
             let mergeable = self.store.vector_cache_budget().map_or(0, |budget| {
                 budget.available() / build_estimate(1, cached.dims).max(1)
             });
-            if let Some(ids) = fork.merge_candidates(HOT_SEGMENT_FREEZE_THRESHOLD, mergeable) {
+            let merge = (!self.store.maintenance_aborted())
+                .then(|| fork.merge_candidates(HOT_SEGMENT_FREEZE_THRESHOLD, mergeable));
+            if let Some(ids) = merge.flatten() {
                 let ok = self.merge_into(&fork, space_id, &ids, dims, similarity)?;
                 merged = if ok { ids.len() } else { 0 };
                 touched |= ok;

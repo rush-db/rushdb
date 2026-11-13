@@ -198,15 +198,22 @@ pub fn read_watermark(dir: &Path) -> Result<u64, String> {
     Ok(state.last_lsn)
 }
 
-/// Archive the WAL range `(last_archived, committed]` into `dir` as one
-/// append-only segment, advancing the durable watermark. Returns the new
-/// watermark, or `None` when there is nothing new to archive.
+/// Commits one archive segment covers at most: a backlog is archived a
+/// bounded segment at a time, so a shutdown waits for one segment, not all.
+const SEGMENT_COMMITS: u64 = 4096;
+
+/// Archive the next WAL range after the last archived LSN (up to the
+/// committed one, at most [`SEGMENT_COMMITS`]) into `dir` as one append-only
+/// segment, advancing the durable watermark. Returns the new watermark, or
+/// `None` when there is nothing new to archive.
 ///
 /// # Errors
 /// Returns a message when the export or the durable write fails.
 pub fn archive_once(store: &Store, dir: &Path) -> Result<Option<u64>, String> {
-    let committed = store.committed_version();
     let last = read_watermark(dir)?;
+    let committed = store
+        .committed_version()
+        .min(last.saturating_add(SEGMENT_COMMITS));
     if committed <= last {
         return Ok(None);
     }

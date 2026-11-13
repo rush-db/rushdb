@@ -4,8 +4,8 @@
 use super::{
     log_key, mpsc, resources, wal, Arc, BTreeMap, BTreeSet, CommitBatch, CommitOutcome,
     CommitPhase, DependencySet, DeserializeOwned, Op, Ordering, OutcomeKind, OutcomeStatus,
-    OverlayView, PendingCommit, PreparedCommand, RefCell, SequencerState, Serialize, StorageError,
-    Store, TenantId, TxAccumulator, Txn, TxnBase, Uuid, LAST_APPLIED_KEY, SERIALIZABLE_CONFLICT,
+    PendingCommit, PreparedCommand, RefCell, SequencerState, Serialize, StorageError, Store,
+    TenantId, TxAccumulator, Txn, TxnBase, Uuid, LAST_APPLIED_KEY, SERIALIZABLE_CONFLICT,
 };
 
 impl Store {
@@ -99,12 +99,13 @@ impl Store {
     /// Returns the same errors as forward expansion: a base read error, or
     /// [`StorageError::CorruptLog`]/[`StorageError::Builder`] when no
     /// expander is installed or expansion fails.
+    #[cfg(test)]
     pub fn expand_against_overlay<P>(
         &self,
         ci: u64,
         batch: &CommitBatch,
         payload: &P,
-        overlay: Arc<OverlayView>,
+        overlay: Arc<super::OverlayView>,
     ) -> Result<Vec<Op>, StorageError>
     where
         P: Serialize,
@@ -633,6 +634,7 @@ impl Store {
     /// # Panics
     /// Panics only if `batch` fails to serialize (never, for a well-formed
     /// `CommitBatch`).
+    #[cfg(any(test, feature = "test-support"))]
     pub fn commit_serializable<P, F>(
         &self,
         commit_key: Uuid,

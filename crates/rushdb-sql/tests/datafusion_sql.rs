@@ -354,7 +354,7 @@ fn sql_result_budget_is_rejected_before_rows_are_retained() {
         Some(1),
     )
     .expect_err("tiny SQL result budget");
-    assert!(matches!(error, SqlError::ResourceLimit(_)));
+    assert!(matches!(error, SqlError::ResultTooLarge(1)), "{error:?}");
 }
 
 #[test]
@@ -370,7 +370,7 @@ fn sql_mutation_result_budget_is_rejected_before_commit() {
         None,
     )
     .expect_err("tiny SQL mutation result budget");
-    assert!(matches!(error, SqlError::ResourceLimit(_)));
+    assert!(matches!(error, SqlError::ResultTooLarge(1)), "{error:?}");
 }
 
 #[test]

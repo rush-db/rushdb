@@ -119,6 +119,7 @@ impl SchemaProvider for LazyLabelSchema {
 pub(crate) struct LazyRelationshipSchema {
     tenant: TenantId,
     snapshot: Arc<ReadView>,
+    limits: rushdb_lmpg::QueryLimits,
     types: OnceLock<Vec<String>>,
     visible: CatalogAccess,
     cache: Mutex<HashMap<String, Arc<dyn TableProvider>>>,
@@ -132,10 +133,16 @@ impl fmt::Debug for LazyRelationshipSchema {
 }
 
 impl LazyRelationshipSchema {
-    pub(crate) fn new(tenant: TenantId, snapshot: Arc<ReadView>, visible: CatalogAccess) -> Self {
+    pub(crate) fn new(
+        tenant: TenantId,
+        snapshot: Arc<ReadView>,
+        limits: rushdb_lmpg::QueryLimits,
+        visible: CatalogAccess,
+    ) -> Self {
         Self {
             tenant,
             snapshot,
+            limits,
             types: OnceLock::new(),
             visible,
             cache: Mutex::new(HashMap::new()),
@@ -191,6 +198,7 @@ impl SchemaProvider for LazyRelationshipSchema {
             EdgeTable::new(
                 Arc::clone(&self.snapshot),
                 self.tenant,
+                self.limits,
                 &canonical,
                 self.visible.clone(),
             )

@@ -175,6 +175,87 @@ impl Node {
         }
     }
 
+    /// SELF-HEAL maintenance: log what reads found disagreeing between
+    /// derived and base rows, store each suspect label's marker (it survives
+    /// restarts and replicates), and repair each suspect label with a logged
+    /// re-derive. A repair over more than
+    /// [`rushdb_lmpg::heal::REPAIR_MAX_RECORDS`] records (the label's or, for
+    /// its null counts, the tenant's) waits until the store has been quiet for
+    /// `compact-quiesce-seconds`, so its one long commit holds up no writer;
+    /// meanwhile the label is answered from base rows.
+    pub(crate) fn heal_derived(&self) {
+        let health = rushdb_storage::Store::derived_health(&self.store);
+        for finding in health.take_findings() {
+            tracing::error!(
+                tenant = %rushdb_types::keys::tenant_hex(finding.tenant),
+                label = finding.label.as_str(),
+                kind = finding.kind,
+                detail = finding.detail.as_str(),
+                "derived rows disagree with their base rows; the label is answered from base rows until repaired"
+            );
+        }
+        for (tenant, label) in health.suspects() {
+            if self.store.maintenance_aborted() {
+                return;
+            }
+            if let Err(error) = self.heal_label(tenant, &label) {
+                tracing::error!(
+                    %error,
+                    label = label.as_str(),
+                    "repairing a suspect label failed; it stays answered from base rows"
+                );
+            }
+        }
+    }
+
+    fn heal_label(&self, tenant: TenantId, label: &str) -> Result<(), String> {
+        let view = self.store.read_view().map_err(|e| e.to_string())?;
+        let lmpg = rushdb_lmpg::Lmpg::new(std::sync::Arc::clone(&self.store), tenant);
+        if view
+            .get(&rushdb_types::keys::rederive_key(tenant, label))
+            .map_err(|e| e.to_string())?
+            .is_none()
+        {
+            lmpg.mark_suspect(label).map_err(|e| e.to_reason())?;
+        }
+        let records = rushdb_lmpg::derived::label_count(&view, tenant, label)
+            .map_err(|e| e.to_string())?
+            .max(
+                rushdb_lmpg::derived::tenant_usage(&view, tenant)
+                    .map_err(|e| e.to_string())?
+                    .records,
+            );
+        drop(view);
+        if records > rushdb_lmpg::heal::REPAIR_MAX_RECORDS && !self.store.quiet_for(self.heal_quiet)
+        {
+            let mut deferred = self
+                .heal_deferred
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            if deferred.insert((tenant, label.to_owned())) {
+                tracing::warn!(
+                    tenant = %rushdb_types::keys::tenant_hex(tenant),
+                    label,
+                    records,
+                    "a large suspect label waits for a quiet store to be re-derived; it is answered from base rows meanwhile"
+                );
+            }
+            return Ok(());
+        }
+        lmpg.rederive_label(label).map_err(|e| e.to_reason())?;
+        self.heal_deferred
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .remove(&(tenant, label.to_owned()));
+        tracing::warn!(
+            tenant = %rushdb_types::keys::tenant_hex(tenant),
+            label,
+            records,
+            "re-derived a label's derived rows from its base rows"
+        );
+        Ok(())
+    }
+
     /// Durable key for the (global) retention-consumer registry. Persisted once
     /// under the base tenant; the registry is not per request scope.
     pub(crate) const RETENTION_CONSUMERS_KEY: &'static str = "retention/consumers/state";

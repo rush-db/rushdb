@@ -378,6 +378,7 @@ impl RequestScope<'_> {
     /// # Panics
     ///
     /// Panics if an internal invariant is violated.
+    #[cfg(test)]
     pub fn continue_cursor(
         &self,
         cursor_id: &str,

@@ -1,4 +1,7 @@
-//! Cross-store invariant scrubber over storage format v3 (DC11/DC12).
+//! Cross-store invariant scrubber over storage format v3 (DC11/DC12): the
+//! tests' oracle (`test-support` feature), not part of the shipped engine,
+//! where derived rows are exact by construction and a read that finds
+//! otherwise reports it for repair (`heal`).
 //!
 //! The derived rows of a tenant (presence, value dictionary, counters, array
 //! markers) must equal what [`LmpgDeriver`] derives **from scratch** from the
@@ -39,15 +42,6 @@ pub struct ScrubReport {
     /// Number of derived rows compared against the from-scratch derivation.
     pub derived_rows: usize,
     /// True only after every requested range and point read completed.
-    pub complete: bool,
-}
-
-/// Read-only candidate list for a bounded orphan repair.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct OrphanRepairPlan {
-    /// Orphaned occurrence keys that a repair commit would remove.
-    pub keys: Vec<Vec<u8>>,
-    /// Whether the bounded scan reached the end of the occurrence range.
     pub complete: bool,
 }
 
@@ -315,81 +309,4 @@ fn adjacency_violations<R: TryRead>(r: &R, t: TenantId) -> Result<Vec<Violation>
         }
     }
     Ok(violations)
-}
-
-/// Build a bounded, read-only repair plan: occurrence rows whose owner no
-/// longer exists. The returned keys are only candidates;
-/// [`repair_orphan_occurrences`] revalidates them inside its commit.
-///
-/// # Errors
-///
-/// Returns the underlying storage error if the scan or point reads fail.
-pub fn plan_orphan_occurrences<R: TryRead>(
-    r: &R,
-    t: TenantId,
-    max_keys: usize,
-) -> Result<OrphanRepairPlan, StorageError> {
-    let mut keys = Vec::new();
-    let mut complete = true;
-    if max_keys == 0 {
-        return Ok(OrphanRepairPlan { keys, complete });
-    }
-    for kind in [OwnerKind::Record, OwnerKind::Relationship] {
-        for (key, _) in r.range_prefix(&k::occ_kind_prefix(t, kind))? {
-            let orphan = match k::parse_occ_key(&key) {
-                Some((_, kind, owner, _, _)) => !owner_exists(r, t, kind, owner)?,
-                None => true,
-            };
-            if orphan {
-                if keys.len() < max_keys {
-                    keys.push(key);
-                } else {
-                    complete = false;
-                    return Ok(OrphanRepairPlan { keys, complete });
-                }
-            }
-        }
-    }
-    Ok(OrphanRepairPlan { keys, complete })
-}
-
-/// Delete at most `max_keys` orphaned occurrence rows in one bounded commit.
-/// This is an explicit repair operation; scrubbing itself remains read-only.
-/// A zero limit performs no mutation.
-///
-/// # Errors
-///
-/// Returns the storage error if the repair scan or commit fails.
-pub fn repair_orphan_occurrences(
-    store: &rushdb_storage::Store,
-    t: TenantId,
-    max_keys: usize,
-) -> Result<usize, StorageError> {
-    if max_keys == 0 {
-        return Ok(0);
-    }
-    let outcome = store.commit_for_tenant(&t, uuid::Uuid::now_v7(), |_ci, txn| {
-        let orphaned = plan_orphan_occurrences(txn, t, max_keys)
-            .map_err(|e| e.to_string())?
-            .keys;
-        let batch = rushdb_types::command::CommitBatch {
-            command_version: rushdb_types::command::COMMAND_VERSION,
-            tenant: t,
-            transaction_id: "scrub-repair".into(),
-            commit_key: uuid::Uuid::nil(),
-            start_index: 0,
-            isolation: rushdb_types::command::IsolationMode::Snapshot,
-            preconditions: Vec::new(),
-            mutations: orphaned
-                .iter()
-                .cloned()
-                .map(|key| rushdb_types::command::Mutation::DeleteRawKey { key })
-                .collect(),
-        };
-        Ok((batch, orphaned.len()))
-    })?;
-    match outcome {
-        rushdb_storage::CommitOutcome::Committed { payload, .. } => Ok(payload),
-        rushdb_storage::CommitOutcome::Conflicted(reason) => Err(StorageError::Builder(reason)),
-    }
 }

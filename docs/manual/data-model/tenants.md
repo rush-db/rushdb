@@ -79,14 +79,14 @@ Failures are explicit:
 | Multitenant, header present but no `context.scope` | `missing_scope`, HTTP 403 |
 | Multitenant, `context.scope` differs from the header | `scope_mismatch`, HTTP 403 |
 | Single-tenant, `context.scope` present | `scope_mismatch`, HTTP 403 |
+| Single-tenant, an `X-RushDB-Tenant` header | `scope_mismatch`, HTTP 403 |
 | Single-tenant, gRPC `x-rushdb-tenant` or a Bolt `db` set | `scope_mismatch` (gRPC `UNAUTHENTICATED`; Bolt statement failure) |
 | PostgreSQL wire, multitenant, no database name | Connection refused (SQLSTATE `3D000`) |
 
 In single-tenant mode, omit tenant scopes everywhere: leave `context.scope`
-out of envelopes and do not send tenant metadata on gRPC or a `db` value on
-Bolt (those are refused, never served as a second keyspace). The HTTP
-`X-RushDB-Tenant` header and the PostgreSQL database name are ignored in this
-mode.
+out of envelopes and do not send the `X-RushDB-Tenant` header, tenant
+metadata on gRPC or a `db` value on Bolt (those are refused, never served as
+a second keyspace). The PostgreSQL database name is ignored in this mode.
 
 ## Credentials and tenants
 

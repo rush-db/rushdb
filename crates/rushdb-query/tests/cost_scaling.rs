@@ -386,3 +386,59 @@ fn a_selective_filter_is_read_before_its_order() {
         )
     });
 }
+
+/// [`store`] plus `year: 2024` on every `Item`, indexed: one value held by
+/// every record.
+fn store_with_one_year(records: u64) -> Lmpg {
+    let lmpg = store(0);
+    for chunk in (0..records).collect::<Vec<_>>().chunks(2_000) {
+        let mut tx = lmpg.begin_batch();
+        for &n in chunk {
+            tx.ops.push(BatchOp::CreateRecord {
+                label: "Item".into(),
+                explicit_id: None,
+                fields: vec![
+                    ("score".into(), FieldChange::Set(json!(n))),
+                    ("year".into(), FieldChange::Set(json!(2024))),
+                ],
+            });
+        }
+        lmpg.run_batch(tx).unwrap();
+    }
+    let def = lmpg
+        .define_index("item_year", "Item", "year", IndexKind::Ordered)
+        .unwrap();
+    while !matches!(
+        lmpg.index_step(def.id, 10_000).unwrap(),
+        IndexStep::Finished | IndexStep::Idle
+    ) {}
+    lmpg
+}
+
+#[test]
+fn a_descending_index_page_streams_a_value_held_by_every_record() {
+    // Descending by `year`, the first value is held by every `Item`: its
+    // owners stream in ascending order, so the page reads its rows, not the
+    // value's every owner.
+    assert_flat_with("year desc", store_with_one_year, |lmpg, _| {
+        records_reads(
+            lmpg,
+            &json!({"labels": ["Item"], "orderBy": {"year": "desc"}, "limit": 20}),
+        )
+    });
+    // Ties keep ascending ordinal order: the first 20 records.
+    let lmpg = store_with_one_year(1_000);
+    let page = find_records(
+        &lmpg,
+        &parse_document(&json!({"labels": ["Item"], "orderBy": {"year": "desc"}, "limit": 20}))
+            .unwrap()
+            .search,
+    )
+    .unwrap();
+    let scores: Vec<u64> = page
+        .records
+        .iter()
+        .map(|record| record["score"].as_u64().unwrap())
+        .collect();
+    assert_eq!(scores, (0..20).collect::<Vec<_>>());
+}

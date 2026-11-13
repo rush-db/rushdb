@@ -401,16 +401,13 @@ fn execute_pipeline(
             }
             and_match(&mut where_clause, m)?;
         } else if let Some(g) = obj.get("$group") {
+            if has_group {
+                return Err("mongo: more than one `$group` stage is unsupported".into());
+            }
             has_group = true;
-            apply_group_stage(g, &mut group_by, &mut select)?;
+            group_stage(g, &mut group_by, &mut select, &mut order)?;
         } else if let Some(s) = obj.get("$sort").and_then(Value::as_object) {
-            if s.values().any(text::is_text_score) {
-                return Err("mongo: sorting a pipeline by `textScore` is unsupported".into());
-            }
-            for (k, v) in s {
-                let dir = mongo_sort_direction(v)?;
-                order.insert(k.clone(), Value::String(dir.into()));
-            }
+            sort_stage(s, has_group.then_some(group_by.as_slice()), &mut order)?;
         } else if let Some(l) = obj.get("$limit") {
             limit = l.as_i64();
         } else if let Some(s) = obj.get("$skip") {
@@ -485,6 +482,49 @@ fn execute_pipeline(
     Ok((page.total_matched, public_ids(page.records)))
 }
 
+/// A `$group` stage. A `$sort` before it (in `order`) orders the group's
+/// input, which only `$first` observes; the native aggregate takes no input
+/// order, so it is dropped, or refused with `$first`.
+fn group_stage(
+    g: &Value,
+    group_by: &mut Vec<String>,
+    select: &mut Map<String, Value>,
+    order: &mut Map<String, Value>,
+) -> Result<(), String> {
+    apply_group_stage(g, group_by, select)?;
+    if !order.is_empty() {
+        if select.values().any(|entry| entry.get("$first").is_some()) {
+            return Err("mongo: `$first` after a `$sort` is unsupported".into());
+        }
+        order.clear();
+    }
+    Ok(())
+}
+
+/// A `$sort` stage into `order`. After `$group` (`grouped` holds its keys),
+/// `_id` is the group key, and with no key (one row) it orders nothing.
+fn sort_stage(
+    s: &Map<String, Value>,
+    grouped: Option<&[String]>,
+    order: &mut Map<String, Value>,
+) -> Result<(), String> {
+    if s.values().any(text::is_text_score) {
+        return Err("mongo: sorting a pipeline by `textScore` is unsupported".into());
+    }
+    for (k, v) in s {
+        let dir = mongo_sort_direction(v)?;
+        let key = match grouped {
+            Some(keys) if k == "_id" => match keys.first() {
+                Some(key) => key.clone(),
+                None => continue,
+            },
+            _ => k.clone(),
+        };
+        order.insert(key, Value::String(dir.into()));
+    }
+    Ok(())
+}
+
 /// The filter of the `$match` at `position`, its `$text` (first stage only,
 /// as in MongoDB) resolved to the matching records.
 fn match_filter(
@@ -551,9 +591,12 @@ fn apply_group_stage(
     select: &mut Map<String, Value>,
 ) -> Result<(), String> {
     let g = g.as_object().ok_or("mongo: $group must be an object")?;
-    if let Some(id) = g.get("_id").and_then(Value::as_str) {
+    match g.get("_id") {
         // Group keys are emitted by the native aggregate automatically.
-        group_by.push(id.trim_start_matches('$').to_string());
+        Some(Value::String(id)) => group_by.push(id.trim_start_matches('$').to_string()),
+        Some(Value::Null) => {}
+        Some(_) => return Err("mongo: `$group` `_id` must be a field path or null".into()),
+        None => return Err("mongo: `$group` requires `_id`".into()),
     }
     for (out, spec) in g {
         if out == "_id" {

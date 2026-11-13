@@ -34,9 +34,14 @@ use serde_json::Value as Json;
 pub type Row = serde_json::Map<String, Json>;
 
 mod checked_sum;
+mod distinct_topk;
 mod dml;
 mod edge_provider;
+mod join_order;
+mod late_materialization;
 mod lazy_catalog;
+mod lookup_join;
+mod pg_catalog;
 mod scan_provider;
 mod session;
 mod text_search;
@@ -130,64 +135,93 @@ mod pinned_tests;
 /// hold, so an accidental unbounded query cannot build an unbounded
 /// in-memory Arrow result. Label reads stream and never count against it
 pub const MAX_SCAN_ROWS: usize = 100_000;
-/// Small execution-pool allowance for `DataFusion`'s planner/operator state.
-/// Retained result and Arrow-batch bytes are still checked against the exact
-/// caller budget below; without this allowance even a one-byte result budget
-/// fails while registering the schema before result admission runs.
+/// The least a statement holds of the shared SQL budget from admission on:
+/// planning and operator state before the first reservation. Admission
+/// refuses a statement with [`SqlError::Busy`] when even this does not fit.
 const DATAFUSION_PHASE_OVERHEAD: usize = 16 * 1024 * 1024;
+/// A statement's working set when `query-memory-max` is unset (0): SQL never
+/// runs unbounded.
+const DEFAULT_WORKING_SET: usize = 256 * 1024 * 1024;
 
-/// Wraps a [`datafusion::execution::memory_pool::GreedyMemoryPool`] (`DataFusion`'s
-/// own enforcement, unchanged — `try_grow` still rejects over the real
-/// `max_result_bytes` limit) while tracking the high-water mark of
-/// `reserved()` across the query's execution. `MemoryPool` itself exposes
-/// only the current `reserved()`, not a peak, so this is the minimal
-/// wrapper needed to make `DataFusion`'s *real* memory use observable
-/// (a measured number once a query has run, instead of a flat guess).
-#[derive(Debug)]
-struct PeakTrackingMemoryPool {
-    // `TrackConsumersPool` wrapping `GreedyMemoryPool` is exactly what
-    // `RuntimeEnvBuilder::with_memory_limit` built before this change (same
-    // top-5 "largest consumers" detail in a resource-exhausted error
-    // message); wrapping it here (instead of the other way around) keeps
-    // that error-message behavior while still letting this struct's own
-    // `Arc` handle be queried for `peak()` after the `RuntimeEnv` has taken
-    // ownership of it as a trait object.
+/// One statement's `DataFusion` memory pool. Every operator that buffers
+/// (sorts, aggregates, joins, `RushDB`'s own top-k and lookup joins) reserves
+/// here, and the pool enforces two bounds as it grows:
+///
+/// - the statement's cap (`query-memory-max`), through the inner
+///   [`GreedyMemoryPool`](datafusion::execution::memory_pool::GreedyMemoryPool)
+///   (refused as [`SqlError::MemoryLimit`]);
+/// - the store's shared SQL budget, charged live by the statement's
+///   reservation, so concurrent statements together stay within it
+///   (refused as [`SqlError::Busy`], retryable).
+struct StatementPool {
+    // `TrackConsumersPool` names the largest consumers in a refusal.
     inner: datafusion::execution::memory_pool::TrackConsumersPool<
         datafusion::execution::memory_pool::GreedyMemoryPool,
     >,
-    peak: std::sync::atomic::AtomicUsize,
+    /// The statement's charge on the shared SQL budget, kept at
+    /// `max(reserved, DATAFUSION_PHASE_OVERHEAD)`.
+    shared: Option<std::sync::Mutex<ByteReservation>>,
+    /// The size the shared budget refused, when it did.
+    shared_refused: std::sync::atomic::AtomicUsize,
 }
 
-impl PeakTrackingMemoryPool {
-    fn new(limit: usize) -> Self {
+impl StatementPool {
+    fn new(limit: usize, shared: Option<ByteReservation>) -> Self {
         Self {
             inner: datafusion::execution::memory_pool::TrackConsumersPool::new(
                 datafusion::execution::memory_pool::GreedyMemoryPool::new(limit),
                 std::num::NonZeroUsize::new(5).expect("5 is nonzero"),
             ),
-            peak: std::sync::atomic::AtomicUsize::new(0),
+            shared: shared.map(std::sync::Mutex::new),
+            shared_refused: std::sync::atomic::AtomicUsize::new(0),
         }
     }
 
-    fn peak(&self) -> usize {
-        self.peak.load(std::sync::atomic::Ordering::Relaxed)
+    /// Move the shared charge to what the pool holds now.
+    fn charge_shared(&self) -> Result<(), usize> {
+        let Some(shared) = &self.shared else {
+            return Ok(());
+        };
+        let wanted = self.inner.reserved().max(DATAFUSION_PHASE_OVERHEAD);
+        let mut shared = shared
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        if shared.bytes() == wanted {
+            return Ok(());
+        }
+        shared.resize(wanted).map_err(|_| wanted)
     }
 
-    fn observe(&self) {
-        self.peak
-            .fetch_max(self.inner.reserved(), std::sync::atomic::Ordering::Relaxed);
+    /// The size the shared budget refused this statement, if it did.
+    fn refused(&self) -> Option<usize> {
+        match self
+            .shared_refused
+            .load(std::sync::atomic::Ordering::Relaxed)
+        {
+            0 => None,
+            bytes => Some(bytes),
+        }
     }
 }
 
-impl std::fmt::Display for PeakTrackingMemoryPool {
+impl std::fmt::Debug for StatementPool {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("StatementPool")
+            .field("inner", &self.inner)
+            .field("shared", &self.shared.is_some())
+            .finish_non_exhaustive()
+    }
+}
+
+impl std::fmt::Display for StatementPool {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.inner)
     }
 }
 
-impl datafusion::execution::memory_pool::MemoryPool for PeakTrackingMemoryPool {
+impl datafusion::execution::memory_pool::MemoryPool for StatementPool {
     fn name(&self) -> &'static str {
-        "rushdb-peak-tracking"
+        "rushdb-statement"
     }
 
     fn register(&self, consumer: &datafusion::execution::memory_pool::MemoryConsumer) {
@@ -203,8 +237,13 @@ impl datafusion::execution::memory_pool::MemoryPool for PeakTrackingMemoryPool {
         reservation: &datafusion::execution::memory_pool::MemoryReservation,
         additional: usize,
     ) {
+        // The infallible path reports memory an operator already holds: the
+        // shared budget cannot refuse it, and any later `try_grow` of this
+        // statement is checked against the total including it.
         self.inner.grow(reservation, additional);
-        self.observe();
+        // Over the shared budget the charge stays where it was; the
+        // statement's next `try_grow` charges the whole total or is refused.
+        let _deferred = self.charge_shared();
     }
 
     fn shrink(
@@ -213,6 +252,9 @@ impl datafusion::execution::memory_pool::MemoryPool for PeakTrackingMemoryPool {
         shrink: usize,
     ) {
         self.inner.shrink(reservation, shrink);
+        // Releasing only fails while an infallible grow is still uncharged;
+        // the charge then stays where it was, as in `grow`.
+        let _released = self.charge_shared();
     }
 
     fn try_grow(
@@ -221,7 +263,16 @@ impl datafusion::execution::memory_pool::MemoryPool for PeakTrackingMemoryPool {
         additional: usize,
     ) -> datafusion::error::Result<()> {
         self.inner.try_grow(reservation, additional)?;
-        self.observe();
+        if let Err(wanted) = self.charge_shared() {
+            self.inner.shrink(reservation, additional);
+            self.shared_refused
+                .store(wanted, std::sync::atomic::Ordering::Relaxed);
+            return Err(datafusion::error::DataFusionError::ResourcesExhausted(
+                format!(
+                    "the shared SQL memory budget cannot hold {wanted} bytes for this statement"
+                ),
+            ));
+        }
         Ok(())
     }
 
@@ -262,9 +313,24 @@ pub enum SqlError {
     /// Publishing the computed delta to LMPG failed.
     #[error("SQL mutation failed to commit atomically: {0}")]
     Commit(String),
-    /// The snapshot exceeded the [`MAX_SCAN_ROWS`] safety limit.
-    #[error("SQL snapshot exceeds the {MAX_SCAN_ROWS} row safety limit: {0}")]
-    ResourceLimit(usize),
+    /// The result (or an eager mutation or relationship table) would hold
+    /// more than [`MAX_SCAN_ROWS`] rows.
+    #[error(
+        "SQL result exceeds the {MAX_SCAN_ROWS} row safety limit ({0} rows); add a LIMIT or narrow the query"
+    )]
+    RowLimit(usize),
+    /// The rows returned would exceed the response size limit (the
+    /// caller's result budget, in bytes).
+    #[error(
+        "response would exceed the response size limit ({0} bytes); raise --body-limit or add a LIMIT"
+    )]
+    ResultTooLarge(usize),
+    /// The SQL working memory shared by concurrent statements is in use;
+    /// the statement can be retried.
+    #[error(
+        "SQL working memory shared by concurrent statements is in use ({0} bytes requested); retry"
+    )]
+    Busy(usize),
     /// A filter without a usable index would check more records of a label
     /// than the unindexed-walk limit allows (SQL-2, QRY-3; like records
     /// reads).
@@ -350,6 +416,71 @@ pub enum SqlType {
     /// Type could not be mapped to a supported logical SQL type.
     Unknown,
 }
+
+impl SqlType {
+    /// The object id of the PostgreSQL type a value of this type is sent as.
+    #[must_use]
+    pub fn pg_oid(&self) -> u32 {
+        match self {
+            SqlType::Boolean => 16,
+            SqlType::Int16 | SqlType::UInt16 => 21,
+            SqlType::Int32 | SqlType::UInt32 => 23,
+            SqlType::Int64 | SqlType::UInt64 => 20,
+            SqlType::Float32 => 700,
+            SqlType::Float64 => 701,
+            SqlType::Utf8 => 25,
+            SqlType::Binary => 17,
+            SqlType::Date => 1082,
+            SqlType::Time => 1083,
+            SqlType::Timestamp => 1114,
+            SqlType::Json => 3802,
+            SqlType::Unknown => 705,
+        }
+    }
+
+    /// That type as `information_schema.columns.data_type` spells it.
+    #[must_use]
+    pub fn pg_data_type(&self) -> &'static str {
+        match self {
+            SqlType::Boolean => "boolean",
+            SqlType::Int16 | SqlType::UInt16 => "smallint",
+            SqlType::Int32 | SqlType::UInt32 => "integer",
+            SqlType::Int64 | SqlType::UInt64 => "bigint",
+            SqlType::Float32 => "real",
+            SqlType::Float64 => "double precision",
+            SqlType::Utf8 => "text",
+            SqlType::Binary => "bytea",
+            SqlType::Date => "date",
+            SqlType::Time => "time without time zone",
+            SqlType::Timestamp => "timestamp without time zone",
+            SqlType::Json => "jsonb",
+            SqlType::Unknown => "unknown",
+        }
+    }
+
+    /// That PostgreSQL type's name.
+    #[must_use]
+    pub fn pg_name(&self) -> &'static str {
+        match self {
+            SqlType::Boolean => "bool",
+            SqlType::Int16 | SqlType::UInt16 => "int2",
+            SqlType::Int32 | SqlType::UInt32 => "int4",
+            SqlType::Int64 | SqlType::UInt64 => "int8",
+            SqlType::Float32 => "float4",
+            SqlType::Float64 => "float8",
+            SqlType::Utf8 => "text",
+            SqlType::Binary => "bytea",
+            SqlType::Date => "date",
+            SqlType::Time => "time",
+            SqlType::Timestamp => "timestamp",
+            SqlType::Json => "jsonb",
+            SqlType::Unknown => "unknown",
+        }
+    }
+}
+
+/// The user a session runs as and every catalog object's owner.
+pub const SESSION_OWNER: &str = "rushdb";
 
 /// One result column described by [`describe_sql`].
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -641,7 +772,9 @@ async fn execute_read(
         return Err(SqlError::Cancelled);
     }
 
-    let mut context = context_in_view_visible(lmpg, &snapshot, max_result_bytes, text, visible)?;
+    let context = context_in_view_visible(lmpg, &snapshot, text, visible)?;
+    let compatible = pg_catalog::compatible(sql);
+    let sql = compatible.as_deref().unwrap_or(sql);
 
     let mut dataframe = context
         .context
@@ -676,21 +809,16 @@ async fn execute_read(
     let mut stream = dataframe
         .execute_stream()
         .await
-        .map_err(|error| map_stream_error(&error, max_result_bytes, memory_cap(lmpg)))?;
+        .map_err(|error| context.stream_error(&error))?;
     let mut rows = Vec::new();
     let mut retained_bytes = 0usize;
     while let Some(batch) = stream.next().await {
         if is_cancelled() {
             return Err(SqlError::Cancelled);
         }
-        let batch =
-            batch.map_err(|error| map_stream_error(&error, max_result_bytes, memory_cap(lmpg)))?;
+        let batch = batch.map_err(|error| context.stream_error(&error))?;
         append_batch_rows_with_budget(&batch, &mut rows, &mut retained_bytes, max_result_bytes)?;
     }
-    // Now that every batch is drained, DataFusion's own
-    // memory pool has reached its final peak for this query — resize the
-    // phase reservation to that real number instead of the flat estimate.
-    context.record_real_memory_peak();
     Ok(rows)
 }
 
@@ -798,6 +926,10 @@ fn scan_error(error: &datafusion::error::DataFusionError) -> Option<SqlError> {
     let datafusion::error::DataFusionError::External(inner) = error.find_root() else {
         return None;
     };
+    // RushDB's own operators (lookup joins, edge fetches) stop as SQL.
+    if matches!(inner.downcast_ref::<SqlError>(), Some(SqlError::Cancelled)) {
+        return Some(SqlError::Cancelled);
+    }
     match inner.downcast_ref::<rushdb_query::QueryError>()? {
         rushdb_query::QueryError::UnindexedWalk(message) => {
             Some(SqlError::UnindexedWalk(message.clone()))
@@ -807,11 +939,7 @@ fn scan_error(error: &datafusion::error::DataFusionError) -> Option<SqlError> {
     }
 }
 
-fn map_stream_error(
-    error: &datafusion::error::DataFusionError,
-    max_result_bytes: Option<usize>,
-    memory_cap: Option<usize>,
-) -> SqlError {
+fn map_stream_error(error: &datafusion::error::DataFusionError, cap: usize) -> SqlError {
     if let Some(stopped) = scan_error(error) {
         return stopped;
     }
@@ -822,28 +950,20 @@ fn map_stream_error(
         error.find_root(),
         datafusion::error::DataFusionError::ResourcesExhausted(_)
     ) {
-        // The pool is the tighter of the result budget and the memory cap.
-        match (max_result_bytes, memory_cap) {
-            (budget, Some(cap))
-                if budget.is_none_or(|budget| {
-                    cap < budget.saturating_add(DATAFUSION_PHASE_OVERHEAD)
-                }) =>
-            {
-                return SqlError::MemoryLimit(cap);
-            }
-            (Some(budget), _) => return SqlError::ResourceLimit(budget),
-            _ => {}
-        }
+        // The pool is the statement's working set: `query-memory-max`.
+        return SqlError::MemoryLimit(cap);
     }
     statement_error(error).unwrap_or(SqlError::Engine(message))
 }
 
-/// The working-memory cap of a statement run on `lmpg`: `query-memory-max`,
-/// tightened by the request.
-fn memory_cap(lmpg: &Lmpg) -> Option<usize> {
+/// The working-set cap of a statement run on `lmpg`: `query-memory-max`
+/// tightened by the request, or [`DEFAULT_WORKING_SET`] when unset.
+fn working_set_cap(lmpg: &Lmpg) -> usize {
     lmpg.limits()
         .query_memory_max_bytes()
-        .map(|bytes| usize::try_from(bytes).unwrap_or(usize::MAX))
+        .map_or(DEFAULT_WORKING_SET, |bytes| {
+            usize::try_from(bytes).unwrap_or(usize::MAX)
+        })
 }
 
 /// Execute one relational DML statement against an isolated `DataFusion`
@@ -931,7 +1051,12 @@ pub async fn execute_sql_mutation_async_in_view(
 ///
 /// Returns the same errors as [`execute_sql`].
 pub fn describe_sql(lmpg: &Lmpg, sql: &str) -> Result<SqlDescription, SqlError> {
-    block_on(describe_sql_async(lmpg, sql, None))
+    block_on(describe_sql_async(
+        lmpg,
+        sql,
+        None,
+        &CatalogAccess::default(),
+    ))
 }
 
 /// Describe parameter types for the supported atomic DML subset. Pgwire uses
@@ -960,7 +1085,7 @@ pub async fn describe_sql_mutation_async(
     let plan = dml::plan(sql)?;
     let snapshot = Arc::new(lmpg.store.read_view()?);
     dml::target_label(lmpg, &snapshot, &plan.target)?;
-    let context = context_in_view_with_budget(lmpg, &snapshot, None, text)?;
+    let context = context_in_view(lmpg, &snapshot, text)?;
     let dataframe = context
         .context
         .sql(&plan.query)
@@ -1013,7 +1138,9 @@ pub async fn describe_sql_mutation_async(
     })
 }
 
-/// Async form of [`describe_sql`], describing a statement without executing it.
+/// Async form of [`describe_sql`], describing a statement without executing
+/// it, over the catalog `visible` shows (under an enforced policy, a hidden
+/// table or column fails to describe exactly as it fails to run).
 ///
 /// # Errors
 ///
@@ -1022,9 +1149,13 @@ pub async fn describe_sql_async(
     lmpg: &Lmpg,
     sql: &str,
     text: Option<&Arc<TextIndexes>>,
+    visible: &CatalogAccess,
 ) -> Result<SqlDescription, SqlError> {
     validate_read_only(sql)?;
-    let context = context_for_lmpg(lmpg, text)?;
+    let snapshot = Arc::new(lmpg.store.read_view()?);
+    let context = context_in_view_visible(lmpg, &snapshot, text, visible)?.context;
+    let compatible = pg_catalog::compatible(sql);
+    let sql = compatible.as_deref().unwrap_or(sql);
     let dataframe = context
         .sql(sql)
         .await
@@ -1059,44 +1190,22 @@ pub async fn describe_sql_async(
     })
 }
 
-fn context_for_lmpg(
-    lmpg: &Lmpg,
-    text: Option<&Arc<TextIndexes>>,
-) -> Result<SessionContext, SqlError> {
-    let snapshot = Arc::new(lmpg.store.read_view()?);
-    Ok(context_in_view(lmpg, &snapshot, text)?.context)
-}
-
 struct DataFusionContext {
     context: SessionContext,
-    // Keeps the shared store-level phase reservation alive for the complete
-    // DataFusion query, including planning and stream execution. Resized to
-    // the real measured peak (`record_real_memory_peak`) once execution
-    // finishes, so a dropped-but-not-yet-resized reservation still charges
-    // the conservative flat estimate rather than nothing.
-    phase_reservation: Option<ByteReservation>,
-    // `DataFusion`'s real memory-pool peak for this query, when a budget
-    // was configured (`None` otherwise — an unbounded context has no
-    // `GreedyMemoryPool` to track).
-    peak_pool: Option<Arc<PeakTrackingMemoryPool>>,
+    /// The statement's pool: its working set and its charge on the shared
+    /// SQL budget, released when the context drops.
+    pool: Arc<StatementPool>,
+    /// The pool's cap, named by a [`SqlError::MemoryLimit`].
+    cap: usize,
 }
 
 impl DataFusionContext {
-    /// Resize the phase reservation to `DataFusion`'s real measured peak for
-    /// this query (follow-up), replacing the conservative
-    /// `DATAFUSION_PHASE_OVERHEAD` flat estimate the reservation started
-    /// with. Call once execution has fully drained the result stream — the
-    /// peak only reaches its final value once every operator has run.
-    /// Best-effort: a resize failure only means the budget's `peak` gauge
-    /// under-reports a query that already completed successfully, so it is
-    /// silently ignored rather than propagated.
-    fn record_real_memory_peak(&mut self) {
-        let (Some(reservation), Some(pool)) = (self.phase_reservation.as_mut(), &self.peak_pool)
-        else {
-            return;
-        };
-        let real = pool.peak().max(DATAFUSION_PHASE_OVERHEAD);
-        let _ = reservation.resize(real);
+    /// A failed stream as the [`SqlError`] that names its cause.
+    fn stream_error(&self, error: &datafusion::error::DataFusionError) -> SqlError {
+        match self.pool.refused() {
+            Some(bytes) => SqlError::Busy(bytes),
+            None => map_stream_error(error, self.cap),
+        }
     }
 }
 
@@ -1105,22 +1214,7 @@ fn context_in_view(
     snapshot: &Arc<ReadView>,
     text: Option<&Arc<TextIndexes>>,
 ) -> Result<DataFusionContext, SqlError> {
-    context_in_view_with_budget(lmpg, snapshot, None, text)
-}
-
-fn context_in_view_with_budget(
-    lmpg: &Lmpg,
-    snapshot: &Arc<ReadView>,
-    max_result_bytes: Option<usize>,
-    text: Option<&Arc<TextIndexes>>,
-) -> Result<DataFusionContext, SqlError> {
-    context_in_view_visible(
-        lmpg,
-        snapshot,
-        max_result_bytes,
-        text,
-        &CatalogAccess::default(),
-    )
+    context_in_view_visible(lmpg, snapshot, text, &CatalogAccess::default())
 }
 
 /// A statement context whose catalog shows only what `visible` allows
@@ -1129,15 +1223,16 @@ fn context_in_view_with_budget(
 fn context_in_view_visible(
     lmpg: &Lmpg,
     snapshot: &Arc<ReadView>,
-    max_result_bytes: Option<usize>,
     text: Option<&Arc<TextIndexes>>,
     visible: &CatalogAccess,
 ) -> Result<DataFusionContext, SqlError> {
     let config = SessionConfig::new()
-        .with_information_schema(true)
+        // `information_schema` is RushDB's own (`pg_catalog.rs`), with
+        // PostgreSQL's columns.
+        .with_information_schema(false)
         .with_target_partitions(1);
-    let (context, phase_reservation, peak_pool) =
-        session_context(&lmpg.store, config, max_result_bytes, memory_cap(lmpg))?;
+    let cap = working_set_cap(lmpg);
+    let (context, pool) = session_context(&lmpg.store, config, cap)?;
     // Lazy catalog: labels and edge types are materialized only when the
     // statement actually resolves them, instead of reconstructing the whole
     // tenant on every query.
@@ -1145,11 +1240,7 @@ fn context_in_view_visible(
     if !visible.enforced() {
         text_search::install(&context, lmpg, snapshot, text);
     }
-    Ok(DataFusionContext {
-        context,
-        phase_reservation,
-        peak_pool,
-    })
+    Ok(DataFusionContext { context, pool, cap })
 }
 
 #[cfg(test)]
@@ -1171,78 +1262,68 @@ fn register_lazy_catalog_visible(
     let catalog = context
         .catalog("datafusion")
         .ok_or_else(|| SqlError::Engine("DataFusion default catalog is unavailable".into()))?;
-    let labels = lazy_catalog::LazyLabelSchema::new(lmpg, Arc::clone(snapshot), visible.clone())?;
+    let labels: Arc<dyn datafusion::catalog::SchemaProvider> = Arc::new(
+        lazy_catalog::LazyLabelSchema::new(lmpg, Arc::clone(snapshot), visible.clone())?,
+    );
     catalog
-        .register_schema("public", Arc::new(labels))
+        .register_schema("public", Arc::clone(&labels))
         .map_err(|error| SqlError::Engine(error.to_string()))?;
-    let edges =
-        lazy_catalog::LazyRelationshipSchema::new(tenant, Arc::clone(snapshot), visible.clone());
+    let edges: Arc<dyn datafusion::catalog::SchemaProvider> =
+        Arc::new(lazy_catalog::LazyRelationshipSchema::new(
+            tenant,
+            Arc::clone(snapshot),
+            lmpg.limits(),
+            visible.clone(),
+        ));
     catalog
-        .register_schema("rushdb_edges", Arc::new(edges))
+        .register_schema("rushdb_edges", Arc::clone(&edges))
+        .map_err(|error| SqlError::Engine(error.to_string()))?;
+    // PostgreSQL clients list the same tables through `pg_catalog`.
+    pg_catalog::install(context, labels, edges)
         .map_err(|error| SqlError::Engine(error.to_string()))?;
     Ok(())
 }
 
-/// `(execution context, phase reservation, real-peak-tracking pool)` — the
-/// latter two are `None` together (unbounded context, nothing to track) or
-/// `Some` together (budgeted context).
-type SessionContextParts = (
-    SessionContext,
-    Option<ByteReservation>,
-    Option<Arc<PeakTrackingMemoryPool>>,
-);
-
 fn session_context(
     store: &rushdb_storage::Store,
     config: SessionConfig,
-    max_result_bytes: Option<usize>,
-    memory_cap: Option<usize>,
-) -> Result<SessionContextParts, SqlError> {
-    // A named child of the shared phase budget, so SQL's own
-    // `peak`/`used` is individually observable.
-    let phase_reservation = if let Some(limit) = max_result_bytes {
-        store
-            .sql_phase_budget()
-            .map(|budget| {
-                budget
-                    .try_reserve(DATAFUSION_PHASE_OVERHEAD)
-                    .map_err(|_| SqlError::ResourceLimit(limit))
-            })
-            .transpose()?
-    } else {
-        None
-    };
-    // The real admission gate: the result budget plus the phase overhead,
-    // and never more than the statement's memory cap.
-    let pool_limit = match (max_result_bytes, memory_cap) {
-        (Some(limit), cap) => {
-            let limit = limit.saturating_add(DATAFUSION_PHASE_OVERHEAD);
-            Some(cap.map_or(limit, |cap| cap.min(limit)))
-        }
-        (None, cap) => cap,
-    };
-    let (context, peak_pool) = if let Some(limit) = pool_limit {
-        // The pool additionally tracks its own high-water mark so the
-        // reservation above can later be resized to the real measured peak
-        // instead of staying at the flat overhead estimate.
-        let pool = Arc::new(PeakTrackingMemoryPool::new(limit));
-        let runtime = RuntimeEnvBuilder::new()
-            .with_memory_pool(
-                Arc::clone(&pool) as Arc<dyn datafusion::execution::memory_pool::MemoryPool>
-            )
-            .build()
-            .map_err(|error| SqlError::Engine(error.to_string()))?;
-        (
-            SessionContext::new_with_config_rt(config, Arc::new(runtime)),
-            Some(pool),
+    cap: usize,
+) -> Result<(SessionContext, Arc<StatementPool>), SqlError> {
+    // Admission: the statement's first charge on the shared SQL budget.
+    let shared = store
+        .sql_phase_budget()
+        .map(|budget| {
+            budget
+                .try_reserve(DATAFUSION_PHASE_OVERHEAD)
+                .map_err(|_| SqlError::Busy(DATAFUSION_PHASE_OVERHEAD))
+        })
+        .transpose()?;
+    let pool = Arc::new(StatementPool::new(cap, shared));
+    let runtime = RuntimeEnvBuilder::new()
+        .with_memory_pool(
+            Arc::clone(&pool) as Arc<dyn datafusion::execution::memory_pool::MemoryPool>
         )
-    } else {
-        (SessionContext::new_with_config(config), None)
-    };
+        .build()
+        .map_err(|error| SqlError::Engine(error.to_string()))?;
+    let context = SessionContext::new_with_config_rt(config, Arc::new(runtime));
+    // Joins on a RushDB table's lookup key fetch its rows by key instead of
+    // scanning it into a hash table, and inner-join chains are ordered from
+    // the smallest table outward (both from the store's exact counts).
+    let context = SessionContext::new_with_state(
+        datafusion::execution::SessionStateBuilder::new_from_existing(context.state())
+            .with_physical_optimizer_rule(Arc::new(lookup_join::LookupJoins))
+            .with_physical_optimizer_rule(Arc::new(distinct_topk::DistinctTopK))
+            .build(),
+    );
+    context.add_optimizer_rule(Arc::new(join_order::JoinOrder));
+    // A top-k reads the columns it orders and deduplicates by; the rest of a
+    // label's columns are fetched by id for the rows it returns.
+    context.add_optimizer_rule(Arc::new(late_materialization::LateMaterialization));
+    context.add_optimizer_rule(Arc::new(late_materialization::DistinctKeys));
     // Q-10: register the overflow-checked integer SUM (built-in SUM(Int64)
     // wraps). Installed on every execution context so no query path misses it.
     checked_sum::install(&context);
-    Ok((context, phase_reservation, peak_pool))
+    Ok((context, pool))
 }
 
 fn parameter_order(name: &str) -> (u8, u64, &str) {
@@ -1279,7 +1360,7 @@ fn bind_parameters(
     }
 }
 
-fn sql_type_from_arrow(data_type: &DataType) -> SqlType {
+pub(crate) fn sql_type_from_arrow(data_type: &DataType) -> SqlType {
     match data_type {
         DataType::Boolean => SqlType::Boolean,
         DataType::Int8 | DataType::Int16 => SqlType::Int16,
@@ -1521,17 +1602,9 @@ fn append_batch_rows_with_budget(
     max_result_bytes: Option<usize>,
 ) -> Result<(), SqlError> {
     if rows.len().saturating_add(batch.num_rows()) > MAX_SCAN_ROWS {
-        return Err(SqlError::ResourceLimit(
+        return Err(SqlError::RowLimit(
             rows.len().saturating_add(batch.num_rows()),
         ));
-    }
-    if let Some(limit) = max_result_bytes {
-        let transient = batch.get_array_memory_size();
-        if transient > limit.saturating_sub(*retained_bytes) {
-            return Err(SqlError::ResourceLimit(
-                retained_bytes.saturating_add(transient),
-            ));
-        }
     }
     let mut buffer = Vec::new();
     {
@@ -1548,7 +1621,7 @@ fn append_batch_rows_with_budget(
     if let Some(limit) = max_result_bytes {
         *retained_bytes = retained_bytes.saturating_add(buffer.len());
         if *retained_bytes > limit {
-            return Err(SqlError::ResourceLimit(*retained_bytes));
+            return Err(SqlError::ResultTooLarge(limit));
         }
     }
     let values: Vec<Json> =

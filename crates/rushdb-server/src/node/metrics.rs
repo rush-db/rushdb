@@ -64,6 +64,7 @@ pub struct Metrics {
     log_rows_pruned: prometheus::IntGauge,
     receipts_swept: prometheus::IntGauge,
     compactions_total: prometheus::IntCounter,
+    derived_inconsistencies: prometheus::IntCounterVec,
     work: prometheus::IntCounterVec,
     boot_phase: prometheus::HistogramVec,
     maintenance_step: prometheus::HistogramVec,
@@ -565,6 +566,14 @@ impl Metrics {
             "Cumulative completed storage compactions",
         )
         .expect("valid Prometheus metric");
+        let derived_inconsistencies = prometheus::IntCounterVec::new(
+            prometheus::Opts::new(
+                "rushdb_derived_inconsistency_total",
+                "Derived rows a read found disagreeing with their base rows (each repaired by a re-derive)",
+            ),
+            &["kind"],
+        )
+        .expect("valid Prometheus metric");
         let work = prometheus::IntCounterVec::new(
             prometheus::Opts::new(
                 "rushdb_operation_work_total",
@@ -652,6 +661,7 @@ impl Metrics {
             Box::new(log_rows_pruned.clone()),
             Box::new(receipts_swept.clone()),
             Box::new(compactions_total.clone()),
+            Box::new(derived_inconsistencies.clone()),
             Box::new(work.clone()),
             Box::new(boot_phase.clone()),
             Box::new(maintenance_step.clone()),
@@ -722,6 +732,7 @@ impl Metrics {
             log_rows_pruned,
             receipts_swept,
             compactions_total,
+            derived_inconsistencies,
             work,
             boot_phase,
             maintenance_step,
@@ -845,6 +856,12 @@ impl Metrics {
             &self.compactions_total,
             compactions.min(i64::MAX as u64) as i64,
         );
+        for (kind, count) in rushdb_storage::Store::derived_health(store).reported() {
+            advance(
+                &self.derived_inconsistencies.with_label_values(&[kind]),
+                count.min(i64::MAX as u64) as i64,
+            );
+        }
         self.observe_records(records, per_tenant);
         // Approximate bytes stored (redb map bytes), node-wide.
         let (map_bytes, _) = store.approximate_map_bytes();

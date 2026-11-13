@@ -147,12 +147,11 @@ pub fn bind_router_with_listener(
 }
 
 impl HttpRouter {
-    /// The store this router serves, while the node is alive (tests of what
-    /// observes storage state, such as readiness during a compaction).
-    #[doc(hidden)]
+    /// The node this router serves, without keeping it alive: once every
+    /// holder lets go the store closes, which [`node_released`] waits for.
     #[must_use]
-    pub fn store(&self) -> Option<Arc<rushdb_storage::Store>> {
-        self.node.upgrade().map(|node| node.store())
+    pub fn node(&self) -> std::sync::Weak<Node> {
+        self.node.clone()
     }
 
     /// Return the shared stop signal for all transports and maintenance work.
@@ -389,6 +388,18 @@ impl HttpRouter {
     }
 }
 
+/// Wait until nothing holds `node` any more (requests and transports have
+/// let go, and the last holder's drop closed the store), or `deadline`
+/// passes. Returns how many holders remain (`0` once released).
+#[must_use]
+pub fn node_released(node: &std::sync::Weak<Node>, deadline: std::time::Duration) -> usize {
+    let until = std::time::Instant::now() + deadline;
+    while node.strong_count() > 0 && std::time::Instant::now() < until {
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+    node.strong_count()
+}
+
 pub(crate) fn spawn_transaction_reaper(
     node: std::sync::Weak<Node>,
     period: std::time::Duration,
@@ -537,6 +548,10 @@ pub(crate) fn spawn_gc_worker(
                     }
                 }
                 let step = node.observe_maintenance_step("vector_slots", step);
+                // SELF-HEAL: repair labels whose derived rows a read found
+                // disagreeing with their base rows.
+                node.heal_derived();
+                let step = node.observe_maintenance_step("self_heal", step);
                 // The periodic checkpoint is the only point at which redb's
                 // materialization becomes durable (commits are WAL-fsynced and
                 // applied to redb with `Durability::None`), and the sole
@@ -681,8 +696,13 @@ pub(crate) fn spawn_memory_watchdog(
                         limit_bytes = rss_max_bytes,
                         "resident memory over watchdog limit; reclaiming"
                     );
-                    let _ = store.expire_read_pins(node.read_lease_ms());
-                    let _ = store.gc_tick(512);
+                    let released = store.expire_read_pins(node.read_lease_ms());
+                    if released > 0 {
+                        tracing::warn!(released, "watchdog expired read leases");
+                    }
+                    if let Err(error) = store.gc_tick(512) {
+                        tracing::warn!(%error, "watchdog history GC tick failed");
+                    }
                     watchdog_compact(&store, quiesce, max_file_bytes);
                 })
                 .await;
@@ -737,7 +757,15 @@ pub(crate) fn spawn_wal_archiver(
                 .maintenance_work()
                 .clone()
                 .spawn(move || {
-                    let archived = archive_node.archive_wal(&dir)?;
+                    // A segment at a time until caught up, or the store shuts
+                    // down.
+                    let mut archived = None;
+                    while !archive_node.store().maintenance_aborted() {
+                        match archive_node.archive_wal(&dir)? {
+                            Some(lsn) => archived = Some(lsn),
+                            None => break,
+                        }
+                    }
                     // Archive retention, after the new segment landed.
                     let pruned = crate::archive::prune_archive(
                         &dir,
@@ -1081,10 +1109,18 @@ async fn replication_wal_tail(
             &serde_json::json!({"error":"follower_id is required"}),
         );
     }
-    let since: u64 = params
-        .get("since")
-        .and_then(|value| value.parse().ok())
-        .unwrap_or(1);
+    // No `since` starts at the first commit; a malformed one is refused, not
+    // read as a resync from the beginning.
+    let since: u64 = match params.get("since").map(|value| value.parse()) {
+        None => 1,
+        Some(Ok(since)) => since,
+        Some(Err(_)) => {
+            return json(
+                StatusCode::BAD_REQUEST,
+                &serde_json::json!({"error":"since must be a commit index"}),
+            );
+        }
+    };
     match crate::replication::build_wal_tail_response(&state.node, follower_id, since) {
         Ok(response) => json(
             StatusCode::OK,
@@ -1208,7 +1244,15 @@ async fn backup_base_online(
             &serde_json::json!({"error":"out is required"}),
         );
     };
-    let out = std::path::PathBuf::from(out);
+    let out = match backup_target(state.cfg.data_dir.as_deref(), out) {
+        Ok(out) => out,
+        Err(error) => {
+            return json(
+                StatusCode::BAD_REQUEST,
+                &serde_json::json!({ "error": error }),
+            )
+        }
+    };
     let node = Arc::clone(&state.node);
     let result = node
         .maintenance_work()
@@ -1229,6 +1273,44 @@ async fn backup_base_online(
             &serde_json::json!({ "error": error.to_string() }),
         ),
     }
+}
+
+/// Where an online base backup named by `out` is written: inside the data
+/// directory's `backups` folder (a name, or a path within it), never
+/// anywhere else the server could write.
+fn backup_target(
+    data_dir: Option<&std::path::Path>,
+    out: &str,
+) -> Result<std::path::PathBuf, String> {
+    let data_dir = data_dir.ok_or("an in-memory server has no backups folder")?;
+    let root = data_dir.join("backups");
+    std::fs::create_dir_all(&root).map_err(|error| format!("backups folder: {error}"))?;
+    let root = root
+        .canonicalize()
+        .map_err(|error| format!("backups folder: {error}"))?;
+    let out = std::path::Path::new(out);
+    if out
+        .components()
+        .any(|part| matches!(part, std::path::Component::ParentDir))
+    {
+        return Err("out must not contain `..`".into());
+    }
+    let target = if out.is_absolute() {
+        out.to_path_buf()
+    } else {
+        root.join(out)
+    };
+    let parent = target
+        .parent()
+        .and_then(|parent| parent.canonicalize().ok())
+        .ok_or("out's folder must exist")?;
+    if !parent.starts_with(&root) || target.file_name().is_none() {
+        return Err(format!(
+            "out must be inside the backups folder `{}`",
+            root.display()
+        ));
+    }
+    Ok(parent.join(target.file_name().unwrap_or_default()))
 }
 
 async fn replication_promote(State(state): State<AppState>, headers: HeaderMap) -> Response {
@@ -1307,6 +1389,13 @@ async fn execute(
             ));
         }
         Some(value.to_string())
+    } else if !header(&headers, "x-rushdb-tenant").trim().is_empty() {
+        // One keyspace: a scope is refused, as on gRPC and Bolt, rather
+        // than silently served from the only tenant.
+        return coded_error(&rushdb_protocol::ProtocolError::new(
+            rushdb_protocol::ErrorCode::ScopeMismatch,
+            "tenant scope must be omitted in single-tenant mode",
+        ));
     } else {
         None
     };
@@ -1942,6 +2031,32 @@ mod p11_tests {
         let _ = worker.await;
         drop(node);
         std::fs::remove_dir_all(data_dir).unwrap();
+    }
+
+    #[test]
+    fn a_backup_is_written_inside_the_backups_folder_only() {
+        let dir = rushdb_storage::TempPath::dir("backup-target");
+        std::fs::create_dir_all(&dir).unwrap();
+        let root = dir.join("backups").canonicalize().ok();
+        assert!(root.is_none(), "created on first use");
+        let named = backup_target(Some(&dir), "base-1").unwrap();
+        let root = dir.join("backups").canonicalize().unwrap();
+        assert_eq!(named, root.join("base-1"));
+        let inside = root.join("base-2");
+        assert_eq!(
+            backup_target(Some(&dir), inside.to_str().unwrap()).unwrap(),
+            inside
+        );
+        for out in [
+            "/etc/rushdb",
+            "../escape",
+            "base/../../escape",
+            "missing/base",
+        ] {
+            assert!(backup_target(Some(&dir), out).is_err(), "{out}");
+        }
+        assert!(backup_target(None, "base").is_err());
+        std::fs::remove_dir_all(dir).unwrap();
     }
 
     #[test]

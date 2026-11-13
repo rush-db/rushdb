@@ -75,11 +75,13 @@ How archive retention works:
 ### 2. Take a base backup
 
 Take a base from the running server with the operator endpoint (boot
-token). The server writes the base to `out` on its own filesystem:
+token). The server writes the base into the `backups` folder of its data
+directory: `out` is a name there, or a path inside it (anything else,
+including `..`, is refused with 400). Move the base off the host from there:
 
 ```bash
 curl -s -X POST -H "Authorization: Bearer $RUSHDB_TOKEN" \
-  "http://127.0.0.1:3000/internal/backup/base?out=/srv/rushdb-backups/base-2026-10-10"
+  "http://127.0.0.1:3000/internal/backup/base?out=base-2026-10-10"
 ```
 
 ```json
@@ -242,12 +244,12 @@ record or relationship), `records`, and `relationships`.
 | Check | Command |
 |---|---|
 | Base backup integrity | `rushdb serve --verify-base <BASE_DIR>` |
-| Logical integrity of a data directory (server stopped) | `rushdb serve --data-dir <DIR> --verify` → `verify: no violations` |
 | Restored commit index | `curl -s http://127.0.0.1:3000/ready` → `commitIndex` |
 | Record counts | `describe` operations, or `$count` queries, compared with the source |
 
 Schedule regular restore drills: restore the latest base plus archive into a
-scratch directory, run `--verify`, start a server on it, and compare counts.
+scratch directory, run `--verify-base` on the base, start a server on it, and
+compare counts.
 
 ## Example schedule
 

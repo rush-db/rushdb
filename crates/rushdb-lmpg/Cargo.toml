@@ -21,5 +21,13 @@ serde_json = { workspace = true }
 uuid = { workspace = true }
 thiserror = { workspace = true }
 
+[features]
+# The scrubber: the tests' oracle of derived state, not shipped.
+test-support = []
+
+[dev-dependencies]
+rushdb-storage = { workspace = true, features = ["test-support"] }
+rushdb-lmpg = { path = ".", features = ["test-support"] }
+
 [lints]
 workspace = true

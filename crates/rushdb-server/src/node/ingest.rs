@@ -17,26 +17,6 @@ impl RequestScope<'_> {
         import::import_document(&self.lmpg(), label, doc).map_err(|e| e.to_reason())
     }
 
-    /// Import newline-delimited JSON documents under `label`.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error message when the operation fails.
-    pub fn import_jsonl_bytes(
-        &self,
-        label: &str,
-        bytes: &[u8],
-    ) -> Result<Vec<rushdb_lmpg::RecordRef>, String> {
-        let text = std::str::from_utf8(bytes).map_err(|error| error.to_string())?;
-        let mut records = Vec::new();
-        for line in text.lines().filter(|line| !line.trim().is_empty()) {
-            let doc: serde_json::Value =
-                serde_json::from_str(line).map_err(|error| error.to_string())?;
-            records.push(self.import_json_document(label, &doc)?);
-        }
-        Ok(records)
-    }
-
     // ---- native document ingest -----------------------------------------
 
     /// Ingest schema-free nested documents with explicit merge semantics and

@@ -744,19 +744,6 @@ impl<'a> Planner<'a> {
         self.preconditions.push(pc);
     }
 
-    /// Reads every value under `prefix` from the transaction overlay.
-    ///
-    /// # Errors
-    /// Returns [`PlanError::Storage`] if the range scan fails.
-    pub fn txn_values_under(&self, prefix: &[u8]) -> Result<Vec<Vec<u8>>, PlanError> {
-        Ok(self
-            .txn
-            .range_prefix(prefix)?
-            .into_iter()
-            .map(|(_, v)| v)
-            .collect())
-    }
-
     /// Stages deletion of a relationship header found during cascade planning.
     pub fn txn_stage_rel_header_delete(
         &mut self,
@@ -833,6 +820,8 @@ fn sort_key(m: &Mutation) -> String {
         Mutation::IndexApplied { index, .. } => format!("z|index-applied|{index:010}"),
         Mutation::DeleteRawKey { key } => format!("z|repair-delete|{key:?}"),
         Mutation::PutRawKey { key, .. } => format!("z|repair-put|{key:?}"),
+        Mutation::RederiveLabel { label } => format!("z|rederive|{label}"),
+        Mutation::MarkSuspect { label } => format!("z|suspect|{label}"),
     }
 }
 

@@ -462,6 +462,14 @@ pub fn expand_commit(ci: u64, batch: &CommitBatch, txn: &mut Txn) -> Result<(), 
                 }
                 txn.del(key.clone());
             }
+            Mutation::MarkSuspect { label } => {
+                txn.put(rushdb_types::keys::rederive_key(t, label), Vec::new());
+            }
+            Mutation::RederiveLabel { label } => {
+                // Deleting the (never stored) marker is the base op the
+                // deriver recomputes the label from.
+                txn.del(rushdb_types::keys::rederive_key(t, label));
+            }
             Mutation::PutRawKey { key, value } => {
                 if !key.starts_with(&rushdb_types::keys::key(t, &[])) {
                     return Err(StorageError::Builder(
@@ -754,15 +762,6 @@ fn adj_del(
 
 fn ensure_counter(txn: &mut Txn, t: TenantId, name: &str, next: u64) -> Result<(), StorageError> {
     txn.set_watermark(meta_counter_key(t, name), next)
-}
-
-/// Prefixes `bytes` with its length as a big-endian `u64`, producing a
-/// self-delimiting encoding for composite keys.
-#[must_use]
-pub fn len_prefixed(bytes: &[u8]) -> Vec<u8> {
-    let mut out = u64be(bytes.len() as u64).to_vec();
-    out.extend_from_slice(bytes);
-    out
 }
 
 /// Resolve a record's primary label by ordinal, if the record exists.

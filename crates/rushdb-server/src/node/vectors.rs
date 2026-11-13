@@ -750,6 +750,7 @@ impl RequestScope<'_> {
     /// # Errors
     ///
     /// Returns an error message when the operation fails.
+    #[cfg(test)]
     pub fn search_vectors(
         &self,
         query: &rushdb_protocol::VectorQuery,

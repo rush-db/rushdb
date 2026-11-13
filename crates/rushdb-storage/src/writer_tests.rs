@@ -267,7 +267,10 @@ fn actual_write_summaries_detect_conflicts_without_reexpansion() {
         Ok(CommitOutcome::Conflicted(_))
     ));
     assert_eq!(expansions.load(Ordering::SeqCst), 1);
-    assert_eq!(store.outcome_for(next), Some(OutcomeKind::Aborted));
+    assert_eq!(
+        store.try_outcome_for(next).unwrap(),
+        Some(OutcomeKind::Aborted)
+    );
 }
 
 #[test]
@@ -412,7 +415,10 @@ fn replicated_apply_cannot_overwrite_a_terminal_abort() {
     let key = Uuid::new_v4();
     store.record_aborted_outcome(key).unwrap();
     assert!(store.apply_replicated_batch(&batch(key)).is_err());
-    assert_eq!(store.outcome_for(key), Some(OutcomeKind::Aborted));
+    assert_eq!(
+        store.try_outcome_for(key).unwrap(),
+        Some(OutcomeKind::Aborted)
+    );
     assert_eq!(store.committed_version(), 0);
 }
 
@@ -869,4 +875,19 @@ fn the_conflict_window_is_charged_to_the_managed_budget() {
         store.resource_budget().snapshot().used >= before + window,
         "the window's bytes are part of the managed budget"
     );
+}
+
+#[test]
+fn a_store_is_quiet_once_no_commit_has_landed_for_the_window() {
+    let store = Store::new_in_memory();
+    assert!(store.quiet_for(Duration::from_secs(3600)), "no commit yet");
+    store.set_expander(Arc::new(Box::new(|_, _, txn| {
+        txn.put(b"k".to_vec(), vec![1]);
+        Ok(())
+    })));
+    store
+        .commit(Uuid::new_v4(), |_, _| Ok((batch(Uuid::new_v4()), ())))
+        .unwrap();
+    assert!(!store.quiet_for(Duration::from_secs(3600)));
+    assert!(store.quiet_for(Duration::ZERO));
 }

@@ -170,28 +170,6 @@ impl<'a> Transaction<'a> {
     }
 }
 
-/// Idempotency surface documented in the plan: transaction/commit tokens
-/// never carry authority; outcomes are discovered by commit key.
-pub enum KnownOutcome {
-    /// The commit key is durably recorded at the given commit index.
-    Committed(u64),
-    /// The commit key has no durable outcome and the request is retryable.
-    NeverProposed,
-}
-
-/// Look up the durable outcome for `commit_key` without consuming any
-/// coordinator state or staging quota.
-#[must_use]
-pub fn discover_outcome(
-    store: &std::sync::Arc<rushdb_storage::Store>,
-    commit_key: Uuid,
-) -> KnownOutcome {
-    match store.committed_index_for(commit_key) {
-        Some(ci) => KnownOutcome::Committed(ci),
-        None => KnownOutcome::NeverProposed,
-    }
-}
-
 mod coordinator;
 mod staging;
 pub use coordinator::{TransactionLimits, TxCoordinator, TxOutcome, TxStatus};

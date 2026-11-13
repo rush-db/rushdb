@@ -1807,7 +1807,9 @@ impl RedbBackend {
         if !self.live_reads.is_drained() {
             return Err(crate::backend::COMPACT_BUSY.into());
         }
-        while db.compact().map_err(|e| e.to_string())? {}
+        // Each pass is one bounded step of redb's compaction; a shutdown
+        // stops between steps (the file stays valid, just less compact).
+        while !self.abort.load(Ordering::Relaxed) && db.compact().map_err(|e| e.to_string())? {}
         Ok(())
     }
 }

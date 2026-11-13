@@ -266,3 +266,52 @@ fn policy_and_enforcement_survive_redb_restart() {
 
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn a_batch_cannot_touch_what_the_policy_denies() {
+    // SEC-1: a batch (bulk delete, SQL DML, ingest) is authorized like the
+    // single-record writes: deleting or updating a denied label's record,
+    // or deleting a denied relationship, is refused at commit.
+    let (store, tenant) = memory();
+    let lmpg = Lmpg::new(store.clone(), tenant);
+    let note = lmpg.create_record("Note", None, vec![]).unwrap();
+    let a = lmpg.create_record("Episode", None, vec![]).unwrap();
+    let b = lmpg.create_record("Episode", None, vec![]).unwrap();
+    let link = lmpg
+        .create_relationship("SECRET_LINK", a, b, vec![])
+        .unwrap();
+    lmpg.set_authorizer(Arc::new(ActiveAuthorizer::new(store, tenant)));
+    store_policy(
+        &lmpg,
+        &policy_allow_episode(),
+        AuthorizationMode::PolicyEnforced,
+    )
+    .unwrap();
+    let batch = |op: BatchOp| {
+        let mut tx = lmpg.begin_batch();
+        tx.ops.push(op);
+        lmpg.run_batch(tx)
+    };
+    for op in [
+        BatchOp::DeleteRecord { record: note },
+        BatchOp::UpdateFields {
+            owner: rushdb_types::ids::OwnerKind::Record,
+            owner_ord: note.ordinal,
+            owner_public_id: note.record_id,
+            fields: vec![("body".into(), FieldChange::Set(json!("x")))],
+        },
+        BatchOp::DeleteRelationship { rel: link },
+    ] {
+        let Err(err) = batch(op) else {
+            panic!("a denied batch op committed");
+        };
+        assert!(
+            err.to_reason().contains("not authorized") || err.to_reason().contains("denied"),
+            "{err:?}"
+        );
+    }
+    assert_eq!(count_label(&lmpg, "Note"), 1);
+    // The allowed label's records still change.
+    batch(BatchOp::DeleteRecord { record: a }).unwrap();
+    assert_eq!(count_label(&lmpg, "Episode"), 1);
+}

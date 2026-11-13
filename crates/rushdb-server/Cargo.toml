@@ -78,6 +78,8 @@ libc = "0.2"
 tempfile = { workspace = true }
 
 [dev-dependencies]
+rushdb-storage = { workspace = true, features = ["test-support"] }
+rushdb-lmpg = { workspace = true, features = ["test-support"] }
 redb = "4.2.0"
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "sync"] }
 tokio-postgres = "0.7"

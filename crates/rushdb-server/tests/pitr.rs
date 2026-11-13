@@ -6,6 +6,14 @@ use rushdb_server::archive;
 use rushdb_server::{Node, ServerConfig};
 use serde_json::json;
 
+/// Invariant violations of the node's tenant: its derived rows against a
+/// from-scratch derivation of its base rows.
+fn violations(node: &Node) -> usize {
+    let lmpg = rushdb_server::RequestScope::new(node, None).lmpg();
+    let view = lmpg.store.read_view().unwrap();
+    rushdb_lmpg::scrub::scrub(&view, lmpg.tenant).unwrap().len()
+}
+
 fn config(dir: &std::path::Path) -> ServerConfig {
     ServerConfig {
         data_dir: Some(dir.to_path_buf()),
@@ -77,9 +85,9 @@ fn base_backup_plus_archived_wal_restores_to_a_point_in_time() {
         let ci = node.restore_pitr_to(&mut stream, Some(30), None).unwrap();
         assert_eq!(ci, 60);
         // G2: the live replay derives every commit's counters, presence and
-        // dictionary rows; `verify` compares them with a from-scratch
+        // dictionary rows; the scrubber compares them with a from-scratch
         // derivation of the restored base rows.
-        assert_eq!(node.verify().unwrap(), 0, "restored graph is consistent");
+        assert_eq!(violations(&node), 0, "restored graph is consistent");
         assert_eq!(snapshot_bytes(&node), snap60, "state matches source at 60");
     }
 
@@ -92,7 +100,7 @@ fn base_backup_plus_archived_wal_restores_to_a_point_in_time() {
             .restore_pitr_to(&mut stream, Some(30), Some(45))
             .unwrap();
         assert_eq!(ci, 45);
-        assert_eq!(node.verify().unwrap(), 0, "derived rows exact at 45");
+        assert_eq!(violations(&node), 0, "derived rows exact at 45");
         assert_eq!(snapshot_bytes(&node), snap45, "state matches source at 45");
     }
 
@@ -159,11 +167,7 @@ fn online_backup_under_concurrent_writes_restores_consistently() {
     archive::restore_base_into(&base_dir, &restored_dir).unwrap();
     let restored = Node::bootstrap(&mut config(&restored_dir)).unwrap();
     assert_eq!(restored.committed_version(), manifest.commit_index);
-    assert_eq!(
-        restored.verify().unwrap(),
-        0,
-        "restored graph is consistent"
-    );
+    assert_eq!(violations(&restored), 0, "restored graph is consistent");
 
     // Not just "looks ok": byte-identical to the source's own state at
     // exactly the commit index the backup pinned.
@@ -345,12 +349,12 @@ fn operators_can_take_a_base_backup_of_a_running_server() {
     std::thread::spawn(move || {
         let _ = router.serve_forever();
     });
-    let base = root.join("base");
+    // Written into the data directory's `backups` folder, by name.
+    let base = data.join("backups").join("base");
     let mut stream = std::net::TcpStream::connect(("127.0.0.1", port)).unwrap();
     write!(
         stream,
-        "POST /internal/backup/base?out={} HTTP/1.1\r\nHost: x\r\nX-RushDB-Token: operator-token\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
-        base.display()
+        "POST /internal/backup/base?out=base HTTP/1.1\r\nHost: x\r\nX-RushDB-Token: operator-token\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
     )
     .unwrap();
     let mut reply = String::new();

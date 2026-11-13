@@ -205,9 +205,9 @@ The layout has invariants that every commit must preserve: every
 occurrence has a live owner and a known pid, label membership matches the
 record headers, the public-id index matches the headers, adjacency is
 symmetric, and every derived row equals what derivation from scratch would
-produce. `rushdb serve --data-dir <dir> --verify` runs the scrubber over every
-tenant offline and reports the number of violations (zero on a healthy
-store).
+produce. The test suite's scrubber checks all of them against a from-scratch
+derivation; a running server checks derived rows as it reads them and
+repairs what disagrees (see [Derived state](derived-state.md#exact-by-construction-repaired-when-not)).
 
 ## See also
 

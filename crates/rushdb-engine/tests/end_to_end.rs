@@ -439,15 +439,12 @@ fn idempotent_outcome_discovery_via_commit_key() {
     let _committed_ordinal = simulate_commit_with_key(&lmpg, key).expect("keyed commit");
 
     assert!(matches!(
-        rushdb_tx::discover_outcome(&engine.store, key),
-        rushdb_tx::KnownOutcome::Committed(_)
+        engine.store.try_outcome_for(key).unwrap(),
+        Some(rushdb_storage::OutcomeKind::Committed(_))
     ));
 
-    // Unknown key reports never-proposed rather than guessing success.
-    assert!(matches!(
-        rushdb_tx::discover_outcome(&engine.store, Uuid::now_v7()),
-        rushdb_tx::KnownOutcome::NeverProposed
-    ));
+    // An unknown key has no outcome rather than a guessed success.
+    assert_eq!(engine.store.try_outcome_for(Uuid::now_v7()).unwrap(), None);
     let _ = IsolationMode::Snapshot;
     let _: Result<(), PlanError> = Ok(());
 }

@@ -217,7 +217,7 @@ curl -s http://127.0.0.1:3000/protocol/v1/execute \
 | `predicate` | The predicate as submitted. |
 | `scanEstimate` | Exact number of records carrying the requested labels (from label counters). `0` when `labels` is empty. |
 | `estimatedCardinality` | Exact match count of the most selective equality / `$in` / `$id` leaf, counted under the requested labels (all labels when `labels` is empty). Omitted when no such leaf exists. Never an estimate. |
-| `orderPath` | How an ordered page is read when a source already in the requested order reaches it in fewer reads than reading every candidate (see [Ordered pages](#ordered-pages)): `source` (`storage`, `id`, `property` or `index`), `reverseWalk` (read from the far end and reversed), `estimatedReads`, and `predicateFirstReads` (reading every candidate). Omitted when every candidate is read. |
+| `orderPath` | How an ordered page is read when a source already in the requested order reaches it in fewer reads than reading every candidate (see [Ordered pages](#ordered-pages)): `source` (`storage`, `id`, `property` or `index`), `reverseWalk` (read from the far end and reversed), `estimatedReads`, and `predicateFirstReads` (reading every candidate). Omitted when every candidate is read. Explain plans it from counters and never reads the matches, so it is reported for pages without `where` or relationship filters; a filtered page's choice rests on its exact match count, known only by reading the matches, and is omitted. |
 | `rangeSelectivityEstimate` | Approximate fraction (`0.0`–`1.0`) of the property's values satisfying the first range leaf, from the histogram. Omitted when there is no range leaf or no numeric data. Always approximate. |
 | `limit`, `offset` | Paging as submitted. |
 

@@ -450,7 +450,9 @@ fn catalog_count_total(
     if req.where_.is_some() || !req.related.is_empty() || !req.order_by.is_empty() {
         return Ok(None);
     }
-    if req.labels.len() != 1 {
+    if req.labels.len() != 1
+        || rushdb_lmpg::heal::untrusted(snap.as_ref(), lmpg.tenant, &req.labels)
+    {
         return Ok(None);
     }
     // The on-disk label counter is exact and snapshot-consistent (DC1/DC12).

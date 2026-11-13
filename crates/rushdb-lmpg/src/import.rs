@@ -83,21 +83,6 @@ pub fn import_document_with_cancel(
     Ok(record_ref)
 }
 
-/// Transactional form of [`import_document`]. All records, child records and
-/// relationships are staged in the supplied accumulator and become visible
-/// only when the caller commits it.
-///
-/// # Errors
-/// Returns [`LmpgError`] when planning or authorization fails.
-pub fn import_document_tx(
-    lmpg: &Lmpg,
-    label: &str,
-    doc: &Json,
-    tx: &mut rushdb_storage::TxAccumulator,
-) -> Result<RecordRef, LmpgError> {
-    import_document_tx_with_cancel(lmpg, label, doc, tx, &|| false)
-}
-
 /// Transactional document import with cooperative cancellation checks.
 ///
 /// All mutations remain in `tx`; cancellation therefore discards the whole
@@ -209,19 +194,6 @@ pub fn import_jsonl(
         out.push(import_document(lmpg, label, &doc)?);
     }
     Ok(out)
-}
-
-/// Alias of [`import_jsonl`] for newline-delimited JSON input.
-///
-/// # Errors
-/// Returns [`LmpgError::Conflict`] if a line cannot be read or parsed, or any
-/// document write fails.
-pub fn import_ndjson(
-    lmpg: &Lmpg,
-    label: &str,
-    input: impl std::io::Read,
-) -> Result<Vec<RecordRef>, LmpgError> {
-    import_jsonl(lmpg, label, input)
 }
 
 /// Merge/upsert resolution (document 21): when a document carries `__id`

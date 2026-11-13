@@ -397,6 +397,12 @@ pub const F_INDEX_PENDING: u8 = 0x17;
 /// every live row under the tenant prefix except this one), maintained by the
 /// storage backend in the batch that changes them.
 pub const F_USAGE_BYTES: u8 = 0x18;
+/// Family: one label's suspect marker (SELF-HEAL). Stored, it records that
+/// the label's derived rows were found disagreeing with its base rows (so a
+/// restart keeps answering it from base rows); deleting it tells the
+/// deriver to recompute the label's derived rows from its base rows, on
+/// every node that applies the commit.
+pub const F_REDERIVE: u8 = 0x19;
 
 /// Coarse family name of any store key, for accounting and diagnostics:
 /// tenant families by their family byte, legacy segment keys by their first
@@ -776,6 +782,74 @@ pub fn parse_presence_key(key: &[u8]) -> Option<(OwnerKind, &str, u64, u8, u64)>
     let nullness = *key.get(pos)?;
     let owner = read_ord_tail(key, pos + 1)?;
     Some((kind, label, pid, nullness, owner))
+}
+
+/// Prefix of every suspect marker of `tenant`.
+#[must_use]
+pub fn rederive_prefix(tenant: TenantId) -> Vec<u8> {
+    typed(tenant, F_REDERIVE, 0)
+}
+
+/// `label`'s suspect marker; deleting it re-derives the label's record rows.
+#[must_use]
+pub fn rederive_key(tenant: TenantId, label: &str) -> Vec<u8> {
+    let mut out = typed(tenant, F_REDERIVE, 2 + label.len());
+    push_str(&mut out, label);
+    out
+}
+
+/// The label of a [`rederive_key`].
+#[must_use]
+pub fn parse_rederive_key(key: &[u8]) -> Option<(TenantId, &str)> {
+    if key.get(TENANT_PREFIX_LEN) != Some(&F_REDERIVE) {
+        return None;
+    }
+    let tenant = parse_tenant(key)?;
+    let (label, end) = read_str(key, TENANT_PREFIX_LEN + 1)?;
+    (end == key.len()).then_some((tenant, label))
+}
+
+/// Prefix of every presence row of `(kind, label)`.
+#[must_use]
+pub fn presence_label_prefix(tenant: TenantId, kind: OwnerKind, label: &str) -> Vec<u8> {
+    let mut out = typed(tenant, F_PRESENCE, 1 + 2 + label.len());
+    out.push(kind.as_byte());
+    push_str(&mut out, label);
+    out
+}
+
+/// Prefix of every dictionary entry of `(kind, label)`.
+#[must_use]
+pub fn value_dict_label_prefix(tenant: TenantId, kind: OwnerKind, label: &str) -> Vec<u8> {
+    let mut out = typed(tenant, F_VALUE_DICT, 1 + 2 + label.len());
+    out.push(kind.as_byte());
+    push_str(&mut out, label);
+    out
+}
+
+/// `(pid, value)` of a dictionary key under [`value_dict_label_prefix`].
+#[must_use]
+pub fn parse_value_dict_key<'a>(key: &'a [u8], label_prefix: &[u8]) -> Option<(u64, &'a [u8])> {
+    let pos = label_prefix.len();
+    key.starts_with(label_prefix).then_some(())?;
+    let (pid, pos) = read_ord(key, pos)?;
+    Some((pid, &key[pos..]))
+}
+
+/// Prefix of every long-value counter of `(kind, label)`.
+#[must_use]
+pub fn long_value_label_prefix(tenant: TenantId, kind: OwnerKind, label: &str) -> Vec<u8> {
+    let mut out = counter(tenant, C_LONG_VALUE, 1 + 2 + label.len());
+    out.push(kind.as_byte());
+    push_str(&mut out, label);
+    out
+}
+
+/// The pid of a long-value key under [`long_value_label_prefix`].
+#[must_use]
+pub fn parse_long_value_pid(key: &[u8], label_prefix: &[u8]) -> Option<u64> {
+    let pid = key.strip_prefix(label_prefix)?.get(..8)?;
+    Some(u64::from_be_bytes(pid.try_into().ok()?))
 }
 
 /// `VALUE_DICT`: refcount of one `(tag || payload)` value of `(kind, label, pid)`.

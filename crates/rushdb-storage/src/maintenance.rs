@@ -33,6 +33,8 @@ pub enum CompactOutcome {
     ReadersPinned,
     /// The store has no file (in-memory).
     NotDurable,
+    /// The store is shutting down: no compaction starts.
+    ShuttingDown,
     /// The file is over the automatic compaction's size cap: rewriting it
     /// would hold every request for minutes. Compact it offline
     /// (`rushdb serve --compact`).
@@ -59,13 +61,24 @@ impl Store {
         }
     }
 
-    /// Signal a shutdown: in-flight maintenance scans stop within a batch so
-    /// the store can be dropped (and redb closed cleanly) promptly.
+    /// Signal a shutdown: in-flight maintenance scans stop within a batch and
+    /// every open read view is cancelled (its reads fail with
+    /// [`StorageError::Cancelled`]), so the work holding the store ends and it
+    /// can be dropped (and redb closed cleanly) promptly.
     pub fn begin_shutdown(&self) {
         self.maintenance_abort.store(true, Ordering::Relaxed);
         for backend in self.all_backends() {
             backend.begin_shutdown();
         }
+        self.cancel_reads();
+    }
+
+    /// Whether no commit has landed for `quiet` (or none since start).
+    #[must_use]
+    pub fn quiet_for(&self, quiet: std::time::Duration) -> bool {
+        let last = self.last_commit_ms.load(Ordering::Relaxed);
+        let quiet_ms = u64::try_from(quiet.as_millis()).unwrap_or(u64::MAX);
+        last == 0 || wal::now_ms().saturating_sub(last) >= quiet_ms
     }
 
     /// Whether [`Self::begin_shutdown`] has been called.
@@ -277,6 +290,9 @@ impl Store {
         max_file_bytes: Option<u64>,
     ) -> Result<CompactOutcome, StorageError> {
         self.check_health()?;
+        if self.maintenance_aborted() {
+            return Ok(CompactOutcome::ShuttingDown);
+        }
         let now = wal::now_ms();
         let quiesce_ms = u64::try_from(quiesce.as_millis()).unwrap_or(u64::MAX);
         let last_commit = self.last_commit_ms.load(Ordering::Relaxed);
@@ -305,6 +321,9 @@ impl Store {
         }
         let deadline = std::time::Instant::now() + COMPACT_BUSY_RETRY;
         let compacted = loop {
+            if self.maintenance_aborted() {
+                return Ok(CompactOutcome::ShuttingDown);
+            }
             let attempt = self.compact_if_idle();
             let reader_open = match &attempt {
                 Ok(None) => true,

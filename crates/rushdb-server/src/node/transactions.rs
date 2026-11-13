@@ -10,6 +10,7 @@ impl RequestScope<'_> {
     /// # Errors
     ///
     /// Returns an error message when the operation fails.
+    #[cfg(test)]
     pub fn tx_begin(&self) -> Result<String, String> {
         self.tx_begin_with(None, false)
     }

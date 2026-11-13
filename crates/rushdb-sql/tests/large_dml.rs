@@ -142,7 +142,10 @@ fn dml_write_set_is_charged_to_the_request_budget() {
         None,
     )
     .expect_err("100 planned writes exceed 2,000 bytes");
-    assert!(matches!(error, SqlError::ResourceLimit(_)), "{error:?}");
+    assert!(
+        matches!(error, SqlError::ResultTooLarge(2_000)),
+        "{error:?}"
+    );
     assert_eq!(lmpg.store.committed_version(), version);
 }
 
