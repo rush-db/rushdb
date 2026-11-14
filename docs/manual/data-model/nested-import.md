@@ -143,7 +143,7 @@ cautions:
 
 | Option | Type | Default | Effect |
 |---|---|---|---|
-| `suggestTypes` | boolean | `true` | Store ISO date/datetime strings as datetimes. With `false`, every value is stored as text. |
+| `suggestTypes` | boolean | `true` | Store ISO date/datetime strings as datetimes. With `false`, strings stay text; numbers, booleans and arrays keep their JSON types. |
 | `convertNumericValuesToNumbers` | boolean | `false` | With `suggestTypes`, store numeric strings (`"42"`) as numbers. |
 | `skipEmptyValues` | boolean | `false` | Do not store empty strings; drop empty strings from arrays. |
 | `capitalizeLabels` | boolean | `false` | Upper-case every label. |

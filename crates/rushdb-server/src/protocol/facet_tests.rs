@@ -267,6 +267,45 @@ fn facets_agree_with_the_records_response() {
 }
 
 #[test]
+fn a_one_label_filtered_facet_reads_no_record_headers_of_its_own() {
+    // READ-2: every match of a query naming one label is of that label, so
+    // label counts and property stats add no record-header read per match;
+    // the only ones left are the matcher's, one per match.
+    let node = seeded_node();
+    let query = document(&["Person"], &json!({"city": {"$in": ["Oslo", "Riga"]}}));
+    let expected = oracle(&node, &query);
+    let header_reads = |check: &dyn Fn()| -> u64 {
+        rushdb_storage::read_accounting::enable(true);
+        let _ = rushdb_storage::read_accounting::take_local();
+        check();
+        rushdb_storage::read_accounting::take_local()
+            .iter()
+            .filter(|((_, family), _)| family == "record-header")
+            .map(|(_, count)| count)
+            .sum()
+    };
+    let matching = header_reads(&|| {
+        run(
+            &node,
+            Operation::Query {
+                query: Query::Records {
+                    query: query.clone(),
+                },
+            },
+        );
+    });
+    assert_eq!(matching, 3, "the matcher reads one header per match");
+    assert_eq!(
+        header_reads(&|| check_labels(&node, &query, &expected)),
+        matching
+    );
+    assert_eq!(
+        header_reads(&|| check_properties(&node, &query, &expected)),
+        matching
+    );
+}
+
+#[test]
 fn value_facets_honour_the_property_mask() {
     let mut cfg = super::tests::config(false);
     let node = Node::bootstrap(&mut cfg).unwrap();

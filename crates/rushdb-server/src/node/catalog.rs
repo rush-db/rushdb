@@ -1147,7 +1147,13 @@ impl RequestScope<'_> {
                 &resolved
             };
             (
-                self.facet_property_stats(view.as_ref(), ords, &described, is_cancelled)?,
+                self.facet_property_stats(
+                    view.as_ref(),
+                    ords,
+                    &described,
+                    super::only_label(&parsed.search.labels),
+                    is_cancelled,
+                )?,
                 None,
             )
         };

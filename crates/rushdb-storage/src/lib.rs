@@ -91,17 +91,13 @@ use rushdb_types::ids::TenantId;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use std::cell::RefCell;
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::ops::Bound::{Included, Unbounded};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::mpsc;
 use std::sync::{Arc, Condvar, Mutex, RwLock};
 use thiserror::Error;
 use uuid::Uuid;
-
-/// Per-tenant outer admission shards, retained for replication call ordering.
-/// Local expansion additionally takes the single logical writer mutex.
-const N_SHARDS: usize = 64;
 
 /// A fully-admitted op-set awaiting batched durable publication, keyed by
 /// its reserved commit index. The publisher drains the contiguous prefix from
@@ -292,6 +288,14 @@ pub enum Op {
 }
 
 impl Op {
+    /// The key this op writes.
+    #[must_use]
+    pub fn key(&self) -> &[u8] {
+        match self {
+            Op::Put(k, _) | Op::Set(k, _) | Op::Del(k) | Op::Purge(k) => k,
+        }
+    }
+
     /// Approximate encoded size (key + value bytes) for group-commit byte
     /// accounting (P04 bounded writer).
     #[must_use]
@@ -654,8 +658,10 @@ pub struct Store {
     publisher_failure: Mutex<Option<StorageError>>,
     #[cfg(test)]
     fail_next_persist: std::sync::atomic::AtomicBool,
-    /// Per-tenant outer admission shards (replication planning order).
-    shards: Vec<Mutex<()>>,
+    /// One outer lock per tenant (and one for commits with no tenant): a
+    /// tenant's commits plan in order (replication planning order), and
+    /// different tenants never wait on each other's lock.
+    tenant_locks: Mutex<HashMap<Option<TenantId>, Arc<Mutex<()>>>>,
     /// Serializes durable persist + in-memory publish in commit-index order.
     publish_lock: Mutex<()>,
     /// FIFO gate in front of `admission_lock` (see `fair_gate`).
@@ -845,7 +851,7 @@ impl Store {
             publisher_failure: Mutex::new(None),
             #[cfg(test)]
             fail_next_persist: std::sync::atomic::AtomicBool::new(false),
-            shards: (0..N_SHARDS).map(|_| Mutex::new(())).collect(),
+            tenant_locks: Mutex::new(HashMap::new()),
             publish_lock: Mutex::new(()),
             admission_queue: fair_gate::FairGate::default(),
             conflicts: Mutex::new(conflicts),
@@ -938,23 +944,10 @@ impl Store {
         (current, hist)
     }
 
-    /// Shard index for a tenant; commits without a tenant use shard 0.
-    #[expect(
-        clippy::cast_possible_truncation,
-        reason = "the hash is immediately reduced modulo N_SHARDS, so truncating its high bits cannot change routing correctness"
-    )]
-    fn shard_for(tenant: Option<&TenantId>) -> usize {
-        match tenant {
-            Some(t) => {
-                let mut h = 2_166_136_261u64;
-                for b in &t.to_be_bytes() {
-                    h ^= u64::from(*b);
-                    h = h.wrapping_mul(16_777_619);
-                }
-                (h as usize) % N_SHARDS
-            }
-            None => 0,
-        }
+    /// The outer lock of `tenant`'s commits.
+    fn tenant_lock(&self, tenant: Option<&TenantId>) -> Result<Arc<Mutex<()>>, StorageError> {
+        let mut locks = self.health.guard(self.tenant_locks.lock())?;
+        Ok(Arc::clone(locks.entry(tenant.copied()).or_default()))
     }
 
     /// Open a crash-safe redb-backed store. The materialized keyspace and
@@ -1164,31 +1157,48 @@ impl Store {
         })
     }
 
-    /// Acquire the admission lock, honoring the configured acquisition timeout.
-    /// A bounded wait turns unbounded writer queueing into a retryable
-    /// `resource exhausted` instead of an unbounded stall (config #4).
-    fn acquire_admission(&self) -> Result<std::sync::MutexGuard<'_, SequencerState>, StorageError> {
+    /// Acquire the admission lock for a commit of `lane` (its tenant, or
+    /// `None` for a store-wide commit), honoring the configured acquisition
+    /// timeout. Waiting writers are admitted round robin across tenants and
+    /// in arrival order within one ([`fair_gate`]). A bounded wait turns
+    /// unbounded writer queueing into a retryable `resource exhausted`
+    /// instead of an unbounded stall (config #4).
+    fn acquire_admission(
+        &self,
+        lane: fair_gate::Lane,
+    ) -> Result<std::sync::MutexGuard<'_, SequencerState>, StorageError> {
         self.check_health()?;
         let timeout_ms = self.resource_config().lock_acquisition_timeout_ms;
         if timeout_ms == 0 {
-            // FIFO: the turn is held until the mutex is acquired, so waiting
-            // writers acquire admission in arrival order (no starvation).
-            let _turn = self.admission_queue.enter();
+            // The turn is held until the mutex is acquired, so only the
+            // admitted writer ever waits on the mutex itself.
+            let _turn = self.admission_queue.enter(lane);
             return self.health.guard(self.admission_lock.lock());
         }
         let started = std::time::Instant::now();
-        let deadline = std::time::Instant::now() + std::time::Duration::from_millis(timeout_ms);
+        let deadline = started + std::time::Duration::from_millis(timeout_ms);
+        let record_wait = || {
+            let waited = started.elapsed();
+            if waited > std::time::Duration::ZERO {
+                self.admission_waits.fetch_add(1, Ordering::Relaxed);
+                self.admission_wait_ms.fetch_add(
+                    u64::try_from(waited.as_millis()).unwrap_or(u64::MAX),
+                    Ordering::Relaxed,
+                );
+            }
+        };
+        let timed_out = || {
+            record_wait();
+            StorageError::ResourceExhausted("admission lock acquisition timed out".into())
+        };
+        let Some(_turn) = self.admission_queue.enter_until(lane, Some(deadline)) else {
+            return Err(timed_out());
+        };
+        // With the turn, the only contender is the writer still admitted.
         loop {
             match self.admission_lock.try_lock() {
                 Ok(guard) => {
-                    let waited = started.elapsed();
-                    if waited > std::time::Duration::ZERO {
-                        self.admission_waits.fetch_add(1, Ordering::Relaxed);
-                        self.admission_wait_ms.fetch_add(
-                            u64::try_from(waited.as_millis()).unwrap_or(u64::MAX),
-                            Ordering::Relaxed,
-                        );
-                    }
+                    record_wait();
                     return Ok(guard);
                 }
                 Err(std::sync::TryLockError::Poisoned(poisoned)) => {
@@ -1198,15 +1208,7 @@ impl Store {
                 }
                 Err(std::sync::TryLockError::WouldBlock) => {
                     if std::time::Instant::now() >= deadline {
-                        let waited = started.elapsed();
-                        self.admission_waits.fetch_add(1, Ordering::Relaxed);
-                        self.admission_wait_ms.fetch_add(
-                            u64::try_from(waited.as_millis()).unwrap_or(u64::MAX),
-                            Ordering::Relaxed,
-                        );
-                        return Err(StorageError::ResourceExhausted(
-                            "admission lock acquisition timed out".into(),
-                        ));
+                        return Err(timed_out());
                     }
                     std::thread::sleep(std::time::Duration::from_millis(1));
                 }
@@ -1259,7 +1261,10 @@ impl Store {
             || self.replicator.is_poisoned()
             || self.gc_cursor.is_poisoned()
             || self.data_path.is_poisoned()
-            || self.shards.iter().any(Mutex::is_poisoned)
+            || self
+                .tenant_locks
+                .lock()
+                .map_or(true, |locks| locks.values().any(|lock| lock.is_poisoned()))
         {
             self.health.fence();
         }
@@ -1355,7 +1360,7 @@ impl Store {
     /// Lock poisoning fences the store until reopen.
     pub fn record_aborted_outcome(&self, commit_key: Uuid) -> Result<(), StorageError> {
         self.check_health()?;
-        let _admission = self.acquire_admission()?;
+        let _admission = self.acquire_admission(None)?;
         self.record_aborted_outcome_admitted(commit_key)
     }
 
@@ -1995,7 +2000,8 @@ impl Store {
         payload: Option<&[u8]>,
     ) -> Result<u64, StorageError> {
         self.check_health()?;
-        let _admission = self.acquire_admission()?;
+        // Replicated batches keep the leader's order: no tenant lanes.
+        let _admission = self.acquire_admission(None)?;
         self.check_publisher()?;
         if let Some((OutcomeStatus::Committed, commit_index)) =
             self.lookup_outcome_checked(batch.commit_key)?

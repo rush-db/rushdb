@@ -4,6 +4,44 @@ This project follows [Semantic Versioning](https://semver.org/). Release notes
 describe observable engine and protocol changes; migration instructions belong
 in [`docs/manual/operations/upgrading-from-2x.md`](docs/manual/operations/upgrading-from-2x.md).
 
+## 3.0.11 — Unreleased
+
+### Changed
+
+- **Tenants are admitted fairly beside a bulk load.** Before admission a
+  commit now takes its own tenant's lock instead of one of 64 locks shared by
+  hashing, so a tenant never waits behind another tenant's commits there.
+  Admission itself hands turns round robin across tenants (first come first
+  served within one) instead of in arrival order, so a tenant writing one
+  record waits for at most one turn of each busy tenant. With a timeout
+  (`lock-timeout-ms`) the wait goes through the same gate. Each tenant's own
+  commits keep their order, and commit indices stay one contiguous sequence.
+- **Large vector index builds use several cores.** A build of 50,000 vectors
+  or more (a cold build, a large merge) inserts into the graph from as many
+  threads as `threads` allows: 200,000 vectors of 128 dimensions built in
+  13 s instead of 60 s on 20 threads. Smaller builds stay single-threaded and
+  bit-identical; a parallel build's graph differs slightly, and every
+  candidate is still reranked against its f32 vector, so scores never change.
+- **Indexed filters stay cached across unrelated commits.** The owner set an
+  indexed filter resolves to was dropped by any commit in the store. It is
+  now kept until a commit writes one of the indexes it read, so other
+  tenants' writes and writes to other properties no longer force it to be
+  read again.
+- **Filtered describes and label counts read less.** When a query names one
+  label, label counts and per-property statistics no longer read each
+  match's record header, and per-property statistics over large match sets
+  are computed in parallel parts.
+- **`suggestTypes: false` keeps JSON types.** Turning type inference off now
+  only stops strings being read as dates or numbers: JSON numbers, booleans
+  and uniform arrays keep their types (`42` stays a number). It used to
+  store every value as text.
+
+### Fixed
+
+- **A filter on a reserved name is refused.** `{"__id": ...}` (or any
+  `__`-prefixed key) in a `where` matched nothing, silently; it is now
+  `invalid_request`, pointing to `$id` for record ids.
+
 ## 3.0.10 — 2026-11-13
 
 ### Added

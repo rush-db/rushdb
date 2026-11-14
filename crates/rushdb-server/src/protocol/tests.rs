@@ -7186,7 +7186,7 @@ fn creating_over_an_existing_id_is_a_conflict() {
 }
 
 #[test]
-fn property_values_are_scalars_and_inference_off_keeps_arrays_element_wise() {
+fn property_values_are_scalars_and_inference_off_keeps_json_types() {
     let node = Node::bootstrap(&mut config(false)).unwrap();
     let put = |properties: serde_json::Value, options: serde_json::Value| {
         ProtocolExecutor::new(&node, None).execute(RequestEnvelope {
@@ -7213,21 +7213,26 @@ fn property_values_are_scalars_and_inference_off_keeps_arrays_element_wise() {
         assert_eq!(error.code, ErrorCode::InvalidRequest, "{nested}: {error:?}");
         assert!(error.message.contains("holds an object"), "{error:?}");
     }
+    // Inference reads strings only: turning it off keeps a date-like string
+    // as text and leaves every JSON number, boolean and array typed.
     let stored = put(
-        serde_json::json!({ "scores": [1, 2], "flag": true, "n": 42 }),
+        serde_json::json!({
+            "scores": [1, 2], "flag": true, "n": 42, "x": 1.5, "code": "2024-05-01"
+        }),
         serde_json::json!({ "suggestTypes": false }),
     )
     .unwrap();
     let Response::Record { record } = stored.response else {
         panic!("expected a record")
     };
-    assert_eq!(
-        record["properties"]["scores"],
-        serde_json::json!(["1", "2"]),
-        "{record}"
-    );
-    assert_eq!(record["properties"]["flag"], "true");
-    assert_eq!(record["properties"]["n"], "42");
+    let properties = &record["properties"];
+    assert_eq!(properties["scores"], serde_json::json!([1, 2]), "{record}");
+    assert_eq!(properties["flag"], true);
+    assert_eq!(properties["n"], 42);
+    assert_eq!(properties["x"], 1.5);
+    assert_eq!(properties["code"], "2024-05-01");
+    assert_eq!(record["propertyTypes"]["code"], "string", "{record}");
+    assert_eq!(record["propertyTypes"]["n"], "number", "{record}");
 }
 
 #[test]

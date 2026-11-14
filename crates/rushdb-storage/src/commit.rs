@@ -138,7 +138,7 @@ impl Store {
         F: FnOnce(u64, &mut Txn) -> Result<(CommitBatch, P), String>,
     {
         self.check_health()?;
-        self.commit_sharded(0, None, commit_key, None, build)
+        self.commit_sharded(None, commit_key, None, build)
     }
 
     /// Tenant-aware autocommit. Outer shards preserve per-tenant replication
@@ -158,8 +158,7 @@ impl Store {
         F: FnOnce(u64, &mut Txn) -> Result<(CommitBatch, P), String>,
     {
         self.check_health()?;
-        let shard = Store::shard_for(Some(tenant));
-        self.commit_sharded(shard, Some(tenant), commit_key, None, build)
+        self.commit_sharded(Some(tenant), commit_key, None, build)
     }
 
     /// Tenant-aware autocommit of a batch planned at an earlier snapshot: it
@@ -184,14 +183,7 @@ impl Store {
         F: FnOnce(u64, &mut Txn) -> Result<(CommitBatch, P), String>,
     {
         self.check_health()?;
-        let shard = Store::shard_for(Some(tenant));
-        self.commit_sharded(
-            shard,
-            Some(tenant),
-            commit_key,
-            Some((snapshot_ci, deps)),
-            build,
-        )
+        self.commit_sharded(Some(tenant), commit_key, Some((snapshot_ci, deps)), build)
     }
 
     /// The first commit after `snapshot_ci` that wrote a key `deps` covers:
@@ -231,7 +223,6 @@ impl Store {
     )]
     pub(super) fn commit_sharded<P, F>(
         &self,
-        shard: usize,
         routed_tenant: Option<&TenantId>,
         commit_key: Uuid,
         since: Option<(u64, &DependencySet)>,
@@ -242,7 +233,8 @@ impl Store {
         F: FnOnce(u64, &mut Txn) -> Result<(CommitBatch, P), String>,
     {
         self.check_health()?;
-        let shard_guard = self.health.guard(self.shards[shard].lock())?;
+        let tenant_lock = self.tenant_lock(routed_tenant)?;
+        let shard_guard = self.health.guard(tenant_lock.lock())?;
         // Replication re-enters through apply_replicated_batch; do not hold
         // this mutex across the replication call. Local writes hold it through
         // planning + expansion + enqueue, then release it before the durability
@@ -251,7 +243,9 @@ impl Store {
         let replicator = self.replicator();
         let admission_started = std::time::Instant::now();
         let mut admission = if replicator.is_none() {
-            Some(self.acquire_admission()?)
+            Some(self.acquire_admission(
+                routed_tenant.map(|tenant| crate::fair_gate::tenant_lane(*tenant)),
+            )?)
         } else {
             None
         };
@@ -647,7 +641,7 @@ impl Store {
         F: FnOnce(&mut Txn) -> Result<(CommitBatch, P), String>,
     {
         self.check_health()?;
-        let mut admission = self.acquire_admission()?;
+        let mut admission = self.acquire_admission(None)?;
         self.check_publisher()?;
         if let Some((status, prev_ci)) = self.lookup_outcome_checked(commit_key)? {
             return match status {
@@ -1015,7 +1009,7 @@ impl Store {
         // there exactly as in the autocommit path (holding it across the
         // synchronous replication call would deadlock the state-machine apply).
         let mut admission = if replicator.is_none() {
-            Some(self.acquire_admission()?)
+            Some(self.acquire_admission(Some(crate::fair_gate::tenant_lane(tx.tenant)))?)
         } else {
             None
         };

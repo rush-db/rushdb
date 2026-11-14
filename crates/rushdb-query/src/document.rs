@@ -74,8 +74,20 @@ fn is_op_key(k: &str) -> bool {
 }
 
 /// A `$`-prefixed key that is not an operator is a typo (`$regx`), never a
-/// label or field name: refuse it instead of matching nothing.
+/// label or field name: refuse it instead of matching nothing. So is a
+/// `__`-prefixed key: no property or label can carry a reserved name, and
+/// `__id` in particular is the record id, filtered with `$id`.
 fn reject_unknown_operators(key: &str, value: &Json) -> Result<(), QueryDocumentError> {
+    if rushdb_types::value::is_reserved_name(key) {
+        let hint = if key == "__id" {
+            "; filter by record id with `$id`"
+        } else {
+            ""
+        };
+        return Err(QueryDocumentError::Parse(format!(
+            "`{key}` is a reserved name, not a property or label{hint}"
+        )));
+    }
     let unknown = std::iter::once(key)
         .chain(
             value

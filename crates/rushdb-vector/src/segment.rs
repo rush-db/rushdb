@@ -271,12 +271,25 @@ const BUILD_PART_VECTORS: usize = 1024;
 /// memory to one chunk of decoded vectors.
 const BUILD_CHUNK_VECTORS: usize = 8 * BUILD_PART_VECTORS;
 
+/// Builds of at least this many vectors insert into the graph from several
+/// threads (VEC-4). A 1M-vector space took ~20 minutes of one core.
+pub(crate) const PARALLEL_INSERT_MIN: usize = 50_000;
+
 /// Builds a `usearch` index over `len` vectors, `vector_at(i)` being the
 /// vector of key `i`. Vectors are read and decoded in parts on the shared
 /// thread budget ([`rushdb_storage::parallel`]), one bounded chunk ahead of
 /// the inserts, so a caller decoding from storage never holds the f32
-/// corpus; the inserts run in key order, so two builds of the same vectors
-/// are the same graph.
+/// corpus.
+///
+/// Below [`PARALLEL_INSERT_MIN`] vectors the inserts run on one thread in
+/// key order, so two builds of the same vectors are the same graph. A larger
+/// build inserts its first chunk on one thread and the rest from as many
+/// threads as the budget lends, each part adding its own decoded vectors.
+/// Inserts from several threads link a slightly different, slightly worse
+/// graph (recall@10 at ef 128 on clustered 384-d data: 0.996-0.999 against
+/// 1.000); keys stay entry positions, and every candidate is reranked
+/// against its canonical f32 vector, so only the gathered candidates can
+/// differ, never a returned score.
 fn build_index<V, F>(
     len: usize,
     vector_at: F,
@@ -287,30 +300,62 @@ where
     V: AsRef<[f32]> + Send,
     F: Fn(usize) -> Result<V, VectorError> + Sync,
 {
+    build_index_with(len, vector_at, dims, similarity, PARALLEL_INSERT_MIN)
+}
+
+fn build_index_with<V, F>(
+    len: usize,
+    vector_at: F,
+    dims: u32,
+    similarity: Similarity,
+    parallel_min: usize,
+) -> Result<usearch::Index, VectorError>
+where
+    V: AsRef<[f32]> + Send,
+    F: Fn(usize) -> Result<V, VectorError> + Sync,
+{
+    let engine = |e: &dyn std::fmt::Display| VectorError::Engine(e.to_string());
+    let parallel = len >= parallel_min && rushdb_storage::parallel::budget() > 0;
+    // Concurrent inserts are at most the parts the budget runs at once.
+    let threads = if parallel {
+        rushdb_storage::parallel::budget() + 1
+    } else {
+        1
+    };
     let options = usearch_options(dims, similarity);
-    let index = usearch::Index::new(&options).map_err(|e| VectorError::Engine(e.to_string()))?;
+    let index = usearch::Index::new(&options).map_err(|e| engine(&e))?;
     index
-        .reserve_capacity_and_threads(len.max(1), 1)
-        .map_err(|e| VectorError::Engine(e.to_string()))?;
-    // Reading and decoding the vectors runs in parallel parts; the graph
-    // inserts run on one thread in key order. Inserts from several threads
-    // link a measurably worse graph (recall@10 at ef 128 on clustered 384-d
-    // data: 0.996-0.999 against 1.000), and one order makes every build of
-    // the same vectors the same graph.
+        .reserve_capacity_and_threads(len.max(1), threads)
+        .map_err(|e| engine(&e))?;
     let mut start = 0;
     while start < len {
         let end = (start + BUILD_CHUNK_VECTORS).min(len);
         let parts = (end - start).div_ceil(BUILD_PART_VECTORS);
-        let decoded = rushdb_storage::parallel::run_parts(parts, |at| {
+        let part_range = |at: usize| {
             let from = start + at * BUILD_PART_VECTORS;
-            (from..(from + BUILD_PART_VECTORS).min(end))
-                .map(&vector_at)
-                .collect::<Result<Vec<V>, VectorError>>()
-        })?;
-        for (key, vector) in (start..).zip(decoded.into_iter().flatten()) {
-            index
-                .add(key as u64, vector.as_ref())
-                .map_err(|e| VectorError::Engine(e.to_string()))?;
+            from..(from + BUILD_PART_VECTORS).min(end)
+        };
+        if parallel && start > 0 {
+            rushdb_storage::parallel::run_parts(parts, |at| {
+                for key in part_range(at) {
+                    let vector = vector_at(key)?;
+                    index
+                        .add(key as u64, vector.as_ref())
+                        .map_err(|e| engine(&e))?;
+                }
+                Ok::<(), VectorError>(())
+            })?;
+        } else {
+            let decoded = rushdb_storage::parallel::run_parts(parts, |at| {
+                part_range(at)
+                    .map(&vector_at)
+                    .collect::<Result<Vec<V>, VectorError>>()
+            })?;
+            for (key, vector) in (start..).zip(decoded.into_iter().flatten()) {
+                index
+                    .add(key as u64, vector.as_ref())
+                    .map_err(|e| engine(&e))?;
+            }
         }
         start = end;
     }
@@ -2188,5 +2233,96 @@ mod tests {
                 assert_eq!(got, want, "round {round}");
             }
         }
+    }
+
+    /// Recall@10 of `index` at a search breadth of 128, with candidates
+    /// reranked exactly as segment searches rerank them.
+    #[expect(clippy::cast_precision_loss, reason = "a ratio of small test counts")]
+    fn recall_at_10(index: &usearch::Index, vectors: &[Vec<f32>], queries: &[Vec<f32>]) -> f64 {
+        let mut found = 0usize;
+        for query in queries {
+            let mut candidates: Vec<(f32, usize)> = index
+                .search(query, 128)
+                .unwrap()
+                .keys
+                .into_iter()
+                .map(|key| {
+                    let at = usize::try_from(key).unwrap();
+                    (crate::score(query, &vectors[at], Similarity::Cosine), at)
+                })
+                .collect();
+            candidates.sort_by(|a, b| b.0.total_cmp(&a.0));
+            let exact = exact_top_k(vectors, query, 10);
+            found += candidates
+                .iter()
+                .take(10)
+                .filter(|(_, at)| exact.contains(at))
+                .count();
+        }
+        found as f64 / (queries.len() * 10) as f64
+    }
+
+    #[test]
+    fn a_parallel_build_holds_every_vector_and_keeps_recall() {
+        // VEC-4: inserts from several threads (forced here on a small build)
+        // index every key and lose next to no recall against one thread.
+        rushdb_storage::parallel::set_threads(4);
+        let vectors = noise(20_000, 32, 7);
+        let queries = noise(50, 32, 99);
+        let serial = build_index_with(
+            vectors.len(),
+            ok(&vectors),
+            32,
+            Similarity::Cosine,
+            usize::MAX,
+        )
+        .unwrap();
+        let parallel =
+            build_index_with(vectors.len(), ok(&vectors), 32, Similarity::Cosine, 0).unwrap();
+        assert_eq!(parallel.size(), vectors.len());
+        for key in (0..vectors.len()).step_by(997) {
+            assert!(parallel.contains(key as u64), "key {key}");
+        }
+        let (serial_recall, parallel_recall) = (
+            recall_at_10(&serial, &vectors, &queries),
+            recall_at_10(&parallel, &vectors, &queries),
+        );
+        assert!(
+            parallel_recall >= serial_recall - 0.02,
+            "recall@10 {parallel_recall} in parallel, {serial_recall} on one thread"
+        );
+        rushdb_storage::parallel::set_threads(0);
+    }
+
+    /// Build time of a large segment on one thread and in parallel (run in
+    /// release: `cargo test -p rushdb-vector --release --lib
+    /// large_build_time -- --ignored --nocapture`).
+    #[test]
+    #[ignore = "a timing probe for VEC-4; run in release"]
+    fn large_build_time_on_one_thread_and_in_parallel() {
+        let threads = std::thread::available_parallelism().map_or(4, std::num::NonZero::get);
+        rushdb_storage::parallel::set_threads(threads);
+        let vectors = noise(200_000, 128, 11);
+        let queries = noise(100, 128, 12);
+        let time = |parallel_min: usize| {
+            let started = std::time::Instant::now();
+            let index = build_index_with(
+                vectors.len(),
+                ok(&vectors),
+                128,
+                Similarity::Cosine,
+                parallel_min,
+            )
+            .unwrap();
+            (started.elapsed(), recall_at_10(&index, &vectors, &queries))
+        };
+        let (serial, serial_recall) = time(usize::MAX);
+        let (parallel, parallel_recall) = time(PARALLEL_INSERT_MIN);
+        println!(
+            "200K x 128: one thread {serial:?} (recall@10 {serial_recall:.3}), \
+             {threads} threads {parallel:?} (recall@10 {parallel_recall:.3})"
+        );
+        assert!(parallel < serial);
+        rushdb_storage::parallel::set_threads(0);
     }
 }

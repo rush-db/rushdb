@@ -1158,6 +1158,17 @@ pub fn index_entry_prefix(tenant: TenantId, id: u32) -> Vec<u8> {
     out
 }
 
+/// The tenant and index id of an index-entry key ([`index_entry_key`]).
+#[must_use]
+pub fn parse_index_entry_index(key: &[u8]) -> Option<(TenantId, u32)> {
+    let tenant = parse_tenant(key)?;
+    if key.get(TENANT_PREFIX_LEN) != Some(&F_INDEX_ENTRY) {
+        return None;
+    }
+    let id = key.get(TENANT_PREFIX_LEN + 1..TENANT_PREFIX_LEN + 5)?;
+    Some((tenant, u32::from_be_bytes(id.try_into().ok()?)))
+}
+
 /// Key of one ordered entry: `entry` is `tag ‖ order-preserving payload`.
 #[must_use]
 pub fn index_entry_key(tenant: TenantId, id: u32, entry: &[u8], owner: u64) -> Vec<u8> {
