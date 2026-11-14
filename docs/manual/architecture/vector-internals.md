@@ -142,10 +142,14 @@ flowchart LR
 - The maintenance tick **freezes** a hot segment once it reaches 256
   entries, building a `usearch` graph from it. A build reads and decodes
   the vectors in parts of 1 024 on the shared thread budget, one chunk of
-  8 192 ahead, and inserts them into the graph on one thread in key order:
-  inserts from several threads link a measurably worse graph (recall@10 at
-  `ef` 128 on clustered 384-dimension data 0.996–0.999 against 1.000), and
-  one order makes every build of the same vectors the same graph. If
+  8 192 ahead. A build of fewer than 50 000 vectors inserts them into the
+  graph on one thread in key order, so every build of the same vectors is
+  the same graph. A larger one (a cold build, a large merge) inserts its
+  first chunk on one thread and the rest from as many threads as the budget
+  lends: about 4.6× faster for 200 000 vectors on 20 threads. Inserts from
+  several threads link a slightly different graph (recall@10 at `ef` 128 on
+  clustered 384-dimension data 0.996–0.999 against 1.000); candidates are
+  always reranked against their f32 vectors, so scores never change. If
   maintenance falls behind,
   the write path itself freezes the hot segment at 1 024 entries as a
   backstop.

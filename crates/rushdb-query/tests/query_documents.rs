@@ -1132,6 +1132,27 @@ fn unknown_operators_and_directions_are_refused() {
 }
 
 #[test]
+fn reserved_names_in_a_where_are_refused_not_matched_against_nothing() {
+    for document in [
+        json!({"where": {"__id": {"$in": ["01a1d7c0-bac2-7da3-9cb1-1ed0c62e26d4"]}}}),
+        json!({"where": {"__label": "PERSON"}}),
+        json!({"where": {"$or": [{"name": "a"}, {"__id": "x"}]}}),
+        json!({"where": {"DEPARTMENT": {"__id": "x"}}}),
+    ] {
+        let Err(error) = parse_document(&document) else {
+            panic!("{document} was accepted");
+        };
+        assert!(error.to_string().contains("reserved name"), "{error}");
+    }
+    let Err(error) = parse_document(&json!({"where": {"__id": "x"}})) else {
+        panic!("`__id` was accepted");
+    };
+    assert!(error.to_string().contains("`$id`"), "{error}");
+    // `$id` is how a record id is filtered.
+    assert!(parse_document(&json!({"where": {"$id": {"$in": ["x"]}}})).is_ok());
+}
+
+#[test]
 fn relation_type_is_matched_verbatim() {
     let lmpg = setup();
     let company = import::import_document(&lmpg, "COMPANY", &json!({"name": "Tech"})).unwrap();

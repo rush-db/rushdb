@@ -6,6 +6,7 @@ mod adapters;
 mod backup;
 mod catalog;
 mod facets;
+pub(crate) use facets::only_label;
 mod fusion;
 mod hybrid;
 pub(crate) use hybrid::HybridError;
@@ -357,30 +358,62 @@ impl PropertyScanStats {
         if !(value.is_number() || value.is_string()) {
             return;
         }
-        let cmp = |current: &serde_json::Value| -> std::cmp::Ordering {
-            match (value, current) {
-                (serde_json::Value::Number(_), serde_json::Value::Number(_)) => {
-                    rushdb_types::value::json_scalar_cmp(value, current)
-                        .unwrap_or(std::cmp::Ordering::Equal)
-                }
-                (serde_json::Value::String(a), serde_json::Value::String(b)) => a.cmp(b),
-                _ => std::cmp::Ordering::Equal,
+        self.observe_min(value);
+        self.observe_max(value);
+    }
+
+    /// Fold in the stats of the records that follow these in scan order:
+    /// the result is what one scan over both would have built.
+    fn merge(&mut self, later: Self) {
+        self.records_count += later.records_count;
+        self.is_array |= later.is_array;
+        for sample in later.samples {
+            if self.samples.len() >= SCHEMA_SAMPLE_CAP {
+                break;
             }
-        };
+            if !self.samples.contains(&sample) {
+                self.samples.push(sample);
+            }
+        }
+        if let Some(min) = later.min {
+            self.observe_min(&min);
+        }
+        if let Some(max) = later.max {
+            self.observe_max(&max);
+        }
+    }
+
+    fn observe_min(&mut self, value: &serde_json::Value) {
         if self
             .min
             .as_ref()
-            .is_none_or(|current| cmp(current) == std::cmp::Ordering::Less)
+            .is_none_or(|current| scan_order(value, current) == std::cmp::Ordering::Less)
         {
             self.min = Some(value.clone());
         }
+    }
+
+    fn observe_max(&mut self, value: &serde_json::Value) {
         if self
             .max
             .as_ref()
-            .is_none_or(|current| cmp(current) == std::cmp::Ordering::Greater)
+            .is_none_or(|current| scan_order(value, current) == std::cmp::Ordering::Greater)
         {
             self.max = Some(value.clone());
         }
+    }
+}
+
+/// Order of two observed values: numbers among numbers, strings among
+/// strings; values of different kinds tie (the first kind seen is kept).
+fn scan_order(value: &serde_json::Value, current: &serde_json::Value) -> std::cmp::Ordering {
+    match (value, current) {
+        (serde_json::Value::Number(_), serde_json::Value::Number(_)) => {
+            rushdb_types::value::json_scalar_cmp(value, current)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        }
+        (serde_json::Value::String(a), serde_json::Value::String(b)) => a.cmp(b),
+        _ => std::cmp::Ordering::Equal,
     }
 }
 

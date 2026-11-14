@@ -15,6 +15,23 @@ use rushdb_types::ids::OwnerKind;
 
 use super::{PropertyScanStats, RequestScope};
 
+/// The label of every match when a query names exactly one (matching keeps
+/// only records of the named labels).
+pub(crate) fn only_label(labels: &[String]) -> Option<&str> {
+    match labels {
+        [label] => Some(label.as_str()),
+        _ => None,
+    }
+}
+
+/// Property stats of one part of a parallel facet scan, by `(label, pid)`.
+type ScanStatsPart = Vec<((String, u64), PropertyScanStats)>;
+
+/// Matched records one part of a parallel facet scan reads.
+const FACET_PART_ORDS: usize = 4096;
+/// Parts per round: cancellation is checked between rounds.
+const FACET_ROUND_PARTS: usize = 64;
+
 /// Distinct values of one property over a match set, in first-seen order,
 /// each with the number of matched records carrying it.
 pub(crate) type FacetValues = Vec<(serde_json::Value, u64)>;
@@ -54,13 +71,22 @@ impl RequestScope<'_> {
         .map_err(|e| e.to_string())
     }
 
-    /// Record count per label over `ords`: one header read per ordinal.
+    /// Record count per label over `ords`: one header read per ordinal, or
+    /// none when the query names one label (every match is of that label).
     pub(crate) fn facet_labels(
         &self,
         view: &rushdb_storage::ReadView,
         ords: &[u64],
+        only_label: Option<&str>,
         is_cancelled: &dyn Fn() -> bool,
     ) -> Result<BTreeMap<String, u64>, String> {
+        if let Some(label) = only_label {
+            let count = u64::try_from(ords.len()).unwrap_or(u64::MAX);
+            return Ok((count > 0)
+                .then(|| (label.to_owned(), count))
+                .into_iter()
+                .collect());
+        }
         let tenant = self.tenant();
         let mut counts: BTreeMap<String, u64> = BTreeMap::new();
         for &ord in ords {
@@ -78,33 +104,71 @@ impl RequestScope<'_> {
 
     /// Per-`(label, pid)` support, array shape, samples and range over
     /// `ords`, from occurrence rows. The pid fixes the definition, so typed
-    /// siblings (`int64` vs `float64`) are attributed exactly.
+    /// siblings (`int64` vs `float64`) are attributed exactly. With
+    /// `only_label` (the query names one label) no record header is read.
+    ///
+    /// The scan runs in parts of consecutive ordinals on the shared thread
+    /// budget; parts merge in ordinal order, so the result is the one scan's.
     pub(super) fn facet_property_stats(
         &self,
         view: &rushdb_storage::ReadView,
         ords: &[u64],
         known: &std::collections::HashSet<u64>,
+        only_label: Option<&str>,
         is_cancelled: &dyn Fn() -> bool,
     ) -> Result<BTreeMap<(String, u64), PropertyScanStats>, String> {
-        let tenant = self.tenant();
-        // Keyed by (label slot, pid) while scanning: a match set of millions
-        // of records would otherwise copy its label for every property.
-        let mut labels: Vec<String> = Vec::new();
-        let mut stats: HashMap<(usize, u64), PropertyScanStats> = HashMap::new();
-        for &ord in ords {
+        let parts: Vec<&[u64]> = ords.chunks(FACET_PART_ORDS).collect();
+        let mut stats: BTreeMap<(String, u64), PropertyScanStats> = BTreeMap::new();
+        for round in parts.chunks(FACET_ROUND_PARTS) {
             if is_cancelled() {
                 return Err("query cancelled".into());
             }
-            let Some(header) =
-                access::record_by_ord(view, tenant, ord).map_err(|e| e.to_string())?
-            else {
-                continue;
-            };
-            let slot = if let Some(slot) = labels.iter().position(|label| *label == header.label) {
-                slot
+            let results = rushdb_storage::parallel::run_parts(round.len(), |part| {
+                self.facet_property_stats_part(view, round[part], known, only_label)
+            })?;
+            for part in results {
+                for (key, entry) in part {
+                    match stats.entry(key) {
+                        std::collections::btree_map::Entry::Vacant(slot) => {
+                            slot.insert(entry);
+                        }
+                        std::collections::btree_map::Entry::Occupied(mut slot) => {
+                            slot.get_mut().merge(entry);
+                        }
+                    }
+                }
+            }
+        }
+        Ok(stats)
+    }
+
+    fn facet_property_stats_part(
+        &self,
+        view: &rushdb_storage::ReadView,
+        ords: &[u64],
+        known: &std::collections::HashSet<u64>,
+        only_label: Option<&str>,
+    ) -> Result<ScanStatsPart, String> {
+        let tenant = self.tenant();
+        // Keyed by (label slot, pid) while scanning: a match set of millions
+        // of records would otherwise copy its label for every property.
+        let mut labels: Vec<String> = only_label.map(str::to_owned).into_iter().collect();
+        let mut stats: HashMap<(usize, u64), PropertyScanStats> = HashMap::new();
+        for &ord in ords {
+            let slot = if only_label.is_some() {
+                0
             } else {
-                labels.push(header.label);
-                labels.len() - 1
+                let Some(header) =
+                    access::record_by_ord(view, tenant, ord).map_err(|e| e.to_string())?
+                else {
+                    continue;
+                };
+                if let Some(slot) = labels.iter().position(|label| *label == header.label) {
+                    slot
+                } else {
+                    labels.push(header.label);
+                    labels.len() - 1
+                }
             };
             let occurrences = access::occurrences_of_owner(view, tenant, OwnerKind::Record, ord)
                 .map_err(|e| e.to_string())?;

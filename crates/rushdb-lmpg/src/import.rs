@@ -634,9 +634,8 @@ pub fn coerce_change(value: &Json, options: &ImportOptions) -> Option<FieldChang
 /// array moves into the planned write instead of being copied.
 #[must_use]
 pub fn coerce_value(value: Json, options: &ImportOptions) -> Option<FieldChange> {
-    // Product parity: an array whose elements are not all the same JS type is
-    // coerced to a string array instead of failing (reference processArrayValue:
-    // `isInconsistentArray || !suggestTypes ? value.map(String) : value`).
+    // An array whose elements are not all the same JSON type is stored as a
+    // string array instead of failing.
     if value.is_null() {
         // explicit Null (document 22): a live null occurrence, never an
         // untypeable `Set(null)` that the planner would reject
@@ -711,23 +710,10 @@ pub fn coerce_value(value: Json, options: &ImportOptions) -> Option<FieldChange>
                 }
             }
         }
-        return Some(FieldChange::Set(value));
     }
-    // Inference off: every value is stored as text, element by element for
-    // an array (reference parity: `value.map(String)`).
-    match value {
-        Json::String(_) => Some(FieldChange::Set(value)),
-        Json::Array(items) => Some(FieldChange::Set(Json::Array(
-            items
-                .iter()
-                .map(|item| match item {
-                    Json::Null => Json::Null,
-                    other => Json::String(json_to_js_string(other)),
-                })
-                .collect(),
-        ))),
-        other => Some(FieldChange::Set(Json::String(json_to_js_string(&other)))),
-    }
+    // Inference only ever reads strings: with it off a string stays a string,
+    // and numbers, booleans and uniform arrays keep their JSON types.
+    Some(FieldChange::Set(value))
 }
 
 /// The JSON value of a `FieldChange` (for key matching against stored records).

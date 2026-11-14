@@ -31,7 +31,7 @@ sequenceDiagram
     participant WAL as WAL
     participant DB as redb
 
-    Wr->>Adm: FIFO ticket, then admission lock
+    Wr->>Adm: tenant lock, fair ticket, then admission lock
     Adm->>Adm: commit key already has a receipt? return recorded outcome
     Adm->>Seq: base snapshot + in-flight writes
     Wr->>Wr: plan commit batch against the overlay (reads recorded)
@@ -54,10 +54,17 @@ sequenceDiagram
 All local writes pass through one **admission lock**: RushDB has a single
 logical writer per node. Planning and expansion of commit *N + 1* must
 observe everything commit *N* wrote, including store-wide metadata such as
-the tenant directory, so they are serialized. In front of the lock sits a
-FIFO ticket gate, because a plain mutex does not hand off in arrival order
-and a waiting writer could otherwise lose every race to writers that
-re-acquire it.
+the tenant directory, so they are serialized. Before admission a commit
+takes its tenant's own lock, so one tenant's commits plan in order and
+never wait on another tenant's. In front of the admission lock sits a
+ticket gate, because a plain mutex does not hand off in arrival order and
+a waiting writer could otherwise lose every race to writers that
+re-acquire it. The gate keeps one queue per tenant (plus one for commits
+with no tenant) and hands the next turn round robin across them, first
+come first served within a queue: a tenant writing one record waits for at
+most one turn of each busy tenant, not for a bulk load's queue. Commit
+indices are assigned inside the admitted section, so they stay one
+contiguous, ascending sequence.
 
 By default a writer waits for its turn indefinitely. With `lock-timeout-ms`
 set, a writer that cannot acquire admission in time fails with a retryable
@@ -263,9 +270,9 @@ statement that loses fails with the retryable `write_conflict`.
   admission, so it never fails with `write_conflict`. It can still be
   rejected by planning (for example `conflict` when a record already exists)
   or by a violated precondition.
-- **Writes are admitted fairly.** Writers acquire admission in arrival
-  order. Across tenants, the request scheduler caps how many requests one
-  tenant may have queued or running
+- **Writes are admitted fairly.** Writers acquire admission round robin
+  across tenants and in arrival order within one. The request scheduler
+  also caps how many requests one tenant may have queued or running
   ([resource governance](resource-governance.md#request-scheduler)).
 
 ## See also

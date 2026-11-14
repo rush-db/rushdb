@@ -63,7 +63,12 @@ impl ProtocolExecutor<'_> {
                 .collect());
         };
         self.node
-            .facet_labels(view.as_ref(), ords, is_cancelled)
+            .facet_labels(
+                view.as_ref(),
+                ords,
+                crate::node::only_label(&query.labels),
+                is_cancelled,
+            )
             .map_err(execution_failed)
     }
 

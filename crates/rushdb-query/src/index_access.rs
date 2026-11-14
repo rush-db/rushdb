@@ -244,9 +244,13 @@ pub(crate) fn leaf_owners<R: TryRead>(
     // share it instead of each reading every index entry again.
     let cache = snap.owner_sets();
     let ids: Vec<u32> = defs.iter().map(|def| def.id).collect();
+    let indexes: Vec<(TenantId, u32)> = ids.iter().map(|id| (tenant, *id)).collect();
     let key = format!("{tenant:?}|{ids:?}|{expr:?}").into_bytes();
+    // Read before the set is computed: a write that publishes meanwhile makes
+    // the version newer, and the set is then not reused.
+    let version = cache.map(|(sets, _)| sets.version(&indexes));
     if let Some(hit) = cache
-        .and_then(|(sets, ci)| sets.get(&key, ci))
+        .and_then(|(sets, ci)| sets.get(&key, &indexes, ci))
         .and_then(|set| set.downcast::<OwnerSet>().ok())
     {
         if hit.len() > u64::try_from(owner_limit).unwrap_or(u64::MAX) {
@@ -257,9 +261,10 @@ pub(crate) fn leaf_owners<R: TryRead>(
         return Ok(Some(OwnerSet::clone(&hit)));
     }
     let owners = leaf_owners_uncached(snap, tenant, expr, &defs, owner_limit)?;
-    if let (Some(owners), Some((sets, ci))) = (owners.as_ref(), cache) {
+    if let (Some(owners), Some((sets, ci)), Some(version)) = (owners.as_ref(), cache, version) {
         sets.insert(
             key,
+            version,
             ci,
             std::sync::Arc::new(owners.clone()),
             owners.serialized_size(),

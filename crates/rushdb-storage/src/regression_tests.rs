@@ -104,13 +104,13 @@ fn admission_lock_acquisition_timeout_is_retryable() {
     // Hold the admission lock: a bounded acquisition must fail fast with a
     // retryable resource error instead of waiting forever (config #4).
     let held = store.admission_lock.lock().unwrap();
-    let err = store.acquire_admission().unwrap_err();
+    let err = store.acquire_admission(None).unwrap_err();
     assert!(
         matches!(err, StorageError::ResourceExhausted(_)),
         "expected a retryable lock timeout, got {err:?}"
     );
     drop(held);
-    assert!(store.acquire_admission().is_ok());
+    assert!(store.acquire_admission(None).is_ok());
     assert!(store.write_counters().admission_waits >= 1);
 }
 
