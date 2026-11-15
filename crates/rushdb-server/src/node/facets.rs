@@ -27,6 +27,10 @@ pub(crate) fn only_label(labels: &[String]) -> Option<&str> {
 /// Property stats of one part of a parallel facet scan, by `(label, pid)`.
 type ScanStatsPart = Vec<((String, u64), PropertyScanStats)>;
 
+/// Distinct values with their owner count and first owner, in first-seen
+/// order.
+pub(crate) type IndexedValues = Vec<(serde_json::Value, u64, u64)>;
+
 /// Matched records one part of a parallel facet scan reads.
 const FACET_PART_ORDS: usize = 4096;
 /// Parts per round: cancellation is checked between rounds.
@@ -392,6 +396,160 @@ impl RequestScope<'_> {
             Ok(())
         })?;
         Ok(values)
+    }
+
+    /// Distinct values of `property` over `ords`, each with its owner count
+    /// and first owner, in first-seen order, read in one pass over the
+    /// property's ordered indexes instead of each match's occurrence rows
+    /// (READ-2). It answers exactly what [`Self::facet_property_values`]
+    /// would, so it is used only when the index holds every counted value:
+    /// the property has one typed, non-datetime definition (no nulls, no
+    /// sibling types), no queried label holds it as an array, a Ready
+    /// ordered index covers every queried label, the policy shows it on each,
+    /// and `ords` is in ascending order. `None` otherwise, and when the match
+    /// set is small next to the index (reading each match is then cheaper).
+    pub(crate) fn facet_values_from_index(
+        &self,
+        view: &rushdb_storage::ReadView,
+        ords: &[u64],
+        property: &str,
+        labels: &[String],
+        access: &rushdb_lmpg::CatalogAccess,
+        meter: &mut super::working_set::WorkingSet<'_>,
+    ) -> Result<Option<IndexedValues>, String> {
+        let tenant = self.tenant();
+        if labels.is_empty() || !ords.is_sorted() {
+            return Ok(None);
+        }
+        let Some((mut ids, indexed)) = self.facet_indexes(view, property, labels, access)? else {
+            return Ok(None);
+        };
+        // One sequential index entry against two point reads per match.
+        if u64::try_from(ords.len())
+            .unwrap_or(u64::MAX)
+            .saturating_mul(4)
+            < indexed
+        {
+            return Ok(None);
+        }
+        ids.sort_unstable();
+        ids.dedup();
+        let mut found: HashMap<Vec<u8>, (u64, u64)> = HashMap::new();
+        let mut failed: Option<String> = None;
+        for id in ids {
+            rushdb_lmpg::index::for_each_entry(view, tenant, id, &[], &[], &mut |entry, owner| {
+                if ords.binary_search(&owner).is_err() {
+                    return true;
+                }
+                if let Some((count, first)) = found.get_mut(entry) {
+                    *count += 1;
+                    *first = (*first).min(owner);
+                    return true;
+                }
+                if let Err(error) = meter.charge(super::working_set::value_bytes(entry.len())) {
+                    failed = Some(error);
+                    return false;
+                }
+                found.insert(entry.to_vec(), (1, owner));
+                true
+            })
+            .map_err(|e| e.to_string())?;
+            if let Some(error) = failed {
+                return Err(error);
+            }
+        }
+        let mut values = found
+            .into_iter()
+            .map(|(entry, (count, first))| {
+                let (&tag, payload) = entry
+                    .split_first()
+                    .ok_or_else(|| "corrupt index entry".to_string())?;
+                let ty =
+                    rushdb_types::encoding::logical_from_tag(tag).map_err(|e| e.to_string())?;
+                let scalar = rushdb_types::encoding::decode_order_preserving(ty, payload)
+                    .map_err(|e| e.to_string())?;
+                Ok((rushdb_types::value::scalar_to_json(&scalar), count, first))
+            })
+            .collect::<Result<Vec<_>, String>>()?;
+        // A scan of the ascending match set meets each value first at its
+        // lowest owner.
+        values.sort_by_key(|(_, _, first)| *first);
+        Ok(Some(values))
+    }
+
+    /// The ordered indexes that hold every value of `property` on `labels`
+    /// (see [`Self::facet_values_from_index`]) and how many entries they
+    /// hold, or `None` when they cannot answer it exactly.
+    fn facet_indexes(
+        &self,
+        view: &rushdb_storage::ReadView,
+        property: &str,
+        labels: &[String],
+        access: &rushdb_lmpg::CatalogAccess,
+    ) -> Result<Option<(Vec<u32>, u64)>, String> {
+        use rushdb_types::model::{LogicalType, TypeState};
+        let tenant = self.tenant();
+        let norm = rushdb_types::value::normalize_name(property);
+        let sig = rushdb_lmpg::reader::keys_ext::family_sig_key(
+            tenant,
+            "default",
+            OwnerKind::Record,
+            &norm,
+        );
+        let Some(raw) = view.get(&sig).map_err(|e| e.to_string())? else {
+            return Ok(None);
+        };
+        let fid = u64::from_be_bytes(
+            raw.as_slice()
+                .try_into()
+                .map_err(|_| "corrupt property family signature".to_string())?,
+        );
+        let Some(family) = access::family(view, tenant, fid).map_err(|e| e.to_string())? else {
+            return Ok(None);
+        };
+        let definitions =
+            access::definitions_of_family(view, tenant, fid).map_err(|e| e.to_string())?;
+        let [definition] = definitions.as_slice() else {
+            return Ok(None);
+        };
+        let TypeState::Known(ty) = definition.type_state else {
+            return Ok(None);
+        };
+        if ty == LogicalType::DateTime {
+            return Ok(None);
+        }
+        let pid = definition.property_id;
+        let mut ids = Vec::new();
+        let mut indexed: u64 = 0;
+        for label in labels {
+            if !access.property(label, &family.display_name) {
+                return Ok(None);
+            }
+            let marker =
+                rushdb_types::keys::array_label_marker_key(tenant, OwnerKind::Record, pid, label);
+            let arrays = rushdb_types::keys::decode_counter(
+                view.get(&marker).map_err(|e| e.to_string())?.as_deref(),
+            )
+            .unwrap_or(0);
+            if arrays > 0 {
+                return Ok(None);
+            }
+            let Some(def) = rushdb_lmpg::index::ready_ordered(view, tenant, label, &norm)
+                .map_err(|e| e.to_string())?
+            else {
+                return Ok(None);
+            };
+            ids.push(def.id);
+            indexed += rushdb_lmpg::derived::prop_support_label(
+                view,
+                tenant,
+                OwnerKind::Record,
+                pid,
+                label,
+            )
+            .map_err(|e| e.to_string())?;
+        }
+        Ok(Some((ids, indexed)))
     }
 
     /// Calls `visit` with each owner in `ords` holding `property` and its

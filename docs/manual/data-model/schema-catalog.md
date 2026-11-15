@@ -170,6 +170,12 @@ dictionary's first and last entry, and `topK` or a `values` list with a
 `limit` holds only its head, so a column of unique ids fits
 `query-memory-max`.
 
+With a predicate the values are counted over the matching records. When the
+property has an [ordered index](../indexes-and-search/indexes.md) on every
+queried label, holds one stored type (not datetime) and no arrays, and the
+matches are many next to the index, they are counted in one pass over the
+index instead of reading each matching record; the answer is the same.
+
 ## A compact summary
 
 `describe.schemaSummary` returns every label with its properties in one

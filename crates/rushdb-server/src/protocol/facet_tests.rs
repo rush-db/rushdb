@@ -267,6 +267,78 @@ fn facets_agree_with_the_records_response() {
 }
 
 #[test]
+fn value_facets_on_an_indexed_property_are_read_from_the_index() {
+    // READ-2 option B: a filtered value facet on a property with an ordered
+    // index counts its values in one pass over the index and agrees with the
+    // records response exactly; a property the index cannot answer exactly
+    // (two types: `score`) still reads each match.
+    let node = seeded_node();
+    for property in ["city", "age", "score", "name"] {
+        let Response::Index { .. } = run(
+            &node,
+            Operation::Index {
+                index: rushdb_protocol::IndexOperation::Create {
+                    definition: rushdb_protocol::IndexDefinition {
+                        name: format!("person_{property}"),
+                        label: "Person".into(),
+                        property: property.into(),
+                        kind: "ordered".into(),
+                        consistency: None,
+                        dimensions: None,
+                    },
+                },
+            },
+        ) else {
+            panic!("index response")
+        };
+    }
+    while node.step_index_builds(std::time::Duration::from_secs(5)) > 0 {}
+    for predicate in [
+        json!({"city": {"$in": ["Oslo", "Riga"]}}),
+        json!({"age": {"$gte": 25}}),
+        json!({"name": {"$ne": "zed"}}),
+    ] {
+        let query = document(&["Person"], &predicate);
+        let expected = oracle(&node, &query);
+        for property in ["city", "age", "score", "name", "tags", "nick"] {
+            check_values(&node, &query, &expected, property);
+        }
+    }
+    let query = document(&["Person"], &json!({"age": {"$gte": 25}}));
+    let occurrence_reads = |property: &str| -> u64 {
+        rushdb_storage::read_accounting::enable(true);
+        let _ = rushdb_storage::read_accounting::take_local();
+        run(
+            &node,
+            Operation::Query {
+                query: Query::PropertyValues {
+                    property: property.into(),
+                    query: query.clone(),
+                    mode: Some(PropertyValuesMode::TopK),
+                    limit: None,
+                    search: None,
+                },
+            },
+        );
+        rushdb_storage::read_accounting::take_local()
+            .iter()
+            .filter(|((_, family), _)| family == "occurrence")
+            .map(|(_, count)| count)
+            .sum()
+    };
+    for indexed in ["city", "age", "name"] {
+        assert_eq!(
+            occurrence_reads(indexed),
+            0,
+            "{indexed} is read from its index"
+        );
+    }
+    // Two types (`score`) or an array (`tags`): every match is read.
+    assert!(occurrence_reads("score") > 0);
+    assert!(occurrence_reads("tags") > 0);
+}
+
+#[test]
 fn a_one_label_filtered_facet_reads_no_record_headers_of_its_own() {
     // READ-2: every match of a query naming one label is of that label, so
     // label counts and property stats add no record-header read per match;

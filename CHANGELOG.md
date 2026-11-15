@@ -18,10 +18,11 @@ in [`docs/manual/operations/upgrading-from-2x.md`](docs/manual/operations/upgrad
   commits keep their order, and commit indices stay one contiguous sequence.
 - **Large vector index builds use several cores.** A build of 50,000 vectors
   or more (a cold build, a large merge) inserts into the graph from as many
-  threads as `threads` allows: 200,000 vectors of 128 dimensions built in
-  13 s instead of 60 s on 20 threads. Smaller builds stay single-threaded and
-  bit-identical; a parallel build's graph differs slightly, and every
-  candidate is still reranked against its f32 vector, so scores never change.
+  threads as `threads` allows: a cold build of 1,000,000 vectors of 768
+  dimensions answers by ANN after 5.6 minutes instead of 24.5 (20
+  threads). Smaller builds stay single-threaded and bit-identical; a parallel
+  build's graph differs slightly, and every candidate is still reranked
+  against its f32 vector, so scores never change.
 - **Indexed filters stay cached across unrelated commits.** The owner set an
   indexed filter resolves to was dropped by any commit in the store. It is
   now kept until a commit writes one of the indexes it read, so other
@@ -31,6 +32,12 @@ in [`docs/manual/operations/upgrading-from-2x.md`](docs/manual/operations/upgrad
   label, label counts and per-property statistics no longer read each
   match's record header, and per-property statistics over large match sets
   are computed in parallel parts.
+- **Value facets on an indexed property read the index.** A filtered
+  `propertyValues` (values, count, top-k) over a property with a Ready
+  ordered index on every queried label counts its values in one pass over
+  the index instead of reading each match's occurrences, when the index holds
+  every counted value exactly (one typed, non-datetime definition, no arrays,
+  visible under the policy) and the match set is large next to the index.
 - **`suggestTypes: false` keeps JSON types.** Turning type inference off now
   only stops strings being read as dates or numbers: JSON numbers, booleans
   and uniform arrays keep their types (`42` stays a number). It used to

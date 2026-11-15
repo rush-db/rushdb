@@ -762,10 +762,44 @@ impl ProtocolExecutor<'_> {
             // Counts and top-k need each distinct value's count, not the value:
             // they count by digest and read back only the values returned, so
             // a column of long texts fits the working set.
-            if matcher.is_none()
-                && matches!(mode, PropertyValuesMode::Count | PropertyValuesMode::TopK)
-            {
-                let view = context.read_view().as_ref();
+            let view = context.read_view().as_ref();
+            // An indexed property is counted from its index in one pass.
+            let indexed = self
+                .node
+                .facet_values_from_index(view, &ords, &property, &query.labels, access, &mut meter)
+                .map_err(execution_failed)?;
+            let counts_only = matcher.is_none()
+                && matches!(mode, PropertyValuesMode::Count | PropertyValuesMode::TopK);
+            let indexed = match indexed {
+                Some(mut found) if counts_only => {
+                    found.retain(|(_, count, _)| access.counted(*count));
+                    let distinct_count = Some(found.len() as u64);
+                    let (values, counts) = if mode == PropertyValuesMode::TopK {
+                        let k = limit.unwrap_or(10).min(1000) as usize;
+                        // Stable: equal counts keep first-seen order.
+                        found.sort_by_key(|entry| std::cmp::Reverse(entry.1));
+                        found.truncate(k);
+                        found
+                            .into_iter()
+                            .map(|(value, count, _)| (value, count))
+                            .unzip()
+                    } else {
+                        (Vec::new(), Vec::new())
+                    };
+                    return Ok(Response::PropertyValues {
+                        property,
+                        values,
+                        distinct_count,
+                        min: None,
+                        max: None,
+                        truncated: false,
+                        counts,
+                        search_missed: false,
+                    });
+                }
+                other => other,
+            };
+            if counts_only {
                 let mut counts = self
                     .node
                     .facet_value_digests(view, &ords, &property, access, &mut meter)
@@ -813,16 +847,24 @@ impl ProtocolExecutor<'_> {
                     search_missed: false,
                 });
             }
-            self.node
-                .facet_property_values(
-                    context.read_view().as_ref(),
-                    &ords,
-                    &property,
-                    matcher.as_ref(),
-                    access,
-                    &mut meter,
-                )
-                .map_err(execution_failed)?
+            if let Some(found) = indexed {
+                found
+                    .into_iter()
+                    .filter(|(value, _, _)| matcher.as_ref().is_none_or(|m| m.matches(value)))
+                    .map(|(value, count, _)| (value, count))
+                    .collect()
+            } else {
+                self.node
+                    .facet_property_values(
+                        view,
+                        &ords,
+                        &property,
+                        matcher.as_ref(),
+                        access,
+                        &mut meter,
+                    )
+                    .map_err(execution_failed)?
+            }
         };
         // An enforced policy reads through this match-set path; under its
         // small-count threshold, values held by fewer records are withheld
