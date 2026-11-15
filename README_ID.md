@@ -110,9 +110,9 @@ Gremlin, SQL/PGQ `GRAPH_TABLE`, dokumen bergaya Mongo, dan ISO GQL memakai endpo
 | Docker Compose | [`deploy/templates/docker-compose`](deploy/templates/docker-compose/), dengan varian HTTPS di belakang Caddy |
 | Kubernetes | [Helm chart](charts/rushdb/): `helm install rushdb oci://ghcr.io/rush-db/charts/rushdb --set auth.token=...` |
 | VM Linux | [cloud-init](deploy/templates/cloud-init/) untuk DigitalOcean, Hetzner, AWS, GCP, Azure; [unit systemd](deploy/templates/systemd/) |
-| Platform | [Fly.io](deploy/templates/fly/), [Render](deploy/templates/render/), [Coolify](deploy/templates/coolify/), [Dokploy](deploy/templates/dokploy/) |
+| Platform | [Fly.io](deploy/templates/fly/), [Render](deploy/templates/render/), [Coolify](deploy/templates/coolify/), [Dokploy](deploy/templates/dokploy/), [Railway](https://railway.com/deploy/rushdb) |
 
-[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/rush-db/rushdb)
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/rush-db/rushdb) [![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/rushdb)
 
 ### Cara lain untuk memasang
 

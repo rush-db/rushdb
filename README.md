@@ -121,9 +121,9 @@ same HTTP endpoint. See [Query languages](docs/manual/languages/README.md).
 | Docker Compose | [`deploy/templates/docker-compose`](deploy/templates/docker-compose/), with an HTTPS variant behind Caddy |
 | Kubernetes | [Helm chart](charts/rushdb/): `helm install rushdb oci://ghcr.io/rush-db/charts/rushdb --set auth.token=...` |
 | Linux VM | [cloud-init](deploy/templates/cloud-init/) for DigitalOcean, Hetzner, AWS, GCP, Azure; [systemd unit](deploy/templates/systemd/) |
-| Platforms | [Fly.io](deploy/templates/fly/), [Render](deploy/templates/render/), [Coolify](deploy/templates/coolify/), [Dokploy](deploy/templates/dokploy/) |
+| Platforms | [Fly.io](deploy/templates/fly/), [Render](deploy/templates/render/), [Coolify](deploy/templates/coolify/), [Dokploy](deploy/templates/dokploy/), [Railway](https://railway.com/deploy/rushdb) |
 
-[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/rush-db/rushdb)
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/rush-db/rushdb) [![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/rushdb)
 
 ### Other ways to install
 

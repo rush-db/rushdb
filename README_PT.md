@@ -110,9 +110,9 @@ Gremlin, SQL/PGQ `GRAPH_TABLE`, documentos no estilo Mongo e ISO GQL usam o mesm
 | Docker Compose | [`deploy/templates/docker-compose`](deploy/templates/docker-compose/), com uma variante HTTPS atrás do Caddy |
 | Kubernetes | [Chart Helm](charts/rushdb/): `helm install rushdb oci://ghcr.io/rush-db/charts/rushdb --set auth.token=...` |
 | VM Linux | [cloud-init](deploy/templates/cloud-init/) para DigitalOcean, Hetzner, AWS, GCP, Azure; [unidade systemd](deploy/templates/systemd/) |
-| Plataformas | [Fly.io](deploy/templates/fly/), [Render](deploy/templates/render/), [Coolify](deploy/templates/coolify/), [Dokploy](deploy/templates/dokploy/) |
+| Plataformas | [Fly.io](deploy/templates/fly/), [Render](deploy/templates/render/), [Coolify](deploy/templates/coolify/), [Dokploy](deploy/templates/dokploy/), [Railway](https://railway.com/deploy/rushdb) |
 
-[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/rush-db/rushdb)
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/rush-db/rushdb) [![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/rushdb)
 
 ### Outras formas de instalar
 
