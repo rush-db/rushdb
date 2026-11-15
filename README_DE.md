@@ -312,9 +312,9 @@ print(db.properties.values(role, query="eng")["data"])
 | Docker Compose | [`deploy/templates/docker-compose`](https://github.com/rush-db/rushdb/tree/main/deploy/templates/docker-compose), mit einer HTTPS-Variante hinter Caddy |
 | Kubernetes | [Helm-Chart](https://github.com/rush-db/rushdb/tree/main/charts/rushdb): `helm install rushdb oci://ghcr.io/rush-db/charts/rushdb --set auth.token="$(openssl rand -hex 32)"` |
 | Linux-VM | [cloud-init](https://github.com/rush-db/rushdb/tree/main/deploy/templates/cloud-init) für DigitalOcean, Hetzner, AWS, Google Cloud und Azure; [systemd-Unit](https://github.com/rush-db/rushdb/tree/main/deploy/templates/systemd) |
-| Plattformen | [Fly.io](https://github.com/rush-db/rushdb/tree/main/deploy/templates/fly), [Render](https://github.com/rush-db/rushdb/tree/main/deploy/templates/render), [Coolify](https://github.com/rush-db/rushdb/tree/main/deploy/templates/coolify), [Dokploy](https://github.com/rush-db/rushdb/tree/main/deploy/templates/dokploy) |
+| Plattformen | [Fly.io](https://github.com/rush-db/rushdb/tree/main/deploy/templates/fly), [Render](https://github.com/rush-db/rushdb/tree/main/deploy/templates/render), [Coolify](https://github.com/rush-db/rushdb/tree/main/deploy/templates/coolify), [Dokploy](https://github.com/rush-db/rushdb/tree/main/deploy/templates/dokploy), [Railway](https://railway.com/deploy/rushdb) |
 
-[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/rush-db/rushdb)
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/rush-db/rushdb) [![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/rushdb)
 
 Ports, Probes, Dimensionierung und Betrieb als Dienst: [Deployment](https://docs.rushdb.com/engine/operations/deployment/). Alle Wege auf einer Seite:
 [docs.rushdb.com/deploy](https://docs.rushdb.com/deploy/).
