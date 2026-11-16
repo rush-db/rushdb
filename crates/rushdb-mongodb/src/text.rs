@@ -49,6 +49,7 @@ pub(crate) fn take_text(
                     ..LexicalOptions::default()
                 },
                 top_k: ALL_HITS,
+                count: false,
             },
             None,
         )

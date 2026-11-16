@@ -482,6 +482,30 @@ impl ProtocolExecutor<'_> {
         })
     }
 
+    pub(super) fn query_path(
+        &self,
+        query: &rushdb_protocol::PathQuery,
+        is_cancelled: &dyn Fn() -> bool,
+        context: &rushdb_engine::ExecutionContext,
+    ) -> Result<Response, ProtocolError> {
+        use crate::node::PathError;
+        let records = self
+            .node
+            .shortest_path_with_execution_context(context, query, is_cancelled)
+            .map_err(|error| match error {
+                PathError::Query(error) => query_failed(error),
+                PathError::Other(message) => execution_failed(message),
+            })?;
+        Ok(Response::Records {
+            total: records.len() as u64,
+            records,
+            cursor_id: None,
+            vector_search: None,
+            text_search: None,
+            fusion: None,
+        })
+    }
+
     #[expect(
         clippy::too_many_lines,
         clippy::too_many_arguments,

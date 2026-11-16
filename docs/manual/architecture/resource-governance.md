@@ -51,7 +51,7 @@ flowchart TD
 | Transaction staging | `transaction-pool` | 128 MiB | Staged writes of interactive transactions. |
 | Query phases | (= `managed-limit`) | — | A fixed 8 MiB token per executing request; this is the concurrency ceiling. |
 | Logical caches | `logical-cache-bytes` | 128 MiB | Text indexes, planner statistics, metadata and property caches, cursor state. `0` disables them. |
-| Vector cache | `vector-cache-bytes` | 256 MiB | Resident ANN indexes of vector spaces. `0` disables ANN: searches answer exactly. |
+| Vector cache | `vector-cache-bytes` | 256 MiB | Resident ANN indexes of vector spaces, and their vectors as `f32` rows when they fit. `0` disables both: searches answer exactly from storage. |
 | Graph cache | `graph-cache-bytes` | 128 MiB | Resident relationship graphs (one type at one snapshot) for traversals. `0` keeps none: traversals read adjacency from storage. |
 | Planner statistics | `planner-stats-bytes` | 32 MiB | On-demand value distributions ([derived state](derived-state.md#planner-statistics-on-demand)). |
 

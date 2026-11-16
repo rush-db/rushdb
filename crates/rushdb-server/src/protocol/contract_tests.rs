@@ -65,7 +65,9 @@ fn an_unknown_query_document_key_is_rejected_by_name() {
     })
     .to_string();
     let Err(crate::ApiError::Protocol(status, error)) =
-        crate::protocol_http::execute_cancellable(&node, None, body.as_bytes(), &|| false, None)
+        crate::protocol_http::parse_envelope(body.as_bytes()).and_then(|request| {
+            crate::protocol_http::execute_cancellable(&node, None, request, &|| false, None)
+        })
     else {
         panic!("an unknown key must not execute")
     };

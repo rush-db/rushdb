@@ -43,6 +43,8 @@ use field_types::type_held;
 mod matches;
 mod order;
 mod page;
+mod path;
+pub use path::{shortest_path, PathRequest};
 mod planned;
 mod planner;
 mod point_fields;

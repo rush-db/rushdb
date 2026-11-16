@@ -31,8 +31,9 @@ pub(crate) const PART_VECTORS: usize = 2048;
 /// Ready bindings a full scan collects before scoring them in parts: the
 /// memory of one scan stays bounded by this, not by the index size.
 pub(crate) const SCAN_CHUNK: usize = 32 * PART_VECTORS;
-/// Candidate owners one part of an owner-set search reads.
-pub(crate) const PART_OWNERS: usize = 1024;
+/// Candidate owners one part of an owner-set search reads: small, so even a
+/// filter of a few hundred owners spreads its binding seeks over the budget.
+pub(crate) const PART_OWNERS: usize = 128;
 
 /// One ready binding to score.
 #[derive(Clone, Copy)]
@@ -149,6 +150,8 @@ struct Scorer<'a> {
     k: usize,
     candidates: Candidates<'a>,
     min_score: Option<f32>,
+    /// The space's resident rows, when ready.
+    arena: Option<std::sync::Arc<crate::arena::VectorArena>>,
 }
 
 impl Scorer<'_> {
@@ -162,14 +165,12 @@ impl Scorer<'_> {
         bar: Option<Bar>,
         top: &mut TopK,
     ) -> Result<(), VectorError> {
-        // Scored in place from the stored bytes: no per-candidate copy.
-        let score = self
-            .snap
-            .with_value(
-                &emb_vector_key(self.engine.tenant(), self.space.space_id, candidate.slot),
-                |raw| raw.and_then(|raw| self.query.score_stored(raw)),
-            )?
-            .ok_or(StorageError::CorruptLog)?;
+        let key = emb_vector_key(self.engine.tenant(), self.space.space_id, candidate.slot);
+        let score =
+            crate::arena::score_slot(self.arena.as_deref(), &self.query, candidate.slot, || {
+                self.snap
+                    .with_value(&key, |raw| raw.and_then(|raw| self.query.score_stored(raw)))
+            })?;
         if self.min_score.is_some_and(|min| score < min)
             || bar.is_some_and(|bar| {
                 Ranked::order(score, candidate.source, bar.score, bar.source) != Ordering::Greater
@@ -292,6 +293,7 @@ impl VectorEngine {
             k,
             candidates,
             min_score,
+            arena: self.arena(space.space_id),
         };
         let mut top = TopK::new(k);
         match candidates {

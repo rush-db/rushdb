@@ -6,6 +6,18 @@ in [`docs/manual/operations/upgrading-from-2x.md`](docs/manual/operations/upgrad
 
 ## 3.0.11 — Unreleased
 
+### Added
+
+- **`query.path`: the shortest path between two records.** `from`, `to`
+  (record ids), `type`, `direction` (default `both`), `maxHops` and optional
+  `labels` return the records on a shortest path in order as a `records`
+  page, or none when no path is within `maxHops`. A breadth-first search from
+  both ends over the type's adjacency (resident once traversals at the
+  snapshot have read enough of it); past 1,000,000 reached records it fails
+  `resource_exhausted` instead of running on. Under an enforced policy it
+  never follows a denied type and never passes through a record whose label
+  the policy hides.
+
 ### Changed
 
 - **Tenants are admitted fairly beside a bulk load.** Before admission a
@@ -42,12 +54,53 @@ in [`docs/manual/operations/upgrading-from-2x.md`](docs/manual/operations/upgrad
   only stops strings being read as dates or numbers: JSON numbers, booleans
   and uniform arrays keep their types (`42` stays a number). It used to
   store every value as text.
+- **Vector searches score resident vectors.** After a space's first search,
+  its vectors are kept as `f32` rows by storage slot (built in the
+  background, charged to `vector-cache-bytes`). Exact search and ANN rerank
+  score them instead of reading each stored vector; scores are bit for bit
+  the same, and a space whose vectors do not fit the budget reads storage as
+  before. Measured on 100K × 1536 vectors: exact top-10 −24%, filtered
+  top-10 −22% to −49% (0.1% filters unchanged), ANN rerank −62%. A filtered
+  search over a few hundred owners now spreads its binding reads over the
+  thread budget (parts of 128 owners instead of 1,024).
+- **The ANN cache's 256 MiB cap is gone.** Cached generations were limited
+  to 256 MiB per tenant engine regardless of `vector-cache-bytes`, and a
+  larger generation was silently not cached. The cap is now the vector cache
+  budget itself, and a generation that still does not fit is logged
+  (`ANN generation not cached`).
+- **Multi-hop `$relation` traversals read headers in parallel.** Each
+  breadth-first level reads the label of its new records in parallel parts,
+  root and target label checks share one read when their labels match, and
+  a `select` of scalar properties reads its rows in parallel parts. Result
+  sets are unchanged. Measured on a 100K-node, 1.26M-edge graph: 3-hop
+  neighbourhood −48%, 2-hop −20%, 2-hop with a filter −10%.
+- **Text search makes one pass.** `query.text` no longer counts every match
+  before collecting the top k, reads owners from the index's fast field
+  instead of its document store, and resolves ties at the k-th score by
+  owner however the index is laid out. The background applier now lets the
+  index merge the segment each batch writes (5,183 documents left 11
+  segments, now 4). Scores and rankings are unchanged; text p50 −35%,
+  hybrid −16% to −20%.
+- **Less fixed work per request.** An HTTP request's envelope is parsed once
+  and its response encoded once (it was parsed twice and encoded four
+  times); responses are byte-identical. A text search no longer takes two
+  store-wide write locks. 1-hop traversal −18%.
 
 ### Fixed
 
 - **A filter on a reserved name is refused.** `{"__id": ...}` (or any
   `__`-prefixed key) in a `where` matched nothing, silently; it is now
   `invalid_request`, pointing to `$id` for record ids.
+- **Authentication refusals on `/protocol/v1/execute` use the protocol error
+  envelope.** A missing credential, an invalid one, or a capability without
+  the operation's permission answered 401 with `{"error":"unauthorized"}`, a
+  bare string clients reading `error.message` could not parse (Python SDK
+  direct mode raised `AttributeError`; the JS SDK lost the reason). They now
+  answer 401 with `{"protocolVersion":1,"error":{"code":"unauthorized",
+  "message":…,"retryable":false}}`; the message says whether the credential
+  is missing, invalid, or lacks a permission (naming it), and never echoes
+  the credential. The operator endpoints (`/metrics`, `/internal/*`) keep the
+  plain form.
 
 ## 3.0.10 — 2026-11-13
 

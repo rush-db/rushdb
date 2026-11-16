@@ -7,6 +7,7 @@
 //! so vector state rebuilds identically after a restart.
 
 pub mod ann;
+mod arena;
 mod exact;
 pub mod kernel;
 pub mod search;
@@ -66,12 +67,8 @@ pub fn score(query: &[f32], vec: &[f32], similarity: rushdb_types::occurrence::S
 /// large, roughly size-independent allocator floor — measured ~16-17 MiB
 /// per generation regardless of vector count or dimension (1 vector/2 dims
 /// through 5,000 vectors/128 dims all measured within 2% of the same
-/// number; see `ann.rs`'s `MAX_CACHED_ANN_BYTES` doc). The old value (256) assumed a few-hundred-
-/// byte formula estimate per generation and was never actually reachable:
-/// `MAX_CACHED_ANN_BYTES` (256 MiB) always bound first, around the 15th
-/// generation. 12 keeps both ceilings meaningful together (12 × ~20 MiB
-/// safety-margined floor stays under the byte ceiling), instead of one
-/// being silently dead code.
+/// number). The cached generations' bytes are bounded separately, by the
+/// vector cache budget their reservations are charged to.
 pub(crate) const MAX_CACHED_ANN_GENERATIONS: usize = 12;
 /// Tenant-local immutable vector spaces are metadata, but each can retain
 /// bindings and derived generations; bound their cardinality explicitly.
@@ -115,6 +112,9 @@ pub struct VectorEngine {
     /// [`search`]), so at most one runs per space and a graph the budget
     /// cannot admit is not rebuilt until its space changes.
     pub(crate) ann_warmups: Mutex<HashMap<u64, search::Warmup>>,
+    /// Each space's vectors resident as `f32` by slot, scored in place of
+    /// storage reads by exact search and ANN rerank (see [`arena`]).
+    pub(crate) arenas: Mutex<HashMap<u64, arena::ArenaState>>,
     /// Directory frozen ANN segments persist under (`<dir>/space-<id>/...`),
     /// when the store has one (`None` for a pure in-memory store, which has
     /// nowhere to persist — segments then stay resident-only, exactly as
@@ -337,6 +337,7 @@ impl VectorEngine {
             ann_cache: Mutex::new(HashMap::new()),
             ann_builds: Mutex::new(HashMap::new()),
             ann_warmups: Mutex::new(HashMap::new()),
+            arenas: Mutex::new(HashMap::new()),
             segments_dir: None,
         }
     }
@@ -1151,6 +1152,9 @@ impl VectorEngine {
                             ann::retire_cached(&old);
                         }
                     }
+                }
+                if let Ok(mut arenas) = self.arenas.lock() {
+                    arenas.remove(&space_id);
                 }
                 self.remove_space_dir(space_id);
                 Ok(count)

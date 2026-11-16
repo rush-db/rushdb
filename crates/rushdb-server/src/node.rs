@@ -16,6 +16,8 @@ mod key_join;
 mod long_text;
 mod metrics;
 mod observability;
+mod paths;
+pub(crate) use paths::PathError;
 mod policy_gate;
 mod queries;
 mod records;

@@ -442,18 +442,22 @@ fn a_hybrid_vector_leg_routes_like_a_vector_search() {
     assert_eq!(hybrid(1, "auto").pool, 36);
 }
 
-/// Backend reads of the vector index's own rows (bindings and vectors) for
-/// one search.
-fn index_reads(n: &Node, query: &VectorQuery) -> (u64, VectorSearchReport) {
+/// Backend reads of the vector index's own rows for one search: its
+/// bindings, and its stored vectors (none once the space's vectors are
+/// resident, a background build the first search starts).
+fn index_reads(n: &Node, query: &VectorQuery) -> ((u64, u64), VectorSearchReport) {
     rushdb_storage::read_accounting::enable(true);
     let _ = rushdb_storage::read_accounting::take_local();
     let report = search(n, query).unwrap().1;
-    let reads = rushdb_storage::read_accounting::take_local()
-        .iter()
-        .filter(|((_, family), _)| family == "legacy/emb-binding" || family == "legacy/vec")
-        .map(|(_, count)| count)
-        .sum();
-    (reads, report)
+    let counts = rushdb_storage::read_accounting::take_local();
+    let family = |name: &str| -> u64 {
+        counts
+            .iter()
+            .filter(|((_, family), _)| family == name)
+            .map(|(_, count)| count)
+            .sum()
+    };
+    ((family("legacy/emb-binding"), family("legacy/vec")), report)
 }
 
 #[test]
@@ -486,12 +490,16 @@ fn a_filtered_search_reads_its_candidates_not_the_index() {
     };
     let (small_exact, small_ann) = reads(500);
     let (large_exact, large_ann) = reads(5_000);
-    for (small, large) in [(small_exact, large_exact), (small_ann, large_ann)] {
+    for ((small, small_vectors), (large, large_vectors)) in
+        [(small_exact, large_exact), (small_ann, large_ann)]
+    {
         assert!(small > 0);
         assert!(
             large <= small + small / 10,
-            "reads grew with the index: {small} at 500 vectors, {large} at 5,000"
+            "binding reads grew with the index: {small} at 500 vectors, {large} at 5,000"
         );
+        // At most one stored vector per candidate, whatever the index size.
+        assert!(small_vectors <= 50 && large_vectors <= 50);
     }
 }
 

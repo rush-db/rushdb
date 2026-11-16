@@ -33,15 +33,29 @@ pub(super) fn reconstruct_page_with_budget(
         .graph_phase_budget()
         .and_then(|phase_budget| phase_budget.try_reserve(0).ok());
     let projection = Projection::resolve(snap, lmpg.tenant, &req.projection)?;
+    // Point-read rows of a page without collects are read up front, in
+    // parallel parts; they are charged below in page order, as one by one.
+    let mut point_rows = match &projection {
+        Some(projection) if req.collects.is_empty() => {
+            if is_cancelled() {
+                return Err(QueryError::Cancelled);
+            }
+            projection
+                .point_rows(snap, lmpg.tenant, &page_roots)?
+                .map(Vec::into_iter)
+        }
+        _ => None,
+    };
     let mut session = reconstruct::ReconstructSession::new(snap, lmpg.tenant);
     let mut records = Vec::with_capacity(page_roots.len());
     for ord in page_roots {
         if is_cancelled() {
             return Err(QueryError::Cancelled);
         }
-        let row = match &projection {
-            Some(projection) => projection.row(&mut session, snap, lmpg.tenant, ord)?,
-            None => session.reconstruct_record(ord)?,
+        let row = match (&mut point_rows, &projection) {
+            (Some(rows), _) => rows.next(),
+            (None, Some(projection)) => projection.row(&mut session, snap, lmpg.tenant, ord)?,
+            (None, None) => session.reconstruct_record(ord)?,
         };
         let Some(row) = row else {
             continue;

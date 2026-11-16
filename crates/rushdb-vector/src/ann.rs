@@ -161,9 +161,16 @@ impl AnnBacking {
     }
 }
 
-const MAX_CACHED_ANN_BYTES: usize = 256 * 1024 * 1024;
+/// Bytes the cached generations may hold together: the vector cache budget
+/// (`vector-cache-bytes`) their reservations are charged to. A generation
+/// over it is not cached, and the refusal is logged.
+fn ann_cache_cap(store: &rushdb_storage::Store) -> usize {
+    store
+        .vector_cache_budget()
+        .map_or(0, |budget| budget.snapshot().limit)
+}
 
-/// The in-memory LRU/eviction accounting (`MAX_CACHED_ANN_BYTES`) must use
+/// The in-memory LRU/eviction accounting (the cache's byte cap) must use
 /// the same real measured size as the `ByteBudget` reservation:
 /// otherwise eviction could believe there is room (formula-estimated sum
 /// under budget) while the real, charged reservation is already exhausted.
@@ -206,7 +213,7 @@ fn measured_backing_bytes(backing: &AnnBacking, generation: &AnnGeneration, dims
     }
 }
 
-fn vector_cache_budget(
+pub(crate) fn vector_cache_budget(
     store: &std::sync::Arc<rushdb_storage::Store>,
 ) -> Result<rushdb_storage::resources::ByteBudget, VectorError> {
     // A resident ANN build must be byte-accounted. With the vector cache
@@ -258,16 +265,17 @@ fn replace_cached(
     id: u64,
     entry: Arc<CachedAnn>,
     retire_old: bool,
+    cap: usize,
 ) {
     if let Some(old) = cache.remove(&id) {
         if retire_old {
             retire_cached(&old);
         }
     }
-    admit_ann(cache, id, entry);
+    admit_ann(cache, id, entry, cap);
 }
 
-fn admit_ann(cache: &mut HashMap<u64, Arc<CachedAnn>>, id: u64, entry: Arc<CachedAnn>) {
+fn admit_ann(cache: &mut HashMap<u64, Arc<CachedAnn>>, id: u64, entry: Arc<CachedAnn>, cap: usize) {
     let bytes = cached_ann_bytes(&entry);
     while cache.len() >= crate::MAX_CACHED_ANN_GENERATIONS
         || cache
@@ -275,7 +283,7 @@ fn admit_ann(cache: &mut HashMap<u64, Arc<CachedAnn>>, id: u64, entry: Arc<Cache
             .map(|cached| cached_ann_bytes(cached))
             .sum::<usize>()
             .saturating_add(bytes)
-            > MAX_CACHED_ANN_BYTES
+            > cap
     {
         let Some(idle) = cache
             .iter()
@@ -286,16 +294,19 @@ fn admit_ann(cache: &mut HashMap<u64, Arc<CachedAnn>>, id: u64, entry: Arc<Cache
         // Its files stay for the next miss to reopen.
         cache.remove(&idle);
     }
-    if bytes <= MAX_CACHED_ANN_BYTES
-        && cache
-            .values()
-            .map(|cached| cached_ann_bytes(cached))
-            .sum::<usize>()
-            .saturating_add(bytes)
-            <= MAX_CACHED_ANN_BYTES
-        && cache.len() < crate::MAX_CACHED_ANN_GENERATIONS
-    {
+    let held: usize = cache.values().map(|cached| cached_ann_bytes(cached)).sum();
+    if held.saturating_add(bytes) <= cap && cache.len() < crate::MAX_CACHED_ANN_GENERATIONS {
         cache.insert(id, entry);
+    } else {
+        // Every search of the space would assemble it again: say why.
+        tracing::warn!(
+            space = id,
+            bytes,
+            held,
+            cap,
+            generations = cache.len(),
+            "ANN generation not cached: it does not fit the vector cache beside the generations in use"
+        );
     }
 }
 
@@ -750,7 +761,13 @@ impl VectorEngine {
             .get(&space_id)
             .is_none_or(|entry| entry.space_version <= space_version)
         {
-            replace_cached(&mut cache, space_id, Arc::clone(&cached), false);
+            replace_cached(
+                &mut cache,
+                space_id,
+                Arc::clone(&cached),
+                false,
+                ann_cache_cap(&self.store),
+            );
         }
         Ok(cached)
     }
@@ -1191,6 +1208,7 @@ impl VectorEngine {
                 _reservation: reservation,
             }),
             true,
+            ann_cache_cap(&self.store),
         );
         Ok(generation)
     }
@@ -1313,13 +1331,14 @@ impl VectorEngine {
         // so the gather is `requested` sources that all pass: no gather
         // inflation and no selectivity guess.
         let prepared = crate::kernel::PreparedQuery::new(query, space.similarity);
+        let arena = self.arena(space.space_id);
         let rerank =
             |source: SourceRef, slot: u64, value_hash: u64| -> Result<ScoredSource, VectorError> {
-                // Scored in place from the stored bytes: no per-candidate copy.
                 let key = emb_vector_key(tenant, space.space_id, slot);
-                let score = |raw: Option<&[u8]>| raw.and_then(|raw| prepared.score_stored(raw));
-                let score = profile.time_get(|| snap.with_value(&key, score))?;
-                let score = score.ok_or(StorageError::CorruptLog)?;
+                let stored = |raw: Option<&[u8]>| raw.and_then(|raw| prepared.score_stored(raw));
+                let score = crate::arena::score_slot(arena.as_deref(), &prepared, slot, || {
+                    profile.time_get(|| snap.with_value(&key, stored))
+                })?;
                 Ok(ScoredSource {
                     source,
                     score,
@@ -1468,7 +1487,7 @@ fn load_ready_bindings<R: TryRead>(
 /// with **no vector decode at all** — metadata only, same cost as the
 /// fingerprint check. A cache miss reconciles reopened segments against it
 /// and decodes only what they do not cover.
-fn load_ready_segment_entries<R: TryRead>(
+pub(crate) fn load_ready_segment_entries<R: TryRead>(
     r: &R,
     t: TenantId,
     space_id: u64,
@@ -1758,40 +1777,5 @@ mod tests {
             .filter(|idx| exact.iter().take(8).any(|(_, e)| e == *idx))
             .count();
         assert!(overlap >= 6, "turbovec top-8 recall too low: {overlap}/8");
-    }
-
-    /// Calibration (2026-10-06): `MAX_CACHED_ANN_GENERATIONS` and
-    /// `MAX_CACHED_ANN_BYTES` must stay consistent with each other against
-    /// the *measured* per-generation allocator floor (~16-17 MiB, see
-    /// `crate::MAX_CACHED_ANN_GENERATIONS`'s doc comment for the
-    /// measurements this derives from), not the old formula estimate.
-    /// Guards against a future change to either constant silently making
-    /// the other one dead code again (one bound always binding many
-    /// generations before the other is ever reached).
-    #[test]
-    fn cache_ceilings_stay_consistent_with_the_measured_per_generation_floor() {
-        // A conservative floor estimate (above every measurement taken: ~16.0,
-        // 16.0, and 16.3 MiB across 1/2, 300/16, and 5,000/128 vector-count/dim
-        // combinations) — the margin absorbs usearch build-to-build variance.
-        const MEASURED_FLOOR_BYTES: usize = 20 * 1024 * 1024;
-        assert!(
-            crate::MAX_CACHED_ANN_GENERATIONS.saturating_mul(MEASURED_FLOOR_BYTES)
-                <= MAX_CACHED_ANN_BYTES,
-            "MAX_CACHED_ANN_GENERATIONS ({}) at the measured per-generation floor exceeds \
-             MAX_CACHED_ANN_BYTES ({MAX_CACHED_ANN_BYTES}); the byte ceiling would always bind \
-             first, making the generation count dead code again",
-            crate::MAX_CACHED_ANN_GENERATIONS
-        );
-        // And not wildly under it either: the generation count should be the
-        // ceiling that actually binds, not an order of magnitude below what
-        // the byte budget could hold.
-        assert!(
-            crate::MAX_CACHED_ANN_GENERATIONS.saturating_mul(MEASURED_FLOOR_BYTES)
-                > MAX_CACHED_ANN_BYTES / 2,
-            "MAX_CACHED_ANN_GENERATIONS ({}) leaves most of MAX_CACHED_ANN_BYTES \
-             ({MAX_CACHED_ANN_BYTES}) unreachable; reconsider whether either constant still \
-             reflects the measured floor",
-            crate::MAX_CACHED_ANN_GENERATIONS
-        );
     }
 }

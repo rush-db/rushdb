@@ -150,6 +150,7 @@ impl LmpgGraphStore {
                     ..rushdb_textsearch::LexicalOptions::default()
                 },
                 top_k,
+                count: false,
             },
             None,
         );

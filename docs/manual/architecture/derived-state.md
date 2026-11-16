@@ -116,7 +116,8 @@ coordination state over durable data, bounded, and safe to lose.
 | Label/count metadata cache | Labels and per-label counts per tenant. | Logical cache budget. | Exact for its commit index and policy generation. |
 | Property dictionary cache | Normalized property name → type, per tenant. | Logical cache budget. | Keyed by commit index and policy generation. |
 | Planner statistics | Value distributions per property, loaded on demand. | `planner-stats-bytes` (default 32 MiB). | See below. |
-| ANN segments | Per vector space: a hot segment and frozen segments ([vector internals](vector-internals.md)). | Vector cache budget (ANN capped at 256 MiB per tenant engine). | Rebuilt or reopened on demand. |
+| ANN segments | Per vector space: a hot segment and frozen segments ([vector internals](vector-internals.md)). | Vector cache budget (at most 12 cached generations per tenant engine). | Rebuilt or reopened on demand. |
+| Resident vectors | Per vector space: each vector as `f32` by storage slot, for exact search and ANN rerank ([vector internals](vector-internals.md#memory-budget)). | Vector cache budget; not kept when it does not fit. | Remade in the background. |
 | Open Tantivy indexes | Reader and writer handles per text index. | 256 open indexes. | Reopened from disk on demand. |
 | Tenant residency | Per-tenant vector engine and transaction coordinator. | `tenant-resident-bytes` (default 512 MiB). | Evicted when idle `tenant-idle-seconds` (default 300 s). |
 | Result cursors | A pinned view plus the cursor's request. | 64 MiB of cursor state. | Until exhausted or expired. |

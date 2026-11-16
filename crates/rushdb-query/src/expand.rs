@@ -49,6 +49,10 @@ pub(crate) const TRAIL_SEARCH_BUDGET: usize = 100_000;
 /// rather than hold (and walk) an unbounded part of the graph.
 pub(crate) const TRAIL_VISIT_BUDGET: usize = 1_000_000;
 
+/// Records one part of a label prefetch reads (a fixed size, so the reads
+/// never depend on the threads lent).
+const PREFETCH_PART: usize = 512;
+
 fn visits_exceeded() -> QueryError {
     QueryError::ResourceLimit(
         "$relation hops search reaches more records than its budget; narrow hops or add a filter"
@@ -75,6 +79,42 @@ impl<'a> LabelGate<'a> {
         }
     }
 
+    /// Read the headers of the records in `ords` not seen yet, in parts on
+    /// the shared thread budget, so [`Self::admits`] answers them from
+    /// memory: one breadth-first level's new records at a time.
+    pub(crate) fn prefetch(&self, ords: &[u64]) -> Result<(), QueryError> {
+        if self.labels.is_empty() {
+            return Ok(());
+        }
+        let todo: Vec<u64> = {
+            let seen = self.seen.borrow();
+            ords.iter()
+                .copied()
+                .filter(|ord| !seen.contains_key(ord))
+                .collect()
+        };
+        if todo.len() < PREFETCH_PART {
+            return Ok(());
+        }
+        let (snap, tenant, labels) = (self.snap, self.tenant, self.labels);
+        let parts =
+            rushdb_storage::parallel::run_parts(todo.len().div_ceil(PREFETCH_PART), |part| {
+                let end = ((part + 1) * PREFETCH_PART).min(todo.len());
+                todo[part * PREFETCH_PART..end]
+                    .iter()
+                    .map(|&ord| {
+                        Ok(access::record_by_ord(snap, tenant, ord)?
+                            .is_some_and(|header| labels.contains(&header.label)))
+                    })
+                    .collect::<Result<Vec<bool>, QueryError>>()
+            })?;
+        let mut seen = self.seen.borrow_mut();
+        for (&ord, admits) in todo.iter().zip(parts.into_iter().flatten()) {
+            seen.insert(ord, admits);
+        }
+        Ok(())
+    }
+
     pub(crate) fn admits(&self, ord: u64) -> Result<bool, QueryError> {
         if self.labels.is_empty() {
             return Ok(true);
@@ -89,6 +129,9 @@ impl<'a> LabelGate<'a> {
     }
 }
 
+/// Warms a trail check's record tests for a batch of records.
+pub(crate) type Prefetch<'a> = &'a dyn Fn(&[u64]) -> Result<(), QueryError>;
+
 /// The question one trail check answers.
 pub(crate) struct TrailCheck<'a> {
     pub(crate) adjacency: &'a dyn Adjacency,
@@ -102,6 +145,9 @@ pub(crate) struct TrailCheck<'a> {
     pub(crate) cancel: &'a dyn Fn() -> Result<(), QueryError>,
     /// Records a breadth-first search may reach ([`TRAIL_VISIT_BUDGET`]).
     pub(crate) visits: usize,
+    /// Warms `passable` and `target` for one level's new records at once
+    /// ([`LabelGate::prefetch`]), when they read record headers.
+    pub(crate) prefetch: Option<Prefetch<'a>>,
 }
 
 /// Whether a trail of `min..=max` hops leads forward from `start` to a
@@ -245,36 +291,45 @@ pub(crate) fn reaching_owners(
     owner_limit: usize,
 ) -> Result<OwnerSet, QueryError> {
     let mut out = OwnerSet::new();
-    let mut hops: HashMap<u64, u64> = targets.iter().map(|ord| (ord, 0)).collect();
+    // Every record reached so far: a record joins one frontier at most.
+    let mut reached: OwnerSet = targets.clone();
     // Records nearer than `min` hops to a target, and the targets
     // themselves: breadth-first distance does not decide them.
     let mut undecided: Vec<u64> = targets.iter().collect();
     let mut frontier: Vec<u64> = targets.iter().collect();
     let mut edges = Vec::new();
     for depth in 1..=check.max {
-        let mut next = Vec::new();
+        // The level's new records, each once (`reached` dedups the frontier).
+        let mut fresh = Vec::new();
         for &node in &frontier {
             (check.cancel)()?;
             edges.clear();
             check.adjacency.neighbours(node, false, &mut edges)?;
             for &(other, _) in &edges {
-                if hops.contains_key(&other) {
+                if reached.contains(other) {
                     continue;
                 }
-                if hops.len() >= check.visits {
+                if reached.len() >= check.visits as u64 {
                     return Err(visits_exceeded());
                 }
-                hops.insert(other, depth);
-                if depth >= check.min {
-                    if root(other)? {
-                        extend_owners(&mut out, [other], owner_limit)?;
-                    }
-                } else {
-                    undecided.push(other);
+                reached.insert(other);
+                fresh.push(other);
+            }
+        }
+        if let Some(prefetch) = check.prefetch {
+            prefetch(&fresh)?;
+        }
+        let mut next = Vec::new();
+        for other in fresh {
+            if depth >= check.min {
+                if root(other)? {
+                    extend_owners(&mut out, [other], owner_limit)?;
                 }
-                if depth < check.max && (check.passable)(other)? {
-                    next.push(other);
-                }
+            } else {
+                undecided.push(other);
+            }
+            if depth < check.max && (check.passable)(other)? {
+                next.push(other);
             }
         }
         if next.is_empty() {
@@ -336,6 +391,7 @@ pub(crate) fn related_holds(
             target: &target,
             cancel: &cancel,
             visits: TRAIL_VISIT_BUDGET,
+            prefetch: None,
         },
         ord,
     )
@@ -383,7 +439,16 @@ pub(crate) fn expand_relation(
         passable_labels.admits(ord)
     };
     let target = |ord: u64| Ok(targets.contains(ord));
-    let root = |ord: u64| root_labels.admits(ord);
+    // A traversal within one label set (`PERSON` to `PERSON`) asks the
+    // same question of every record twice: read its header once.
+    let same_labels = labels == rel.target_labels.as_slice();
+    let root = |ord: u64| {
+        if same_labels {
+            passable_labels.admits(ord)
+        } else {
+            root_labels.admits(ord)
+        }
+    };
     let cancel = || {
         if is_cancelled() {
             Err(QueryError::Cancelled)
@@ -398,6 +463,15 @@ pub(crate) fn expand_relation(
         rel.direction,
         &cancel,
     )?;
+    // One level's headers at once: the passable labels, and the root's
+    // when they differ.
+    let prefetch = |ords: &[u64]| -> Result<(), QueryError> {
+        passable_labels.prefetch(ords)?;
+        if !same_labels {
+            root_labels.prefetch(ords)?;
+        }
+        Ok(())
+    };
     let (min, max) = hop_bounds(rel);
     reaching_owners(
         &TrailCheck {
@@ -408,6 +482,7 @@ pub(crate) fn expand_relation(
             target: &target,
             cancel: &cancel,
             visits: TRAIL_VISIT_BUDGET,
+            prefetch: Some(&prefetch),
         },
         &targets,
         &root,
@@ -456,6 +531,7 @@ mod tests {
             target: &last,
             cancel: &cancel,
             visits,
+            prefetch: None,
         };
         assert!(trail_exists(&check(TRAIL_VISIT_BUDGET), 0).unwrap());
         assert!(matches!(

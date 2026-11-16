@@ -55,7 +55,8 @@ execution. Their status does not always follow the table above.
 
 | Status | Body | Cause | What to do |
 |---|---|---|---|
-| 401 | `{"error":"unauthorized"}` | No valid token or capability, or the capability lacks the needed permission. | Check the `Authorization` / `X-RushDB-Token` header. |
+| 401 | protocol error `unauthorized` | `/protocol/v1/execute` without a credential (`missing credential: …`), with one that is neither the token nor a valid capability for the tenant (`invalid token`), or with a capability that lacks the operation's permission (``the session's credential does not grant `write` ``). The credential is never echoed. | Check the `Authorization` / `X-RushDB-Token` header, or issue a capability with the permission. |
+| 401 | `{"error":"unauthorized"}` | The operator endpoints (`/metrics`, `/internal/*`), which are not protocol endpoints: no valid credential, or not the boot token where they require it. | Use the operator token. |
 | 400 | protocol error `missing_scope` | Multitenant server and no `X-RushDB-Tenant` header. | Send the header. |
 | 400 | protocol error `invalid_request` | `X-RushDB-Tenant` longer than 1024 bytes. | Shorten the scope. |
 | 404 | `{"error":"route not found"}` | Unknown path. | — |

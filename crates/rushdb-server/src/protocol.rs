@@ -48,6 +48,7 @@ fn intersects_policy(operation: &Operation) -> bool {
             | Query::PropertyValues { .. }
             | Query::Vector { .. }
             | Query::Hybrid { .. }
+            | Query::Path { .. }
             | Query::ExportCsv { .. }
             | Query::SearchValues { .. } => true,
             // Bytecode becomes a Gremlin statement before dispatch.
@@ -155,6 +156,7 @@ pub(crate) fn operation_kind(operation: &Operation) -> &'static str {
             Query::VectorIndexCandidates { .. } => "query.vectorIndexCandidates",
             Query::Text { .. } => "query.text",
             Query::Hybrid { .. } => "query.hybrid",
+            Query::Path { .. } => "query.path",
             Query::SearchValues { .. } => "query.searchValues",
         },
         Operation::Mutate { mutation } => match mutation {
@@ -313,10 +315,17 @@ fn response_row_count(response: &Response) -> u64 {
     }
 }
 
-fn observe_response_work(node: &Node, operation: &str, response: &Response) {
+fn observe_response_work(node: &Node, operation: &str, response: &Response, bytes: usize) {
     node.observe_work(operation, "response_rows", response_row_count(response));
-    let bytes = serde_json::to_vec(response).map_or(0, |encoded| encoded.len() as u64);
-    node.observe_work(operation, "response_bytes", bytes);
+    node.observe_work(operation, "response_bytes", bytes as u64);
+}
+
+/// A response envelope together with the JSON encoding of its `response`,
+/// made once for the size check and reused by a JSON transport
+/// ([`ResponseEnvelope::encode_with`]).
+pub(crate) struct Encoded {
+    pub(crate) envelope: ResponseEnvelope,
+    pub(crate) response_json: Vec<u8>,
 }
 
 impl<'a> ProtocolExecutor<'a> {
@@ -354,6 +363,16 @@ impl<'a> ProtocolExecutor<'a> {
         request: RequestEnvelope,
         is_cancelled: &dyn Fn() -> bool,
     ) -> Result<ResponseEnvelope, ProtocolError> {
+        self.execute_encoded(request, is_cancelled)
+            .map(|encoded| encoded.envelope)
+    }
+
+    /// [`Self::execute_cancellable`], keeping the response's JSON encoding.
+    pub(crate) fn execute_encoded(
+        &self,
+        request: RequestEnvelope,
+        is_cancelled: &dyn Fn() -> bool,
+    ) -> Result<Encoded, ProtocolError> {
         let limits = request_limits(&request.context, self.node.request_timeout_ms())?;
         // A shutting-down store cancels every request, whatever transport
         // brought it: work still running would hold the store open and keep
@@ -375,7 +394,7 @@ impl<'a> ProtocolExecutor<'a> {
         &self,
         request: RequestEnvelope,
         is_cancelled: &dyn Fn() -> bool,
-    ) -> Result<ResponseEnvelope, ProtocolError> {
+    ) -> Result<Encoded, ProtocolError> {
         if let Some(error) = self.node.resolution_error() {
             return Err(ProtocolError::new(
                 ErrorCode::Unavailable,
@@ -433,14 +452,17 @@ impl<'a> ProtocolExecutor<'a> {
                     ),
                 ));
             }
-            observe_response_work(&self.node, operation, &response);
-            return Ok(ResponseEnvelope {
-                protocol_version: PROTOCOL_VERSION,
-                request_id: request.request_id,
-                server_timing_ms: Some(
-                    started.elapsed().as_millis().min(u128::from(u64::MAX)) as u64
-                ),
-                response,
+            observe_response_work(&self.node, operation, &response, encoded_bytes.len());
+            return Ok(Encoded {
+                envelope: ResponseEnvelope {
+                    protocol_version: PROTOCOL_VERSION,
+                    request_id: request.request_id,
+                    server_timing_ms: Some(
+                        started.elapsed().as_millis().min(u128::from(u64::MAX)) as u64
+                    ),
+                    response,
+                },
+                response_json: encoded_bytes,
             });
         }
         // Disk-space guard, for every transport: a write fails safe while
@@ -733,6 +755,9 @@ impl<'a> ProtocolExecutor<'a> {
                 Query::Hybrid { query } => {
                     self.query_hybrid_with_context(&mut execution_context, &query)?
                 }
+                Query::Path { query } => {
+                    self.query_path(&query, is_cancelled, &execution_context)?
+                }
             },
             Operation::Mutate { mutation } => {
                 if self.node.maintenance() {
@@ -880,12 +905,17 @@ impl<'a> ProtocolExecutor<'a> {
                 .charge_bytes(encoded_bytes.len())
                 .map_err(|error| execution_failed(error.to_string()))?;
         }
-        observe_response_work(&self.node, operation, &response);
-        Ok(ResponseEnvelope {
-            protocol_version: PROTOCOL_VERSION,
-            request_id: request.request_id,
-            server_timing_ms: Some(started.elapsed().as_millis().min(u128::from(u64::MAX)) as u64),
-            response,
+        observe_response_work(&self.node, operation, &response, encoded_bytes.len());
+        Ok(Encoded {
+            envelope: ResponseEnvelope {
+                protocol_version: PROTOCOL_VERSION,
+                request_id: request.request_id,
+                server_timing_ms: Some(
+                    started.elapsed().as_millis().min(u128::from(u64::MAX)) as u64
+                ),
+                response,
+            },
+            response_json: encoded_bytes,
         })
     }
 

@@ -264,11 +264,24 @@ caches of `logical-cache-bytes`:
 2. After the build, the reservation is resized to the structure's real
    measured size (for a file-backed segment, its entries and live map: the
    mapped file is page cache, not charged).
-3. Each tenant engine also caps its cached ANN bytes (256 MiB) and the
-   number of cached space generations (12), evicting least recently used
-   entries.
+3. Each tenant engine caps the number of cached space generations (12)
+   and their bytes together at the vector cache budget, evicting idle
+   generations first. A generation that still does not fit is not cached,
+   and the server logs a warning (`ANN generation not cached`): every
+   search of that space would otherwise reassemble it unnoticed.
 4. When the budget cannot admit a space's index, the search answers
    exactly and increments `rushdb_ann_exact_fallbacks_total`.
+5. **Resident vectors.** A space's vectors are also kept as `f32` rows by
+   storage slot (`dimensions × 4 + 32` bytes per vector), made in the
+   background after a space's first search and charged to the same
+   budget. Exact search and ANN rerank score these rows instead of reading
+   each stored vector; bindings are still resolved through the search's
+   snapshot. A slot is written once and never reused, so the rows never
+   disagree with a snapshot, and the score is bit for bit the score of the
+   stored bytes. A vector bound after the rows were made is read from
+   storage; the rows are remade when they hold fewer than nine in ten of
+   the space's vectors. When the budget cannot hold them, searches read
+   storage as before: nothing is refused.
 
 > **Note:** ANN requires a vector cache budget. With
 > `vector-cache-bytes: 0` there is nothing to bound ANN memory, so no

@@ -175,6 +175,7 @@ capability scope needed.
 | `vectorIndexCandidates` | Records not yet bound to a vector index (default `limit` 500). | `query.vectorIndexCandidates` |
 | `text` | Full-text search against a declared text index (default `limit` 10). | `query.text` |
 | `hybrid` | Graph + vector + full-text query fused by reciprocal-rank fusion. | `query.hybrid` |
+| `path` | Shortest path between two records over one relationship type, within `maxHops`; the records on it in order. | `query.path` |
 
 ### `mutate` (permission `write`)
 
