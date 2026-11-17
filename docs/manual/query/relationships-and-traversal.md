@@ -212,6 +212,52 @@ for a longer path, within a fixed amount of work; past it the query fails
 with `resource_exhausted` ("`$cycle` search exceeds its work budget") rather
 than running on. Narrow `hops` or add a filter.
 
+## Shortest path: `path`
+
+The `path` query returns a shortest path between two records, as the
+records on it in order, both ends included:
+
+```json
+{
+  "kind": "query",
+  "query": {
+    "kind": "path",
+    "query": {
+      "from": "0190f1d2-…",
+      "to": "0190f1d3-…",
+      "type": "KNOWS",
+      "direction": "both",
+      "maxHops": 6,
+      "labels": ["PERSON"]
+    }
+  }
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `from`, `to` | Record ids of the two ends. |
+| `type` | Relationship type followed; every type when absent. |
+| `direction` | `out`, `in` or `both` (the default), read from `from` towards `to`. |
+| `maxHops` | Most relationships on the path. |
+| `labels` | Labels every record on the path, the ends included, must carry; any label when absent. |
+
+The response is a `records` page: `records` holds the path's records and
+`total` their number, so a path has `total - 1` hops. No path within
+`maxHops` returns no records; a record is its own 0-hop path. When several
+paths are equally short, one of them is returned.
+
+The search is breadth-first from both ends at once over the type's
+adjacency (held in memory once traversals at the same snapshot have read
+enough of it). It stops with `resource_exhausted` once it has reached
+1,000,000 records, rather than running on: lower `maxHops` or name
+`labels`.
+
+Under an enforced policy the path never follows a denied relationship type
+(naming one, or naming none while the policy denies some, is refused) and
+never passes through a record whose label the policy hides; an end with a
+hidden label is refused as `record` is.
+
 ## Listing relationships
 
 The `relationships` query returns the relationships themselves, with their
@@ -347,14 +393,16 @@ the anchor property (`node_id` above); without one, resolving the anchor
 reads every record of the label that has the property. Bound `hops.max`,
 and set `$relation.type` and `direction` whenever you know them.
 
-When traversals at one snapshot keep reading the same relationship type,
-the engine keeps that type's relationships in memory (a resident graph,
-budget `resources.graph-cache-bytes`, default 128 MiB). It builds one once
-the adjacency rows traversals have read at that snapshot add up to the
-cost of building it, so a read-mostly graph pays at most twice the build,
-and a graph that changes with every commit is never built. A commit moves
-readers to a new snapshot and the next graph is built the same way;
-results are always those of the reader's snapshot.
+When traversals keep reading the same relationship type, the engine keeps
+that type's relationships in memory (a resident graph, budget
+`resources.graph-cache-bytes`, default 128 MiB). It builds one in the
+background once the adjacency rows traversals have read since the tenant's
+relationships last changed add up to the cost of building it, so a
+read-mostly graph pays at most twice the build, and a graph whose
+relationships change with every commit is never built. Commits that write
+no relationship, or that belong to another tenant, keep the graph; a commit
+that writes one of the tenant's relationships drops it. Results are always
+those of the reader's snapshot ([resident state](../architecture/resident-state.md)).
 
 A path search that breadth-first distances cannot settle (a matching
 record closer than `min` hops, or the start record checked against

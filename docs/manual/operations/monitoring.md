@@ -105,6 +105,8 @@ verbosity with `RUST_LOG`; the default is
 | `replication follower: ...` | warn / error | Follower progress problems; see [Replication](replication.md#monitoring-replication). |
 | `shutdown signal received; closing the store cleanly` | info | `SIGTERM`/`SIGINT` received. |
 | `the store is still in use at the close deadline; the next open repairs it` | error | Shutdown could not close redb cleanly; the next start repairs the file (slow on a large store). |
+| `storage file was not closed cleanly; checking all of it before opening` | warn | The store was killed at a point where redb must check the whole file before it opens (several full reads); `/health` reports `repairing-storage` with `progress` until it finishes. |
+| `storage check` / `storage check finished` | info | Progress of that check (`percent`), and its end. |
 | `raft replication is EXPERIMENTAL ...` | warn | The Raft Preview is enabled. |
 
 ## What to alert on

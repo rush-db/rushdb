@@ -80,6 +80,10 @@ pub struct Txn<'a> {
     pub(super) deps: Option<&'a RefCell<DependencySet>>,
     /// The store's id reservations, for [`Txn::allocate`].
     pub(super) ids: &'a IdAllocator,
+    /// When set, every staged write records the key's previous buffer
+    /// entry, so [`Txn::roll_back_writes`] can return the buffer to where it
+    /// was without having copied it.
+    pub(super) undo: Option<Vec<(Vec<u8>, Option<Option<Vec<u8>>>)>>,
 }
 
 /// Materialize a bounded slice of a pinned snapshot's range. `max_rows == 0`
@@ -411,6 +415,21 @@ impl Txn<'_> {
         self.range_prefix(prefix)
     }
 
+    /// The keys this transaction itself wrote or deleted under `prefix`,
+    /// ascending (no committed state is read, so nothing is tracked).
+    pub fn staged_keys_prefix<'s>(
+        &'s self,
+        prefix: &'s [u8],
+    ) -> impl Iterator<Item = &'s [u8]> + 's {
+        self.buffer
+            .range::<[u8], _>((
+                std::ops::Bound::Included(prefix),
+                std::ops::Bound::Unbounded,
+            ))
+            .map(|(key, _)| key.as_slice())
+            .take_while(move |key| key.starts_with(prefix))
+    }
+
     /// Collect the committed and staged entries under `prefix`.
     ///
     /// # Errors
@@ -562,14 +581,36 @@ impl Txn<'_> {
         Ok(out)
     }
 
+    fn stage(&mut self, k: Vec<u8>, v: Option<Vec<u8>>) {
+        match &mut self.undo {
+            Some(undo) => {
+                let previous = self.buffer.insert(k.clone(), v);
+                undo.push((k, previous));
+            }
+            None => {
+                self.buffer.insert(k, v);
+            }
+        }
+    }
+
+    /// Undo every write staged since the undo log was started, newest first.
+    pub(super) fn roll_back_writes(&mut self) {
+        for (key, previous) in self.undo.take().into_iter().flatten().rev() {
+            match previous {
+                Some(value) => self.buffer.insert(key, value),
+                None => self.buffer.remove(&key),
+            };
+        }
+    }
+
     /// Stage an insert/overwrite of `k`; drains as [`Op::Put`].
     pub fn put(&mut self, k: Vec<u8>, v: Vec<u8>) {
-        self.buffer.insert(k, Some(v));
+        self.stage(k, Some(v));
     }
 
     /// Stage a deletion of `k`; drains as [`Op::Del`].
     pub fn del(&mut self, k: Vec<u8>) {
-        self.buffer.insert(k, None);
+        self.stage(k, None);
     }
 
     /// Stage a history-erasing erase of `k` (tenant purge). Unlike [`Txn::del`]
@@ -577,7 +618,7 @@ impl Txn<'_> {
     /// for a key whose value is intentionally destroyed.
     pub fn purge(&mut self, k: Vec<u8>) {
         self.purge_keys.insert(k.clone());
-        self.buffer.insert(k, None);
+        self.stage(k, None);
     }
 
     /// Stage a history-free overwrite of `k` (internal bookkeeping keys).
@@ -585,7 +626,7 @@ impl Txn<'_> {
     /// counter does not append to its retained history.
     pub fn set(&mut self, k: Vec<u8>, v: Vec<u8>) {
         self.set_keys.insert(k.clone());
-        self.buffer.insert(k, Some(v));
+        self.stage(k, Some(v));
     }
 
     /// Drain the staged base ops.

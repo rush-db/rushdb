@@ -15,16 +15,18 @@ mod id_alloc;
 pub use id_alloc::IdAllocator;
 pub mod read_accounting;
 mod transaction_view;
+mod tx_conflicts;
+pub use dependency_set::{DependencyIndex, DependencySet};
 pub use transaction_view::Txn;
 use transaction_view::TxnBase;
 mod commit;
 mod copy_on_write;
 pub use copy_on_write::CopyOnWrite;
 mod conflict_window;
+mod dependency_set;
 mod derive;
 pub mod derived_health;
 mod fair_gate;
-pub mod graph_cache;
 pub mod history_v2;
 mod layout;
 mod log_export;
@@ -32,15 +34,15 @@ pub mod log_store;
 mod maintenance;
 mod memory_backend;
 mod observability;
+pub mod open_repair;
 mod overlay_view;
-pub mod owner_sets;
 pub mod parallel;
 mod persist;
-pub mod planner_stats;
 mod publish;
 mod read_view;
 mod receipt;
 mod redb_backend;
+pub mod resident;
 pub mod resources;
 mod temp_path;
 pub mod tenant_dir;
@@ -57,7 +59,6 @@ pub use observability::{
     WRITER_HOLD_BOUNDS,
 };
 pub use overlay_view::OverlayView;
-pub use planner_stats::PlannerStats;
 pub use read_view::{
     ReadCancellation, ReadLimits, ReadPin, ReadView, ScanBatch, ScanBounds, ScanCursor,
     ScanDirection, ScanProjection, ScanRow,
@@ -91,17 +92,13 @@ use rushdb_types::ids::TenantId;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use std::cell::RefCell;
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::ops::Bound::{Included, Unbounded};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::mpsc;
 use std::sync::{Arc, Condvar, Mutex, RwLock};
 use thiserror::Error;
 use uuid::Uuid;
-
-/// Per-tenant outer admission shards, retained for replication call ordering.
-/// Local expansion additionally takes the single logical writer mutex.
-const N_SHARDS: usize = 64;
 
 /// A fully-admitted op-set awaiting batched durable publication, keyed by
 /// its reserved commit index. The publisher drains the contiguous prefix from
@@ -292,6 +289,14 @@ pub enum Op {
 }
 
 impl Op {
+    /// The key this op writes.
+    #[must_use]
+    pub fn key(&self) -> &[u8] {
+        match self {
+            Op::Put(k, _) | Op::Set(k, _) | Op::Del(k) | Op::Purge(k) => k,
+        }
+    }
+
     /// Approximate encoded size (key + value bytes) for group-commit byte
     /// accounting (P04 bounded writer).
     #[must_use]
@@ -306,64 +311,6 @@ impl Op {
 /// Reason prefix of a [`CommitOutcome::Conflicted`] caused by a read
 /// dependency that a later commit wrote (first-committer-wins).
 pub const SERIALIZABLE_CONFLICT: &str = "serializable_conflict";
-
-/// Serializable-mode read dependencies recorded against a transaction.
-/// Zero-width entries are point reads; otherwise half-open [start,end).
-#[derive(Default, Clone, Debug)]
-pub struct DependencySet {
-    /// Recorded read ranges as `(start, end)` pairs; a zero-width pair is a
-    /// point dependency.
-    pub ranges: Vec<(Vec<u8>, Vec<u8>)>,
-    whole_keyspace: bool,
-}
-
-impl DependencySet {
-    /// Whether no point, range, or whole-keyspace dependency was recorded.
-    #[must_use]
-    pub fn is_empty(&self) -> bool {
-        self.ranges.is_empty() && !self.whole_keyspace
-    }
-
-    /// Record a half-open `[start, end)` range dependency.
-    pub fn record(&mut self, start: Vec<u8>, end: Vec<u8>) {
-        self.ranges.push((start, end));
-    }
-
-    /// Prefix tracking is explicit so an empty prefix (all keys) is distinct
-    /// from a point dependency on the empty key.
-    pub fn record_prefix(&mut self, prefix: &[u8]) {
-        if prefix.is_empty() {
-            self.whole_keyspace = true;
-        } else {
-            let (start, end) = prefix_range(prefix);
-            self.record(start, end);
-        }
-    }
-
-    /// Merge dependencies captured by another preparation phase.
-    pub fn extend(&mut self, other: Self) {
-        self.ranges.extend(other.ranges);
-        self.whole_keyspace |= other.whole_keyspace;
-    }
-
-    fn intersects(&self, key: &[u8]) -> bool {
-        self.whole_keyspace
-            || self.ranges.iter().any(|(s, e)| {
-                if s == e {
-                    key == s.as_slice()
-                } else {
-                    key >= s.as_slice() && (e.is_empty() || key < e.as_slice())
-                }
-            })
-    }
-
-    /// Whether `key` falls in any recorded read range (serializable conflict
-    /// probe for transaction commit).
-    #[must_use]
-    pub fn intersects_key(&self, key: &[u8]) -> bool {
-        self.intersects(key)
-    }
-}
 
 /// Prepared metadata for one admitted command. The publisher keeps this
 /// alongside expanded operations so an admission overlay can validate
@@ -623,11 +570,10 @@ pub struct Store {
     phase_resources: Option<resources::ByteBudget>,
     /// Per-adapter attribution children of the two budgets above.
     adapter_budgets: adapter_budgets::AdapterBudgets,
-    planner_stats: Arc<planner_stats::PlannerStats>,
-    owner_sets: Arc<owner_sets::OwnerSets>,
+    /// Resident layers and the version table every commit raises.
+    residents: Arc<resident::Residents>,
     /// Labels whose derived rows a read found disagreeing (SELF-HEAL).
     derived_health: Arc<derived_health::DerivedHealth>,
-    graphs: Arc<graph_cache::GraphCache>,
     resource_config: resources::StorageResources,
     data: Arc<RwLock<BTreeMap<Vec<u8>, Vec<u8>>>>,
     /// creation commit index per live key (multi-version reads).
@@ -654,12 +600,18 @@ pub struct Store {
     publisher_failure: Mutex<Option<StorageError>>,
     #[cfg(test)]
     fail_next_persist: std::sync::atomic::AtomicBool,
-    /// Per-tenant outer admission shards (replication planning order).
-    shards: Vec<Mutex<()>>,
+    /// One outer lock per tenant (and one for commits with no tenant): a
+    /// tenant's commits plan in order (replication planning order), and
+    /// different tenants never wait on each other's lock.
+    tenant_locks: Mutex<HashMap<Option<TenantId>, Arc<Mutex<()>>>>,
     /// Serializes durable persist + in-memory publish in commit-index order.
     publish_lock: Mutex<()>,
     /// FIFO gate in front of `admission_lock` (see `fair_gate`).
     admission_queue: fair_gate::FairGate,
+    /// Test hook run by a transaction commit between its conflict scan
+    /// outside the admission gate and taking the gate.
+    #[cfg(test)]
+    after_conflict_prescan: Mutex<Option<Box<dyn FnOnce() + Send>>>,
     /// Write sets of recently published commits for optimistic conflict
     /// validation (in memory only; see `conflict_window`).
     conflicts: Mutex<conflict_window::ConflictWindow>,
@@ -680,7 +632,6 @@ pub struct Store {
     /// Apply-time deriver; `None` applies base ops unchanged.
     deriver: RwLock<Option<Arc<dyn Deriver>>>,
     /// Bounded tenant-directory resolution cache.
-    tenant_cache: Mutex<tenant_dir::TenantCache>,
     /// Ids reserved by planning, ahead of their commits (`id_alloc`).
     pub(crate) ids: IdAllocator,
     /// Set when WAL recovery applied records with no deriver installed, so a
@@ -767,7 +718,7 @@ impl Store {
     /// cannot be created.
     #[expect(
         clippy::too_many_lines,
-        reason = "the store's constructor initializes every counter and lock in one place"
+        reason = "one constructor initializes every field of the store, test hooks included"
     )]
     pub fn new_with_resources(config: resources::StorageResources) -> Result<Self, StorageError> {
         config
@@ -787,22 +738,16 @@ impl Store {
         };
         let phase_resources = optional_child("query-phases", config.phase_budget_bytes)?;
         let logical_cache_resources = optional_child("logical-cache", config.logical_cache_bytes)?;
-        let adapter_budgets = adapter_budgets::AdapterBudgets::new(
-            optional_child("vector-cache", config.vector_cache_bytes)?,
-            phase_resources.as_ref(),
-        )?;
-        let owner_sets = Arc::new(owner_sets::OwnerSets::new(
-            logical_cache_resources.as_ref(),
-        )?);
-        let graphs = Arc::new(graph_cache::GraphCache::new(optional_child(
-            "graph-cache",
-            config.graph_cache_bytes,
-        )?)?);
-        let planner_stats = Arc::new(planner_stats::PlannerStats::new(
+        let vector_cache = optional_child("vector-cache", config.vector_cache_bytes)?;
+        let adapter_budgets =
+            adapter_budgets::AdapterBudgets::new(vector_cache.clone(), phase_resources.as_ref())?;
+        let residents = Arc::new(resident::Residents::new(
             &config,
-            logical_cache_resources.as_ref(),
-            Arc::new(std::time::Instant::now),
-        )?);
+            logical_cache_resources.clone(),
+            optional_child("graph-cache", config.graph_cache_bytes)?,
+            vector_cache,
+            optional_child("column-cache", config.column_cache_bytes)?,
+        ));
         // The in-memory store is a real `StorageBackend`. `Store` keeps
         // shared handles to the same maps for diagnostics/replay; the backend
         // owns the read view and the write path.
@@ -829,10 +774,8 @@ impl Store {
             logical_cache_resources,
             phase_resources,
             adapter_budgets,
-            planner_stats,
-            owner_sets,
+            residents,
             derived_health: Arc::new(derived_health::DerivedHealth::default()),
-            graphs,
             resource_config: config,
             data: Arc::clone(&maps.data),
             created: Arc::clone(&maps.created),
@@ -845,9 +788,11 @@ impl Store {
             publisher_failure: Mutex::new(None),
             #[cfg(test)]
             fail_next_persist: std::sync::atomic::AtomicBool::new(false),
-            shards: (0..N_SHARDS).map(|_| Mutex::new(())).collect(),
+            tenant_locks: Mutex::new(HashMap::new()),
             publish_lock: Mutex::new(()),
             admission_queue: fair_gate::FairGate::default(),
+            #[cfg(test)]
+            after_conflict_prescan: Mutex::new(None),
             conflicts: Mutex::new(conflicts),
             pending: Mutex::new(BTreeMap::new()),
             pending_cv: Condvar::new(),
@@ -856,7 +801,6 @@ impl Store {
             expander: RwLock::new(None),
             commit_observer: RwLock::new(None),
             deriver: RwLock::new(None),
-            tenant_cache: Mutex::new(tenant_dir::TenantCache::default()),
             ids: IdAllocator::default(),
             underived_replay: std::sync::atomic::AtomicBool::new(false),
             durable: RwLock::new(memory_backends),
@@ -938,23 +882,10 @@ impl Store {
         (current, hist)
     }
 
-    /// Shard index for a tenant; commits without a tenant use shard 0.
-    #[expect(
-        clippy::cast_possible_truncation,
-        reason = "the hash is immediately reduced modulo N_SHARDS, so truncating its high bits cannot change routing correctness"
-    )]
-    fn shard_for(tenant: Option<&TenantId>) -> usize {
-        match tenant {
-            Some(t) => {
-                let mut h = 2_166_136_261u64;
-                for b in &t.to_be_bytes() {
-                    h ^= u64::from(*b);
-                    h = h.wrapping_mul(16_777_619);
-                }
-                (h as usize) % N_SHARDS
-            }
-            None => 0,
-        }
+    /// The outer lock of `tenant`'s commits.
+    fn tenant_lock(&self, tenant: Option<&TenantId>) -> Result<Arc<Mutex<()>>, StorageError> {
+        let mut locks = self.health.guard(self.tenant_locks.lock())?;
+        Ok(Arc::clone(locks.entry(tenant.copied()).or_default()))
     }
 
     /// Open a crash-safe redb-backed store. The materialized keyspace and
@@ -1086,12 +1017,6 @@ impl Store {
         self.backend(0)
     }
 
-    /// The planner-statistics cache: idle eviction and metrics.
-    #[must_use]
-    pub fn planner_stats(&self) -> &PlannerStats {
-        &self.planner_stats
-    }
-
     /// The persistent shared byte budget for logical caches, or `None`
     /// when `resources.logical-cache-bytes` is 0. Every retained cache/cursor
     /// reservation from this store contends on this same child.
@@ -1164,31 +1089,48 @@ impl Store {
         })
     }
 
-    /// Acquire the admission lock, honoring the configured acquisition timeout.
-    /// A bounded wait turns unbounded writer queueing into a retryable
-    /// `resource exhausted` instead of an unbounded stall (config #4).
-    fn acquire_admission(&self) -> Result<std::sync::MutexGuard<'_, SequencerState>, StorageError> {
+    /// Acquire the admission lock for a commit of `lane` (its tenant, or
+    /// `None` for a store-wide commit), honoring the configured acquisition
+    /// timeout. Waiting writers are admitted round robin across tenants and
+    /// in arrival order within one ([`fair_gate`]). A bounded wait turns
+    /// unbounded writer queueing into a retryable `resource exhausted`
+    /// instead of an unbounded stall (config #4).
+    fn acquire_admission(
+        &self,
+        lane: fair_gate::Lane,
+    ) -> Result<std::sync::MutexGuard<'_, SequencerState>, StorageError> {
         self.check_health()?;
         let timeout_ms = self.resource_config().lock_acquisition_timeout_ms;
         if timeout_ms == 0 {
-            // FIFO: the turn is held until the mutex is acquired, so waiting
-            // writers acquire admission in arrival order (no starvation).
-            let _turn = self.admission_queue.enter();
+            // The turn is held until the mutex is acquired, so only the
+            // admitted writer ever waits on the mutex itself.
+            let _turn = self.admission_queue.enter(lane);
             return self.health.guard(self.admission_lock.lock());
         }
         let started = std::time::Instant::now();
-        let deadline = std::time::Instant::now() + std::time::Duration::from_millis(timeout_ms);
+        let deadline = started + std::time::Duration::from_millis(timeout_ms);
+        let record_wait = || {
+            let waited = started.elapsed();
+            if waited > std::time::Duration::ZERO {
+                self.admission_waits.fetch_add(1, Ordering::Relaxed);
+                self.admission_wait_ms.fetch_add(
+                    u64::try_from(waited.as_millis()).unwrap_or(u64::MAX),
+                    Ordering::Relaxed,
+                );
+            }
+        };
+        let timed_out = || {
+            record_wait();
+            StorageError::ResourceExhausted("admission lock acquisition timed out".into())
+        };
+        let Some(_turn) = self.admission_queue.enter_until(lane, Some(deadline)) else {
+            return Err(timed_out());
+        };
+        // With the turn, the only contender is the writer still admitted.
         loop {
             match self.admission_lock.try_lock() {
                 Ok(guard) => {
-                    let waited = started.elapsed();
-                    if waited > std::time::Duration::ZERO {
-                        self.admission_waits.fetch_add(1, Ordering::Relaxed);
-                        self.admission_wait_ms.fetch_add(
-                            u64::try_from(waited.as_millis()).unwrap_or(u64::MAX),
-                            Ordering::Relaxed,
-                        );
-                    }
+                    record_wait();
                     return Ok(guard);
                 }
                 Err(std::sync::TryLockError::Poisoned(poisoned)) => {
@@ -1198,15 +1140,7 @@ impl Store {
                 }
                 Err(std::sync::TryLockError::WouldBlock) => {
                     if std::time::Instant::now() >= deadline {
-                        let waited = started.elapsed();
-                        self.admission_waits.fetch_add(1, Ordering::Relaxed);
-                        self.admission_wait_ms.fetch_add(
-                            u64::try_from(waited.as_millis()).unwrap_or(u64::MAX),
-                            Ordering::Relaxed,
-                        );
-                        return Err(StorageError::ResourceExhausted(
-                            "admission lock acquisition timed out".into(),
-                        ));
+                        return Err(timed_out());
                     }
                     std::thread::sleep(std::time::Duration::from_millis(1));
                 }
@@ -1259,7 +1193,10 @@ impl Store {
             || self.replicator.is_poisoned()
             || self.gc_cursor.is_poisoned()
             || self.data_path.is_poisoned()
-            || self.shards.iter().any(Mutex::is_poisoned)
+            || self
+                .tenant_locks
+                .lock()
+                .map_or(true, |locks| locks.values().any(|lock| lock.is_poisoned()))
         {
             self.health.fence();
         }
@@ -1355,7 +1292,7 @@ impl Store {
     /// Lock poisoning fences the store until reopen.
     pub fn record_aborted_outcome(&self, commit_key: Uuid) -> Result<(), StorageError> {
         self.check_health()?;
-        let _admission = self.acquire_admission()?;
+        let _admission = self.acquire_admission(None)?;
         self.record_aborted_outcome_admitted(commit_key)
     }
 
@@ -1911,6 +1848,7 @@ impl Store {
                     set_keys: BTreeSet::default(),
                     watermark_keys: BTreeSet::default(),
                     ids: &self.ids,
+                    undo: None,
                     deps: None,
                 };
                 expand(ci, batch, &mut txn).map_err(StorageError::Builder)?;
@@ -1995,7 +1933,8 @@ impl Store {
         payload: Option<&[u8]>,
     ) -> Result<u64, StorageError> {
         self.check_health()?;
-        let _admission = self.acquire_admission()?;
+        // Replicated batches keep the leader's order: no tenant lanes.
+        let _admission = self.acquire_admission(None)?;
         self.check_publisher()?;
         if let Some((OutcomeStatus::Committed, commit_index)) =
             self.lookup_outcome_checked(batch.commit_key)?
@@ -2023,6 +1962,7 @@ impl Store {
                 set_keys: BTreeSet::default(),
                 watermark_keys: BTreeSet::default(),
                 ids: &self.ids,
+                undo: None,
                 deps: None,
             };
             let expander = self.health.guard(self.expander.read())?.clone();

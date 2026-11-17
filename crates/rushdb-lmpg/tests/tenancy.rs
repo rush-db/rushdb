@@ -126,3 +126,54 @@ fn directory_survives_command_log_replay() {
         Some(b)
     );
 }
+
+fn replicated(
+    tenant: TenantId,
+    mutation: rushdb_types::command::Mutation,
+) -> rushdb_types::command::CommitBatch {
+    rushdb_types::command::CommitBatch {
+        command_version: rushdb_types::command::COMMAND_VERSION,
+        tenant,
+        transaction_id: "replicated".into(),
+        commit_key: uuid::Uuid::now_v7(),
+        start_index: 0,
+        isolation: rushdb_types::command::IsolationMode::ReadCommitted,
+        preconditions: vec![],
+        mutations: vec![mutation],
+    }
+}
+
+/// A follower applies the leader's register and retire commits through
+/// replication; its resolution of the scope follows both at once. (Before
+/// the resident framework only the node that drove a purge forgot the
+/// scope, so a follower kept resolving the retired ordinal.)
+#[test]
+fn a_follower_stops_resolving_a_tenant_retired_by_replication() {
+    let follower = Arc::new(Store::new_in_memory());
+    drop(Lmpg::new(Arc::clone(&follower), TenantId::SYSTEM));
+    let scope = TenantScope::of("replicated");
+    assert_eq!(follower.resolve_tenant(&scope).unwrap(), None);
+    follower
+        .apply_replicated_batch(&replicated(
+            TenantId::SYSTEM,
+            rushdb_types::command::Mutation::RegisterTenant { scope },
+        ))
+        .unwrap();
+    let tenant = follower
+        .resolve_tenant(&scope)
+        .unwrap()
+        .expect("registered");
+    // Resolved twice: the second answer may come from the resident layer.
+    assert_eq!(follower.resolve_tenant(&scope).unwrap(), Some(tenant));
+    follower
+        .apply_replicated_batch(&replicated(
+            tenant,
+            rushdb_types::command::Mutation::RetireTenant,
+        ))
+        .unwrap();
+    assert_eq!(
+        follower.resolve_tenant(&scope).unwrap(),
+        None,
+        "a retired tenant still resolves on the follower"
+    );
+}

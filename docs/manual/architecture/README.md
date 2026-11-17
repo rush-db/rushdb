@@ -29,6 +29,8 @@ Read them roughly in this order; later pages build on earlier ones.
 6. [Derived state](derived-state.md) — what the engine derives from base
    rows on disk and in memory, how it is kept exact on every commit, and
    what is rebuilt after a restart.
+   [Resident state](resident-state.md) — the one framework for in-memory
+   layers that answer across requests, with storage as the reference.
 7. [Query execution](query-execution.md) — the native query document,
    access-path planning, scans and declared indexes, pages and cursors,
    SQL through Apache DataFusion, graph languages through Grafeo, and

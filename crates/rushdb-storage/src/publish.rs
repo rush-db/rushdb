@@ -135,6 +135,7 @@ impl Store {
                     derived,
                 })
                 .collect();
+            self.note_resident_writes(&pairs);
             let publication = self.persist_many_sharded(&pairs, &batch);
             drop(pairs);
             drop(derived);
@@ -165,6 +166,17 @@ impl Store {
                 }
             }
             self.pending_cv.notify_all();
+        }
+    }
+
+    /// Raise the resident versions of everything `pairs` write. Runs before
+    /// `published` advances (and before persisting: a failed group only
+    /// costs misses), so a reader of the new snapshot never reuses an entry
+    /// these commits changed.
+    fn note_resident_writes(&self, pairs: &[CommitOps<'_>]) {
+        for pair in pairs {
+            self.residents
+                .note_writes(pair.ci, pair.base.iter().chain(pair.derived).map(Op::key));
         }
     }
 

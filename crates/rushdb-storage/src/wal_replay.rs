@@ -104,7 +104,13 @@ impl Store {
                 if deriver.is_none() {
                     self.underived_replay.store(true, Ordering::SeqCst);
                 }
-                Self::apply_derived_replay(deriver.as_ref(), backend.as_ref(), &ops, header.lsn)?;
+                Self::apply_derived_replay(
+                    &self.residents,
+                    deriver.as_ref(),
+                    backend.as_ref(),
+                    &ops,
+                    header.lsn,
+                )?;
             }
         }
         // `LogStore::open` (above) already truncated away any trailing
@@ -274,6 +280,7 @@ impl Store {
                 })?;
                 if let Some(backend) = self.backend(shard) {
                     Self::apply_derived_replay(
+                        &self.residents,
                         self.deriver().as_ref(),
                         backend.as_ref(),
                         &ops,
@@ -304,8 +311,10 @@ impl Store {
 
     /// Apply one replayed WAL record (base ops only) to a backend together
     /// with the ops the installed deriver derives against the backend's
-    /// current state, exactly as live publication does.
+    /// current state, exactly as live publication does, raising resident
+    /// versions before the replayed state can become visible.
     fn apply_derived_replay(
+        residents: &crate::resident::Residents,
         deriver: Option<&Arc<dyn crate::Deriver>>,
         backend: &dyn StorageBackend,
         ops: &[crate::Op],
@@ -318,6 +327,7 @@ impl Store {
             }
             None => Vec::new(),
         };
+        residents.note_writes(lsn, ops.iter().chain(&extra).map(crate::Op::key));
         backend
             .apply_many(&[crate::backend::CommitOps {
                 ci: lsn,

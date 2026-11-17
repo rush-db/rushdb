@@ -58,6 +58,9 @@ impl Node {
         search: &VectorSearch<'_>,
     ) -> Result<(Vec<ScoredSource>, serde_json::Value), String> {
         let route = self.route_vector_search(vectors, snap, space, search)?;
+        // Exact search and ANN rerank score resident rows once the space's
+        // arena is made (off the request, paid by this search's reads).
+        vectors.rent_arena(snap, space);
         if route.fallback == Some("annWarming") {
             // A query never waits for a build: this one answers exactly and
             // later ones by ANN once the graph is resident.

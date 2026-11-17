@@ -142,10 +142,14 @@ flowchart LR
 - The maintenance tick **freezes** a hot segment once it reaches 256
   entries, building a `usearch` graph from it. A build reads and decodes
   the vectors in parts of 1 024 on the shared thread budget, one chunk of
-  8 192 ahead, and inserts them into the graph on one thread in key order:
-  inserts from several threads link a measurably worse graph (recall@10 at
-  `ef` 128 on clustered 384-dimension data 0.996–0.999 against 1.000), and
-  one order makes every build of the same vectors the same graph. If
+  8 192 ahead. A build of fewer than 50 000 vectors inserts them into the
+  graph on one thread in key order, so every build of the same vectors is
+  the same graph. A larger one (a cold build, a large merge) inserts its
+  first chunk on one thread and the rest from as many threads as the budget
+  lends: about 4.6× faster for 200 000 vectors on 20 threads. Inserts from
+  several threads link a slightly different graph (recall@10 at `ef` 128 on
+  clustered 384-dimension data 0.996–0.999 against 1.000); candidates are
+  always reranked against their f32 vectors, so scores never change. If
   maintenance falls behind,
   the write path itself freezes the hot segment at 1 024 entries as a
   backstop.
@@ -260,11 +264,24 @@ caches of `logical-cache-bytes`:
 2. After the build, the reservation is resized to the structure's real
    measured size (for a file-backed segment, its entries and live map: the
    mapped file is page cache, not charged).
-3. Each tenant engine also caps its cached ANN bytes (256 MiB) and the
-   number of cached space generations (12), evicting least recently used
-   entries.
+3. Each tenant engine caps the number of cached space generations (12)
+   and their bytes together at the vector cache budget, evicting idle
+   generations first. A generation that still does not fit is not cached,
+   and the server logs a warning (`ANN generation not cached`): every
+   search of that space would otherwise reassemble it unnoticed.
 4. When the budget cannot admit a space's index, the search answers
    exactly and increments `rushdb_ann_exact_fallbacks_total`.
+5. **Resident vectors.** A space's vectors are also kept as `f32` rows by
+   storage slot (`dimensions × 4 + 32` bytes per vector), made in the
+   background after a space's first search and charged to the same
+   budget ([resident state](resident-state.md), layer `vector-arena`).
+   Exact search and ANN rerank score these rows instead of reading each
+   stored vector; bindings are still resolved through the search's
+   snapshot, and the score is bit for bit the score of the stored bytes.
+   The rows are used only while no commit has written the space since they
+   were made: a bind or unbind drops them, and the next searches read
+   storage until they are made again. When the budget cannot hold them,
+   searches read storage as before: nothing is refused.
 
 > **Note:** ANN requires a vector cache budget. With
 > `vector-cache-bytes: 0` there is nothing to bound ANN memory, so no

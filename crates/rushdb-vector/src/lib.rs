@@ -7,6 +7,7 @@
 //! so vector state rebuilds identically after a restart.
 
 pub mod ann;
+mod arena;
 mod exact;
 pub mod kernel;
 pub mod search;
@@ -66,12 +67,8 @@ pub fn score(query: &[f32], vec: &[f32], similarity: rushdb_types::occurrence::S
 /// large, roughly size-independent allocator floor — measured ~16-17 MiB
 /// per generation regardless of vector count or dimension (1 vector/2 dims
 /// through 5,000 vectors/128 dims all measured within 2% of the same
-/// number; see `ann.rs`'s `MAX_CACHED_ANN_BYTES` doc). The old value (256) assumed a few-hundred-
-/// byte formula estimate per generation and was never actually reachable:
-/// `MAX_CACHED_ANN_BYTES` (256 MiB) always bound first, around the 15th
-/// generation. 12 keeps both ceilings meaningful together (12 × ~20 MiB
-/// safety-margined floor stays under the byte ceiling), instead of one
-/// being silently dead code.
+/// number). The cached generations' bytes are bounded separately, by the
+/// vector cache budget their reservations are charged to.
 pub(crate) const MAX_CACHED_ANN_GENERATIONS: usize = 12;
 /// Tenant-local immutable vector spaces are metadata, but each can retain
 /// bindings and derived generations; bound their cardinality explicitly.

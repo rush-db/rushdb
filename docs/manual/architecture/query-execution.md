@@ -164,12 +164,13 @@ work budget. `$cycle` uses its own component-pruned search over the
 type's resident graph.
 
 Adjacency comes from storage scans or from a **resident graph**: one
-relationship type at one snapshot, in compressed sparse rows for both
-directions, kept in a per-snapshot cache under
-`resources.graph-cache-bytes`. Building one reads every adjacency row of
-the tenant, so traversals *rent* until the rows they have read at that
-snapshot equal one build, then *buy* (build and keep it). A commit starts
-a new snapshot and a new rent. See
+relationship type, in compressed sparse rows for both directions, kept
+under `resources.graph-cache-bytes` as a [resident](resident-state.md)
+layer. Building one reads every adjacency row of the tenant, so traversals
+*rent* until the rows they have read since the tenant's adjacency last
+changed equal one build; the graph is then built in the background and
+used by later traversals until a commit writes the tenant's relationships.
+Commits that write no relationship (or another tenant's) keep it. See
 [relationships and traversal](../query/relationships-and-traversal.md).
 
 ### Ordering, pagination, and reconstruction
@@ -211,7 +212,11 @@ then in part order. The group count is bounded, all partial groups are
 charged to the working-set budget, and the request's cancellation and
 deadline stop every part. Counts that derived rows can answer — records per
 label, owners per property, relationships per type — come from counters at
-the snapshot instead of scans. See [aggregations](../query/aggregations.md)
+the snapshot instead of scans. Over one label, an aggregate whose
+properties have [resident columns](resident-state.md#resident-typed-columns)
+reads cells from memory instead: the filter is evaluated once per distinct
+combination of its cells, rows are folded by their cells' codes, and the
+candidates are the column's members. See [aggregations](../query/aggregations.md)
 and [facets](../query/facets.md).
 
 ## SQL on Apache DataFusion

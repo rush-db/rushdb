@@ -100,10 +100,17 @@ jobs:
         run: timeout 1800s cargo package --workspace --locked
 
   test:
+    name: Workspace tests (resident layers ${{ matrix.resident }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # Off is the reference: storage answers every read.
+        resident: [on, off]
     env:
       # The workspace test build outgrew the runner's disk with full debug info.
       CARGO_PROFILE_DEV_DEBUG: line-tables-only
+      RUSHDB_RESIDENT_CACHES: ${{ matrix.resident }}
     steps:
       # Toolchains preinstalled on the runner image that this job never uses.
       - name: Free runner disk
@@ -113,7 +120,10 @@ jobs:
         with:
           toolchain: 1.98.1
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+      # A hung test stops the step here; libtest names it in the log
+      # ("has been running for over 60 seconds").
       - run: cargo test --workspace --no-fail-fast --locked
+        timeout-minutes: 90
 
   fault-matrix:
     name: Crash/reopen and memory-disk matrix

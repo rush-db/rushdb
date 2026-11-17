@@ -214,14 +214,14 @@ impl RequestScope<'_> {
         let coordinator = self
             .existing_tx_coordinator()
             .ok_or("unknown transaction id")?;
-        if options.merge_by.is_some() || options.merge_strategy.is_some() {
-            return Err("unsupported in a transaction: an import with mergeBy or mergeStrategy cannot be staged; run it outside the transaction".into());
-        }
         if let Some(error) = plan.validation_errors.first() {
             return Err(error.clone());
         }
         if !plan.vector_drafts.is_empty() {
             return Err("unsupported in a transaction: inline vectors cannot be staged; write them outside the transaction".into());
+        }
+        if options.upsert_requested() {
+            return coordinator.stage_merge(tx_id, &plan, options);
         }
         let pinned: std::collections::HashMap<[u8; 16], [u8; 16]> = plan
             .records

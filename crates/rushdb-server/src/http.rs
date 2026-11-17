@@ -468,8 +468,6 @@ pub(crate) fn spawn_gc_worker(
                 // long tick names the step that held the writer.
                 let step = std::time::Instant::now();
                 store.expire_read_pins(node.read_lease_ms());
-                // Planner statistics unused past their idle TTL go.
-                store.planner_stats().evict_idle();
                 // Freeze and merge ANN segments off the write path.
                 let step = node.observe_maintenance_step("read_pins", step);
                 node.maintain_vector_segments();
@@ -1368,12 +1366,10 @@ async fn execute(
     // single body byte, so an unauthenticated caller cannot make the server
     // buffer up to the body limit. Fine-grained (read/write) authorization
     // needs the parsed operation and runs after the body is read.
-    if !authenticated(&state, &headers) {
-        return json(
-            StatusCode::UNAUTHORIZED,
-            &serde_json::json!({"error":"unauthorized"}),
-        );
-    }
+    let principal = match principal(&state, &headers) {
+        Ok(principal) => principal,
+        Err(error) => return coded_error(&error),
+    };
     let scope = if state.node.multitenant() {
         let value = header(&headers, "x-rushdb-tenant").trim();
         if value.is_empty() {
@@ -1425,12 +1421,11 @@ async fn execute(
         Ok(payload) => payload,
         Err(response) => return response,
     };
-    let (permission, op_kind) = request_route(&payload);
-    if !authorized(&state, &headers, permission) {
-        return json(
-            StatusCode::UNAUTHORIZED,
-            &serde_json::json!({"error":"unauthorized"}),
-        );
+    let request = crate::protocol_http::parse_envelope(&payload);
+    drop(payload);
+    let (permission, op_kind) = request_route(request.as_ref().ok());
+    if !principal.allows(permission) {
+        return coded_error(&crate::auth::forbidden(permission));
     }
 
     // A bulk request waits for its tenant's share before it takes a worker.
@@ -1464,13 +1459,15 @@ async fn execute(
         let tenant = node.schedule_key(scope.as_deref());
         let node_for_job = Arc::clone(&node);
         node.schedule_for_tenant(tenant, move || {
-            crate::protocol_http::execute_cancellable(
-                &node_for_job,
-                scope,
-                &payload,
-                &is_cancelled,
-                (timeout_ms > 0).then_some(timeout_ms),
-            )
+            request.and_then(|request| {
+                crate::protocol_http::execute_cancellable(
+                    &node_for_job,
+                    scope,
+                    request,
+                    &is_cancelled,
+                    (timeout_ms > 0).then_some(timeout_ms),
+                )
+            })
         })
         .map_err(|error| {
             ApiError::Protocol(
@@ -1490,7 +1487,7 @@ async fn execute(
     let slow_call_threshold_ms = state.node.slow_call_threshold_ms();
     if slow_call_threshold_ms > 0 && elapsed_ms >= slow_call_threshold_ms {
         let (ok, rows) = match &result {
-            Ok(Ok(value)) => (true, response_row_count(value)),
+            Ok(Ok(reply)) => (true, reply.rows),
             _ => (false, 0),
         };
         tracing::warn!(
@@ -1503,7 +1500,7 @@ async fn execute(
         );
     }
     match result {
-        Ok(Ok(value)) => bounded_response(StatusCode::OK, &value, state.cfg.max_request_bytes),
+        Ok(Ok(reply)) => bounded_response(StatusCode::OK, reply.body, state.cfg.max_request_bytes),
         Ok(Err(ApiError::Protocol(status, error))) => protocol_error(status_code(status), &error),
         // SEC-5: engine/scheduler faults outside the protocol taxonomy are
         // internal. Log the detail and return a stable generic client message.
@@ -1518,22 +1515,10 @@ async fn execute(
     }
 }
 
-/// Rows a successful response reported (records/rows arrays), for the
-/// slow-call log. Bounded so a pathological response cannot inflate the log.
-fn response_row_count(value: &serde_json::Value) -> u64 {
-    const MAX: u64 = 1_000_000;
-    value
-        .get("response")
-        .and_then(|response| response.get("records").or_else(|| response.get("rows")))
-        .and_then(|rows| rows.as_array())
-        .map_or(0, |rows| (rows.len() as u64).min(MAX))
-}
-
 /// P11: serialize a response value and reject it with an explicit error if it
 /// exceeds the output budget. A successful response is NEVER silently
 /// truncated; an oversized result returns 413 with a clear message.
-fn bounded_response(status: StatusCode, value: &serde_json::Value, max_bytes: usize) -> Response {
-    let encoded = value.to_string();
+fn bounded_response(status: StatusCode, encoded: Vec<u8>, max_bytes: usize) -> Response {
     if encoded.len() > max_bytes {
         return protocol_error(
             StatusCode::PAYLOAD_TOO_LARGE,
@@ -1558,20 +1543,24 @@ async fn not_found() -> Response {
     )
 }
 
-/// Whether the request carries a valid credential at all — the boot token, or
-/// a verified capability for this tenant — independent of the operation's
-/// permission. Checked before the body is read.
-fn authenticated(state: &AppState, headers: &HeaderMap) -> bool {
+/// The principal the request's credential grants (the boot token, or a
+/// capability verified and bound to the requested tenant), checked from the
+/// headers before the body is read. A refusal is the `unauthorized` protocol
+/// error, saying whether the credential is missing or invalid, never echoing
+/// it.
+fn principal(
+    state: &AppState,
+    headers: &HeaderMap,
+) -> Result<rushdb_protocol::Principal, rushdb_protocol::ProtocolError> {
     let token = presented_token(headers);
-    if rushdb_protocol::constant_time_eq(token.as_bytes(), state.cfg.token.as_bytes()) {
-        return true;
+    if token.is_empty() {
+        return Err(rushdb_protocol::ProtocolError::new(
+            rushdb_protocol::ErrorCode::Unauthorized,
+            "missing credential: send `Authorization: Bearer <token>` or `X-RushDB-Token`",
+        ));
     }
-    state
-        .cfg
-        .capability_secret
-        .as_ref()
-        .and_then(|secret| crate::capability::verify(secret, token, unix_now()).ok())
-        .is_some_and(|capability| capability_tenant_matches(state, headers, &capability))
+    crate::auth::Credentials::from_config(&state.cfg)
+        .authenticate(token, Some(header(headers, "x-rushdb-tenant")))
 }
 
 fn payload_too_large(limit: usize) -> Response {
@@ -1616,15 +1605,6 @@ fn presented_token(headers: &HeaderMap) -> &str {
     }
 }
 
-fn capability_tenant_matches(
-    state: &AppState,
-    headers: &HeaderMap,
-    capability: &crate::capability::Capability,
-) -> bool {
-    let requested = header(headers, "x-rushdb-tenant");
-    crate::capability::tenant_matches(state.node.multitenant(), capability, Some(requested))
-}
-
 fn authorized(state: &AppState, headers: &HeaderMap, permission: &str) -> bool {
     let requested = header(headers, "x-rushdb-tenant");
     crate::auth::Credentials::from_config(&state.cfg)
@@ -1639,16 +1619,19 @@ fn header<'a>(headers: &'a HeaderMap, name: &str) -> &'a str {
         .unwrap_or("")
 }
 
-/// Parse the envelope once for auth + observability: the required permission
-/// (fail-closed `write` when unparseable) and the fine-grained operation
-/// kind for metrics/slow-call labels (`invalid` when unparseable).
-fn request_route(body: &[u8]) -> (&'static str, &'static str) {
-    match serde_json::from_slice::<rushdb_protocol::RequestEnvelope>(body) {
-        Ok(envelope) => (
+/// The parsed envelope's route for auth + observability: the required
+/// permission (fail-closed `write` when the body did not parse) and the
+/// fine-grained operation kind for metrics/slow-call labels (`invalid` when
+/// it did not).
+fn request_route(
+    envelope: Option<&rushdb_protocol::RequestEnvelope>,
+) -> (&'static str, &'static str) {
+    match envelope {
+        Some(envelope) => (
             rushdb_protocol::operation_permission(&envelope.operation),
             crate::protocol::operation_kind(&envelope.operation),
         ),
-        Err(_) => ("write", "invalid"),
+        None => ("write", "invalid"),
     }
 }
 
@@ -1701,12 +1684,6 @@ fn json(status: StatusCode, value: &serde_json::Value) -> Response {
 
 fn status_code(value: u16) -> StatusCode {
     StatusCode::from_u16(value).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR)
-}
-
-fn unix_now() -> u64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map_or(0, |d| d.as_secs())
 }
 
 /// Run `on_drop` when the returned guard is dropped (every exit of a
@@ -2062,11 +2039,7 @@ mod p11_tests {
     #[test]
     fn bounded_response_rejects_oversized_and_accepts_small() {
         // A small value passes through as 200.
-        let small = bounded_response(
-            StatusCode::OK,
-            &serde_json::json!({"ok": true}),
-            64 * 1024 * 1024,
-        );
+        let small = bounded_response(StatusCode::OK, br#"{"ok":true}"#.to_vec(), 64 * 1024 * 1024);
         assert_eq!(small.status(), StatusCode::OK);
 
         // A value larger than the output budget is rejected with 413 and an
@@ -2079,23 +2052,30 @@ mod p11_tests {
         let big = serde_json::json!({
             "blob": "x".repeat(64 * 1024 * 1024 + 1),
         });
-        let rejected = bounded_response(StatusCode::OK, &big, 64 * 1024 * 1024);
+        let rejected = bounded_response(
+            StatusCode::OK,
+            big.to_string().into_bytes(),
+            64 * 1024 * 1024,
+        );
         assert_eq!(rejected.status(), StatusCode::PAYLOAD_TOO_LARGE);
     }
 
     #[test]
     fn request_route_labels_operations_and_fails_closed() {
-        // E4: one parse feeds auth (permission) and observability (op kind).
+        // E4: one parse feeds auth (permission), observability (op kind)
+        // and execution.
+        let route =
+            |body: &[u8]| request_route(crate::protocol_http::parse_envelope(body).ok().as_ref());
         let (permission, kind) =
-            request_route(br#"{"protocolVersion":1,"operation":{"kind":"purgeTenant"}}"#);
+            route(br#"{"protocolVersion":1,"operation":{"kind":"purgeTenant"}}"#);
         assert_eq!((permission, kind), ("write", "purgeTenant"));
-        let (permission, kind) = request_route(
+        let (permission, kind) = route(
             br#"{"protocolVersion":1,"operation":{"kind":"describe","describe":{"kind":"buildInfo"}}}"#,
         );
         assert_eq!((permission, kind), ("read", "describe.buildInfo"));
         // Unparseable bodies fail closed on permission and are still
         // counted under an explicit label (never silently dropped).
-        let (permission, kind) = request_route(b"not json");
+        let (permission, kind) = route(b"not json");
         assert_eq!((permission, kind), ("write", "invalid"));
     }
 

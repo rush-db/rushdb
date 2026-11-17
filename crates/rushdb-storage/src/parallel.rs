@@ -57,6 +57,26 @@ impl Drop for Lease {
     }
 }
 
+/// One helper thread for a background job (a resident build), returned
+/// when dropped. Waits until the budget has one free, so background work
+/// never runs beside a budget's worth of query parts. With no budget
+/// configured (`set_threads` never called) the job runs at once.
+pub(crate) fn background_lease() -> impl Drop + Send {
+    let mut wait = std::time::Duration::from_micros(200);
+    loop {
+        if budget() == 0 {
+            return Lease(0);
+        }
+        let lease = Lease::take(1);
+        if lease.0 == 1 {
+            return lease;
+        }
+        drop(lease);
+        std::thread::sleep(wait);
+        wait = (wait * 2).min(std::time::Duration::from_millis(20));
+    }
+}
+
 /// Run `part(0..parts)` and return the results in part order. Parts run on
 /// the calling thread plus as many helper threads as the shared budget lends
 /// right now (at most `parts - 1`); with none free, they run one after

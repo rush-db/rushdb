@@ -412,7 +412,7 @@ impl RequestScope<'_> {
         let Some(leg) = &query.text else {
             return Ok(rushdb_textsearch::TextHits {
                 hits: Vec::new(),
-                matches: 0,
+                matches: Some(0),
                 pending: 0,
             });
         };
@@ -429,6 +429,8 @@ impl RequestScope<'_> {
                         leg.syntax,
                     ),
                     top_k: prefetch(leg.prefetch_limit),
+                    // The response reports `textSearch.matches`.
+                    count: true,
                 },
                 candidates,
             )

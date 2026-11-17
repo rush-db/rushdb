@@ -189,7 +189,8 @@ impl RequestScope<'_> {
 impl Node {
     /// Advance every building or dropping index of every tenant, a batch at a
     /// time, until done or `budget` elapses. Returns the commits made.
-    pub(crate) fn step_index_builds(&self, budget: Duration) -> usize {
+    /// Public for tests that drive builds without the background worker.
+    pub fn step_index_builds(&self, budget: Duration) -> usize {
         let started = Instant::now();
         let tenants = match self.durable_tenants() {
             Ok(tenants) => tenants,

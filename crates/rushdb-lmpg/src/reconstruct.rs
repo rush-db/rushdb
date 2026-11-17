@@ -116,6 +116,39 @@ impl<'a, R: TryRead> ReconstructSession<'a, R> {
         Ok(Some(Json::Object(map)))
     }
 
+    /// Like [`Self::reconstruct_record_selected`] when `pids` are every
+    /// property id the `selected` names can be stored under: reads only
+    /// those pids' occurrences, not the whole record, so a transaction that
+    /// tracks its reads depends on the selected properties alone.
+    ///
+    /// # Errors
+    /// Returns [`StorageError`] if a read fails or stored state is corrupt.
+    pub fn reconstruct_record_pids(
+        &mut self,
+        ordinal: u64,
+        pids: &[u64],
+        selected: &HashSet<String>,
+    ) -> Result<Option<Json>, StorageError> {
+        let Some(header) = access::record_by_ord(self.snap, self.tenant, ordinal)? else {
+            return Ok(None);
+        };
+        let mut map = Map::new();
+        map.insert(ID_FIELD.into(), Json::String(id_string(&header.record_id)));
+        map.insert(LABEL_FIELD.into(), Json::String(header.label));
+        let mut occurrences = Vec::new();
+        for &pid in pids {
+            occurrences.extend(access::occurrences_of_pid(
+                self.snap,
+                self.tenant,
+                OwnerKind::Record,
+                ordinal,
+                pid,
+            )?);
+        }
+        self.fold_occurrences(occurrences, &mut map, Some(selected))?;
+        Ok(Some(Json::Object(map)))
+    }
+
     /// Reconstructs a relationship document from its live occurrences.
     ///
     /// # Errors

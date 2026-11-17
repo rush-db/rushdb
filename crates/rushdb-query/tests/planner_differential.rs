@@ -377,39 +377,57 @@ fn range_leaf_gets_an_estimate_but_never_through_the_exact_explain_channel() {
     assert_paths(&lmpg, &json!({"where": {"n": {"$gte": 10}}}), "pln1 gte");
 }
 
-/// Range estimates load the value distribution once into the store's
-/// planner-statistics cache and serve later plans from it.
+/// The planner-statistics layer's counters.
+fn planner_stats(store: &Store) -> rushdb_storage::resident::LayerSnapshot {
+    store
+        .residents()
+        .snapshots()
+        .into_iter()
+        .find(|layer| layer.layer == "planner-stats")
+        .unwrap_or_default()
+}
+
+/// Range estimates load the value distribution once into the resident
+/// planner statistics and serve later plans from it, until a commit writes
+/// the property (no tolerated staleness).
 #[test]
 fn range_estimates_load_once_into_the_planner_stats_cache() {
     let lmpg = setup(42);
+    let on = rushdb_storage::resident::residents_enabled();
     let expr = rushdb_query::document::parse_where(&json!({"n": {"$gte": 10}})).unwrap();
-    assert_eq!(lmpg.store.planner_stats().stats().entries, 0);
-    let first = {
+    assert_eq!(planner_stats(&lmpg.store).entries, 0);
+    let estimate = || {
         let view = lmpg.store.read_view().unwrap();
         rushdb_query::explain_range_selectivity(&view, lmpg.tenant, &expr).unwrap()
     };
-    let loaded = lmpg.store.planner_stats().stats();
-    assert_eq!(loaded.entries, 1, "{loaded:?}");
-    assert!(loaded.bytes > 0);
-    let second = {
-        let view = lmpg.store.read_view().unwrap();
-        rushdb_query::explain_range_selectivity(&view, lmpg.tenant, &expr).unwrap()
-    };
-    assert_eq!(first, second);
-    let after = lmpg.store.planner_stats().stats();
-    assert_eq!(after.entries, 1);
-    assert!(after.hits > loaded.hits, "the second plan hit the cache");
+    let first = estimate();
+    let loaded = planner_stats(&lmpg.store);
+    assert_eq!(loaded.entries, u64::from(on), "{loaded:?}");
+    assert_eq!(loaded.bytes > 0, on);
+    assert_eq!(first, estimate());
+    let after = planner_stats(&lmpg.store);
+    assert_eq!(
+        after.hits > loaded.hits,
+        on,
+        "the second plan hit the layer"
+    );
+    // A write to the property drops the entry: the next plan walks again.
+    lmpg.create_record("T", None, vec![("n".into(), FieldChange::Set(json!(99)))])
+        .unwrap();
+    let _ = estimate();
+    let rewritten = planner_stats(&lmpg.store);
+    assert_eq!(rewritten.invalidations, u64::from(on), "{rewritten:?}");
+    assert_eq!(rewritten.hits, after.hits);
 }
 
-/// Distributions for 500 properties stay within the cache budget
-/// (LRU under a tight one), and an idle sweep empties the cache.
+/// Distributions for 500 properties stay within the budget (LRU under a
+/// tight one).
 #[test]
-fn planner_stats_for_500_properties_stay_in_budget_and_evict_when_idle() {
-    fn run(budget: usize) -> rushdb_storage::cache::CacheStats {
+fn planner_stats_for_500_properties_stay_in_budget() {
+    fn run(budget: usize) -> rushdb_storage::resident::LayerSnapshot {
         let store = Arc::new(
             Store::new_with_resources(rushdb_storage::resources::StorageResources {
                 planner_stats_bytes: budget,
-                planner_stats_idle_seconds: 0,
                 ..rushdb_storage::resources::StorageResources::default()
             })
             .unwrap(),
@@ -433,21 +451,18 @@ fn planner_stats_for_500_properties_stay_in_budget_and_evict_when_idle() {
                 .unwrap()
                 .expect("an estimate");
         }
-        let loaded = lmpg.store.planner_stats().stats();
+        let loaded = planner_stats(&lmpg.store);
         assert!(loaded.bytes <= budget as u64, "{loaded:?} over {budget}");
-        lmpg.store.planner_stats().evict_idle();
-        let idle = lmpg.store.planner_stats().stats();
-        assert_eq!(
-            (idle.entries, idle.bytes),
-            (0, 0),
-            "idle sweep empties the cache"
-        );
         loaded
+    }
+    if !rushdb_storage::resident::residents_enabled() {
+        assert_eq!(run(32 * 1024 * 1024).entries, 0);
+        return;
     }
     let roomy = run(32 * 1024 * 1024);
     assert_eq!(roomy.entries, 500, "{roomy:?}");
     eprintln!(
-        "500 cached properties: {} bytes ({} per entry)",
+        "500 resident properties: {} bytes ({} per entry)",
         roomy.bytes,
         roomy.bytes / roomy.entries
     );

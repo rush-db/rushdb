@@ -116,6 +116,9 @@ pub struct TextQuery<'a> {
     pub opts: LexicalOptions,
     /// Hits to return; [`ALL_HITS`] returns every match.
     pub top_k: usize,
+    /// Also count every match ([`TextHits::matches`]); otherwise a search
+    /// only collects the best `top_k`.
+    pub count: bool,
 }
 
 /// [`TextQuery::top_k`] that returns every match.
@@ -127,8 +130,10 @@ pub struct TextHits {
     /// Ranked owners.
     pub hits: Vec<ScoredDoc>,
     /// Owners matching the query (within the candidates, when given), of
-    /// which `hits` are the best `top_k`.
-    pub matches: u64,
+    /// which `hits` are the best `top_k`; counted when the query asked
+    /// ([`TextQuery::count`]) or when a large `top_k` (every hit, say) is
+    /// sized by them.
+    pub matches: Option<u64>,
     /// Changes not yet applied when the search ran (always 0 for an
     /// `immediate` index unless a write storm exceeded its apply bound).
     pub pending: u64,
@@ -211,6 +216,20 @@ impl TextIndexes {
         Ok(opened)
     }
 
+    /// Searchable segments of text index `id` (each search visits every
+    /// one).
+    ///
+    /// # Errors
+    /// Returns an error if the index cannot be opened or its segments read.
+    pub fn segments(&self, tenant: TenantId, id: u32) -> Result<usize, String> {
+        Ok(self
+            .open_index(tenant, id)?
+            .index
+            .searchable_segment_ids()
+            .map_err(err)?
+            .len())
+    }
+
     /// Text indexes open in this process (bounded by the open-index cache).
     #[must_use]
     pub fn open_indexes(&self) -> usize {
@@ -268,6 +287,23 @@ impl TextIndexes {
         def: &IndexDef,
         max_owners: usize,
     ) -> Result<usize, String> {
+        self.apply_batch(lmpg, def, max_owners, false)
+    }
+
+    /// [`Self::apply`]; with `settle_merges`, also wait for the segment
+    /// merges the commit starts. Each batch commits a segment of its own, and
+    /// a writer dropped right after its commit abandons the merges, so
+    /// segments piled up one per batch (11 for 5,183 documents) and every
+    /// search visited each. The background applier waits, so the index keeps
+    /// a logarithmic number of segments (tantivy's log merge policy); an
+    /// `immediate` index applying inside a search does not.
+    fn apply_batch(
+        &self,
+        lmpg: &rushdb_lmpg::Lmpg,
+        def: &IndexDef,
+        max_owners: usize,
+        settle_merges: bool,
+    ) -> Result<usize, String> {
         let tenant = lmpg.tenant;
         let opened = self.open_index(tenant, def.id)?;
         let _single = opened.apply.lock().map_err(|_| "text applier poisoned")?;
@@ -316,6 +352,9 @@ impl TextIndexes {
             }
         }
         writer.commit().map_err(err)?;
+        if settle_merges {
+            writer.wait_merging_threads().map_err(err)?;
+        }
         opened.reader.reload().map_err(err)?;
         let applied = owners.len();
         lmpg.index_applied(def.id, snap.commit_index(), owners)
@@ -346,7 +385,7 @@ impl TextIndexes {
                 continue;
             }
             loop {
-                let step = self.apply(lmpg, &def, APPLY_BATCH)?;
+                let step = self.apply_batch(lmpg, &def, APPLY_BATCH, true)?;
                 applied += step;
                 if step < APPLY_BATCH || started.elapsed() >= budget {
                     break;
@@ -379,8 +418,12 @@ impl TextIndexes {
             query,
             opts,
             top_k,
+            count,
         } = request;
-        let lmpg = rushdb_lmpg::Lmpg::new(Arc::clone(&self.store), tenant);
+        // The store's expander and deriver are installed when it opens;
+        // `Lmpg::new` would install them again, two store-wide write locks
+        // per search.
+        let lmpg = rushdb_lmpg::Lmpg::new_with_authorizer(Arc::clone(&self.store), tenant, None);
         let def = index::by_name(view, tenant, name)
             .map_err(err)?
             .ok_or_else(|| TextSearchError::UnknownIndex(name.to_owned()))?;
@@ -403,24 +446,32 @@ impl TextIndexes {
                 applied += step;
             }
         }
-        let pending = {
-            let now = lmpg.store.read_view().map_err(err)?;
-            pending(&now, tenant, def.id, IMMEDIATE_APPLY_LIMIT)
-                .map_err(err)?
-                .len() as u64
-        };
+        // The backlog as of the newest commit: the request's own view when
+        // nothing has been published since it was taken.
+        let pending = if view.commit_index() == lmpg.store.committed_version() {
+            pending(view, tenant, def.id, IMMEDIATE_APPLY_LIMIT)
+        } else {
+            pending(
+                &lmpg.store.read_view().map_err(err)?,
+                tenant,
+                def.id,
+                IMMEDIATE_APPLY_LIMIT,
+            )
+        }
+        .map_err(err)?
+        .len() as u64;
         if query.trim().is_empty() {
             return Ok(TextHits {
                 hits: Vec::new(),
-                matches: 0,
+                matches: (count || top_k == ALL_HITS).then_some(0),
                 pending,
             });
         }
         let opened = self.open_index(tenant, def.id)?;
-        let (hits, matches) = ranked(&opened, query, opts, top_k, candidates)?;
+        let (hits, matches) = ranked(&opened, query, opts, top_k, candidates, count)?;
         Ok(TextHits {
             hits,
-            matches: u64::try_from(matches).unwrap_or(u64::MAX),
+            matches: matches.map(|matches| u64::try_from(matches).unwrap_or(u64::MAX)),
             pending,
         })
     }
@@ -536,48 +587,99 @@ fn build_query(
     }
 }
 
-/// The best `top_k` matches of `query` in `opened` (all of them for
-/// [`ALL_HITS`]) among `candidates`, and how many matched.
+/// A `top_k` above this counts the matches first, so the collector is never
+/// sized past them.
+const COUNT_FIRST_ABOVE: usize = 10_000;
+
+/// The best `top_k` owners for `query` (every match for [`ALL_HITS`]),
+/// ordered by score, then owner; with `count`, also the number of matches.
+///
+/// One pass unless `top_k` is above [`COUNT_FIRST_ABOVE`] ([`ALL_HITS`]
+/// included), which counts first to size the collector. The top-k always runs under the owner filter (accepting every
+/// owner without candidates): a bare top-k would prune blocks (block-WAND),
+/// which sums the terms of a score in another order and moves BM25 scores in
+/// their last bits. Ties at the `top_k`-th score are resolved by owner: the
+/// collection widens until it holds every hit tying the last one kept, so
+/// which tied owners make the cut never depends on where they sit in the
+/// index.
 fn ranked(
     opened: &OpenIndex,
     query: &str,
     opts: LexicalOptions,
     top_k: usize,
     candidates: Option<Arc<roaring::RoaringTreemap>>,
-) -> Result<(Vec<ScoredDoc>, usize), TextSearchError> {
+    count: bool,
+) -> Result<(Vec<ScoredDoc>, Option<usize>), TextSearchError> {
     use tantivy::collector::{Count, FilterCollector, TopDocs};
-    use tantivy::schema::{TantivyDocument, Value as _};
     let searcher = opened.reader.searcher();
     let parsed = build_query(opened, query, opts)?;
     let accepts = move |owner: u64| candidates.as_ref().is_none_or(|c| c.contains(owner));
-    let matches = searcher
-        .search(
-            &*parsed,
-            &FilterCollector::new("owner".to_string(), accepts.clone(), Count),
-        )
+    let filtered = |limit: usize,
+                    with_count: bool|
+     -> Result<(usize, Vec<(f32, tantivy::DocAddress)>), TextSearchError> {
+        let top = TopDocs::with_limit(limit.max(1)).order_by_score();
+        let (matches, found) = if with_count {
+            searcher.search(
+                &*parsed,
+                &FilterCollector::new("owner".to_string(), accepts.clone(), (Count, top)),
+            )
+        } else {
+            searcher
+                .search(
+                    &*parsed,
+                    &FilterCollector::new("owner".to_string(), accepts.clone(), top),
+                )
+                .map(|found| (0, found))
+        }
         .map_err(err)?;
-    // Never size the collector past what matched (`ALL_HITS` included).
-    let limit = top_k.min(matches);
-    let found = if limit == 0 {
+        Ok((matches, found))
+    };
+    // A large `top_k` (every hit, say) is sized by the matches: count first.
+    let counted = if top_k > COUNT_FIRST_ABOVE || (top_k == 0 && count) {
+        Some(filtered(0, true)?.0)
+    } else {
+        None
+    };
+    let mut matches = counted;
+    let wanted = counted.map_or(top_k, |all| top_k.min(all));
+    let found = if wanted == 0 {
         Vec::new()
     } else {
-        searcher
-            .search(
-                &*parsed,
-                &FilterCollector::new(
-                    "owner".to_string(),
-                    accepts,
-                    TopDocs::with_limit(limit).order_by_score(),
-                ),
-            )
-            .map_err(err)?
+        // `wanted + 1` hits tell whether the last one kept ties a later one;
+        // while the last one collected still ties, collect more.
+        let ceiling = counted.unwrap_or(usize::MAX);
+        let mut limit = wanted.saturating_add(1).min(ceiling);
+        loop {
+            let (all, found) = filtered(limit, count && counted.is_none())?;
+            if count && counted.is_none() {
+                matches = Some(all);
+            }
+            let ties_past_the_cut = found.len() == limit
+                && limit < ceiling
+                && found.get(wanted - 1).map(|hit| hit.0) == found.last().map(|hit| hit.0);
+            if !ties_past_the_cut {
+                break found;
+            }
+            limit = limit.saturating_mul(2).min(ceiling);
+        }
     };
     let mut hits = Vec::with_capacity(found.len());
+    let mut owners: Vec<Option<tantivy::columnar::Column<u64>>> =
+        vec![None; searcher.segment_readers().len()];
     for (score, address) in found {
-        let doc = searcher.doc::<TantivyDocument>(address).map_err(err)?;
-        if let Some(owner) = doc
-            .get_first(opened.owner_field)
-            .and_then(|v| v.as_value().as_u64())
+        let segment = address.segment_ord as usize;
+        if owners[segment].is_none() {
+            owners[segment] = Some(
+                searcher
+                    .segment_reader(address.segment_ord)
+                    .fast_fields()
+                    .u64("owner")
+                    .map_err(err)?,
+            );
+        }
+        if let Some(owner) = owners[segment]
+            .as_ref()
+            .and_then(|column| column.first(address.doc_id))
         {
             hits.push(ScoredDoc {
                 owner_ord: owner,
@@ -592,6 +694,7 @@ fn ranked(
             .unwrap_or(std::cmp::Ordering::Equal)
             .then_with(|| a.owner_ord.cmp(&b.owner_ord))
     });
+    hits.truncate(wanted);
     Ok((hits, matches))
 }
 

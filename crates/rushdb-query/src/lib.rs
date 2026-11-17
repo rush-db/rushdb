@@ -24,6 +24,7 @@ mod aggregate_budget;
 mod aggregate_rows;
 mod aggregate_scan;
 mod budget;
+mod columns;
 pub use budget::Budget;
 use budget::{Cap, WorkingSet};
 mod aggregate_catalog;
@@ -43,6 +44,8 @@ use field_types::type_held;
 mod matches;
 mod order;
 mod page;
+mod path;
+pub use path::{shortest_path, PathRequest};
 mod planned;
 mod planner;
 mod point_fields;
@@ -1335,23 +1338,21 @@ impl<'a> EvalCtx<'a> {
         &self,
         rel_type: Option<&str>,
         direction: Direction,
-    ) -> Result<std::rc::Rc<adjacency::TypeAdjacency>, QueryError> {
+    ) -> std::rc::Rc<adjacency::TypeAdjacency> {
         let key = (rel_type.map(str::to_owned), direction);
         if let Some(open) = self.adjacencies.borrow().get(&key) {
-            return Ok(std::rc::Rc::clone(open));
+            return std::rc::Rc::clone(open);
         }
-        let cancel = || self.check_cancelled();
         let open = std::rc::Rc::new(adjacency::TypeAdjacency::open(
             &self.snap,
             self.lmpg.tenant,
             rel_type,
             direction,
-            &cancel,
-        )?);
+        ));
         self.adjacencies
             .borrow_mut()
             .insert(key, std::rc::Rc::clone(&open));
-        Ok(open)
+        open
     }
 
     /// Open a context pinned to the store's current committed view.

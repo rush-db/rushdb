@@ -110,6 +110,7 @@ impl TableFunctionImpl for TextSearchFunction {
                     query: &query,
                     opts,
                     top_k: limit,
+                    count: false,
                 },
                 None,
             )

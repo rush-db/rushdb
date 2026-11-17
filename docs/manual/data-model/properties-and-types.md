@@ -71,10 +71,8 @@ rdb '{"protocolVersion":1,"operation":{"kind":"mutate","mutation":{
   "options":{"suggestTypes":false}}}}'
 ```
 
-> **Warning:** With `suggestTypes: false`, values that are not strings are
-> also stored as text: `42` becomes `"42"`, `true` becomes `"true"`, and an
-> array is converted element by element (`[1, 2]` becomes `["1", "2"]`). Only
-> turn inference off for payloads whose values are all meant to be strings.
+Inference only reads strings: with it off, numbers, booleans and arrays keep
+their JSON types (`42` stays a number, `[1, 2]` an array of numbers).
 
 `putRecord` in `merge` and `replace` mode always uses the defaults. Values on
 relationships are never inferred: a date string on a relationship stays a

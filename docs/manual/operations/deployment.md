@@ -244,7 +244,11 @@ A store compaction already running finishes its current step first.
 
 > **Warning:** `SIGKILL` does not lose acknowledged commits under the default
 > `local` durability (the WAL is fsynced first), but the next start must
-> replay the WAL. Prefer a clean stop, and do not set a short stop timeout.
+> replay the WAL, and a kill during a store compaction step makes it check
+> the whole store file first (`repairing-storage`, several full reads of the
+> file). A clean stop can take up to about 65 s (30 s of HTTP requests,
+> 30 s of maintenance, the final checkpoint): prefer a clean stop and give
+> it that long (`stop_grace_period: 90s` above).
 
 ## 8 GB VPS profile
 

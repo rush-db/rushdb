@@ -115,6 +115,50 @@ fn transaction_reads_resolve_at_their_pinned_snapshot() {
 }
 
 #[test]
+fn a_failed_statement_or_a_read_leaves_the_transaction_as_it_was() {
+    // The buffer and read deps move into each statement instead of being
+    // copied; what a failed statement or a reader wrote is undone.
+    let store = Store::new_in_memory();
+    store.set_expander(Arc::new(Box::new(|_, _, txn| {
+        txn.put(b"x".to_vec(), vec![9]);
+        Ok(())
+    })));
+    let mut acc = TxAccumulator::new(TenantId::from_ordinal(1), 0);
+    acc.base_view = Some(Arc::new(store.read_at(0).unwrap()));
+    store
+        .tx_apply(&mut acc, Uuid::new_v4(), |_, txn| {
+            txn.put(b"a".to_vec(), vec![1]);
+            txn.get(b"r1").map_err(|e| e.to_string())?;
+            Ok((batch(Uuid::new_v4()), ()))
+        })
+        .unwrap();
+    let (buffer, deps) = (acc.buffer.clone(), acc.deps.ranges.clone());
+    assert_eq!(buffer.len(), 2, "the statement's and the expander's writes");
+    assert!(!deps.is_empty());
+
+    let failed = store.tx_apply(&mut acc, Uuid::new_v4(), |_, txn| {
+        txn.put(b"a".to_vec(), vec![2]);
+        txn.del(b"x".to_vec());
+        txn.put(b"b".to_vec(), vec![3]);
+        txn.purge(b"a".to_vec());
+        txn.get(b"r2").map_err(|e| e.to_string())?;
+        Err::<(crate::CommitBatch, ()), _>("refused".into())
+    });
+    assert!(failed.is_err());
+    assert_eq!(acc.buffer, buffer);
+    assert_eq!(acc.deps.ranges, deps);
+
+    store
+        .tx_read(&mut acc, |txn| {
+            txn.put(b"c".to_vec(), vec![4]);
+            txn.del(b"a".to_vec());
+            Ok(())
+        })
+        .unwrap();
+    assert_eq!(acc.buffer, buffer, "a read leaves no write behind");
+}
+
+#[test]
 fn two_transactions_writing_one_key_cannot_both_commit() {
     // D01 regression: transaction validation must be serialized with
     // publication. Both accumulators share a write key and the same base
@@ -603,6 +647,7 @@ fn bounded_keys_prefix_stops_at_limit_and_skips_tombstones() {
         set_keys: BTreeSet::default(),
         watermark_keys: BTreeSet::default(),
         ids: &store.ids,
+        undo: None,
         deps: None,
     };
     // A staged replacement stays; a staged tombstone drops out.
@@ -771,6 +816,7 @@ fn txn_reads_through_the_sequencer_overlay() {
         set_keys: BTreeSet::default(),
         watermark_keys: BTreeSet::default(),
         ids: &store.ids,
+        undo: None,
         deps: None,
     };
 
@@ -890,4 +936,123 @@ fn a_store_is_quiet_once_no_commit_has_landed_for_the_window() {
         .unwrap();
     assert!(!store.quiet_for(Duration::from_secs(3600)));
     assert!(store.quiet_for(Duration::ZERO));
+}
+
+fn tenant_batch(tenant: u64, commit_key: Uuid) -> CommitBatch {
+    CommitBatch {
+        tenant: TenantId::from_ordinal(tenant),
+        ..batch(commit_key)
+    }
+}
+
+/// SCALE-2 F1: while a busy tenant has commits queued, another tenant's
+/// commit takes the next commit index instead of waiting behind them. A
+/// tenant's own commits queue on its own lock, never on another tenant's.
+#[test]
+fn a_light_tenant_is_admitted_ahead_of_a_busy_tenants_queue() {
+    const LIGHT: u64 = 65;
+    let store = Arc::new(Store::new_in_memory());
+    store.set_expander(Arc::new(Box::new(|_, _, _| Ok(()))));
+    let commit = |store: &Store, tenant: u64| -> u64 {
+        let key = Uuid::new_v4();
+        let routed = TenantId::from_ordinal(tenant);
+        match store
+            .commit_for_tenant(&routed, key, |_, _| Ok((tenant_batch(tenant, key), ())))
+            .unwrap()
+        {
+            CommitOutcome::Committed { commit_index, .. } => commit_index,
+            CommitOutcome::Conflicted(reason) => panic!("{reason}"),
+        }
+    };
+    // Tenant 1's first commit holds admission while its build waits.
+    let (release, held) = std::sync::mpsc::channel::<()>();
+    let (entered, building) = std::sync::mpsc::channel::<()>();
+    let first = {
+        let store = Arc::clone(&store);
+        std::thread::spawn(move || {
+            let key = Uuid::new_v4();
+            let routed = TenantId::from_ordinal(1);
+            match store
+                .commit_for_tenant(&routed, key, |_, _| {
+                    entered.send(()).unwrap();
+                    held.recv().unwrap();
+                    Ok((tenant_batch(1, key), ()))
+                })
+                .unwrap()
+            {
+                CommitOutcome::Committed { commit_index, .. } => commit_index,
+                CommitOutcome::Conflicted(reason) => panic!("{reason}"),
+            }
+        })
+    };
+    building.recv().unwrap();
+    #[expect(
+        clippy::needless_collect,
+        reason = "every busy commit must be queued before the first one is released"
+    )]
+    let busy: Vec<_> = (0..4)
+        .map(|_| {
+            let worker = Arc::clone(&store);
+            std::thread::spawn(move || commit(&worker, 1))
+        })
+        .collect();
+    // Let tenant 1's queue form before the light tenant arrives.
+    std::thread::sleep(Duration::from_millis(50));
+    // Tenant 65 shared tenant 1's lock when locks were 64 hashed shards.
+    let light = {
+        let worker = Arc::clone(&store);
+        std::thread::spawn(move || commit(&worker, LIGHT))
+    };
+    // It reaches admission while tenant 1's commit is still in flight, not
+    // queued on tenant 1's lock.
+    let deadline = std::time::Instant::now() + Duration::from_secs(5);
+    while !store.admission_queue.turn_held() {
+        assert!(
+            std::time::Instant::now() < deadline,
+            "tenant {LIGHT} is waiting on tenant 1's lock"
+        );
+        std::thread::yield_now();
+    }
+    release.send(()).unwrap();
+    let first_ci = first.join().unwrap();
+    let light_ci = light.join().unwrap();
+    let mut busy_cis: Vec<u64> = busy.into_iter().map(|t| t.join().unwrap()).collect();
+    busy_cis.sort_unstable();
+    // The light tenant arrived after tenant 1's four queued commits and
+    // still committed right after the one in flight.
+    assert_eq!(
+        light_ci,
+        first_ci + 1,
+        "busy tenant committed at {busy_cis:?}"
+    );
+    assert_eq!(busy_cis, (first_ci + 2..first_ci + 6).collect::<Vec<_>>());
+}
+
+#[test]
+fn a_conflict_published_while_a_commit_scans_outside_the_gate_still_aborts_it() {
+    // A transaction commit scans the commits already published before it
+    // takes the admission gate; one that publishes in between is scanned
+    // under the gate.
+    let store = Arc::new(Store::new_in_memory());
+    store.set_expander(Arc::new(Box::new(|_, _, txn| {
+        txn.put(b"k".to_vec(), vec![1]);
+        Ok(())
+    })));
+    let mut reader = TxAccumulator::new(TenantId::from_ordinal(1), 0);
+    reader.base_view = Some(Arc::new(store.read_at(0).unwrap()));
+    store
+        .tx_read(&mut reader, |txn| txn.get(b"k").map_err(|e| e.to_string()))
+        .unwrap();
+    let writer = Arc::clone(&store);
+    *store.after_conflict_prescan.lock().unwrap() = Some(Box::new(move || {
+        writer
+            .commit(Uuid::new_v4(), |_, _| Ok((batch(Uuid::new_v4()), ())))
+            .unwrap();
+    }));
+    let outcome = store.tx_commit(Uuid::new_v4(), &reader);
+    assert!(
+        matches!(&outcome, Err(StorageError::Builder(reason)) if reason.starts_with("transaction_conflict")),
+        "{outcome:?}"
+    );
+    assert_eq!(store.committed_version(), 1, "only the writer committed");
 }

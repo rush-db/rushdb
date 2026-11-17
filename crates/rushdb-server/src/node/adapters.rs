@@ -127,6 +127,7 @@ impl RequestScope<'_> {
                 query,
                 opts,
                 top_k: limit,
+                count: false,
             },
             None,
         )?;

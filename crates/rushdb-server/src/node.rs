@@ -6,6 +6,7 @@ mod adapters;
 mod backup;
 mod catalog;
 mod facets;
+pub(crate) use facets::only_label;
 mod fusion;
 mod hybrid;
 pub(crate) use hybrid::HybridError;
@@ -15,11 +16,15 @@ mod key_join;
 mod long_text;
 mod metrics;
 mod observability;
+mod paths;
+pub(crate) use paths::PathError;
 mod policy_gate;
 mod queries;
 mod records;
 mod relationship_reads;
 mod relationship_updates;
+mod resident_catalog;
+mod resident_metrics;
 mod writer_holds;
 pub(crate) use records::UnlabeledUpsert;
 mod relationships;
@@ -164,16 +169,6 @@ type CachedMetadata = std::sync::Arc<(Vec<String>, Vec<(String, u64)>)>;
 /// Normalized property name -> declared type name (the property dictionary).
 type PropertyTypeMap = std::collections::BTreeMap<String, String>;
 
-/// A byte-accounted logical cache charged to the shared budget tree.
-type LogicalCache<K, V> = rushdb_storage::cache::LogicalCache<K, V>;
-
-/// Commit/policy-generation-keyed `(labels, counts)` logical cache.
-type MetadataCache = std::sync::Mutex<Option<LogicalCache<(TenantId, u64), (u64, CachedMetadata)>>>;
-
-/// Commit/policy-generation-keyed property-dictionary logical cache.
-type PropertyCache =
-    std::sync::Mutex<Option<LogicalCache<(TenantId, u64, u64), std::sync::Arc<PropertyTypeMap>>>>;
-
 /// Embedded database node: one store plus the per-tenant engine instances,
 /// metrics, request-scope state, and maintenance caches shared by every
 /// transport adapter.
@@ -204,14 +199,6 @@ pub struct Node {
     max_request_bytes: usize,
     cursors: std::sync::Mutex<HashMap<String, ResultCursor>>,
     cursor_bytes: std::sync::Mutex<usize>,
-    /// Byte-accounted logical cache for `(labels, per-label counts)` keyed by
-    /// tenant and policy generation. Pinned views make these results pure
-    /// over the commit index, so entries are exact until the next commit or
-    /// policy rotation. `None` when `resources.logical-cache-bytes` is 0.
-    metadata_cache: MetadataCache,
-    /// Byte-accounted logical cache for the property dictionary (normalized
-    /// name -> type), keyed by `(tenant, commit index, policy generation)`.
-    property_cache: PropertyCache,
     /// Last computed [`rushdb_storage::StorageStatistics`] and when. Refreshed
     /// at most once per scrape interval so `/metrics` never scans per scrape.
     storage_stats:
@@ -357,30 +344,62 @@ impl PropertyScanStats {
         if !(value.is_number() || value.is_string()) {
             return;
         }
-        let cmp = |current: &serde_json::Value| -> std::cmp::Ordering {
-            match (value, current) {
-                (serde_json::Value::Number(_), serde_json::Value::Number(_)) => {
-                    rushdb_types::value::json_scalar_cmp(value, current)
-                        .unwrap_or(std::cmp::Ordering::Equal)
-                }
-                (serde_json::Value::String(a), serde_json::Value::String(b)) => a.cmp(b),
-                _ => std::cmp::Ordering::Equal,
+        self.observe_min(value);
+        self.observe_max(value);
+    }
+
+    /// Fold in the stats of the records that follow these in scan order:
+    /// the result is what one scan over both would have built.
+    fn merge(&mut self, later: Self) {
+        self.records_count += later.records_count;
+        self.is_array |= later.is_array;
+        for sample in later.samples {
+            if self.samples.len() >= SCHEMA_SAMPLE_CAP {
+                break;
             }
-        };
+            if !self.samples.contains(&sample) {
+                self.samples.push(sample);
+            }
+        }
+        if let Some(min) = later.min {
+            self.observe_min(&min);
+        }
+        if let Some(max) = later.max {
+            self.observe_max(&max);
+        }
+    }
+
+    fn observe_min(&mut self, value: &serde_json::Value) {
         if self
             .min
             .as_ref()
-            .is_none_or(|current| cmp(current) == std::cmp::Ordering::Less)
+            .is_none_or(|current| scan_order(value, current) == std::cmp::Ordering::Less)
         {
             self.min = Some(value.clone());
         }
+    }
+
+    fn observe_max(&mut self, value: &serde_json::Value) {
         if self
             .max
             .as_ref()
-            .is_none_or(|current| cmp(current) == std::cmp::Ordering::Greater)
+            .is_none_or(|current| scan_order(value, current) == std::cmp::Ordering::Greater)
         {
             self.max = Some(value.clone());
         }
+    }
+}
+
+/// Order of two observed values: numbers among numbers, strings among
+/// strings; values of different kinds tie (the first kind seen is kept).
+fn scan_order(value: &serde_json::Value, current: &serde_json::Value) -> std::cmp::Ordering {
+    match (value, current) {
+        (serde_json::Value::Number(_), serde_json::Value::Number(_)) => {
+            rushdb_types::value::json_scalar_cmp(value, current)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        }
+        (serde_json::Value::String(a), serde_json::Value::String(b)) => a.cmp(b),
+        _ => std::cmp::Ordering::Equal,
     }
 }
 
@@ -404,6 +423,13 @@ impl Node {
     #[must_use]
     pub fn committed_version(&self) -> u64 {
         self.store.committed_version()
+    }
+
+    /// The store's resident layers. Public for tests that compare resident
+    /// answers with storage's.
+    #[must_use]
+    pub fn residents(&self) -> Arc<rushdb_storage::resident::Residents> {
+        Arc::clone(self.store.residents())
     }
 
     /// `true` while `--replica-of` is polling/applying;
@@ -560,17 +586,6 @@ impl Node {
             boot_phases.push(("raft", phase_started.elapsed()));
         }
 
-        let metadata_cache = store
-            .cache_budget()
-            .map(rushdb_storage::cache::LogicalCache::new)
-            .transpose()
-            .map_err(|error| format!("create metadata cache: {error}"))?;
-        let property_cache = store
-            .cache_budget()
-            .map(rushdb_storage::cache::LogicalCache::new)
-            .transpose()
-            .map_err(|error| format!("create property cache: {error}"))?;
-
         let node = Node {
             store: Arc::clone(&store),
             base_tenant: tenant,
@@ -597,8 +612,6 @@ impl Node {
             max_request_bytes: cfg.max_request_bytes,
             cursors: std::sync::Mutex::new(HashMap::new()),
             cursor_bytes: std::sync::Mutex::new(0),
-            metadata_cache: std::sync::Mutex::new(metadata_cache),
-            property_cache: std::sync::Mutex::new(property_cache),
             storage_stats: std::sync::Mutex::new(None),
             records_by_tenant_cache: std::sync::Mutex::new(None),
             slow_call_threshold_ms: cfg.resources.logs_query_threshold_ms,

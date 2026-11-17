@@ -5,19 +5,13 @@
 //! logged, replicated and replayed like any other write. Ordinals are never
 //! reused: a purged tenant keeps its rows with state `Purged`, and a later
 //! registration of the same scope gets a fresh ordinal, so leftovers of the
-//! old ordinal can never become visible. This module owns the encoding and a
-//! bounded resolution cache.
-
-use std::collections::HashMap;
+//! old ordinal can never become visible. This module owns the encoding and
+//! the resident resolution layer.
 
 use rushdb_types::ids::{TenantId, TenantScope};
 use rushdb_types::keys;
 
 use crate::{StorageError, Store};
-
-/// Maximum cached scope → ordinal entries; the cache is cleared when full
-/// (entries are re-read from disk on the next miss).
-const CACHE_ENTRIES: usize = 65_536;
 
 /// Lifecycle state of a directory entry.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -102,10 +96,49 @@ pub fn decode_seq(raw: Option<&[u8]>) -> Result<u32, StorageError> {
     })
 }
 
-/// Bounded scope → ordinal cache in front of the directory rows.
+/// Scope → active ordinal (`None`: unregistered or retired), a resident
+/// layer valid until a commit writes the tenant directory: a registration
+/// or a retirement anywhere, on this node or applied from the leader.
 #[derive(Default)]
-pub(crate) struct TenantCache {
-    entries: HashMap<TenantScope, TenantId>,
+pub(crate) struct TenantDirectory;
+
+impl crate::resident::Resident for TenantDirectory {
+    type Key = TenantScope;
+    type Value = Option<TenantId>;
+    const NAME: &'static str = "tenant-directory";
+    const BUDGET: crate::resident::Budget = crate::resident::Budget::Logical;
+
+    fn deps(
+        &self,
+        _scope: &TenantScope,
+        _view: &crate::ReadView,
+    ) -> Result<Vec<crate::resident::Dep>, StorageError> {
+        Ok(vec![crate::resident::Dep::TenantDir])
+    }
+
+    fn build(
+        &self,
+        scope: &TenantScope,
+        view: &crate::ReadView,
+        _cx: &crate::resident::BuildCx,
+    ) -> Result<Option<Option<TenantId>>, crate::resident::BuildError> {
+        Ok(Some(active_ordinal(
+            view.get(&keys::tenant_by_scope_key(scope))?,
+        )?))
+    }
+
+    fn bytes(_: &Option<TenantId>) -> usize {
+        std::mem::size_of::<(TenantScope, Option<TenantId>)>()
+    }
+}
+
+/// The active ordinal a scope row names, if any.
+fn active_ordinal(raw: Option<Vec<u8>>) -> Result<Option<TenantId>, StorageError> {
+    let Some(raw) = raw else {
+        return Ok(None);
+    };
+    let (tenant, state) = decode_by_scope(&raw)?;
+    Ok((state == TenantState::Active).then_some(tenant))
 }
 
 impl Store {
@@ -116,27 +149,14 @@ impl Store {
     /// Returns [`StorageError`] if the directory row cannot be read or is
     /// malformed.
     pub fn resolve_tenant(&self, scope: &TenantScope) -> Result<Option<TenantId>, StorageError> {
-        if let Some(tenant) = self
-            .health
-            .guard(self.tenant_cache.lock())?
-            .entries
-            .get(scope)
-        {
-            return Ok(Some(*tenant));
+        let layer = self.residents().layer::<TenantDirectory>();
+        if let Some(tenant) = layer.get_latest(scope) {
+            return Ok(*tenant);
         }
-        let Some(raw) = self.try_get(&keys::tenant_by_scope_key(scope))? else {
-            return Ok(None);
-        };
-        let (tenant, state) = decode_by_scope(&raw)?;
-        if state != TenantState::Active {
-            return Ok(None);
-        }
-        let mut cache = self.health.guard(self.tenant_cache.lock())?;
-        if cache.entries.len() >= CACHE_ENTRIES {
-            cache.entries.clear();
-        }
-        cache.entries.insert(*scope, tenant);
-        Ok(Some(tenant))
+        let view = self.read_view()?;
+        let tenant = active_ordinal(view.get(&keys::tenant_by_scope_key(scope))?)?;
+        layer.offer(*scope, &view, std::sync::Arc::new(tenant));
+        Ok(tenant)
     }
 
     /// The scope digest registered for an ordinal, with its state.
@@ -172,15 +192,5 @@ impl Store {
             }
         }
         Ok(out)
-    }
-
-    /// Drop a scope from the resolution cache (after it is retired).
-    ///
-    /// Lock poisoning fences the store until reopen.
-    pub fn forget_tenant(&self, scope: &TenantScope) {
-        self.health
-            .cleanup(self.tenant_cache.lock())
-            .entries
-            .remove(scope);
     }
 }

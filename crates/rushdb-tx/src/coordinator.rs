@@ -569,6 +569,100 @@ impl TxCoordinator {
         Ok(())
     }
 
+    /// Stage a merge import (`mergeBy` / `mergeStrategy`) into the
+    /// transaction: records are matched against committed state and the
+    /// transaction's own staged writes, matched ones updated and the rest
+    /// created, then relationships linked, exactly as a standalone merge
+    /// import does ([`rushdb_lmpg::import::stage_bfs_merge`]). Every op is
+    /// charged to the transaction's operation and byte limits. The lookups
+    /// are conflict dependencies, so a concurrent writer that creates or
+    /// changes a matched key makes `commit` return a retryable conflict. On
+    /// any error the transaction is left as it was before the call. Returns
+    /// the records and relationships staged.
+    ///
+    /// # Errors
+    ///
+    /// Returns a message when `tx_id` is unknown or expired, when the
+    /// operation or byte limits are exceeded, or when the merge cannot be
+    /// planned on the overlay.
+    ///
+    /// A poisoned state mutex is recovered, not propagated.
+    pub fn stage_merge(
+        &self,
+        tx_id: &str,
+        plan: &rushdb_lmpg::import::BfsPlan,
+        options: &rushdb_lmpg::import::ImportOptions,
+    ) -> Result<(u64, u64), String> {
+        let mut state = self.lock_state();
+        let now = Instant::now();
+        let expired = state
+            .active
+            .get(tx_id)
+            .is_some_and(|tx| now >= tx.expires_at);
+        let settled = state.expire(now, self.limits.max_expired_ids);
+        drop(state);
+        self.settle(settled);
+        let mut state = self.lock_state();
+        if expired || state.was_expired(tx_id) {
+            return Err("transaction expired".into());
+        }
+        let tx = state
+            .active
+            .get_mut(tx_id)
+            .ok_or("unknown transaction id")?;
+        let before = (tx.acc.clone(), tx.ops.len(), tx.staged_bytes);
+        let lmpg = self.lmpg();
+        let (limits, budget) = (&self.limits, &self.budget);
+        let mut relationships = 0u64;
+        let result = {
+            let ActiveTx {
+                acc,
+                ops,
+                staged_bytes,
+                ..
+            } = &mut *tx;
+            let mut charge_and_stage = |batch: rushdb_lmpg::BatchTx, acc: &mut TxAccumulator| {
+                for op in &batch.ops {
+                    if ops.len() >= limits.max_operations {
+                        return Err(rushdb_lmpg::LmpgError::Conflict(
+                            "resource exhausted: transaction operation limit".into(),
+                        ));
+                    }
+                    let staged =
+                        StagedOp::encode(op, limits.max_staged_bytes - *staged_bytes, budget)
+                            .map_err(rushdb_lmpg::LmpgError::Conflict)?;
+                    *staged_bytes += staged.len();
+                    ops.push(staged);
+                    if matches!(op, BatchOp::CreateRelationship { .. }) {
+                        relationships += 1;
+                    }
+                }
+                lmpg.stage_batch_tx(batch, acc)
+            };
+            rushdb_lmpg::import::stage_bfs_merge(
+                &lmpg,
+                plan,
+                options,
+                &|| false,
+                acc,
+                &mut charge_and_stage,
+            )
+        };
+        match result {
+            Ok(_) => {
+                state.last_activity = now;
+                Ok((plan.records.len() as u64, relationships))
+            }
+            Err(error) => {
+                let (acc, ops, staged_bytes) = before;
+                tx.acc = acc;
+                tx.ops.truncate(ops);
+                tx.staged_bytes = staged_bytes;
+                Err(error.to_reason())
+            }
+        }
+    }
+
     fn apply_batch_op(
         lmpg: &Lmpg,
         op: BatchOp,

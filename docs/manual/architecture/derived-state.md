@@ -112,11 +112,8 @@ coordination state over durable data, bounded, and safe to lose.
 |---|---|---|---|
 | Sequencer overlay | Net effect of commits assigned an index but not yet published. | Distinct in-flight keys. | Trimmed as commits publish. |
 | Conflict window | Write sets of recently published commits, for transaction validation. | 64 MiB, charged to the managed budget. | Oldest evicted first, also when the managed budget cannot admit more; a validation that needs an evicted commit fails with a retryable error. |
-| Tenant directory cache | Scope digest → tenant ordinal. | Bounded entry count. | Refilled from the directory rows. |
-| Label/count metadata cache | Labels and per-label counts per tenant. | Logical cache budget. | Exact for its commit index and policy generation. |
-| Property dictionary cache | Normalized property name → type, per tenant. | Logical cache budget. | Keyed by commit index and policy generation. |
-| Planner statistics | Value distributions per property, loaded on demand. | `planner-stats-bytes` (default 32 MiB). | See below. |
-| ANN segments | Per vector space: a hot segment and frozen segments ([vector internals](vector-internals.md)). | Vector cache budget (ANN capped at 256 MiB per tenant engine). | Rebuilt or reopened on demand. |
+| Resident layers | Owner sets of indexed filters, relationship graphs, the label catalog, the property dictionary, planner statistics, vector rows, the tenant directory ([resident state](resident-state.md)). | One budget per layer. | Valid until a commit writes what the entry reflects; LRU within the budget. |
+| ANN segments | Per vector space: a hot segment and frozen segments ([vector internals](vector-internals.md)). | Vector cache budget (at most 12 cached generations per tenant engine). | Rebuilt or reopened on demand. |
 | Open Tantivy indexes | Reader and writer handles per text index. | 256 open indexes. | Reopened from disk on demand. |
 | Tenant residency | Per-tenant vector engine and transaction coordinator. | `tenant-resident-bytes` (default 512 MiB). | Evicted when idle `tenant-idle-seconds` (default 300 s). |
 | Result cursors | A pinned view plus the cursor's request. | 64 MiB of cursor state. | Until exhausted or expired. |
@@ -126,12 +123,12 @@ coordination state over durable data, bounded, and safe to lose.
 The planner sometimes needs a value distribution — for example, to estimate
 how selective `age > 30` is. RushDB does not maintain histograms on every
 write. Instead, on a planner miss it walks the property's value dictionary
-(a budgeted scan) and caches the resulting distribution. An entry is
-dropped when it has not been used for `planner-stats-idle-seconds`
-(default 600 s), when the cache needs room (least recently used first), or
-when the data has moved more than `planner-stats-max-age-commits`
-(default 10 000) commits past the entry. Statistics are estimates and only
-steer plan choice; answers always come from rows read at the snapshot.
+(a budgeted scan) and keeps the resulting distribution as a
+[resident](resident-state.md) entry. The entry is dropped as soon as a
+commit writes the property's values, or when `planner-stats-bytes` needs
+room (least recently used first); a stale distribution is never used.
+Statistics are estimates and only steer plan choice; answers always come
+from rows read at the snapshot.
 
 ## After a restart
 

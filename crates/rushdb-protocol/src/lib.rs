@@ -348,6 +348,13 @@ pub enum Query {
         /// The hybrid query.
         query: HybridQuery,
     },
+    /// The shortest path between two records: the records on it in order
+    /// (both ends included) as [`Response::Records`], or no records when no
+    /// path is within `maxHops`.
+    Path {
+        /// The path query.
+        query: PathQuery,
+    },
     /// The records a native query selects, rendered as CSV text: an `__id`
     /// column, an `__label` column, then every property name in sorted order.
     /// `select` and `groupBy` are rejected (the export is of records).
@@ -593,6 +600,43 @@ impl Default for QueryDocument {
             cursor_ttl_ms: None,
         }
     }
+}
+
+/// A shortest-path query ([`Query::Path`]): a breadth-first search over
+/// relationships of one type, bounded by `maxHops` and by the records it may
+/// reach (past that budget it fails `resource_exhausted`).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct PathQuery {
+    /// Id of the first record.
+    pub from: String,
+    /// Id of the last record.
+    pub to: String,
+    /// The relationship type followed; every type when absent.
+    #[serde(rename = "type", default, skip_serializing_if = "Option::is_none")]
+    pub relation_type: Option<String>,
+    /// Which way relationships are followed from `from` towards `to`.
+    #[serde(default)]
+    pub direction: PathDirection,
+    /// Most relationships on the path.
+    pub max_hops: u64,
+    /// Labels a record on the path may carry, its ends included; any label
+    /// when empty.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub labels: Vec<String>,
+}
+
+/// Which way a [`PathQuery`] follows relationships.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum PathDirection {
+    /// Source → target.
+    Out,
+    /// Target → source.
+    In,
+    /// Either way, as `$relation` does by default.
+    #[default]
+    Both,
 }
 
 /// Query over relationships between records.
@@ -1866,6 +1910,44 @@ pub struct ResponseEnvelope {
     pub response: Response,
 }
 
+impl ResponseEnvelope {
+    /// This envelope's JSON, with `response_json` (the `serde_json` encoding
+    /// of [`Self::response`], already made for the response size check)
+    /// spliced in rather than encoded a second time: byte for byte what
+    /// serializing the whole envelope writes.
+    ///
+    /// # Errors
+    /// Returns the encoder's error, which a header of a version, an id and a
+    /// number never raises.
+    pub fn encode_with(&self, response_json: &[u8]) -> Result<Vec<u8>, serde_json::Error> {
+        /// The fields before `response`, in declaration order.
+        #[derive(Serialize)]
+        #[serde(rename_all = "camelCase")]
+        struct Head<'a> {
+            protocol_version: u16,
+            #[serde(skip_serializing_if = "Option::is_none")]
+            request_id: Option<&'a str>,
+            #[serde(skip_serializing_if = "Option::is_none")]
+            server_timing_ms: Option<u64>,
+        }
+        let mut out = Vec::with_capacity(response_json.len() + 64);
+        serde_json::to_writer(
+            &mut out,
+            &Head {
+                protocol_version: self.protocol_version,
+                request_id: self.request_id.as_deref(),
+                server_timing_ms: self.server_timing_ms,
+            },
+        )?;
+        // `{…}` always holds `protocolVersion`: reopen it after that field.
+        out.pop();
+        out.extend_from_slice(b",\"response\":");
+        out.extend_from_slice(response_json);
+        out.push(b'}');
+        Ok(out)
+    }
+}
+
 /// The result of an [`Operation`].
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(
@@ -2909,6 +2991,54 @@ fn default_similarity() -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn an_envelope_with_its_response_spliced_in_is_byte_identical() {
+        let responses = [
+            Response::Records {
+                records: vec![
+                    serde_json::json!({"id": "a", "properties": {"x": 1.5, "y": [1, -2, 3e300], "z": null}}),
+                    serde_json::json!({"id": "b\"\\\u{1}", "properties": {"n": 0.1, "big": u64::MAX}}),
+                ],
+                total: 2,
+                cursor_id: Some("c".into()),
+                vector_search: None,
+                text_search: None,
+                fusion: None,
+            },
+            Response::TextHits {
+                rows: vec![serde_json::json!({"id": "x", "score": 1.25e-7})],
+                total: 1,
+                pending: 0,
+            },
+            Response::Count { value: 7 },
+            Response::mutation(1),
+        ];
+        for response in responses {
+            for request_id in [None, Some("req-\"1\"".to_string())] {
+                for server_timing_ms in [None, Some(12)] {
+                    let envelope = ResponseEnvelope {
+                        protocol_version: PROTOCOL_VERSION,
+                        request_id: request_id.clone(),
+                        server_timing_ms,
+                        response: response.clone(),
+                    };
+                    let spliced = envelope
+                        .encode_with(&serde_json::to_vec(&envelope.response).unwrap())
+                        .unwrap();
+                    assert_eq!(spliced, serde_json::to_vec(&envelope).unwrap());
+                    // What the HTTP transport wrote before: through a `Value`.
+                    assert_eq!(
+                        spliced,
+                        serde_json::to_value(&envelope)
+                            .unwrap()
+                            .to_string()
+                            .into_bytes()
+                    );
+                }
+            }
+        }
+    }
 
     #[test]
     fn constant_time_eq_matches_only_equal_secrets() {

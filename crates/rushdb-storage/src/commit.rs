@@ -1,6 +1,7 @@
 //! Command admission, ordered publication, and transaction commit.
 //! The store owns the health fence and publication locks across these phases.
 
+use super::tx_conflicts::writes_conflicting;
 use super::{
     log_key, mpsc, resources, wal, Arc, BTreeMap, BTreeSet, CommitBatch, CommitOutcome,
     CommitPhase, DependencySet, DeserializeOwned, Op, Ordering, OutcomeKind, OutcomeStatus,
@@ -120,6 +121,7 @@ impl Store {
             set_keys: BTreeSet::default(),
             watermark_keys: BTreeSet::default(),
             ids: &self.ids,
+            undo: None,
             deps: None,
         };
         self.expand_commit_ops(ci, batch, &payload_bytes, txn)
@@ -138,7 +140,7 @@ impl Store {
         F: FnOnce(u64, &mut Txn) -> Result<(CommitBatch, P), String>,
     {
         self.check_health()?;
-        self.commit_sharded(0, None, commit_key, None, build)
+        self.commit_sharded(None, commit_key, None, build)
     }
 
     /// Tenant-aware autocommit. Outer shards preserve per-tenant replication
@@ -158,8 +160,7 @@ impl Store {
         F: FnOnce(u64, &mut Txn) -> Result<(CommitBatch, P), String>,
     {
         self.check_health()?;
-        let shard = Store::shard_for(Some(tenant));
-        self.commit_sharded(shard, Some(tenant), commit_key, None, build)
+        self.commit_sharded(Some(tenant), commit_key, None, build)
     }
 
     /// Tenant-aware autocommit of a batch planned at an earlier snapshot: it
@@ -184,45 +185,7 @@ impl Store {
         F: FnOnce(u64, &mut Txn) -> Result<(CommitBatch, P), String>,
     {
         self.check_health()?;
-        let shard = Store::shard_for(Some(tenant));
-        self.commit_sharded(
-            shard,
-            Some(tenant),
-            commit_key,
-            Some((snapshot_ci, deps)),
-            build,
-        )
-    }
-
-    /// The first commit after `snapshot_ci` that wrote a key `deps` covers:
-    /// published commits from the conflict window, in-flight ones from the
-    /// admission buffer. The caller holds admission (so no commit is
-    /// assigned meanwhile) and has drained publication.
-    fn first_conflict_since(
-        &self,
-        admission: &SequencerState,
-        snapshot_ci: u64,
-        deps: &DependencySet,
-    ) -> Result<Option<u64>, StorageError> {
-        let published = self.published.load(Ordering::SeqCst);
-        let window = self.health.guard(self.conflicts.lock())?;
-        for probe in (snapshot_ci + 1)..=published {
-            let key_set = window
-                .keys(probe)
-                .ok_or(StorageError::ConflictHistoryUnavailable {
-                    commit_index: probe,
-                })?;
-            if key_set.iter().any(|key| deps.intersects(key)) {
-                return Ok(Some(probe));
-            }
-        }
-        drop(window);
-        Ok(admission
-            .layers
-            .iter()
-            .filter(|layer| layer.ci() > snapshot_ci)
-            .find(|layer| layer.keys().any(|key| deps.intersects(key)))
-            .map(|layer| layer.ci()))
+        self.commit_sharded(Some(tenant), commit_key, Some((snapshot_ci, deps)), build)
     }
 
     #[expect(
@@ -231,7 +194,6 @@ impl Store {
     )]
     pub(super) fn commit_sharded<P, F>(
         &self,
-        shard: usize,
         routed_tenant: Option<&TenantId>,
         commit_key: Uuid,
         since: Option<(u64, &DependencySet)>,
@@ -242,7 +204,8 @@ impl Store {
         F: FnOnce(u64, &mut Txn) -> Result<(CommitBatch, P), String>,
     {
         self.check_health()?;
-        let shard_guard = self.health.guard(self.shards[shard].lock())?;
+        let tenant_lock = self.tenant_lock(routed_tenant)?;
+        let shard_guard = self.health.guard(tenant_lock.lock())?;
         // Replication re-enters through apply_replicated_batch; do not hold
         // this mutex across the replication call. Local writes hold it through
         // planning + expansion + enqueue, then release it before the durability
@@ -251,7 +214,9 @@ impl Store {
         let replicator = self.replicator();
         let admission_started = std::time::Instant::now();
         let mut admission = if replicator.is_none() {
-            Some(self.acquire_admission()?)
+            Some(self.acquire_admission(
+                routed_tenant.map(|tenant| crate::fair_gate::tenant_lane(*tenant)),
+            )?)
         } else {
             None
         };
@@ -316,6 +281,7 @@ impl Store {
                 set_keys: BTreeSet::default(),
                 watermark_keys: BTreeSet::default(),
                 ids: &self.ids,
+                undo: None,
                 deps: Some(&build_deps),
             };
             let build_started = std::time::Instant::now();
@@ -434,6 +400,7 @@ impl Store {
                 set_keys: BTreeSet::default(),
                 watermark_keys: BTreeSet::default(),
                 ids: &self.ids,
+                undo: None,
                 // Record expansion reads so `prepared.reads` is non-empty and
                 // admission is held through publication. Otherwise a
                 // read-dependent expander (e.g. a counter) releases admission
@@ -647,7 +614,7 @@ impl Store {
         F: FnOnce(&mut Txn) -> Result<(CommitBatch, P), String>,
     {
         self.check_health()?;
-        let mut admission = self.acquire_admission()?;
+        let mut admission = self.acquire_admission(None)?;
         self.check_publisher()?;
         if let Some((status, prev_ci)) = self.lookup_outcome_checked(commit_key)? {
             return match status {
@@ -688,6 +655,7 @@ impl Store {
                 set_keys: BTreeSet::default(),
                 watermark_keys: BTreeSet::default(),
                 ids: &self.ids,
+                undo: None,
                 deps: Some(&dep_recorder),
             };
             match build(&mut txn) {
@@ -758,6 +726,7 @@ impl Store {
                 set_keys: BTreeSet::default(),
                 watermark_keys: BTreeSet::default(),
                 ids: &self.ids,
+                undo: None,
                 deps: None,
             };
             self.expand_commit_ops(ci, &batch, &payload_bytes, wtxn)
@@ -818,29 +787,54 @@ impl Store {
             // on committed state. Preserve those reads in the accumulator so
             // tx_commit can reject a stale read-dependent transaction even
             // when the branch did not emit the key it inspected.
-            let dep_recorder = RefCell::new(tx.deps.clone());
+            // The transaction's buffer and deps move into the statement and
+            // back (no copy per statement: a large transaction staged in
+            // many statements would copy them every time). A failed
+            // statement is rolled back from the undo log.
+            let mark = tx.deps.mark();
+            let dep_recorder = RefCell::new(std::mem::take(&mut tx.deps));
             let mut txn = Txn {
                 base,
-                buffer: tx.buffer.clone(),
+                buffer: std::mem::take(&mut tx.buffer),
                 purge_keys: BTreeSet::default(),
                 set_keys: BTreeSet::default(),
                 watermark_keys: BTreeSet::default(),
                 ids: &self.ids,
+                undo: Some(Vec::new()),
                 deps: Some(&dep_recorder),
             };
-            let (batch, payload) = build(ci, &mut txn).map_err(StorageError::Builder)?;
-            let mut batch = batch;
-            batch.commit_key = commit_key;
-            let expander = self.health.guard(self.expander.read())?.clone();
-            let Some(expand) = expander.as_ref() else {
-                return Err(StorageError::CorruptLog);
+            let planned = (|| {
+                let (mut batch, payload) = build(ci, &mut txn).map_err(StorageError::Builder)?;
+                batch.commit_key = commit_key;
+                let expander = self.health.guard(self.expander.read())?.clone();
+                let Some(expand) = expander.as_ref() else {
+                    return Err(StorageError::CorruptLog);
+                };
+                expand(ci, &batch, &mut txn).map_err(StorageError::Builder)?;
+                Ok((batch, payload))
+            })();
+            if planned.is_err() {
+                txn.roll_back_writes();
+            }
+            let Txn {
+                buffer,
+                watermark_keys,
+                ..
+            } = txn;
+            tx.buffer = buffer;
+            let mut deps = dep_recorder.into_inner();
+            let (mut batch, payload) = match planned {
+                Ok(planned) => planned,
+                Err(error) => {
+                    deps.roll_back_to(mark);
+                    tx.deps = deps;
+                    return Err(error);
+                }
             };
-            expand(ci, &batch, &mut txn).map_err(StorageError::Builder)?;
-            tx.buffer = txn.buffer;
-            tx.watermarks.extend(txn.watermark_keys);
+            tx.watermarks.extend(watermark_keys);
             tx.mutations.append(&mut batch.mutations);
             tx.preconditions.append(&mut batch.preconditions);
-            tx.deps = dep_recorder.into_inner();
+            tx.deps = deps;
             payload
         };
         Ok(payload)
@@ -870,17 +864,23 @@ impl Store {
             self.native_transaction_view()?
         };
         let base = TxnBase::resolve(None, tx.base_view.clone(), native, guard.as_deref());
-        let dep_recorder = RefCell::new(tx.deps.clone());
+        // The buffer and deps move in and back out (no copy per read); a
+        // write made through the reader is undone, so a read leaves the
+        // buffer as it was.
+        let dep_recorder = RefCell::new(std::mem::take(&mut tx.deps));
         let mut txn = Txn {
             base,
-            buffer: tx.buffer.clone(),
+            buffer: std::mem::take(&mut tx.buffer),
             purge_keys: BTreeSet::default(),
             set_keys: BTreeSet::default(),
             watermark_keys: BTreeSet::default(),
             ids: &self.ids,
+            undo: Some(Vec::new()),
             deps: Some(&dep_recorder),
         };
         let result = f(&mut txn).map_err(StorageError::Builder);
+        txn.roll_back_writes();
+        tx.buffer = txn.buffer;
         tx.deps = dep_recorder.into_inner();
         result
     }
@@ -919,23 +919,41 @@ impl Store {
         // produce. Track that dependency just like tx_apply tracks planner
         // and expansion reads; otherwise stale read-dependent commits can
         // pass conflict validation when their write-set is disjoint.
-        let dep_recorder = RefCell::new(tx.deps.clone());
-        let mut txn = Txn {
-            base,
-            buffer: tx.buffer.clone(),
-            purge_keys: BTreeSet::default(),
-            set_keys: BTreeSet::default(),
-            watermark_keys: BTreeSet::default(),
-            ids: &self.ids,
-            deps: Some(&dep_recorder),
-        };
         let expander = self.health.guard(self.expander.read())?.clone();
         let Some(expand) = expander.as_ref() else {
             return Err(StorageError::CorruptLog);
         };
-        expand(ci, &batch, &mut txn).map_err(StorageError::Builder)?;
-        tx.buffer = txn.buffer;
-        tx.watermarks.extend(txn.watermark_keys);
+        // As in `tx_apply`: the buffer and deps move in and back out, and a
+        // failed expansion is rolled back from the undo log.
+        let mark = tx.deps.mark();
+        let dep_recorder = RefCell::new(std::mem::take(&mut tx.deps));
+        let mut txn = Txn {
+            base,
+            buffer: std::mem::take(&mut tx.buffer),
+            purge_keys: BTreeSet::default(),
+            set_keys: BTreeSet::default(),
+            watermark_keys: BTreeSet::default(),
+            ids: &self.ids,
+            undo: Some(Vec::new()),
+            deps: Some(&dep_recorder),
+        };
+        let expansion = expand(ci, &batch, &mut txn);
+        if expansion.is_err() {
+            txn.roll_back_writes();
+        }
+        let Txn {
+            buffer,
+            watermark_keys,
+            ..
+        } = txn;
+        tx.buffer = buffer;
+        if let Err(error) = expansion {
+            let mut deps = dep_recorder.into_inner();
+            deps.roll_back_to(mark);
+            tx.deps = deps;
+            return Err(StorageError::Builder(error));
+        }
+        tx.watermarks.extend(watermark_keys);
         tx.mutations.append(&mut batch.mutations);
         tx.preconditions.append(&mut batch.preconditions);
         tx.deps = dep_recorder.into_inner();
@@ -1007,6 +1025,22 @@ impl Store {
         // Keep the selected replicator for the call below so the admission
         // decision and the publication path agree.
         let replicator = self.replicator();
+        // Scan the commits already published since the snapshot before taking
+        // the admission gate: the scan grows with them (a long-staged merge
+        // import sees many), and every other tenant's commit waits on the
+        // gate. Under the gate only the commits published after this point
+        // are scanned; a conflict found here is recorded there.
+        let reads = tx.deps.index();
+        let (prechecked, early_conflict) = self.scan_conflicts(tx, &reads, tx.base_ci)?;
+        #[cfg(test)]
+        if let Some(hook) = self
+            .after_conflict_prescan
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .take()
+        {
+            hook();
+        }
         // One writer-admission protocol for the whole commit: discovery,
         // validation, expansion, CI reservation, publication and ack. Without
         // it, two transactions can validate against the same published
@@ -1014,11 +1048,14 @@ impl Store {
         // (a lost update). A replicator owns ordering, so admission is skipped
         // there exactly as in the autocommit path (holding it across the
         // synchronous replication call would deadlock the state-machine apply).
+        let admission_started = std::time::Instant::now();
         let mut admission = if replicator.is_none() {
-            Some(self.acquire_admission()?)
+            Some(self.acquire_admission(Some(crate::fair_gate::tenant_lane(tx.tenant)))?)
         } else {
             None
         };
+        self.observe_phase(CommitPhase::AdmissionWait, admission_started);
+        let validate_started = std::time::Instant::now();
         self.check_publisher()?;
         if let Some((OutcomeStatus::Committed, ci)) = self.lookup_outcome_checked(commit_key)? {
             return Ok(ci);
@@ -1078,26 +1115,13 @@ impl Store {
             // Only published commits since the tx's snapshot can conflict; an
             // in-flight reserved slot is not visible yet and is serialized by
             // the publisher before this commit.
-            let mut conflicted: Option<u64> = None;
-            let window = self.health.guard(self.conflicts.lock())?;
-            for probe in (tx.base_ci + 1)..=published {
-                let key_set =
-                    window
-                        .keys(probe)
-                        .ok_or(StorageError::ConflictHistoryUnavailable {
-                            commit_index: probe,
-                        })?;
-                for k in key_set.iter() {
-                    if tx.deps.intersects_key(k) || writes_conflicting(tx, k) {
-                        conflicted = Some(probe);
-                        break;
-                    }
+            let mut conflicted = match early_conflict {
+                Some(probe) => Some(probe),
+                None => {
+                    self.scan_conflicts(tx, &reads, prechecked.min(published))?
+                        .1
                 }
-                if conflicted.is_some() {
-                    break;
-                }
-            }
-            drop(window);
+            };
             // Defensive: consult the pending overlay for any commit that
             // `drain_and_publish` did not publish (for example a mid-assignment
             // gap), so an unpublished writer cannot be missed.
@@ -1106,7 +1130,7 @@ impl Store {
                     layer.ci() > tx.base_ci
                         && layer
                             .keys()
-                            .any(|key| tx.deps.intersects_key(key) || writes_conflicting(tx, key))
+                            .any(|key| reads.contains(key) || writes_conflicting(tx, key))
                 }) {
                     conflicted = Some(layer.ci());
                 }
@@ -1154,6 +1178,7 @@ impl Store {
             // index assignment and must observe the current slot unchanged.
             self.next_commit_index.load(Ordering::SeqCst)
         };
+        self.observe_phase(CommitPhase::TxValidate, validate_started);
 
         let batch = CommitBatch {
             command_version: rushdb_types::command::COMMAND_VERSION,
@@ -1182,6 +1207,7 @@ impl Store {
         // Feeds the WAL's embedded command on a durable store, or
         // the in-memory command-journal row otherwise (no WAL to derive it from).
         let command_payload = rushdb_types::command_codec::encode(&batch);
+        let expand_started = std::time::Instant::now();
         let ops = {
             // Expand against current state (committed plus pending), as an
             // autocommit and a replay of this command do. The conflict check
@@ -1214,6 +1240,7 @@ impl Store {
                 set_keys: BTreeSet::default(),
                 watermark_keys: BTreeSet::default(),
                 ids: &self.ids,
+                undo: None,
                 deps: None,
             };
             let expander = self.health.guard(self.expander.read())?.clone();
@@ -1230,6 +1257,7 @@ impl Store {
             wtxn.drain()
         };
 
+        self.observe_phase(CommitPhase::TxExpand, expand_started);
         self.reject_oversized_commit(&ops, command_payload.len())?;
         // Expansion succeeded: reserve the slot. Admission is held until this
         // function returns, so the prospective `ci` is still current.
@@ -1239,10 +1267,4 @@ impl Store {
         self.enqueue_and_publish(ci, shard, ops, command_payload)?;
         Ok(ci)
     }
-}
-
-/// Whether a key written by a later commit collides with the transaction's
-/// own writes. A monotone counter both advance is not a collision.
-fn writes_conflicting(tx: &TxAccumulator, key: &[u8]) -> bool {
-    tx.buffer.contains_key(key) && !tx.watermarks.contains(key)
 }

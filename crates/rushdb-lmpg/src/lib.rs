@@ -220,6 +220,8 @@ impl Lmpg {
         // opened with it already installed (`open_store`), so WAL recovery
         // derives them too; installing it again here is idempotent.
         store.set_deriver(Arc::new(derived::LmpgDeriver));
+        // Resident layers build and verify at fresh views of this store.
+        store.attach_residents();
         Lmpg::new_with_authorizer(store, tenant, None)
     }
 
@@ -750,14 +752,9 @@ impl Lmpg {
                     commit_index,
                     payload,
                 }) => {
+                    // The retire commit wrote the tenant directory, which
+                    // drops every resolution of the scope on every node.
                     if payload == 0 {
-                        if let Some((scope, _)) = self
-                            .store
-                            .tenant_scope(tenant)
-                            .map_err(|error| LmpgError::Conflict(error.to_string()))?
-                        {
-                            self.store.forget_tenant(&scope);
-                        }
                         return Ok(commit_index);
                     }
                 }
@@ -1341,10 +1338,6 @@ impl Lmpg {
         self.run_batch_keyed_gen_version(commit_key, tx, expected_generation, None)
     }
 
-    #[expect(
-        clippy::too_many_lines,
-        reason = "single commit closure must keep every BatchOp arm in one ordered match so mutation order stays replay-deterministic"
-    )]
     fn run_batch_keyed_gen_version(
         &self,
         commit_key: Uuid,
@@ -1353,13 +1346,94 @@ impl Lmpg {
         expected_commit_index: Option<u64>,
     ) -> Result<CommittedBatch, LmpgError> {
         let tenant = self.tenant;
+        let build = self.batch_build(std::mem::take(&mut tx.ops), expected_generation);
+        // A batch planned at a snapshot (query-language writes) commits only
+        // if no later commit wrote this tenant's keys; other tenants' commits
+        // do not invalidate it.
+        let outcome = match expected_commit_index {
+            Some(snapshot) => {
+                let mut deps = rushdb_storage::DependencySet::default();
+                deps.record_prefix(&rushdb_types::keys::tenant_prefix(tenant));
+                match self.store.commit_for_tenant_since(
+                    &self.tenant,
+                    commit_key,
+                    snapshot,
+                    &deps,
+                    build,
+                ) {
+                    Ok(CommitOutcome::Conflicted(reason))
+                        if reason.starts_with(rushdb_storage::SERIALIZABLE_CONFLICT) =>
+                    {
+                        return Err(LmpgError::WriteConflict(reason));
+                    }
+                    Err(rushdb_storage::StorageError::ConflictHistoryUnavailable {
+                        commit_index,
+                    }) => {
+                        return Err(LmpgError::WriteConflict(format!(
+                            "conflict history for commit {commit_index} is gone"
+                        )));
+                    }
+                    other => other,
+                }
+            }
+            None => self
+                .store
+                .commit_for_tenant(&self.tenant, commit_key, build),
+        };
+
+        match outcome.map_err(|e| LmpgError::Conflict(e.to_string()))? {
+            CommitOutcome::Committed {
+                commit_index,
+                payload,
+            } => Ok(CommittedBatch {
+                commit_index,
+                created_records: payload.created_records,
+                created_relationships: payload.created_relationships,
+            }),
+            CommitOutcome::Conflicted(reason) => Err(LmpgError::Conflict(reason)),
+        }
+    }
+
+    /// Stage `batch` into the transaction `acc`: its ops are planned in
+    /// order against the transaction's overlay (records it staged earlier
+    /// resolve) and appended to it; nothing is committed. Returns the
+    /// records and relationships it creates, in operation order.
+    ///
+    /// # Errors
+    /// Returns [`LmpgError`] if planning fails or authorization is denied.
+    pub fn stage_batch_tx(
+        &self,
+        batch: BatchTx,
+        acc: &mut rushdb_storage::TxAccumulator,
+    ) -> Result<(Vec<RecordRef>, Vec<RelationshipRef>), LmpgError> {
+        let build = self.batch_build(batch.ops, None);
+        let payload = self
+            .store
+            .tx_apply(acc, Uuid::now_v7(), build)
+            .map_err(|e| LmpgError::Conflict(e.to_string()))?;
+        Ok((payload.created_records, payload.created_relationships))
+    }
+
+    /// The planning closure of one batch, shared by commits and
+    /// transaction staging: every op in order, authorized against the
+    /// policy at the closure's commit index.
+    #[expect(
+        clippy::too_many_lines,
+        reason = "single commit closure must keep every BatchOp arm in one ordered match so mutation order stays replay-deterministic"
+    )]
+    fn batch_build(
+        &self,
+        ops: Vec<BatchOp>,
+        expected_generation: Option<u64>,
+    ) -> impl FnOnce(u64, &mut rushdb_storage::Txn<'_>) -> Result<(CommitBatch, BatchPayload), String>
+    {
+        let tenant = self.tenant;
         let authorizer = self
             .authorizer
             .read()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
             .clone();
-        let ops = std::mem::take(&mut tx.ops);
-        let build = move |ci: u64, txn: &mut rushdb_storage::Txn<'_>| {
+        move |ci: u64, txn: &mut rushdb_storage::Txn<'_>| {
             let authorize = |label: &str| -> Result<(), String> {
                 if let Some(a) = authorizer.as_ref() {
                     a.authorize_label_in_txn(label, txn, ci.saturating_sub(1))?;
@@ -1616,51 +1690,6 @@ impl Lmpg {
                     created_relationships,
                 },
             ))
-        };
-        // A batch planned at a snapshot (query-language writes) commits only
-        // if no later commit wrote this tenant's keys; other tenants' commits
-        // do not invalidate it.
-        let outcome = match expected_commit_index {
-            Some(snapshot) => {
-                let mut deps = rushdb_storage::DependencySet::default();
-                deps.record_prefix(&rushdb_types::keys::tenant_prefix(tenant));
-                match self.store.commit_for_tenant_since(
-                    &self.tenant,
-                    commit_key,
-                    snapshot,
-                    &deps,
-                    build,
-                ) {
-                    Ok(CommitOutcome::Conflicted(reason))
-                        if reason.starts_with(rushdb_storage::SERIALIZABLE_CONFLICT) =>
-                    {
-                        return Err(LmpgError::WriteConflict(reason));
-                    }
-                    Err(rushdb_storage::StorageError::ConflictHistoryUnavailable {
-                        commit_index,
-                    }) => {
-                        return Err(LmpgError::WriteConflict(format!(
-                            "conflict history for commit {commit_index} is gone"
-                        )));
-                    }
-                    other => other,
-                }
-            }
-            None => self
-                .store
-                .commit_for_tenant(&self.tenant, commit_key, build),
-        };
-
-        match outcome.map_err(|e| LmpgError::Conflict(e.to_string()))? {
-            CommitOutcome::Committed {
-                commit_index,
-                payload,
-            } => Ok(CommittedBatch {
-                commit_index,
-                created_records: payload.created_records,
-                created_relationships: payload.created_relationships,
-            }),
-            CommitOutcome::Conflicted(reason) => Err(LmpgError::Conflict(reason)),
         }
     }
 }

@@ -133,6 +133,10 @@ case-insensitively:
 `$id` may also be used inside a related-record block to pin the related
 record.
 
+Names starting with `__` are reserved and are refused in a filter with
+`invalid_request`: `{ "__id": ... }` names no property, so filter by id
+with `$id`.
+
 ## Type semantics
 
 ### Numbers

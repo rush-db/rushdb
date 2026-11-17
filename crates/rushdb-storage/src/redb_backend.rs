@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 use std::ops::Bound;
 use std::path::Path;
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard};
 
 use redb::{Database, ReadableDatabase, ReadableTable, ReadableTableMetadata, TableDefinition};
@@ -453,6 +453,16 @@ pub(crate) struct RedbBackend {
     /// `durable_lsn` of the last checkpoint this handle wrote (`u64::MAX`
     /// before the first).
     checkpointed_lsn: AtomicU64,
+    /// The newest durable commit saved no allocator state (a compaction
+    /// step): the next checkpoint is written even with nothing unsynced, so
+    /// a kill reopens without redb's full repair.
+    quick_repair_due: AtomicBool,
+    /// History-GC batches committed with `Durability::None` since the last
+    /// durable commit of this handle (a durable GC batch or a checkpoint).
+    gc_batches_buffered: AtomicUsize,
+    /// Progress points of the full repair this open ran (empty: none ran).
+    #[cfg(test)]
+    open_repair: Vec<f64>,
     /// RM-8 fault injection: fail the next `apply`/`apply_many`.
     #[cfg(test)]
     fail_next_apply: AtomicBool,
@@ -470,6 +480,14 @@ pub(crate) struct RedbBackend {
 /// beside a bulk load, stalling every tenant's commits (SCALE-2, 2026-10-19:
 /// 2 of 4,197 batches over 1 s, 14 over 0.25 s).
 const HISTORY_GC_BATCH_MAX_HOLD: std::time::Duration = std::time::Duration::from_millis(100);
+
+/// Every this many history-GC batches in a row, one is durable (see
+/// `retire_before_batch_within`). redb reuses a page freed by a buffered
+/// commit (a GC batch or a materialization write) only after the next
+/// durable one: with durable commits only at checkpoints, a bulk load
+/// beside GC grew the file and its checkpoints, and its writes ran up to
+/// 17% slower than with every GC batch durable.
+const GC_DURABLE_EVERY: usize = 4;
 
 /// Per-holder writer-hold histograms: counts per bucket of
 /// [`crate::WRITER_HOLD_BOUNDS`] (last slot: above every bound) and the
@@ -1341,10 +1359,46 @@ impl RedbBackend {
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
         }
-        let db = Database::builder()
-            .set_cache_size(cache.bytes())
-            .create(path)
-            .map_err(|e| e.to_string())?;
+        let repair = Arc::new(std::sync::Mutex::new(Vec::new()));
+        let db = {
+            let (repair, file) = (Arc::clone(&repair), path.display().to_string());
+            let file_bytes = std::fs::metadata(path).map_or(0, |meta| meta.len());
+            Database::builder()
+                .set_cache_size(cache.bytes())
+                .set_repair_callback(move |session| {
+                    // redb also runs the callback while it creates a new
+                    // file: nothing to check and nothing to report.
+                    if file_bytes == 0 {
+                        return;
+                    }
+                    let progress = session.progress();
+                    let mut seen = repair
+                        .lock()
+                        .unwrap_or_else(std::sync::PoisonError::into_inner);
+                    if seen.is_empty() {
+                        tracing::warn!(
+                            file,
+                            file_bytes,
+                            "storage file was not closed cleanly; checking all of it before opening"
+                        );
+                    } else {
+                        tracing::info!(file, percent = progress * 100.0, "storage check");
+                    }
+                    seen.push(progress);
+                    crate::open_repair::report(progress);
+                })
+                .create(path)
+        };
+        crate::open_repair::finish();
+        let db = db.map_err(|e| e.to_string())?;
+        let open_repair = std::mem::take(
+            &mut *repair
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner),
+        );
+        if !open_repair.is_empty() {
+            tracing::info!(path = %path.display(), "storage check finished");
+        }
         let mut tx = db.begin_write().map_err(|e| e.to_string())?;
         // Quick repair on the first durable commit of this open: until
         // the first checkpoint it is the newest commit with allocator state,
@@ -1369,6 +1423,10 @@ impl RedbBackend {
             writer_holds: WriterHoldCounters::default(),
             unsynced: AtomicBool::new(false),
             checkpointed_lsn: AtomicU64::new(u64::MAX),
+            quick_repair_due: AtomicBool::new(false),
+            gc_batches_buffered: AtomicUsize::new(0),
+            #[cfg(test)]
+            open_repair,
             #[cfg(test)]
             fail_next_apply: AtomicBool::new(false),
             #[cfg(test)]
@@ -1596,7 +1654,7 @@ impl RedbBackend {
     ) -> Result<Option<Vec<u8>>, String> {
         let started = std::time::Instant::now();
         let db = self.lock_db()?;
-        let tx = db.begin_write().map_err(|e| e.to_string())?;
+        let mut tx = db.begin_write().map_err(|e| e.to_string())?;
         let _hold = self.writer_hold(crate::WriterHolder::HistoryGc);
         {
             let mut history = tx.open_table(HISTORY).map_err(|e| e.to_string())?;
@@ -1682,7 +1740,27 @@ impl RedbBackend {
                 cp.insert(CHECKPOINT_KEY, encoded.as_slice())
                     .map_err(|e| e.to_string())?;
             }
+            // The batch that completes the walk publishes a checkpoint, so it
+            // is durable and saves the allocator state (a kill right after it
+            // reopens without redb's full repair). Other batches are buffered
+            // like materialization writes: a kill rolls back to the last
+            // durable commit and the next pass reclaims them again. Every
+            // `GC_DURABLE_EVERY`-th batch is durable as well, so freed pages
+            // are reused about as soon as with every batch durable.
+            let buffered = !completed
+                && self.gc_batches_buffered.fetch_add(1, Ordering::SeqCst) + 1 < GC_DURABLE_EVERY;
+            if buffered {
+                tx.set_durability(redb::Durability::None)
+                    .map_err(|e| e.to_string())?;
+                // Inside the write transaction, as in `apply_many`.
+                self.unsynced.store(true, Ordering::SeqCst);
+            } else {
+                tx.set_quick_repair(true);
+            }
             tx.commit().map_err(|e| e.to_string())?;
+            if !buffered {
+                self.gc_batches_buffered.store(0, Ordering::SeqCst);
+            }
             Ok(next)
         }
     }
@@ -1747,15 +1825,20 @@ impl RedbBackend {
     /// last checkpoint and `durable_lsn` is unchanged: an idle store then
     /// writes nothing per maintenance tick.
     pub(crate) fn checkpoint(&self, durable_lsn: u64) -> Result<bool, String> {
+        let repair_due = self.quick_repair_due.swap(false, Ordering::SeqCst);
         if !self.unsynced.swap(false, Ordering::SeqCst)
+            && !repair_due
             && self.checkpointed_lsn.load(Ordering::SeqCst) == durable_lsn
         {
             return Ok(false);
         }
         let written = self.write_checkpoint(durable_lsn);
-        match &written {
-            Ok(()) => self.checkpointed_lsn.store(durable_lsn, Ordering::SeqCst),
-            Err(_) => self.unsynced.store(true, Ordering::SeqCst),
+        if written.is_ok() {
+            self.checkpointed_lsn.store(durable_lsn, Ordering::SeqCst);
+            self.gc_batches_buffered.store(0, Ordering::SeqCst);
+        } else {
+            self.unsynced.store(true, Ordering::SeqCst);
+            self.quick_repair_due.fetch_or(repair_due, Ordering::SeqCst);
         }
         written.map(|()| true)
     }
@@ -1809,6 +1892,10 @@ impl RedbBackend {
         }
         // Each pass is one bounded step of redb's compaction; a shutdown
         // stops between steps (the file stays valid, just less compact).
+        // redb's compaction commits durably without saving the allocator
+        // state (no quick repair), so a kill now would cost a full repair at
+        // the next open: the next checkpoint (tick or shutdown) writes one.
+        self.quick_repair_due.store(true, Ordering::SeqCst);
         while !self.abort.load(Ordering::Relaxed) && db.compact().map_err(|e| e.to_string())? {}
         Ok(())
     }
@@ -1969,6 +2056,256 @@ mod tests {
         std::fs::remove_dir_all(dir).unwrap();
     }
 
+    /// What [`kill_after`] saw.
+    struct Killed {
+        /// Progress points of the full repair the reopen ran (empty: none).
+        repair: Vec<f64>,
+        /// How long the reopen took.
+        reopen: std::time::Duration,
+        /// Every data row before the child ran, after the reopen, and after
+        /// GC then ran to the end on the reopened store.
+        data: [Vec<(Vec<u8>, Vec<u8>)>; 3],
+        /// History expiry rows at the same three points.
+        expiry: [usize; 3],
+    }
+
+    /// A store with `keys` keys of history to retire and free space to
+    /// compact, closed cleanly after a checkpoint; then a child process
+    /// opens it, runs `scenario` and is killed with SIGKILL.
+    fn kill_after(scenario: &str, keys: u32) -> Killed {
+        let dir = crate::TempPath::dir(&format!("redb-kill-{scenario}"));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("rushdb.redb");
+        let open = |path: &Path| {
+            let budget = ByteBudget::new("test", 8 * 1024 * 1024).unwrap();
+            RedbBackend::open(path, budget.try_reserve(8 * 1024 * 1024).unwrap()).unwrap()
+        };
+        let before = {
+            let backend = open(&path);
+            let value = vec![7u8; 4096];
+            for ci in 1..=40u64 {
+                // Every commit rewrites the same keys (history to retire)
+                // and the last ones delete most (free pages to compact).
+                let ops: Vec<Op> = (0..keys)
+                    .map(|key| {
+                        let key = key.to_be_bytes().to_vec();
+                        if ci > 30 && key[3] % 8 != 0 {
+                            Op::Del(key)
+                        } else {
+                            Op::Put(key, value.clone())
+                        }
+                    })
+                    .collect();
+                backend.apply(&ops, ci).unwrap();
+            }
+            assert!(backend.checkpoint(40).unwrap());
+            (data_rows(&backend), expiry_rows(&backend))
+        };
+        let status = std::process::Command::new(std::env::current_exe().unwrap())
+            .args(["--exact", "redb_backend::tests::kill_child", "--nocapture"])
+            .env(KILL_PATH, &path)
+            .env(KILL_SCENARIO, scenario)
+            .status()
+            .unwrap();
+        assert!(!status.success(), "the child must be killed");
+        let started = std::time::Instant::now();
+        let reopened = open(&path);
+        let reopen = started.elapsed();
+        let killed = (data_rows(&reopened), expiry_rows(&reopened));
+        reopened.retire_before(u64::MAX).unwrap();
+        let swept = (data_rows(&reopened), expiry_rows(&reopened));
+        let repair = reopened.open_repair.clone();
+        drop(reopened);
+        std::fs::remove_dir_all(dir).unwrap();
+        Killed {
+            repair,
+            reopen,
+            data: [before.0, killed.0, swept.0],
+            expiry: [before.1, killed.1, swept.1],
+        }
+    }
+
+    /// Asserts the reopen after `killed` ran no full repair, took no time
+    /// to speak of, lost no data row, and that GC then finished.
+    fn assert_reopened_cleanly(killed: &Killed) {
+        assert_eq!(killed.repair, Vec::<f64>::new());
+        assert!(
+            killed.reopen < std::time::Duration::from_secs(5),
+            "{:?}",
+            killed.reopen
+        );
+        assert_eq!(killed.data[1], killed.data[0]);
+        assert_eq!(killed.data[2], killed.data[0]);
+        assert!(killed.expiry[0] > 0);
+        assert_eq!(killed.expiry[2], 0);
+    }
+
+    const KILL_PATH: &str = "RUSHDB_REDB_KILL_PATH";
+    const KILL_SCENARIO: &str = "RUSHDB_REDB_KILL_SCENARIO";
+
+    /// The child of [`kill_after`]: a no-op unless it runs as one.
+    #[test]
+    fn kill_child() {
+        let (Ok(path), Ok(scenario)) = (std::env::var(KILL_PATH), std::env::var(KILL_SCENARIO))
+        else {
+            return;
+        };
+        let budget = ByteBudget::new("test", 8 * 1024 * 1024).unwrap();
+        let backend = RedbBackend::open(
+            Path::new(&path),
+            budget.try_reserve(8 * 1024 * 1024).unwrap(),
+        )
+        .unwrap();
+        // One key per batch: `batches` GC batches, the walk left unfinished.
+        let gc_batches = |batches: usize| {
+            let mut cursor = None;
+            for _ in 0..batches {
+                cursor = backend.retire_before_batch(u64::MAX, cursor, 1).unwrap();
+            }
+        };
+        match scenario.as_str() {
+            "gc" => backend.retire_before(u64::MAX).unwrap(),
+            "gc-one-batch" => gc_batches(1),
+            // The last two buffered behind the last durable batch.
+            "gc-mid-loop" => gc_batches(5 * GC_DURABLE_EVERY + 2),
+            "compact" => backend.compact().unwrap(),
+            "compact-then-tick" => {
+                // Checkpointed before: the tick after the compaction finds
+                // nothing unsynced and the LSN unchanged (an idle store).
+                backend.checkpoint(40).unwrap();
+                backend.compact().unwrap();
+                // No assert here: a panic would close redb cleanly on unwind.
+                let _ = backend.checkpoint(40);
+            }
+            other => panic!("unknown scenario {other}"),
+        }
+        std::mem::forget(backend);
+        let _ = std::process::Command::new("kill")
+            .args(["-KILL", &std::process::id().to_string()])
+            .status();
+        std::process::abort();
+    }
+
+    #[test]
+    fn a_kill_right_after_a_gc_pass_reopens_without_a_full_repair() {
+        let killed = kill_after("gc", 64);
+        assert_reopened_cleanly(&killed);
+        // The pass's last batch is durable: nothing is left to redo.
+        assert_eq!(killed.expiry[1], 0);
+    }
+
+    #[test]
+    fn a_kill_right_after_a_buffered_gc_batch_rolls_it_back_and_gc_redoes_it() {
+        let killed = kill_after("gc-one-batch", 64);
+        assert_reopened_cleanly(&killed);
+        assert_eq!(killed.expiry[1], killed.expiry[0]);
+    }
+
+    #[test]
+    fn a_kill_in_the_middle_of_a_gc_pass_keeps_its_durable_batches() {
+        // Every `GC_DURABLE_EVERY`-th batch is durable: the reopen keeps what
+        // those reclaimed and the next pass redoes the buffered tail.
+        let killed = kill_after("gc-mid-loop", 64);
+        assert_reopened_cleanly(&killed);
+        assert!(
+            killed.expiry[1] < killed.expiry[0] && killed.expiry[1] > 0,
+            "{:?}",
+            killed.expiry
+        );
+    }
+
+    /// redb's allocated pages (freed pages not yet reusable included)
+    /// before and after sweeping a long history backlog: with a checkpoint
+    /// after every `per_tick` one-key batches (the maintenance cadence), or
+    /// with none at all (`None`).
+    fn pages_around_a_sweep(name: &str, per_tick: Option<usize>) -> (u64, u64) {
+        let (dir, backend) = open_backend(name);
+        let pages = |backend: &RedbBackend| {
+            let db = backend.db.read().unwrap();
+            let tx = db.begin_write().unwrap();
+            let pages = tx.stats().unwrap().allocated_pages();
+            tx.abort().unwrap();
+            pages
+        };
+        let value = vec![3u8; 1024];
+        for ci in 1..=30u64 {
+            let ops: Vec<Op> = (0..400u32)
+                .map(|key| Op::Put(key.to_be_bytes().to_vec(), value.clone()))
+                .collect();
+            backend.apply(&ops, ci).unwrap();
+        }
+        assert!(backend.checkpoint(30).unwrap());
+        let before = pages(&backend);
+        let mut cursor = None;
+        loop {
+            for _ in 0..per_tick.unwrap_or(usize::MAX) {
+                cursor = backend.retire_before_batch(u64::MAX, cursor, 1).unwrap();
+                if cursor.is_none() {
+                    break;
+                }
+            }
+            if per_tick.is_some() {
+                backend.checkpoint(30).unwrap();
+            }
+            if cursor.is_none() {
+                break;
+            }
+        }
+        assert_eq!(expiry_rows(&backend), 0);
+        let after = pages(&backend);
+        drop(backend);
+        std::fs::remove_dir_all(dir).unwrap();
+        (before, after)
+    }
+
+    #[test]
+    fn a_long_gc_backlog_reuses_the_pages_it_frees() {
+        // redb reuses no page a buffered commit freed until a durable one:
+        // the maintenance checkpoints, or every `GC_DURABLE_EVERY`-th batch
+        // when none comes, keep a long sweep from growing the file.
+        let (before, ticked) = pages_around_a_sweep("gc-growth-ticked", Some(8));
+        let (_, unticked) = pages_around_a_sweep("gc-growth-unticked", None);
+        assert!(ticked < before / 4, "{before} -> {ticked}");
+        // Without checkpoints, freed pages still come back about as soon.
+        assert!(
+            unticked <= 2 * ticked,
+            "ticked {ticked}, unticked {unticked}"
+        );
+    }
+
+    #[test]
+    fn a_kill_after_a_compaction_and_the_next_tick_reopens_without_a_full_repair() {
+        assert_eq!(
+            kill_after("compact-then-tick", 64).repair,
+            Vec::<f64>::new()
+        );
+    }
+
+    #[test]
+    fn a_new_store_opens_without_reporting_a_repair() {
+        let (dir, backend) = open_backend("new-store");
+        assert_eq!(backend.open_repair, Vec::<f64>::new());
+        drop(backend);
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn a_full_repair_reports_its_progress() {
+        // redb compaction commits without allocator state: a kill before the
+        // next checkpoint forces the full repair, which reports its progress.
+        let progress = kill_after("compact", 64).repair;
+        assert!(progress.len() >= 3, "{progress:?}");
+        assert_eq!(progress.first().copied(), Some(0.0));
+        assert!(
+            progress.windows(2).all(|pair| pair[0] <= pair[1]),
+            "{progress:?}"
+        );
+        assert!(
+            progress.last().is_some_and(|last| *last >= 0.6),
+            "{progress:?}"
+        );
+    }
+
     #[test]
     fn backend_mutex_durations_are_measured() {
         // RM-7: wait/hold durations are recorded and surfaced.
@@ -2118,6 +2455,20 @@ mod tests {
         backend.fail_next_compact.store(true, Ordering::SeqCst);
         assert!(backend.compact().is_err());
         std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    fn data_rows(backend: &RedbBackend) -> Vec<(Vec<u8>, Vec<u8>)> {
+        let db = backend.db.read().unwrap();
+        let tx = db.begin_read().unwrap();
+        let table = tx.open_table(DATA).unwrap();
+        table
+            .iter()
+            .unwrap()
+            .map(|row| {
+                let (key, value) = row.unwrap();
+                (key.value().to_vec(), value.value().to_vec())
+            })
+            .collect()
     }
 
     fn expiry_rows(backend: &RedbBackend) -> usize {

@@ -105,13 +105,10 @@ pub struct ReadView {
     // its staged writes. Derived rows of committed state are ordinary
     // rows of the snapshot.
     deriver: Option<Arc<dyn crate::Deriver>>,
-    // The store's planner-statistics cache; estimates only.
-    planner_stats: Arc<crate::PlannerStats>,
-    // The store's per-snapshot owner-set cache (READ-2).
-    owner_sets: Arc<crate::owner_sets::OwnerSets>,
     // The store's registry of suspect labels (SELF-HEAL).
     derived_health: Arc<crate::derived_health::DerivedHealth>,
-    graphs: Arc<crate::graph_cache::GraphCache>,
+    // The store's resident layers.
+    residents: Arc<crate::resident::Residents>,
     // Generation of the `ReadPin` entry this view admitted into. Guards Drop
     // against decrementing a newer pin at the same CI after lease expiry.
     pin_generation: u64,
@@ -286,10 +283,8 @@ impl Store {
             cancellations: self.read_cancellations.clone(),
             ci,
             deriver,
-            planner_stats: Arc::clone(&self.planner_stats),
-            owner_sets: Arc::clone(&self.owner_sets),
             derived_health: Arc::clone(&self.derived_health),
-            graphs: Arc::clone(&self.graphs),
+            residents: Arc::clone(&self.residents),
             pin_generation,
             native_current: ci == visible,
             views: Some(merged),
@@ -334,13 +329,6 @@ impl Drop for ReadView {
 }
 
 impl ReadView {
-    /// The store's planner-statistics cache. Estimates only; exact
-    /// answers never come from it.
-    #[must_use]
-    pub fn planner_stats_cache(&self) -> &crate::PlannerStats {
-        &self.planner_stats
-    }
-
     /// The store's registry of suspect labels (SELF-HEAL): a read that finds
     /// derived rows disagreeing with base rows reports it here.
     #[must_use]
@@ -348,17 +336,10 @@ impl ReadView {
         &self.derived_health
     }
 
-    /// The store's owner-set cache, keyed by this view's commit index.
+    /// The store's resident layers.
     #[must_use]
-    pub fn owner_sets(&self) -> &crate::owner_sets::OwnerSets {
-        &self.owner_sets
-    }
-
-    /// The store's resident-adjacency cache, keyed by this view's commit
-    /// index.
-    #[must_use]
-    pub fn graphs(&self) -> &crate::graph_cache::GraphCache {
-        &self.graphs
+    pub fn residents(&self) -> &Arc<crate::resident::Residents> {
+        &self.residents
     }
 
     fn storage_view(&self) -> &ReadView {
@@ -405,10 +386,8 @@ impl ReadView {
             cancellations: self.cancellations.clone(),
             ci: self.ci,
             deriver: self.deriver.clone(),
-            planner_stats: Arc::clone(&self.planner_stats),
-            owner_sets: Arc::clone(&self.owner_sets),
             derived_health: Arc::clone(&self.derived_health),
-            graphs: Arc::clone(&self.graphs),
+            residents: Arc::clone(&self.residents),
             pin_generation: self.pin_generation,
             native_current: self.native_current,
             views: None,

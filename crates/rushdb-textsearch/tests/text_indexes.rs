@@ -59,6 +59,7 @@ fn search_opts(
                 query,
                 opts,
                 top_k: 10,
+                count: false,
             },
             candidates,
         )
@@ -119,6 +120,7 @@ fn bm25_ranks_relevant_documents_across_all_string_properties() {
                     ..LexicalOptions::default()
                 },
                 top_k: 10,
+                count: false,
             },
             None,
         )
@@ -405,7 +407,8 @@ fn building_and_dropping_text_indexes() {
                 index: "articles",
                 query: "corpus",
                 opts: LexicalOptions::default(),
-                top_k: 10
+                top_k: 10,
+                count: false,
             },
             None
         )
@@ -426,6 +429,7 @@ fn building_and_dropping_text_indexes() {
                 query: "corpus",
                 opts: LexicalOptions::default(),
                 top_k: 100,
+                count: false,
             },
             None,
         )
@@ -463,7 +467,7 @@ fn a_search_counts_every_match_and_can_return_them_all() {
         TextConsistency::Immediate,
     );
     let view = lmpg.store.read_view().unwrap();
-    let run = |top_k, candidates| {
+    let run = |top_k, candidates, count| {
         text.search(
             lmpg.tenant,
             &view,
@@ -472,21 +476,96 @@ fn a_search_counts_every_match_and_can_return_them_all() {
                 query: "database",
                 opts: LexicalOptions::default(),
                 top_k,
+                count,
             },
             candidates,
         )
         .unwrap()
     };
-    let top = run(5, None);
-    assert_eq!((top.hits.len(), top.matches), (5, 31));
-    let all = run(rushdb_textsearch::ALL_HITS, None);
-    assert_eq!((all.hits.len(), all.matches), (31, 31));
+    let top = run(5, None, true);
+    assert_eq!((top.hits.len(), top.matches), (5, Some(31)));
+    // Uncounted, the same hits (and the same scores) come back.
+    let uncounted = run(5, None, false);
+    assert_eq!(uncounted.matches, None);
+    let owners = |hits: &rushdb_textsearch::TextHits| -> Vec<(u64, u64)> {
+        hits.hits
+            .iter()
+            .map(|hit| (hit.owner_ord, hit.score.to_bits()))
+            .collect()
+    };
+    assert_eq!(owners(&uncounted), owners(&top));
+    let all = run(rushdb_textsearch::ALL_HITS, None, false);
+    assert_eq!((all.hits.len(), all.matches), (31, Some(31)));
+    // A large finite `top_k` is sized by the matches too.
+    let large = run(1_000_000, None, false);
+    assert_eq!((large.hits.len(), large.matches), (31, Some(31)));
+    assert_eq!(owners(&large), owners(&all));
     // Candidates bound the count too.
     let scoped = run(
         5,
         Some(Arc::new(roaring::RoaringTreemap::from([other.ordinal]))),
+        true,
     );
-    assert_eq!((scoped.hits.len(), scoped.matches), (1, 1));
+    assert_eq!((scoped.hits.len(), scoped.matches), (1, Some(1)));
+}
+
+#[test]
+fn ties_at_the_kth_score_go_to_the_lowest_owners() {
+    let (lmpg, text) = setup();
+    define(
+        &lmpg,
+        "articles",
+        "Article",
+        "*",
+        TextConsistency::Immediate,
+    );
+    // Twelve records with the same text score the same.
+    let tied: Vec<_> = (0..12).map(|_| article(&lmpg, "tie", "same")).collect();
+    // Rewriting the lowest owners re-adds their documents at the end of the
+    // index, so index order no longer follows owner order.
+    for &record in &tied[..6] {
+        for body in ["changed", "same"] {
+            lmpg.update_fields(record, vec![("body".into(), FieldChange::Set(json!(body)))])
+                .unwrap();
+            // Applied one at a time, each change reaches the index.
+            text.search(
+                lmpg.tenant,
+                &lmpg.store.read_view().unwrap(),
+                rushdb_textsearch::TextQuery {
+                    index: "articles",
+                    query: "tie",
+                    opts: LexicalOptions::default(),
+                    top_k: 1,
+                    count: false,
+                },
+                None,
+            )
+            .unwrap();
+        }
+    }
+    let mut lowest: Vec<u64> = tied.iter().map(|record| record.ordinal).collect();
+    lowest.sort_unstable();
+    let view = lmpg.store.read_view().unwrap();
+    for top_k in [1, 3, 5, 11] {
+        for count in [false, true] {
+            let hits = text
+                .search(
+                    lmpg.tenant,
+                    &view,
+                    rushdb_textsearch::TextQuery {
+                        index: "articles",
+                        query: "tie",
+                        opts: LexicalOptions::default(),
+                        top_k,
+                        count,
+                    },
+                    None,
+                )
+                .unwrap();
+            let owners: Vec<u64> = hits.hits.iter().map(|hit| hit.owner_ord).collect();
+            assert_eq!(owners, lowest[..top_k], "top {top_k}, count {count}");
+        }
+    }
 }
 
 #[test]
@@ -642,6 +721,7 @@ fn the_query_syntax_is_opt_in_and_reports_what_does_not_parse() {
                 query,
                 opts: syntax,
                 top_k: 10,
+                count: false,
             },
             None,
         )
@@ -662,4 +742,22 @@ fn the_query_syntax_is_opt_in_and_reports_what_does_not_parse() {
     ));
     // As plain words the same string is two terms, neither indexed.
     assert!(search(&lmpg, &text, "articles", "title:(").0.is_empty());
+}
+
+#[test]
+fn the_applier_merges_the_segments_its_batches_write() {
+    let (lmpg, text) = setup();
+    let id = define(&lmpg, "articles", "Article", "*", TextConsistency::Eventual);
+    // Ten apply batches' worth of changes, each batch committing a segment.
+    for i in 0..5_000 {
+        article(&lmpg, &format!("note {i}"), "graph storage");
+    }
+    while text
+        .apply_tenant(&lmpg, std::time::Duration::from_secs(60))
+        .unwrap()
+        > 0
+    {}
+    let segments = text.segments(lmpg.tenant, id).unwrap();
+    assert!(segments <= 4, "{segments} segments after ten batches");
+    assert_eq!(search(&lmpg, &text, "articles", "graph").1, 0);
 }

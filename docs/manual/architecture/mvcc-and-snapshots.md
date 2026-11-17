@@ -113,7 +113,10 @@ The maintenance tick (default every 5 s) runs a **bounded, resumable sweep**:
 up to 512 keys per tick through the expiry index, so reclamation never
 becomes one huge write transaction. Versions superseded at or before the
 floor are removed. With no reader pinned, history is reclaimed on the next
-sweep; on a quiet store history stays near zero.
+sweep; on a quiet store history stays near zero. Sweep batches are written
+like materialized commits; every fourth batch, the batch that completes a
+sweep, and the tick's checkpoint make them durable. A crash only undoes
+reclamation since the last durable one, which the next sweep repeats.
 
 Vector slots follow the same rule: re-binding an embedding writes the new
 vector to a fresh slot, so a pinned view can still read the old one, and

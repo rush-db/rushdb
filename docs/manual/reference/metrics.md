@@ -48,7 +48,7 @@ Bolt, and `pgwire.execute` for PostgreSQL wire.
 |---|---|---|---|
 | `rushdb_commits_total` | counter | — | Durable commit index: commits since the store was created. |
 | `rushdb_commit_latency_seconds` | histogram | — | Time from enqueue to durable acknowledgement per commit. |
-| `rushdb_commit_phase_seconds` | histogram | `phase` | Commit pipeline time by phase. Per commit: `admission_wait`, `build`, `expand`, `durable`. Per publish group: `wal_encode`, `wal_append_sync`, `backend_apply`, `derive`, `publish`. |
+| `rushdb_commit_phase_seconds` | histogram | `phase` | Commit pipeline time by phase. Per commit: `admission_wait`, `build`, `expand`, `durable`; a transaction commit (and a merge import) times `tx_validate` and `tx_expand` instead of `build` and `expand`. Per publish group: `wal_encode`, `wal_append_sync`, `backend_apply`, `derive`, `publish`. |
 | `rushdb_storage_group_commits_total` | counter | — | Group-commit write transactions persisted. |
 | `rushdb_sequencer_inflight_keys` | gauge | — | Keys assigned to commits that are not yet published. |
 | `rushdb_conflict_window_bytes` | gauge | — | Memory held by the conflict-validation window. |
@@ -97,8 +97,17 @@ Bolt, and `pgwire.execute` for PostgreSQL wire.
 | `rushdb_allocator_resident_bytes` | gauge | — | Physically resident bytes (`stats.resident`); the closest in-process view of RSS. |
 | `rushdb_allocator_retained_bytes` | gauge | — | Bytes retained by the allocator but not active (`stats.retained`). |
 | `rushdb_allocator_bytes_allocated_total` | counter | — | Cumulative bytes allocated; only populated in special measurement builds, otherwise 0. |
-| `rushdb_planner_stats_bytes` | gauge | — | Bytes in the planner-statistics cache. |
-| `rushdb_planner_stats_entries` | gauge | — | Value distributions in the planner-statistics cache. |
+| `rushdb_resident_bytes` | gauge | `layer` | Bytes a [resident layer](../architecture/resident-state.md) holds. |
+| `rushdb_resident_entries` | gauge | `layer` | Entries a resident layer holds. |
+| `rushdb_resident_hits_total` | counter | `layer` | Lookups answered from a resident entry. |
+| `rushdb_resident_misses_total` | counter | `layer` | Lookups a resident layer left to storage. |
+| `rushdb_resident_builds_total` | counter | `layer` | Entries built in the background. |
+| `rushdb_resident_build_refused_total` | counter | `layer` | Values refused by the layer's budget. |
+| `rushdb_resident_build_seconds` | counter | `layer` | Seconds spent building entries. |
+| `rushdb_resident_invalidations_total` | counter | `layer` | Entries dropped because a commit wrote what they reflect. |
+| `rushdb_resident_evictions_total` | counter | `layer` | Entries dropped by LRU. |
+| `rushdb_resident_verify_total` | counter | `layer` | Hits rebuilt from storage and compared (`resident-verify-rate`). |
+| `rushdb_resident_verify_mismatch_total` | counter | `layer` | Entries found different from storage; each was dropped. |
 | `rushdb_tenants_resident` | gauge | — | Tenants whose in-memory handles are resident. |
 | `rushdb_tenant_resident_bytes` | gauge | — | Bytes charged by resident tenant handles. |
 

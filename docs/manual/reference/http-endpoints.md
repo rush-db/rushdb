@@ -49,7 +49,7 @@ While the node is still opening its store, `/health` returns 200 with
 | Status | Body `status` / `reason` | Cause |
 |---|---|---|
 | 200 | `ready` | Serving. |
-| 503 | `starting`, with the boot phase | The node is still booting (`starting`, `opening-storage`, `starting-engines`, `migrating`). |
+| 503 | `starting`, with the boot phase | The node is still booting (`starting`, `opening-storage`, `repairing-storage`, `starting-engines`, `migrating`). During `repairing-storage` the body also has `progress` (percent): the store file was not closed cleanly and is checked in full before it opens, which reads the whole file several times. |
 | 503 | `maintenance` / `maintenance mode` | Maintenance mode is on. |
 | 503 | `not_ready` / `store is shutting down` | Shutdown in progress. |
 | 503 | `not_ready` / `durable publisher failed` (+ `error`) | The write path failed (for example the disk filled up mid-commit); restart required. |
@@ -175,6 +175,7 @@ capability scope needed.
 | `vectorIndexCandidates` | Records not yet bound to a vector index (default `limit` 500). | `query.vectorIndexCandidates` |
 | `text` | Full-text search against a declared text index (default `limit` 10). | `query.text` |
 | `hybrid` | Graph + vector + full-text query fused by reciprocal-rank fusion. | `query.hybrid` |
+| `path` | Shortest path between two records over one relationship type, within `maxHops`; the records on it in order. | `query.path` |
 
 ### `mutate` (permission `write`)
 

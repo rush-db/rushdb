@@ -40,7 +40,7 @@ On HTTP a protocol error has this shape:
 | `scope_mismatch` | `context.scope` differs from the transport scope, or a scope was sent to a single-tenant server. | no | 403 | `3D000` | `UNAUTHENTICATED` | `Neo.ClientError.Security.Unauthorized` |
 | `not_found` | Record, index, property, or other target does not exist. | no | 404 | `42P01` | `NOT_FOUND` | `Neo.ClientError.Statement.EntityNotFound` |
 | `conflict` | Constraint or state conflict (already exists, label changed, stale reference). Retrying the same request will fail again. | no | 409 | `23505` | `ALREADY_EXISTS` | `Neo.ClientError.Constraint.UniqueConstraintViolation` |
-| `write_conflict` | Snapshot-isolation write conflict (first committer wins). The transaction was aborted; retry it. | yes | 409 | `40001` | `ABORTED` | `Neo.TransientError.Transaction.DeadlockDetected` |
+| `write_conflict` | Snapshot-isolation write conflict (first committer wins). The transaction was aborted; retry it. A merge import returns it when its own re-runs all lost to concurrent writes on its keys; nothing of it was written. Retry with backoff. | yes | 409 | `40001` | `ABORTED` | `Neo.TransientError.Transaction.DeadlockDetected` |
 | `cancelled` | The request deadline passed or the request was cancelled. | no | 499 | `57014` | `CANCELLED` | `Neo.ClientError.Transaction.TransactionTerminated` |
 | `resource_exhausted` | A budget was exhausted: query memory, transaction staging, commit size, write-lock wait. | yes (no for fixed per-request limits) | 429 | `53200` | `RESOURCE_EXHAUSTED` | `Neo.TransientError.General.DatabaseUnavailable` |
 | `unavailable` | Temporarily unable to serve: overload, tenant capacity, maintenance mode, follower read-only, shutting down. | yes | 503 | `57P03` | `UNAVAILABLE` | `Neo.TransientError.General.DatabaseUnavailable` |
@@ -55,7 +55,8 @@ execution. Their status does not always follow the table above.
 
 | Status | Body | Cause | What to do |
 |---|---|---|---|
-| 401 | `{"error":"unauthorized"}` | No valid token or capability, or the capability lacks the needed permission. | Check the `Authorization` / `X-RushDB-Token` header. |
+| 401 | protocol error `unauthorized` | `/protocol/v1/execute` without a credential (`missing credential: …`), with one that is neither the token nor a valid capability for the tenant (`invalid token`), or with a capability that lacks the operation's permission (``the session's credential does not grant `write` ``). The credential is never echoed. | Check the `Authorization` / `X-RushDB-Token` header, or issue a capability with the permission. |
+| 401 | `{"error":"unauthorized"}` | The operator endpoints (`/metrics`, `/internal/*`), which are not protocol endpoints: no valid credential, or not the boot token where they require it. | Use the operator token. |
 | 400 | protocol error `missing_scope` | Multitenant server and no `X-RushDB-Tenant` header. | Send the header. |
 | 400 | protocol error `invalid_request` | `X-RushDB-Tenant` longer than 1024 bytes. | Shorten the scope. |
 | 404 | `{"error":"route not found"}` | Unknown path. | — |
@@ -106,7 +107,7 @@ connect with `sslmode=disable` or `prefer`.
 | `query language ... is not enabled` | `language_disabled` | Enable it with `--languages`. |
 | `resource exhausted: transaction operation limit` | `resource_exhausted` (not retryable) | Over `tx-max-operations`. |
 | `resource exhausted: transaction staging byte limit` | `resource_exhausted` (not retryable) | Over `tx-max-staged-bytes`. |
-| `storage resource exhausted: expanded mutation batch exceeds` | `resource_exhausted` (not retryable) | Over `max-expanded-commit-bytes`. |
+| `storage resource exhausted: expanded mutation batch exceeds` | `resource_exhausted` (not retryable) | Over `max-expanded-commit-bytes`. A merge import is one commit, so the whole request is refused and nothing of it is written; split it into smaller requests. |
 | `query working set would exceed query-memory-max (N bytes)` | `resource_exhausted` | A listing, projection or aggregation would hold more than `query-memory-max` while it runs. Raise `--query-memory-max` or narrow the filter. |
 | `response would exceed the response size limit (N bytes)` | `resource_exhausted` | The returned rows would exceed the response size limit. Raise `--body-limit` or request a smaller page. |
 | `query working set exceeded` | `resource_exhausted` | An upsert key walk or SQL statement over `query-memory-max`. |

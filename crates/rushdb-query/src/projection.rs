@@ -60,12 +60,42 @@ impl<'r> Projection<'r> {
                 _ => return Ok(None),
             },
         };
+        Ok(Some(self.shape(&record)))
+    }
+
+    /// The rows of `ords`, in order, when every field is a point read
+    /// (`None` otherwise): read in fixed-size parts on the shared thread
+    /// budget.
+    pub(crate) fn point_rows(
+        &self,
+        snap: &QuerySnapshot,
+        tenant: rushdb_types::ids::TenantId,
+        ords: &[u64],
+    ) -> Result<Option<Vec<Json>>, QueryError> {
+        /// Rows one part reads.
+        const PART_ROWS: usize = 512;
+        let Some(point) = &self.point else {
+            return Ok(None);
+        };
+        let parts = rushdb_storage::parallel::run_parts(ords.len().div_ceil(PART_ROWS), |part| {
+            let end = ((part + 1) * PART_ROWS).min(ords.len());
+            ords[part * PART_ROWS..end]
+                .iter()
+                .map(|&ord| Ok(self.shape(&point.row(snap, tenant, ord)?)))
+                .collect::<Result<Vec<Json>, QueryError>>()
+        })?;
+        Ok(Some(parts.into_iter().flatten().collect()))
+    }
+
+    /// A row of the projected fields `record` holds, under their output
+    /// names, in `select` order.
+    fn shape(&self, record: &Map<String, Json>) -> Json {
         let mut row = Map::new();
         for (output, field) in self.fields {
-            if let Some(value) = resolve_field(&record, field) {
+            if let Some(value) = resolve_field(record, field) {
                 row.insert(output.clone(), value);
             }
         }
-        Ok(Some(Json::Object(row)))
+        Json::Object(row)
     }
 }
