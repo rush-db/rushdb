@@ -1,0 +1,173 @@
+{
+ "": {
+  "acmeEmployees": {
+   "kind": "records",
+   "records": [
+    {
+     "id": "01a1e9bc-6df4-71a3-9921-c5791ac4d615",
+     "label": "Employee",
+     "properties": {
+      "age": 36,
+      "companyKey": 1,
+      "name": "Ada"
+     },
+     "propertyTypes": {
+      "age": "number",
+      "companyKey": "number",
+      "name": "string"
+     }
+    },
+    {
+     "id": "01a1e9bc-6df5-7e72-895e-fe7b497a00cf",
+     "label": "Employee",
+     "properties": {
+      "age": 41,
+      "companyKey": 1,
+      "name": "Brian"
+     },
+     "propertyTypes": {
+      "age": "number",
+      "companyKey": "number",
+      "name": "string"
+     }
+    }
+   ],
+   "total": 2
+  },
+  "employees": {
+   "kind": "records",
+   "records": [
+    {
+     "id": "01a1e9bc-6df4-71a3-9921-c5791ac4d615",
+     "label": "Employee",
+     "properties": {
+      "age": 36,
+      "companyKey": 1,
+      "name": "Ada"
+     },
+     "propertyTypes": {
+      "age": "number",
+      "companyKey": "number",
+      "name": "string"
+     }
+    },
+    {
+     "id": "01a1e9bc-6df5-7e72-895e-fe7b497a00cf",
+     "label": "Employee",
+     "properties": {
+      "age": 41,
+      "companyKey": 1,
+      "name": "Brian"
+     },
+     "propertyTypes": {
+      "age": "number",
+      "companyKey": "number",
+      "name": "string"
+     }
+    },
+    {
+     "id": "01a1e9bc-6df5-7e72-895e-fe8e8473e504",
+     "label": "Employee",
+     "properties": {
+      "age": 29,
+      "companyKey": 2,
+      "name": "Chen"
+     },
+     "propertyTypes": {
+      "age": "number",
+      "companyKey": "number",
+      "name": "string"
+     }
+    }
+   ],
+   "total": 3
+  },
+  "nearest": {
+   "kind": "records",
+   "records": [
+    {
+     "id": "01a1e9bc-6dff-7600-b009-027bc7743e43",
+     "label": "Doc",
+     "properties": {
+      "body": "the quick brown fox",
+      "rank": 1
+     },
+     "propertyTypes": {
+      "body": "string",
+      "rank": "number"
+     },
+     "score": 1.0
+    },
+    {
+     "id": "01a1e9bc-6dff-7600-b009-02900df65e82",
+     "label": "Doc",
+     "properties": {
+      "body": "quick thinking wins",
+      "rank": 3
+     },
+     "propertyTypes": {
+      "body": "string",
+      "rank": "number"
+     },
+     "score": 0.983785092830658
+    }
+   ],
+   "total": 2,
+   "vectorSearch": {
+    "mode": "exact",
+    "pool": 3
+   }
+  },
+  "quick": {
+   "kind": "textHits",
+   "pending": 0,
+   "rows": [
+    {
+     "id": "01a1e9bc-6dff-7600-b009-02900df65e82",
+     "score": 0.5077717900276184
+    },
+    {
+     "id": "01a1e9bc-6dff-7600-b009-027bc7743e43",
+     "score": 0.4531509280204773
+    }
+   ],
+   "total": 2
+  },
+  "worksAt": {
+   "kind": "relationships",
+   "relationships": [
+    {
+     "id": "01a1e9bc-6e14-7fb1-8067-f75d3b26067d",
+     "properties": {},
+     "propertyTypes": {},
+     "sourceId": "01a1e9bc-6df4-71a3-9921-c5791ac4d615",
+     "sourceLabel": "Employee",
+     "targetId": "01a1e9bc-6de0-7a10-b46d-275e0985c890",
+     "targetLabel": "Company",
+     "type": "WORKS_AT"
+    },
+    {
+     "id": "01a1e9bc-6e14-7fb1-8067-f760b66263c4",
+     "properties": {},
+     "propertyTypes": {},
+     "sourceId": "01a1e9bc-6df5-7e72-895e-fe7b497a00cf",
+     "sourceLabel": "Employee",
+     "targetId": "01a1e9bc-6de0-7a10-b46d-275e0985c890",
+     "targetLabel": "Company",
+     "type": "WORKS_AT"
+    },
+    {
+     "id": "01a1e9bc-6e14-7fb1-8067-f7756e1ce727",
+     "properties": {},
+     "propertyTypes": {},
+     "sourceId": "01a1e9bc-6df5-7e72-895e-fe8e8473e504",
+     "sourceLabel": "Employee",
+     "targetId": "01a1e9bc-6de0-7a10-b46d-27608c4d647f",
+     "targetLabel": "Company",
+     "type": "WORKS_AT"
+    }
+   ],
+   "total": 3
+  }
+ }
+}

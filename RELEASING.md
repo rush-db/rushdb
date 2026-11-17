@@ -29,6 +29,13 @@ GHCR needs only the workflow token.
    `crates/rushdb-server/tests/vector_search_mode.rs`) gate every pull
    request on cost that follows the result rather than the label; the
    benchmark run catches what read counts do not (CPU per row, contention).
+   The release pull request needs a green `upgrade-matrix` job: a data
+   directory written by every published 3.x release, cleanly stopped and
+   (for the newest) killed, starts on the release build with deployment
+   flags and answers as that release did. The release also commits its
+   predecessor's fixture: run `scripts/upgrade-fixtures.py regenerate` once
+   the previous release's image is published (`upgrade_fixtures.rs` fails
+   without it).
 2. Push the tag. `release.yml`:
    - builds `rushdb` for Linux x86-64 and arm64 (inside
      `manylinux_2_28`, so they need glibc 2.28+) and macOS Apple silicon and
@@ -43,7 +50,9 @@ GHCR needs only the workflow token.
      refusals on Alpine (musl) and CentOS 7 (glibc 2.17);
    - creates a draft GitHub release with every file and a copy of
      `install.sh`, marked as the latest release.
-3. Review the draft (notes, capability snapshot) and publish it. Publishing
+3. Review the draft (notes, capability snapshot) and publish it. The draft's
+   notes are GitHub's generated list of pull requests; replace them with the
+   release's `CHANGELOG.md` section before publishing. Publishing
    triggers `publish.yml`, which uses the release's verified Linux binaries
    (nothing is rebuilt):
    - builds the `rushdb/rushdb` image for `linux/amd64` and `linux/arm64`,
@@ -71,6 +80,25 @@ The one-line installer is served from the default branch
 installs the newest `vX.Y.Z` release, so a release is installable as soon as it
 is published. Keep `install.sh` on the default branch compatible with the
 archive names of every release users may pin.
+
+## Removing or renaming a setting
+
+Every data directory's `config.yml` lists every setting its release knew,
+and deployments pass flags and variables that outlive the release that
+introduced them. A change that removes or renames a setting (a `config.yml`
+key, flag or environment variable) ships with a compatibility path in the
+same change:
+
+- **Removed:** add it to `config::REMOVED_KEYS` with the release, and keep a
+  hidden flag with its variable in `rushdb serve` that only calls
+  `config::warn_removed`. The setting is then ignored with a warning.
+- **Renamed:** read the old name as the new one with a warning, or migrate
+  the file at startup.
+
+`upgrade_fixtures.rs` (every released `config.yml` loads; every released
+data directory starts and answers as recorded) and CI's `upgrade-matrix`
+fail on a change that has none. Do not edit a released fixture to make
+them pass.
 
 ## Verifying artifacts
 

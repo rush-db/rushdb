@@ -11,6 +11,8 @@ repository.workspace = true
 documentation.workspace = true
 keywords.workspace = true
 categories.workspace = true
+# Release data directories for the upgrade tests; not part of the package.
+exclude = ["tests/fixtures/upgrade"]
 
 [[bin]]
 name = "rushdb"
