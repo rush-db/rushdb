@@ -327,18 +327,37 @@ scores deterministically by record.
 matching `predicate` (at most the index's vectors) when there is one, the
 index's vectors otherwise.
 
+`resources.vector-exact-max-pool` sets what "small enough" means. The default,
+`auto`, compares the cost of the two paths for each search: scoring the pool
+exactly grows with the pool and the dimensions, while a filtered graph walk
+grows with `ef` and with how few of the index's vectors the filter admits
+(the walk has to step over the others). A filtered search is exact while
+`pool² × dimensions ≤ 26,000 × ef × index vectors`, and an unfiltered one while
+`index vectors × dimensions ≤ 144,000 × ef`. For example, at the default `ef`
+of 128:
+
+| Index | Unfiltered: exact up to | Filtered: exact up to (`ef` 128 / 512) |
+|---|---|---|
+| 100,000 × 1,536-d | 12,000 vectors | 14,720 / 29,439 matching records |
+| 1,000,000 × 768-d | 24,000 vectors | 65,828 / 131,656 matching records |
+
+A number fixes the pool instead: `vector-exact-max-pool: 20000` scores at most
+20,000 vectors exactly whatever the dimensions and `ef`. `5000`, the value every
+`config.yml` before 3.0.13 was generated with, reads as `auto`; to keep a fixed
+pool of 5,000, write `fixed:5000`.
+
 | `mode` | Behaviour |
 |---|---|
-| `auto` (default) | Exact while the pool is at most `resources.vector-exact-max-pool` (default 5,000) or the metric is not cosine, so a narrow filter on a large index is answered exactly, with full recall. Above that, ANN once the graph is resident; until then the search is answered exactly while the graph is built in the background (`fallback: annWarming`), so no search waits for a build. |
+| `auto` (default) | Exact while the pool is small enough (`resources.vector-exact-max-pool`, above) or the metric is not cosine, so a narrow filter on a large index is answered exactly, with full recall. Above that, ANN once the graph is resident; until then the search is answered exactly while the graph is built in the background (`fallback: annWarming`), so no search waits for a build. |
 | `exact` | Exact search. |
-| `ann` | ANN, building the graph first if it is not resident. A filtered pool within `resources.vector-exact-max-pool` is answered exactly instead (`fallback: smallCandidateSet`): it is cheaper than the graph walk and never less accurate. Refused (`invalid_request`) on a `dot` or `euclidean` index. |
+| `ann` | ANN, building the graph first if it is not resident. A filtered pool small enough to score exactly is answered exactly instead (`fallback: smallCandidateSet`): it is cheaper than the graph walk and never less accurate. Refused (`invalid_request`) on a `dot` or `euclidean` index. |
 
 ANN degrades to exact search instead of returning a short or wrong answer, and
 reports why in `vectorSearch.fallback`:
 
 | Situation | Behaviour | `fallback` |
 |---|---|---|
-| A forced `ann` whose filtered pool is within `resources.vector-exact-max-pool` | Exact search over the matching records | `smallCandidateSet` |
+| A forced `ann` whose filtered pool is small enough to score exactly | Exact search over the matching records | `smallCandidateSet` |
 | The graph walk found fewer than `min(ef, offset + limit)` candidates that pass the filter | Exact search for this query | `lowConfidence` |
 | The ANN graph does not fit the vector cache budget | Exact search; counted in `rushdb_ann_exact_fallbacks_total`. `auto` does not retry the build until the index changes. | `budget` |
 | The logical cache budget is disabled (`RUSHDB_LOGICAL_CACHE_BYTES=0`) | No ANN can be resident: exact search, counted in `rushdb_ann_exact_fallbacks_total`; `revalidateVector` reports `annRebuildError` | `budget` |
@@ -356,8 +375,8 @@ The `predicate` is resolved by the [query planner](query-planning.md) into a
 candidate set **before** ranking, and both exact and ANN search only consider
 candidates. A filtered search therefore never returns a record outside the
 filter, and never returns fewer results because high-scoring records were
-filtered out after ranking. A candidate set within
-`resources.vector-exact-max-pool` is scored exactly, reading only those
+filtered out after ranking. A candidate set small enough to score exactly
+(`resources.vector-exact-max-pool`) is scored exactly, reading only those
 records' vectors. A larger one is searched on the ANN graph, which skips
 non-matching records during the walk instead of filtering a fixed gather
 afterwards, so a selective filter does not empty the gather.
@@ -478,8 +497,8 @@ validated against the snapshot's version of the space before use.
 - Exact search reads one binding and one vector per candidate: with a
   `predicate` its cost grows with the number of matching records, without one
   with the index size (spread over the threads the server lends it). `auto` (and a forced `ann` with a `predicate`) searches
-  exactly up to `resources.vector-exact-max-pool` candidates and on the ANN
-  graph above; set it to move that point.
+  exactly while that costs less than the graph walk and on the ANN graph
+  above; set `resources.vector-exact-max-pool` to a number to fix that point.
 - The ANN graph lives in memory and is charged to the logical cache budget
   (`RUSHDB_LOGICAL_CACHE_BYTES`, default 128 MiB). When it does not fit,
   queries fall back to exact search rather than fail. Watch

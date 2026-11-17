@@ -1640,17 +1640,19 @@ pub struct VectorQuery {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum VectorSearchMode {
-    /// The server chooses: exact search while the search could score at
-    /// most `resources.vector-exact-max-pool` vectors (the predicate's
-    /// matching owners when filtered, the whole index otherwise) or the
-    /// metric has no ANN graph, ANN above. A search never waits for the ANN
+    /// The server chooses: exact search while scoring the vectors the
+    /// search could score (the predicate's matching owners when filtered,
+    /// the whole index otherwise) costs less than the ANN walk, or a fixed
+    /// pool (`resources.vector-exact-max-pool`), or the metric has no ANN
+    /// graph; ANN above. A search never waits for the ANN
     /// graph to be built: until it is resident, `auto` answers exactly and
     /// builds it in the background.
     Auto,
     /// Score every candidate.
     Exact,
     /// Walk the ANN graph and rerank exactly. Only cosine indexes have one;
-    /// a filtered pool within `resources.vector-exact-max-pool`, a budget or
+    /// a filtered pool small enough to score exactly
+    /// (`resources.vector-exact-max-pool`), a budget or
     /// a confidence shortfall is still answered exactly and reported.
     Ann,
 }
@@ -1665,9 +1667,9 @@ pub struct VectorSearchReport {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ef: Option<usize>,
     /// Why a search that would use the ANN graph was answered exactly:
-    /// `smallCandidateSet` (a forced `ann` whose filtered pool is within
-    /// `resources.vector-exact-max-pool`: scoring it exactly is cheaper and
-    /// never less accurate), `metric` (no ANN graph for this metric),
+    /// `smallCandidateSet` (a forced `ann` whose filtered pool is small
+    /// enough to score exactly, `resources.vector-exact-max-pool`: cheaper
+    /// and never less accurate), `metric` (no ANN graph for this metric),
     /// `budget` (the graph does not fit the vector cache), `lowConfidence`
     /// (the graph walk found too few candidates), or `annWarming` (`auto`
     /// only: the graph is being built in the background; later searches use

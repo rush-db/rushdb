@@ -50,6 +50,92 @@ impl<'de> Deserialize<'de> for ByteSize {
     }
 }
 
+/// Which filtered vector searches are scored exactly instead of walking the
+/// ANN graph (`resources.vector-exact-max-pool`).
+///
+/// `auto` (the default) decides per search by cost, from the pool, the
+/// index's vectors and dimensions and the search's `ef`. A number fixes the
+/// largest pool scored exactly. `5000` (the value every `config.yml` before
+/// 3.0.13 was generated with) reads as `auto`; `fixed:5000` keeps a pool of
+/// 5,000.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ExactPool {
+    /// Exact when it costs less than the walk.
+    Auto,
+    /// Exact when the pool is at most this many vectors.
+    Fixed(u64),
+}
+
+impl ExactPool {
+    /// The value every `config.yml` before 3.0.13 was generated with; it
+    /// reads as [`ExactPool::Auto`].
+    pub const GENERATED_BEFORE_AUTO: u64 = 5_000;
+
+    fn from_number(pool: u64) -> Self {
+        if pool == Self::GENERATED_BEFORE_AUTO {
+            Self::Auto
+        } else {
+            Self::Fixed(pool)
+        }
+    }
+}
+
+impl FromStr for ExactPool {
+    type Err = String;
+    fn from_str(input: &str) -> Result<Self, Self::Err> {
+        let input = input.trim();
+        let number = |digits: &str| {
+            digits.trim().parse::<u64>().map_err(|_| {
+                format!("vector-exact-max-pool must be `auto`, a number or `fixed:<number>`, not `{input}`")
+            })
+        };
+        if input.eq_ignore_ascii_case("auto") {
+            Ok(Self::Auto)
+        } else if let Some(pool) = input.strip_prefix("fixed:") {
+            number(pool).map(Self::Fixed)
+        } else {
+            number(input).map(Self::from_number)
+        }
+    }
+}
+
+impl std::fmt::Display for ExactPool {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Auto => f.write_str("auto"),
+            Self::Fixed(pool) if *pool == Self::GENERATED_BEFORE_AUTO => write!(f, "fixed:{pool}"),
+            Self::Fixed(pool) => write!(f, "{pool}"),
+        }
+    }
+}
+
+impl Serialize for ExactPool {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        match self {
+            // A plain number stays readable by releases before 3.0.13.
+            Self::Fixed(pool) if *pool != Self::GENERATED_BEFORE_AUTO => {
+                serializer.serialize_u64(*pool)
+            }
+            _ => serializer.collect_str(self),
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for ExactPool {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        #[derive(Deserialize)]
+        #[serde(untagged)]
+        enum Input {
+            Number(u64),
+            Text(String),
+        }
+        match Input::deserialize(deserializer)? {
+            Input::Number(pool) => Ok(Self::from_number(pool)),
+            Input::Text(value) => value.parse().map_err(serde::de::Error::custom),
+        }
+    }
+}
+
 /// Storage resource budgets and maintenance knobs (CLI `resources` section and
 /// the `config.yml` `resources` section).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, clap::Args)]
@@ -346,12 +432,14 @@ pub struct ResourceConfig {
         action = clap::ArgAction::Set
     )]
     pub require_vector_index_name: bool,
-    /// Largest index (ready vectors) a vector search in `auto` mode scores
-    /// exactly; above it, `auto` uses the ANN graph once it is resident and
-    /// builds it in the background meanwhile. At 5,000 vectors an exact
-    /// search takes ~9 ms at 768 dimensions and ~13 ms at 1,536.
-    #[arg(long, env = "RUSHDB_VECTOR_EXACT_MAX_POOL", default_value_t = 5_000)]
-    pub vector_exact_max_pool: u64,
+    /// Which vector searches are scored exactly instead of walking the ANN
+    /// graph: `auto` (by cost; see [`ExactPool`]), a number (the largest
+    /// pool, matching records or the whole index, scored exactly) or
+    /// `fixed:<number>`. Above it, `auto` mode uses the ANN graph once it
+    /// is resident and builds it in the background meanwhile, and a forced
+    /// `ann` with a predicate is answered exactly below it.
+    #[arg(long, env = "RUSHDB_VECTOR_EXACT_MAX_POOL", default_value = "auto")]
+    pub vector_exact_max_pool: ExactPool,
     /// ANN breadth (graph walk and candidates reranked) when a search does
     /// not set `ef`.
     #[arg(long, env = "RUSHDB_VECTOR_DEFAULT_EF", default_value_t = 128)]
@@ -463,7 +551,7 @@ impl Default for ResourceConfig {
             advertised_address: None,
             bolt_advertised_address: None,
             require_vector_index_name: true,
-            vector_exact_max_pool: 5_000,
+            vector_exact_max_pool: ExactPool::Auto,
             vector_default_ef: 128,
             introspection_value_max_chars: 64,
         }

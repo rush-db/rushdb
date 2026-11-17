@@ -23,6 +23,21 @@ in [`docs/manual/operations/upgrading-from-2x.md`](docs/manual/operations/upgrad
   instead of two. Scores and order are bit-identical. 100,000 × 1,536-d
   cosine vectors, exact top 10: server time 24.1 → 11.7 ms. The resident
   form of a space grows by 48 bytes per vector (under 1% at 1,536-d).
+- **Filtered vector searches pick exact or ANN by cost.**
+  `resources.vector-exact-max-pool` now defaults to `auto`: a filtered
+  search is scored exactly while `pool² × dimensions ≤ 26,000 × ef × index
+  vectors` (the walk slows down as the filter admits less of the index), an
+  unfiltered one while `index vectors × dimensions ≤ 144,000 × ef`, instead
+  of a fixed 5,000 at any size. 100,000 × 1,536-d, a filter matching 10%,
+  `mode: ann`, `ef` 512: 18.7 → 4.4 ms (now exact, recall 1.0); a filter
+  matching 50% stays on the graph. A number still fixes the pool, and the
+  new form `fixed:<number>` does too.
+  **Behaviour change for existing data directories:** every `config.yml`
+  written before 3.0.13 holds `vector-exact-max-pool: 5000`, which now
+  reads as `auto`. If you set 5,000 on purpose, write
+  `vector-exact-max-pool: fixed:5000` (or `--vector-exact-max-pool
+  fixed:5000`, `RUSHDB_VECTOR_EXACT_MAX_POOL=fixed:5000`) to keep it. New
+  data directories are written with `auto`.
 
 ## 3.0.12 — 2026-11-17
 
