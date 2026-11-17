@@ -274,14 +274,14 @@ caches of `logical-cache-bytes`:
 5. **Resident vectors.** A space's vectors are also kept as `f32` rows by
    storage slot (`dimensions × 4 + 32` bytes per vector), made in the
    background after a space's first search and charged to the same
-   budget. Exact search and ANN rerank score these rows instead of reading
-   each stored vector; bindings are still resolved through the search's
-   snapshot. A slot is written once and never reused, so the rows never
-   disagree with a snapshot, and the score is bit for bit the score of the
-   stored bytes. A vector bound after the rows were made is read from
-   storage; the rows are remade when they hold fewer than nine in ten of
-   the space's vectors. When the budget cannot hold them, searches read
-   storage as before: nothing is refused.
+   budget ([resident state](resident-state.md), layer `vector-arena`).
+   Exact search and ANN rerank score these rows instead of reading each
+   stored vector; bindings are still resolved through the search's
+   snapshot, and the score is bit for bit the score of the stored bytes.
+   The rows are used only while no commit has written the space since they
+   were made: a bind or unbind drops them, and the next searches read
+   storage until they are made again. When the budget cannot hold them,
+   searches read storage as before: nothing is refused.
 
 > **Note:** ANN requires a vector cache budget. With
 > `vector-cache-bytes: 0` there is nothing to bound ANN memory, so no

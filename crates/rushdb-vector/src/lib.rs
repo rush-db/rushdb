@@ -112,9 +112,6 @@ pub struct VectorEngine {
     /// [`search`]), so at most one runs per space and a graph the budget
     /// cannot admit is not rebuilt until its space changes.
     pub(crate) ann_warmups: Mutex<HashMap<u64, search::Warmup>>,
-    /// Each space's vectors resident as `f32` by slot, scored in place of
-    /// storage reads by exact search and ANN rerank (see [`arena`]).
-    pub(crate) arenas: Mutex<HashMap<u64, arena::ArenaState>>,
     /// Directory frozen ANN segments persist under (`<dir>/space-<id>/...`),
     /// when the store has one (`None` for a pure in-memory store, which has
     /// nowhere to persist — segments then stay resident-only, exactly as
@@ -337,7 +334,6 @@ impl VectorEngine {
             ann_cache: Mutex::new(HashMap::new()),
             ann_builds: Mutex::new(HashMap::new()),
             ann_warmups: Mutex::new(HashMap::new()),
-            arenas: Mutex::new(HashMap::new()),
             segments_dir: None,
         }
     }
@@ -1152,9 +1148,6 @@ impl VectorEngine {
                             ann::retire_cached(&old);
                         }
                     }
-                }
-                if let Ok(mut arenas) = self.arenas.lock() {
-                    arenas.remove(&space_id);
                 }
                 self.remove_space_dir(space_id);
                 Ok(count)

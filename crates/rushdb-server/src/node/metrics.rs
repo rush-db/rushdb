@@ -56,8 +56,6 @@ pub struct Metrics {
     retention_protected_floor: prometheus::IntGauge,
     retention_oldest_reader: prometheus::IntGauge,
     sequencer_inflight_keys: prometheus::IntGauge,
-    planner_stats_bytes: prometheus::IntGauge,
-    planner_stats_entries: prometheus::IntGauge,
     group_commits_total: prometheus::IntCounter,
     scheduler_inflight: prometheus::IntGauge,
     scheduler_capacity: prometheus::IntGauge,
@@ -70,6 +68,7 @@ pub struct Metrics {
     maintenance_step: prometheus::HistogramVec,
     vector_searches: prometheus::IntCounterVec,
     writer_holds: std::sync::Arc<super::writer_holds::WriterHoldCollector>,
+    residents: std::sync::Arc<super::resident_metrics::ResidentCollector>,
 }
 
 /// Registers a collector the metrics also keep a handle to.
@@ -176,9 +175,6 @@ impl Metrics {
     /// group commits, oldest live reader).
     pub(super) fn observe_store(&self, store: &rushdb_storage::Store) {
         let clamp = |v: u64| i64::try_from(v).unwrap_or(i64::MAX);
-        let planner_stats = store.planner_stats().stats();
-        self.planner_stats_bytes.set(clamp(planner_stats.bytes));
-        self.planner_stats_entries.set(clamp(planner_stats.entries));
         self.sequencer_inflight_keys.set(clamp(
             u64::try_from(store.sequencer_inflight_keys()).unwrap_or(u64::MAX),
         ));
@@ -216,6 +212,7 @@ impl Metrics {
         self.storage_backend_mutex_hold_max_ms
             .set(clamp(locks.hold_max_ns / 1_000_000));
         self.writer_holds.observe(store);
+        self.residents.observe(store);
         if let Ok(bytes) = store.retained_log_bytes() {
             self.wal_retained_bytes.set(clamp(bytes));
         }
@@ -526,16 +523,6 @@ impl Metrics {
             "Keys in the sequencer's assigned-but-unpublished overlay",
         )
         .expect("valid Prometheus metric");
-        let planner_stats_bytes = prometheus::IntGauge::new(
-            "rushdb_planner_stats_bytes",
-            "Bytes held by the evictable planner-statistics cache",
-        )
-        .expect("valid Prometheus metric");
-        let planner_stats_entries = prometheus::IntGauge::new(
-            "rushdb_planner_stats_entries",
-            "Value distributions held by the planner-statistics cache",
-        )
-        .expect("valid Prometheus metric");
         let group_commits_total = prometheus::IntCounter::new(
             "rushdb_storage_group_commits_total",
             "Cumulative group-commit write transactions persisted",
@@ -653,8 +640,6 @@ impl Metrics {
             Box::new(retention_protected_floor.clone()),
             Box::new(retention_oldest_reader.clone()),
             Box::new(sequencer_inflight_keys.clone()),
-            Box::new(planner_stats_bytes.clone()),
-            Box::new(planner_stats_entries.clone()),
             Box::new(group_commits_total.clone()),
             Box::new(scheduler_inflight.clone()),
             Box::new(scheduler_capacity.clone()),
@@ -676,6 +661,10 @@ impl Metrics {
             .register(Box::new(SharedCollector(std::sync::Arc::clone(
                 &writer_holds,
             ))))
+            .expect("unique Prometheus metric");
+        let residents = std::sync::Arc::new(super::resident_metrics::ResidentCollector::new());
+        registry
+            .register(Box::new(SharedCollector(std::sync::Arc::clone(&residents))))
             .expect("unique Prometheus metric");
         Self {
             registry,
@@ -724,8 +713,6 @@ impl Metrics {
             retention_protected_floor,
             retention_oldest_reader,
             sequencer_inflight_keys,
-            planner_stats_bytes,
-            planner_stats_entries,
             group_commits_total,
             scheduler_inflight,
             scheduler_capacity,
@@ -738,6 +725,7 @@ impl Metrics {
             maintenance_step,
             vector_searches,
             writer_holds,
+            residents,
         }
     }
 

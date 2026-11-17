@@ -393,14 +393,16 @@ the anchor property (`node_id` above); without one, resolving the anchor
 reads every record of the label that has the property. Bound `hops.max`,
 and set `$relation.type` and `direction` whenever you know them.
 
-When traversals at one snapshot keep reading the same relationship type,
-the engine keeps that type's relationships in memory (a resident graph,
-budget `resources.graph-cache-bytes`, default 128 MiB). It builds one once
-the adjacency rows traversals have read at that snapshot add up to the
-cost of building it, so a read-mostly graph pays at most twice the build,
-and a graph that changes with every commit is never built. A commit moves
-readers to a new snapshot and the next graph is built the same way;
-results are always those of the reader's snapshot.
+When traversals keep reading the same relationship type, the engine keeps
+that type's relationships in memory (a resident graph, budget
+`resources.graph-cache-bytes`, default 128 MiB). It builds one in the
+background once the adjacency rows traversals have read since the tenant's
+relationships last changed add up to the cost of building it, so a
+read-mostly graph pays at most twice the build, and a graph whose
+relationships change with every commit is never built. Commits that write
+no relationship, or that belong to another tenant, keep the graph; a commit
+that writes one of the tenant's relationships drops it. Results are always
+those of the reader's snapshot ([resident state](../architecture/resident-state.md)).
 
 A path search that breadth-first distances cannot settle (a matching
 record closer than `min` hops, or the start record checked against

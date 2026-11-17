@@ -366,7 +366,7 @@ pub(crate) fn related_holds(
             .on_cycle(&ctx.snap, ctx.lmpg.tenant, rel, ord, &cancel);
     }
     let (snap, tenant) = (ctx.snap.as_ref(), ctx.lmpg.tenant);
-    let adjacency = ctx.adjacency(rel.rel_type.as_deref(), rel.direction)?;
+    let adjacency = ctx.adjacency(rel.rel_type.as_deref(), rel.direction);
     let labels = LabelGate::new(snap, tenant, &rel.target_labels);
     let passable = |other: u64| -> Result<bool, QueryError> {
         if rel.target_labels.is_empty() {
@@ -456,13 +456,7 @@ pub(crate) fn expand_relation(
             Ok(())
         }
     };
-    let adjacency = TypeAdjacency::open(
-        snap,
-        tenant,
-        rel.rel_type.as_deref(),
-        rel.direction,
-        &cancel,
-    )?;
+    let adjacency = TypeAdjacency::open(snap, tenant, rel.rel_type.as_deref(), rel.direction);
     // One level's headers at once: the passable labels, and the root's
     // when they differ.
     let prefetch = |ords: &[u64]| -> Result<(), QueryError> {

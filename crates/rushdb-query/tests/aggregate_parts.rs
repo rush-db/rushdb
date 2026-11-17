@@ -382,13 +382,26 @@ fn a_property_stored_under_two_types_is_read_in_the_order_most_records_hold_it()
     let top: Vec<Value> = page.records.iter().map(|r| r["amount"].clone()).collect();
     assert_eq!(top, vec![json!(99.5), json!(98.5), json!(97.5)]);
 
-    // One occurrence read per record that holds the common type, two for
-    // the ten that hold the other: probing the newer (Float64) definition
-    // first read 190.
+    // From storage: one occurrence read per record that holds the common
+    // type, two for the ten that hold the other (probing the newer Float64
+    // definition first read 190).
+    let residents = lmpg.store.residents();
+    residents.set_enabled(false);
     let measured = reads(|| {
         aggregate(&lmpg, &sum).unwrap();
     });
     assert_eq!(family(&measured, "occurrence"), 110, "{measured:?}");
+    residents.set_enabled(rushdb_storage::resident::residents_enabled());
+    // Once the column is resident (the reads above paid for it), the same
+    // aggregate reads no occurrence at all.
+    if rushdb_storage::resident::residents_enabled() {
+        aggregate(&lmpg, &sum).unwrap();
+        residents.wait_idle();
+        let measured = reads(|| {
+            aggregate(&lmpg, &sum).unwrap();
+        });
+        assert_eq!(family(&measured, "occurrence"), 0, "{measured:?}");
+    }
 }
 
 #[test]

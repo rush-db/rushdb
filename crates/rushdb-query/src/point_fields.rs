@@ -121,6 +121,18 @@ impl PointFields {
         Ok(row)
     }
 
+    /// The names read, in order, when every one is a stored property (not
+    /// the record id): what resident columns can serve.
+    pub(crate) fn property_names(&self) -> Option<Vec<String>> {
+        self.0
+            .iter()
+            .map(|(name, source)| match source {
+                Source::Pids(_) => Some(name.clone()),
+                Source::Id => None,
+            })
+            .collect()
+    }
+
     /// The fields of record `ord` as typed cells, one per field in the order
     /// the fields were resolved (`None`: the record does not hold it).
     pub(crate) fn cells(
@@ -155,8 +167,8 @@ fn record_id(
 }
 
 /// The occurrence record `ord` holds under one of `pids` (probed in order).
-fn held(
-    snap: &QuerySnapshot,
+pub(crate) fn held<R: TryRead + ?Sized>(
+    snap: &R,
     tenant: rushdb_types::ids::TenantId,
     ord: u64,
     pids: &[u64],
@@ -215,7 +227,7 @@ pub(super) fn predicate_fields(expr: &Expr, out: &mut std::collections::BTreeSet
 /// order: most owners (under `labels`, every label when empty) first, ties
 /// by id. `None` when the name is a system field or any label stores the
 /// property as an array: those need the whole record.
-fn scalar_pids<R: TryRead>(
+pub(crate) fn scalar_pids<R: TryRead>(
     snap: &R,
     tenant: rushdb_types::ids::TenantId,
     labels: &[String],

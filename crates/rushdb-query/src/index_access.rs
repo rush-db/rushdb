@@ -240,19 +240,19 @@ pub(crate) fn leaf_owners<R: TryRead>(
     let Some(defs) = covering(snap, tenant, name, labels)? else {
         return Ok(None);
     };
-    // A leaf's set is a function of the snapshot: readers of one snapshot
-    // share it instead of each reading every index entry again.
-    let cache = snap.owner_sets();
-    let ids: Vec<u32> = defs.iter().map(|def| def.id).collect();
-    let indexes: Vec<(TenantId, u32)> = ids.iter().map(|id| (tenant, *id)).collect();
-    let key = format!("{tenant:?}|{ids:?}|{expr:?}").into_bytes();
-    // Read before the set is computed: a write that publishes meanwhile makes
-    // the version newer, and the set is then not reused.
-    let version = cache.map(|(sets, _)| sets.version(&indexes));
-    if let Some(hit) = cache
-        .and_then(|(sets, ci)| sets.get(&key, &indexes, ci))
-        .and_then(|set| set.downcast::<OwnerSet>().ok())
-    {
+    // A leaf's set depends only on the entries of the indexes it reads:
+    // readers share it until a commit writes one of them.
+    let Some(view) = snap.committed() else {
+        return leaf_owners_uncached(snap, tenant, expr, &defs, owner_limit);
+    };
+    let layer = view.residents().layer::<LeafOwners>();
+    let key = LeafKey {
+        text: format!("{tenant:?}|{expr:?}"),
+        tenant,
+        expr: std::sync::Arc::new(expr.clone()),
+        defs: defs.into(),
+    };
+    if let Some(hit) = layer.get(&key, view) {
         if hit.len() > u64::try_from(owner_limit).unwrap_or(u64::MAX) {
             return Err(QueryError::ResourceLimit(
                 "aggregate candidate budget exceeded".into(),
@@ -260,17 +260,80 @@ pub(crate) fn leaf_owners<R: TryRead>(
         }
         return Ok(Some(OwnerSet::clone(&hit)));
     }
-    let owners = leaf_owners_uncached(snap, tenant, expr, &defs, owner_limit)?;
-    if let (Some(owners), Some((sets, ci)), Some(version)) = (owners.as_ref(), cache, version) {
-        sets.insert(
-            key,
-            version,
-            ci,
-            std::sync::Arc::new(owners.clone()),
-            owners.serialized_size(),
-        );
+    let owners = leaf_owners_uncached(snap, tenant, expr, &key.defs, owner_limit)?;
+    if let Some(owners) = owners.as_ref() {
+        layer.offer(key, view, std::sync::Arc::new(owners.clone()));
     }
     Ok(owners)
+}
+
+/// One indexed filter leaf: its predicate and the indexes answering it.
+#[derive(Clone)]
+pub(crate) struct LeafKey {
+    /// Identity: the tenant and the predicate (the indexes follow from them
+    /// at a snapshot, and a change to them is a write to their entries).
+    text: String,
+    tenant: TenantId,
+    expr: std::sync::Arc<Expr>,
+    defs: std::sync::Arc<[IndexDef]>,
+}
+
+impl PartialEq for LeafKey {
+    fn eq(&self, other: &Self) -> bool {
+        self.text == other.text && self.defs == other.defs
+    }
+}
+
+impl Eq for LeafKey {}
+
+impl std::hash::Hash for LeafKey {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.text.hash(state);
+        for def in self.defs.iter() {
+            def.id.hash(state);
+        }
+    }
+}
+
+/// Owner sets of indexed filter leaves, resident across requests (READ-2).
+#[derive(Default)]
+pub(crate) struct LeafOwners;
+
+impl rushdb_storage::resident::Resident for LeafOwners {
+    type Key = LeafKey;
+    type Value = OwnerSet;
+    const NAME: &'static str = "owner-sets";
+    const BUDGET: rushdb_storage::resident::Budget = rushdb_storage::resident::Budget::OwnerSets;
+
+    fn deps(
+        &self,
+        key: &LeafKey,
+        _view: &rushdb_storage::ReadView,
+    ) -> Result<Vec<rushdb_storage::resident::Dep>, rushdb_storage::StorageError> {
+        Ok(key
+            .defs
+            .iter()
+            .map(|def| rushdb_storage::resident::Dep::Index(key.tenant, def.id))
+            .collect())
+    }
+
+    fn build(
+        &self,
+        key: &LeafKey,
+        view: &rushdb_storage::ReadView,
+        _cx: &rushdb_storage::resident::BuildCx,
+    ) -> Result<Option<OwnerSet>, rushdb_storage::resident::BuildError> {
+        leaf_owners_uncached(view, key.tenant, &key.expr, &key.defs, usize::MAX).map_err(|error| {
+            rushdb_storage::resident::BuildError::Storage(match error {
+                QueryError::Storage(error) => error,
+                other => rushdb_storage::StorageError::InvalidRead(other.to_string()),
+            })
+        })
+    }
+
+    fn bytes(value: &OwnerSet) -> usize {
+        value.serialized_size()
+    }
 }
 
 fn leaf_owners_uncached<R: TryRead>(

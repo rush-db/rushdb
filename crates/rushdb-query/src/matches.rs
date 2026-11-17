@@ -304,15 +304,35 @@ pub(crate) fn is_match(
     let (snap, tenant) = (&ctx.snap, ctx.lmpg.tenant);
     if let Some(expr) = predicate {
         let obj = read_row(fields, session, snap, tenant, ord)?;
-        let bytes =
-            serde_json::to_vec(&obj).map_or(0, |v| u64::try_from(v.len()).unwrap_or(u64::MAX));
-        working.charge(bytes, false)?;
-        if !eval_expr_ctx(ctx, expr, &obj, ord)? {
+        if !row_matches(ctx, expr, &obj, working, ord)? {
             return Ok(false);
         }
     }
+    related_bind(ctx, req, ord)
+}
+
+/// Whether `expr` holds on `obj`, the properties it reads of record `ord`;
+/// the row's bytes are charged as transient working memory.
+pub(crate) fn row_matches(
+    ctx: &EvalCtx<'_>,
+    expr: &Expr,
+    obj: &Map<String, Json>,
+    working: &mut WorkingSet,
+    ord: u64,
+) -> Result<bool, QueryError> {
+    let bytes = serde_json::to_vec(obj).map_or(0, |v| u64::try_from(v.len()).unwrap_or(u64::MAX));
+    working.charge(bytes, false)?;
+    eval_expr_ctx(ctx, expr, obj, ord)
+}
+
+/// Whether every relationship branch of `req` binds for record `ord`.
+pub(crate) fn related_bind(
+    ctx: &EvalCtx<'_>,
+    req: &SearchRequest,
+    ord: u64,
+) -> Result<bool, QueryError> {
     for spec in &req.related {
-        if !related_exists(snap, tenant, ord, spec)? {
+        if !related_exists(&ctx.snap, ctx.lmpg.tenant, ord, spec)? {
             return Ok(false);
         }
     }

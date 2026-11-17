@@ -39,6 +39,11 @@ pub enum CommitPhase {
     Build,
     /// Deterministic expansion into ops, including slot-reservation retries.
     Expand,
+    /// A transaction commit's checks under the admission gate (conflicts
+    /// published since its scan outside the gate, policy, preconditions).
+    TxValidate,
+    /// A transaction commit's expansion of its mutations under the gate.
+    TxExpand,
     /// Enqueue until the durable acknowledgement (the end-to-end latency the
     /// client waits for after expansion).
     Durable,
@@ -56,10 +61,12 @@ pub enum CommitPhase {
 
 impl CommitPhase {
     /// Every phase, in pipeline order.
-    pub const ALL: [Self; 9] = [
+    pub const ALL: [Self; 11] = [
         Self::AdmissionWait,
         Self::Build,
         Self::Expand,
+        Self::TxValidate,
+        Self::TxExpand,
         Self::Durable,
         Self::WalEncode,
         Self::WalAppendSync,
@@ -75,6 +82,8 @@ impl CommitPhase {
             Self::AdmissionWait => "admission_wait",
             Self::Build => "build",
             Self::Expand => "expand",
+            Self::TxValidate => "tx_validate",
+            Self::TxExpand => "tx_expand",
             Self::Durable => "durable",
             Self::WalEncode => "wal_encode",
             Self::WalAppendSync => "wal_append_sync",

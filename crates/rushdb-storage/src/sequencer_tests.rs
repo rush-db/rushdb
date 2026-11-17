@@ -450,6 +450,7 @@ fn layered_overlay_reads_newest_layer_then_buffer_over_base() {
         set_keys: BTreeSet::default(),
         watermark_keys: BTreeSet::default(),
         ids: &store.ids,
+        undo: None,
         deps: None,
     };
     txn.del(b"k/a".to_vec());

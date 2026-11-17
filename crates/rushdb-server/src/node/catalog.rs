@@ -49,8 +49,8 @@ impl RequestScope<'_> {
         Ok(data.1.clone())
     }
 
-    /// Bounded, commit-index-keyed cache of `(labels, per-label counts)`.
-    /// Results are exact for the current commit index; a later commit misses.
+    /// `(labels, per-label counts)` from the resident label catalog: exact
+    /// for the view, valid until a commit writes the tenant's labels.
     pub(super) fn metadata_cached(&self) -> Result<CachedMetadata, String> {
         let view = self.store.read_view().map_err(|e| e.to_string())?;
         self.metadata_cached_in_view(&view)
@@ -61,44 +61,9 @@ impl RequestScope<'_> {
         view: &rushdb_storage::ReadView,
     ) -> Result<CachedMetadata, String> {
         let tenant = self.tenant();
-        let ci = view.commit_index();
-        let policy_generation = rushdb_authz::load_active_policy_in_view(view, tenant)
-            .map_err(|e| e.to_string())?
-            .map_or(0, |active| active.generation);
-        let cache_key = (tenant, policy_generation);
-        {
-            let mut cache = self
-                .metadata_cache
-                .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner);
-            if let Some(cache) = cache.as_mut() {
-                if let Some((cached_ci, data)) = cache.get(&cache_key) {
-                    if *cached_ci == ci {
-                        return Ok(data.clone());
-                    }
-                }
-            }
-        }
-        let labels =
-            rushdb_lmpg::reader::try_access::labels(view, tenant).map_err(|e| e.to_string())?;
-        let counts = rushdb_lmpg::reader::try_access::label_counts(view, tenant)
-            .map_err(|e| e.to_string())?;
-        let data = std::sync::Arc::new((labels, counts));
-        let mut cache = self
-            .metadata_cache
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
-        if let Some(cache) = cache.as_mut() {
-            let bytes = data
-                .0
-                .iter()
-                .map(|label| label.len() + 16)
-                .chain(data.1.iter().map(|(label, _)| label.len() + 24))
-                .sum::<usize>()
-                + 64;
-            cache.insert(cache_key, (ci, data.clone()), bytes);
-        }
-        Ok(data)
+        super::resident_catalog::cached::<super::resident_catalog::Labels, _>(view, tenant, || {
+            super::resident_catalog::label_catalog(view, tenant).map_err(|e| e.to_string())
+        })
     }
 
     /// Per-label live record counts from the maintained label catalog
@@ -790,43 +755,7 @@ impl RequestScope<'_> {
         &self,
         view: &rushdb_storage::ReadView,
     ) -> Result<PropertyMetadata, String> {
-        use rushdb_types::keys::{key, P_FAMILY};
-        let tenant = self.tenant();
-        // Include the separator: `property-family-signature` is a different
-        // key family and must not be scanned as a PropertyFamily row.
-        let pref = key(tenant, &[P_FAMILY, b""]);
-        let mut families = std::collections::BTreeMap::new();
-        let mut out = std::collections::BTreeMap::new();
-        for (_, raw) in view.range_prefix(&pref).map_err(|e| e.to_string())? {
-            let fam: rushdb_types::occurrence::PropertyFamily = serde_json::from_slice(&raw)
-                .map_err(|e| format!("corrupt property family: {e}"))?;
-            families.insert(fam.family_id, fam);
-        }
-        // Scan definitions once, not once per property family.
-        for (_, raw) in view
-            .range_prefix(&key(tenant, &[b"property-row", b""]))
-            .map_err(|e| e.to_string())?
-        {
-            let def: rushdb_types::occurrence::PropertyDefinition = serde_json::from_slice(&raw)
-                .map_err(|e| format!("corrupt property definition: {e}"))?;
-            let fam = families
-                .get(&def.family_id)
-                .ok_or("corrupt property definition: missing family")?;
-            if fam.namespace != "default" || fam.owner_scope != OwnerKind::Record {
-                continue;
-            }
-            if let rushdb_types::model::TypeState::Known(ty) = def.type_state {
-                out.entry(fam.normalized_name.clone())
-                    .or_insert_with(Vec::new)
-                    .push((
-                        def.property_id,
-                        fam.display_name.clone(),
-                        type_name_str(ty),
-                        ty,
-                    ));
-            }
-        }
-        Ok(out)
+        property_meta(view, self.tenant())
     }
 
     /// Property definitions actually present on records matched by a query.
@@ -1587,4 +1516,48 @@ fn dictionary_value(
         }
         scalar => rushdb_types::value::scalar_to_json(&scalar),
     })
+}
+
+/// Every known-typed record property of `tenant` at `view`: normalized
+/// name → `(pid, display name, type name, type)` per typed definition.
+pub(super) fn property_meta(
+    view: &rushdb_storage::ReadView,
+    tenant: rushdb_types::ids::TenantId,
+) -> Result<PropertyMetadata, String> {
+    use rushdb_types::keys::{key, P_FAMILY};
+    // Include the separator: `property-family-signature` is a different
+    // key family and must not be scanned as a PropertyFamily row.
+    let pref = key(tenant, &[P_FAMILY, b""]);
+    let mut families = std::collections::BTreeMap::new();
+    let mut out = std::collections::BTreeMap::new();
+    for (_, raw) in view.range_prefix(&pref).map_err(|e| e.to_string())? {
+        let fam: rushdb_types::occurrence::PropertyFamily =
+            serde_json::from_slice(&raw).map_err(|e| format!("corrupt property family: {e}"))?;
+        families.insert(fam.family_id, fam);
+    }
+    // Scan definitions once, not once per property family.
+    for (_, raw) in view
+        .range_prefix(&key(tenant, &[b"property-row", b""]))
+        .map_err(|e| e.to_string())?
+    {
+        let def: rushdb_types::occurrence::PropertyDefinition = serde_json::from_slice(&raw)
+            .map_err(|e| format!("corrupt property definition: {e}"))?;
+        let fam = families
+            .get(&def.family_id)
+            .ok_or("corrupt property definition: missing family")?;
+        if fam.namespace != "default" || fam.owner_scope != OwnerKind::Record {
+            continue;
+        }
+        if let rushdb_types::model::TypeState::Known(ty) = def.type_state {
+            out.entry(fam.normalized_name.clone())
+                .or_insert_with(Vec::new)
+                .push((
+                    def.property_id,
+                    fam.display_name.clone(),
+                    type_name_str(ty),
+                    ty,
+                ));
+        }
+    }
+    Ok(out)
 }

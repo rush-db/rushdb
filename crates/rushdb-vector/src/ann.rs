@@ -1331,7 +1331,7 @@ impl VectorEngine {
         // so the gather is `requested` sources that all pass: no gather
         // inflation and no selectivity guess.
         let prepared = crate::kernel::PreparedQuery::new(query, space.similarity);
-        let arena = self.arena(space.space_id);
+        let arena = self.arena(snap, space);
         let rerank =
             |source: SourceRef, slot: u64, value_hash: u64| -> Result<ScoredSource, VectorError> {
                 let key = emb_vector_key(tenant, space.space_id, slot);

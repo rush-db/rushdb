@@ -92,6 +92,12 @@ The response kind is `ingested`, with `count` (records in the document tree),
 - With `capitalizeLabels: true`, every label — including the top-level one —
   is upper-cased (`COMPANY`, `ADDRESS`, `DEPARTMENT`).
 
+> **Note:** The engine defaults `capitalizeLabels` to `false`, but file
+> imports from the RushDB dashboard send `capitalizeLabels: true` by
+> default, so a file imported there gets upper-cased labels. Turn the option
+> off on the import screen to keep the JSON keys as they are. Requests sent
+> directly to the engine keep the engine default.
+
 You may omit `label` when `documents` is a **container object**: an object
 whose every value is an object or an array of objects. Each top-level key
 then becomes a label, and the container itself is not stored:
@@ -259,18 +265,47 @@ merge import reports the partial progress instead, and can be retried. See
 
 ## How an import is committed
 
-An import is **not** one transaction. It commits in bounded steps:
-
 | Import kind | Commits |
 |---|---|
+| Merge (`mergeBy`, `mergeStrategy` or `merge`) | **One commit**: every record and relationship of the request, all visible or none |
 | Plain create | All records in one atomic commit, then all relationships in a second |
-| Merge | Records in atomic chunks of 1,024, then all relationships in one commit |
 
-A reader can therefore briefly see the new records before their
-relationships exist, and a failure between steps leaves the earlier steps in
-place. Merge imports are safe to retry after a failure — matched records are
-updated, not duplicated. A plain create import is not: retrying it creates
-the records again. When you need retry safety, use merge options.
+A merge import is atomic. Its records are matched in order (a later row
+sees the record an earlier row created or updated, also in another chunk of
+the same request), its relationships are linked, and the whole request is
+committed once. A reader sees all of it or none of it; a failure, a
+cancelled request or a crash before the commit leaves nothing behind, and
+the request can be retried as is: matched records are updated, not
+duplicated.
+
+Two merge requests running at the same time over the same keys never
+create a key twice. Each records what its lookups read; when the other one
+commits first and changed what it read (created the key, or changed the
+matched record), the request is re-run on the new data, where it finds that
+record and updates it, as if the two had run one after the other. Re-runs
+wait a short random backoff; when several writers keep merging the same keys
+and its re-runs are used up, the request fails with `write_conflict` (HTTP
+409, `retryable: true`) and nothing of it is visible. Retry such a request
+with backoff.
+
+Commits are published one at a time, and a merge request is one commit, so
+while a large merge request commits, the commits of other requests (other
+tenants' included) wait for it: their latency grows with the size of the
+merge requests running beside them. The fair admission order lets each
+waiting tenant in after at most one such commit per busy tenant, so the
+wait is bounded by one request's commit, not by the whole load. On a
+shared host where other tenants' latency matters, send merge imports of
+about 1,000 records per request; larger requests load a little faster but
+make neighbours wait longer.
+
+A plain create import is not atomic: a reader can briefly see its records
+before their relationships exist, a failure between the two commits leaves
+the records in place, and retrying it creates the records again. When you
+need retry safety, use merge options.
+
+A merge import can also be staged inside a
+[transaction](../query/transactions.md), with read-your-writes and the
+same matching.
 
 Size limits:
 
@@ -283,8 +318,15 @@ Size limits:
   about 17 MB, so send fewer. Larger requests risk 413 or timeouts without
   loading faster.
 - A single commit is capped by `max-expanded-commit-bytes` (512 MiB by
-  default); larger loads are refused with `resource_exhausted` and belong in
-  multiple requests.
+  default: the request's records, properties, index entries and other
+  derived rows as written). A merge request is one commit, so a merge over
+  the cap is refused whole with `resource_exhausted` (HTTP 429,
+  `retryable: false`): nothing of it is written. Typical documents expand 4
+  to 18 times when stored, so a request within the default 16 MiB body limit
+  fits; a request made of many tiny nested objects (each one a record and a
+  relationship) can expand over 100 times and should be kept to about
+  4 MiB. Split a larger load into several requests, and split a refused
+  request again; each request is atomic on its own, not the load.
 
 For all-or-nothing writes across several records and relationships, use a
 [transaction](../query/transactions.md) instead of `ingest`.

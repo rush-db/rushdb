@@ -135,7 +135,7 @@ impl Store {
                     derived,
                 })
                 .collect();
-            let index_writes = index_writes(&pairs);
+            self.note_resident_writes(&pairs);
             let publication = self.persist_many_sharded(&pairs, &batch);
             drop(pairs);
             drop(derived);
@@ -149,13 +149,6 @@ impl Store {
                         let mut window = self.health.cleanup(self.conflicts.lock());
                         for pc in &mut batch {
                             window.record_keys(pc.ci, std::mem::take(&mut pc.prepared.writes));
-                        }
-                    }
-                    // Likewise before `published` advances: a reader of the
-                    // new snapshot never reuses a set these commits changed.
-                    for (ci, touched) in index_writes {
-                        if !touched.is_empty() {
-                            self.owner_sets.note_writes(ci, touched);
                         }
                     }
                     self.published
@@ -173,6 +166,17 @@ impl Store {
                 }
             }
             self.pending_cv.notify_all();
+        }
+    }
+
+    /// Raise the resident versions of everything `pairs` write. Runs before
+    /// `published` advances (and before persisting: a failed group only
+    /// costs misses), so a reader of the new snapshot never reuses an entry
+    /// these commits changed.
+    fn note_resident_writes(&self, pairs: &[CommitOps<'_>]) {
+        for pair in pairs {
+            self.residents
+                .note_writes(pair.ci, pair.base.iter().chain(pair.derived).map(Op::key));
         }
     }
 
@@ -232,23 +236,4 @@ impl Store {
         }
         self.pending_cv.notify_all();
     }
-}
-
-/// The indexes each commit writes (their entries are derived rows), for the
-/// owner-set cache's versions (READ-2).
-fn index_writes(pairs: &[CommitOps<'_>]) -> Vec<(u64, Vec<crate::owner_sets::IndexRef>)> {
-    pairs
-        .iter()
-        .map(|pair| {
-            let mut touched: Vec<crate::owner_sets::IndexRef> = pair
-                .base
-                .iter()
-                .chain(pair.derived.iter())
-                .filter_map(|op| rushdb_types::keys::parse_index_entry_index(op.key()))
-                .collect();
-            touched.sort_unstable();
-            touched.dedup();
-            (pair.ci, touched)
-        })
-        .collect()
 }

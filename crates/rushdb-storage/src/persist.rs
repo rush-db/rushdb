@@ -26,6 +26,8 @@ impl Store {
             let before = derive::BackendRead(backend.read_view()?);
             let derived = Self::derive_ops(self.deriver().as_ref(), commit_index, ops, &before)?;
             drop(before);
+            self.residents
+                .note_writes(commit_index, ops.iter().chain(&derived).map(Op::key));
             if let Err(error) = backend
                 .apply_many(&[CommitOps {
                     ci: commit_index,

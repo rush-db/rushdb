@@ -68,7 +68,7 @@ pub fn shortest_path(
             }),
         )
     };
-    let adjacency = TypeAdjacency::open(snap, tenant, req.rel_type, req.direction, &cancel)?;
+    let adjacency = TypeAdjacency::open(snap, tenant, req.rel_type, req.direction);
     bidirectional(
         &adjacency,
         req.from,

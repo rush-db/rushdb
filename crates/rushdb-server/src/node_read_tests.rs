@@ -714,9 +714,9 @@ fn equality_and_in_lookups_resolve_through_the_index_path() {
 
 #[test]
 fn metadata_cache_is_exact_and_invalidated_by_commit() {
-    // Commit-index-keyed derived metadata: entries are exact for the current
-    // commit and a later commit misses, so discovery loops stay O(1) without
-    // ever serving stale labels/counts.
+    // The resident label catalog is exact for the reader's snapshot and a
+    // commit that writes the tenant's labels misses, so discovery loops stay
+    // O(1) without ever serving stale labels/counts.
     on_backends(|node| {
         assert!(node.scope().labels().unwrap().is_empty());
         node.scope().import_json_document("A", &json!({})).unwrap();
@@ -751,23 +751,20 @@ fn metadata_and_property_caches_share_one_logical_budget() {
     let _ = node.scope().labels().unwrap();
     let view = node.store.read_view().unwrap();
     let _ = node.scope().proptypes_cached(&view).unwrap();
-    let metadata_entries = node
-        .metadata_cache
-        .lock()
-        .unwrap()
-        .as_ref()
-        .map_or(0, |cache| cache.stats().entries);
-    let property_entries = node
-        .property_cache
-        .lock()
-        .unwrap()
-        .as_ref()
-        .map_or(0, |cache| cache.stats().entries);
+    let entries: u64 = node
+        .store
+        .residents()
+        .snapshots()
+        .iter()
+        .filter(|layer| ["label-catalog", "property-dictionary"].contains(&layer.layer))
+        .map(|layer| layer.entries)
+        .sum();
     let snapshot = node.store.resource_budget().snapshot();
     assert!(snapshot.used <= snapshot.limit);
-    assert!(
-        metadata_entries + property_entries > 0,
-        "at least one derived cache should be resident"
+    assert_eq!(
+        entries > 0,
+        rushdb_storage::resident::residents_enabled(),
+        "at least one catalog layer is resident unless residents are off"
     );
 }
 
@@ -1517,6 +1514,15 @@ fn commit_phase_timings_are_exported() {
         node.scope()
             .create_record("Doc", &json!({ "n": 1 }), &[], &json!({}))
             .unwrap();
+        // A merge import commits as a transaction (`tx_validate`, `tx_expand`).
+        let lmpg = rushdb_lmpg::Lmpg::new(node.store(), node.scope().tenant());
+        let options = rushdb_lmpg::import::ImportOptions {
+            merge_by: Some(vec!["n".into()]),
+            ..Default::default()
+        };
+        let plan =
+            rushdb_lmpg::import::serialize_bfs(&json!({ "Doc": [{ "n": 2 }] }), "", &options);
+        rushdb_lmpg::import::import_bfs(&lmpg, &plan, &options).unwrap();
         let rendered = node.metrics_render();
         for phase in rushdb_storage::CommitPhase::ALL {
             let prefix = format!(

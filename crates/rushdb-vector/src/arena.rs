@@ -1,32 +1,33 @@
-//! A space's vectors resident as `f32`, keyed by storage slot.
+//! A space's vectors resident as `f32`, keyed by storage slot: a resident
+//! layer (`rushdb_storage::resident`) per space.
 //!
-//! A vector at `(space, slot)` is written once: a rebind takes a new slot,
-//! and a slot is reclaimed only after the GC watermark, never reused. So a
-//! copy keyed by slot can never disagree with any snapshot that still binds
-//! the slot, and an arena made for one generation stays correct for every
-//! slot it holds in later ones. Searches still resolve bindings through
-//! their view and only take the vector's components from here; a slot the
-//! arena does not hold (bound after it was made) is read from storage.
+//! An arena holds every ready binding's vector of one space at one snapshot
+//! and stays valid until a commit writes the space (a bind, an unbind, a
+//! vector, its version row). Searches still resolve bindings through their
+//! view and only take the vector's components from here; a slot the arena
+//! does not hold is read from storage.
 //!
 //! Scoring a resident row ([`crate::kernel::PreparedQuery::score`]) is bit
 //! for bit the score of the stored bytes (`score_stored`): the same kernel
 //! over the same lanes.
 //!
-//! The rows are charged to the vector cache budget (`vector-cache-bytes`).
-//! When the budget cannot hold them there is no arena and every search reads
-//! storage, as before; a search is never refused for it.
+//! The rows are charged to a share of the vector cache budget
+//! (`vector-cache-bytes`). When it cannot hold them there is no arena and
+//! every search reads storage, as before; a search is never refused for it.
 
 use std::collections::HashMap;
 
-use rushdb_storage::resources::ByteReservation;
+use rushdb_storage::resident::{Budget, BuildCx, BuildError, Dep, Resident};
+use rushdb_storage::{ReadView, StorageError};
+use rushdb_types::ids::TenantId;
 
 /// Resident rows of one space, `dims` components each.
+#[derive(PartialEq)]
 pub(crate) struct VectorArena {
     dims: usize,
     /// Row of each slot held.
     rows: HashMap<u64, u32>,
     data: Vec<f32>,
-    _reservation: ByteReservation,
 }
 
 impl VectorArena {
@@ -39,14 +40,12 @@ impl VectorArena {
         )
     }
 
-    /// An arena of the vectors `read(slot)` returns for `slots`, under a
-    /// reservation already sized by [`Self::bytes`]. `None` when a slot has
-    /// no stored vector of `dims` components (the arena would be partial in
-    /// a way searches cannot tell from "bound later").
+    /// An arena of the vectors `read(slot)` returns for `slots`. `None` when
+    /// a slot has no stored vector of `dims` components (the arena would be
+    /// partial in a way searches cannot tell from "bound later").
     pub(crate) fn build<E>(
         slots: &[u64],
         dims: usize,
-        reservation: ByteReservation,
         mut read: impl FnMut(u64, &mut Vec<f32>) -> Result<bool, E>,
     ) -> Result<Option<Self>, E> {
         let mut data = Vec::with_capacity(slots.len().saturating_mul(dims));
@@ -61,12 +60,7 @@ impl VectorArena {
             }
             rows.insert(slot, row);
         }
-        Ok(Some(Self {
-            dims,
-            rows,
-            data,
-            _reservation: reservation,
-        }))
+        Ok(Some(Self { dims, rows, data }))
     }
 
     /// The components of `slot`, when it is resident.
@@ -96,127 +90,109 @@ pub(crate) fn score_slot(
     }
 }
 
-/// Where a space's arena stands.
-pub(crate) enum ArenaState {
-    /// A build is running.
-    Building,
-    /// Resident and answering.
-    Ready(std::sync::Arc<VectorArena>),
-    /// The space at `version` did not fit the vector cache budget; no build
-    /// starts again until the space changes.
-    NotAdmitted { version: u64 },
+/// `(tenant, space id, dims)`.
+pub(crate) type ArenaKey = (TenantId, u64, usize);
+
+/// The arenas of every space, one entry per space.
+#[derive(Default)]
+pub(crate) struct Arenas;
+
+impl Resident for Arenas {
+    type Key = ArenaKey;
+    type Value = VectorArena;
+    const NAME: &'static str = "vector-arena";
+    const BUDGET: Budget = Budget::Vector;
+
+    fn deps(
+        &self,
+        (tenant, space, _): &ArenaKey,
+        _view: &ReadView,
+    ) -> Result<Vec<Dep>, StorageError> {
+        Ok(vec![Dep::Space(*tenant, *space)])
+    }
+
+    fn build(
+        &self,
+        key: &ArenaKey,
+        view: &ReadView,
+        cx: &BuildCx,
+    ) -> Result<Option<VectorArena>, BuildError> {
+        build_arena(view, key, cx).map_err(|error| match error {
+            crate::VectorError::Storage(error) => BuildError::Storage(error),
+            other => BuildError::Storage(StorageError::InvalidRead(other.to_string())),
+        })?
+    }
+
+    fn bytes(arena: &VectorArena) -> usize {
+        VectorArena::bytes(arena.len(), arena.dims)
+    }
+}
+
+/// The rows of every ready binding of a space at `view`; `None` when a
+/// stored vector is not `dims` finite components (corruption a search
+/// reports itself). Refused before any vector is read when the rows cannot
+/// fit the layer.
+fn build_arena(
+    view: &ReadView,
+    &(tenant, space_id, dims): &ArenaKey,
+    cx: &BuildCx,
+) -> Result<Result<Option<VectorArena>, BuildError>, crate::VectorError> {
+    let slots: Vec<u64> = crate::ann::load_ready_segment_entries(view, tenant, space_id)?
+        .iter()
+        .map(|entry| entry.slot)
+        .collect();
+    if let Err(refused) = cx.admit(VectorArena::bytes(slots.len(), dims)) {
+        return Ok(Err(refused));
+    }
+    let arena = VectorArena::build(&slots, dims, |slot, out| {
+        let key = rushdb_types::keys::emb_vector_key(tenant, space_id, slot);
+        view.with_value(&key, |raw| {
+            let Some(raw) = raw.filter(|raw| raw.len() == dims * 4) else {
+                return false;
+            };
+            let start = out.len();
+            out.extend(
+                raw.as_chunks::<4>()
+                    .0
+                    .iter()
+                    .map(|chunk| f32::from_le_bytes(*chunk)),
+            );
+            out[start..].iter().all(|component| component.is_finite())
+        })
+        .map_err(crate::VectorError::from)
+    })?;
+    Ok(Ok(arena))
 }
 
 impl crate::VectorEngine {
-    /// The resident rows of `space_id`, when an arena is ready.
-    pub(crate) fn arena(&self, space_id: u64) -> Option<std::sync::Arc<VectorArena>> {
-        match self.arenas.lock().ok()?.get(&space_id)? {
-            ArenaState::Ready(arena) => Some(std::sync::Arc::clone(arena)),
-            ArenaState::Building | ArenaState::NotAdmitted { .. } => None,
-        }
+    fn arena_key(&self, space: &crate::EmbeddingSpace) -> ArenaKey {
+        (self.tenant(), space.space_id, space.dims as usize)
     }
 
-    /// Make `space`'s arena off the request path when it has none, or when
-    /// the one it has holds fewer than nine in ten of its ready vectors (it
-    /// was made before most of them were bound). Searches read storage until
-    /// it is ready; at most one build runs per space.
-    pub fn warm_arena_in_background(
-        self: &std::sync::Arc<Self>,
-        snap: &rushdb_storage::ReadView,
+    /// The resident rows of `space` valid at `snap`, when there are some.
+    pub(crate) fn arena(
+        &self,
+        snap: &ReadView,
         space: &crate::EmbeddingSpace,
-    ) {
-        let space_id = space.space_id;
-        let Ok((_, version)) = crate::ann::space_version(snap, self.tenant(), space_id) else {
+    ) -> Option<std::sync::Arc<VectorArena>> {
+        snap.residents()
+            .layer::<Arenas>()
+            .get(&self.arena_key(space), snap)
+    }
+
+    /// A search of `space` at `snap` read its vectors from storage: once
+    /// that pays for the space's rows the arena is made off the request
+    /// (the first search pays: it reads as many rows as the arena holds).
+    pub fn rent_arena(&self, snap: &ReadView, space: &crate::EmbeddingSpace) {
+        let Ok(ready) = self.ready_vectors_in_view(snap, space) else {
             return;
         };
-        {
-            let Ok(mut arenas) = self.arenas.lock() else {
-                return;
-            };
-            match arenas.get(&space_id) {
-                Some(ArenaState::Building) => return,
-                Some(ArenaState::NotAdmitted { version: refused }) if *refused == version => return,
-                Some(ArenaState::Ready(arena)) => {
-                    let Ok(ready) = self.ready_vectors_in_view(snap, space) else {
-                        return;
-                    };
-                    if (arena.len() as u64).saturating_mul(10) >= ready.saturating_mul(9) {
-                        return;
-                    }
-                }
-                _ => {}
-            }
-            // The replaced rows release their budget before the new ones
-            // reserve it; searches read storage in between.
-            arenas.insert(space_id, ArenaState::Building);
+        if ready == 0 {
+            return;
         }
-        let engine = std::sync::Arc::clone(self);
-        let space = space.clone();
-        let spawned = std::thread::Builder::new()
-            .name("vector-arena".into())
-            .spawn(move || {
-                let built = engine.build_arena(&space);
-                let Ok(mut arenas) = engine.arenas.lock() else {
-                    return;
-                };
-                match built {
-                    Ok(Some(arena)) => {
-                        arenas.insert(
-                            space.space_id,
-                            ArenaState::Ready(std::sync::Arc::new(arena)),
-                        );
-                    }
-                    Ok(None) | Err(crate::VectorError::AnnBudget(_)) => {
-                        arenas.insert(space.space_id, ArenaState::NotAdmitted { version });
-                    }
-                    Err(error) => {
-                        tracing::warn!(space = space.space_id, %error, "vector arena build failed");
-                        arenas.remove(&space.space_id);
-                    }
-                }
-            });
-        if spawned.is_err() {
-            if let Ok(mut arenas) = self.arenas.lock() {
-                arenas.remove(&space_id);
-            }
-        }
-    }
-
-    /// The rows of every ready binding of `space` at a current snapshot,
-    /// under a vector-budget reservation; `None` when a stored vector is
-    /// not `dims` finite components (corruption a search reports itself).
-    fn build_arena(
-        &self,
-        space: &crate::EmbeddingSpace,
-    ) -> Result<Option<VectorArena>, crate::VectorError> {
-        let snap = self.snapshot()?;
-        let tenant = self.tenant();
-        let dims = space.dims as usize;
-        let slots: Vec<u64> =
-            crate::ann::load_ready_segment_entries(&snap, tenant, space.space_id)?
-                .iter()
-                .map(|entry| entry.slot)
-                .collect();
-        let reservation = crate::ann::vector_cache_budget(&self.store)?
-            .try_reserve(VectorArena::bytes(slots.len(), dims))
-            .map_err(|error| crate::VectorError::AnnBudget(error.to_string()))?;
-        VectorArena::build(&slots, dims, reservation, |slot, out| {
-            let key = rushdb_types::keys::emb_vector_key(tenant, space.space_id, slot);
-            snap.with_value(&key, |raw| {
-                let Some(raw) = raw.filter(|raw| raw.len() == dims * 4) else {
-                    return false;
-                };
-                let start = out.len();
-                out.extend(
-                    raw.as_chunks::<4>()
-                        .0
-                        .iter()
-                        .map(|chunk| f32::from_le_bytes(*chunk)),
-                );
-                out[start..].iter().all(|component| component.is_finite())
-            })
-            .map_err(crate::VectorError::from)
-        })
+        snap.residents()
+            .layer::<Arenas>()
+            .rent(&self.arena_key(space), snap, ready, ready);
     }
 }
 
@@ -230,7 +206,6 @@ mod tests {
     use rushdb_types::ids::TenantId;
     use serde_json::json;
 
-    use super::*;
     use crate::{Candidates, ScoredSource, SourceRef, VectorEngine};
 
     fn engine(vector_cache_bytes: usize) -> Arc<VectorEngine> {
@@ -335,13 +310,14 @@ mod tests {
         let (from_storage, storage_reads) =
             reads(|| queries.iter().map(|q| searches(q)).collect::<Vec<_>>());
 
-        let arena = engine.build_arena(&space).unwrap().expect("rows");
-        assert_eq!(arena.len(), 400);
-        engine
-            .arenas
-            .lock()
-            .unwrap()
-            .insert(space.space_id, ArenaState::Ready(Arc::new(arena)));
+        engine.rent_arena(&snap, &space);
+        engine.lmpg.store.residents().wait_idle();
+        let on = rushdb_storage::resident::residents_enabled();
+        let resident = engine.arena(&engine.snapshot().unwrap(), &space);
+        assert_eq!(
+            resident.as_ref().map(|arena| arena.len()),
+            on.then_some(400)
+        );
         let (from_arena, arena_reads) =
             reads(|| queries.iter().map(|q| searches(q)).collect::<Vec<_>>());
 
@@ -352,9 +328,49 @@ mod tests {
             }
         }
         // The vectors came from memory: only bindings were read.
-        assert!(
+        assert_eq!(
             arena_reads < storage_reads,
+            on,
             "{arena_reads} reads with the arena, {storage_reads} without"
+        );
+    }
+
+    fn arena_builds(engine: &VectorEngine) -> u64 {
+        engine
+            .lmpg
+            .store
+            .residents()
+            .snapshots()
+            .into_iter()
+            .find(|layer| layer.layer == "vector-arena")
+            .map_or(0, |layer| layer.builds)
+    }
+
+    #[test]
+    fn searches_of_a_resident_arena_build_it_once() {
+        let engine = engine(256 * 1024 * 1024);
+        bind(&engine, "docs", 16, 200);
+        let snap = engine.snapshot().unwrap();
+        let space = engine.lookup_space_in_view(&snap, "docs").unwrap().unwrap();
+        // Every search rents the space (as `run_vector_search` does).
+        for _ in 0..10 {
+            engine.rent_arena(&snap, &space);
+            engine.lmpg.store.residents().wait_idle();
+        }
+        let on = rushdb_storage::resident::residents_enabled();
+        assert_eq!(arena_builds(&engine), u64::from(on));
+        assert_eq!(engine.arena(&snap, &space).is_some(), on);
+        // A bind writes the space: the arena is made again, once.
+        bind(&engine, "docs", 16, 1);
+        let now = engine.snapshot().unwrap();
+        for _ in 0..10 {
+            engine.rent_arena(&now, &space);
+            engine.lmpg.store.residents().wait_idle();
+        }
+        assert_eq!(arena_builds(&engine), 2 * u64::from(on));
+        assert_eq!(
+            engine.arena(&now, &space).map(|arena| arena.len()),
+            on.then_some(201)
         );
     }
 
@@ -365,27 +381,21 @@ mod tests {
         bind(&engine, "docs", 64, 300);
         let snap = engine.snapshot().unwrap();
         let space = engine.lookup_space_in_view(&snap, "docs").unwrap().unwrap();
-        assert!(matches!(
-            engine.build_arena(&space),
-            Err(crate::VectorError::AnnBudget(_))
-        ));
-        engine.warm_arena_in_background(&snap, &space);
-        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);
-        while matches!(
-            engine.arenas.lock().unwrap().get(&space.space_id),
-            Some(ArenaState::Building)
-        ) {
-            assert!(
-                std::time::Instant::now() < deadline,
-                "the build never finished"
-            );
-            std::thread::sleep(std::time::Duration::from_millis(5));
-        }
-        assert!(matches!(
-            engine.arenas.lock().unwrap().get(&space.space_id),
-            Some(ArenaState::NotAdmitted { .. })
-        ));
-        assert!(engine.arena(space.space_id).is_none());
+        engine.rent_arena(&snap, &space);
+        engine.lmpg.store.residents().wait_idle();
+        assert!(engine.arena(&snap, &space).is_none());
+        let refused = engine
+            .lmpg
+            .store
+            .residents()
+            .snapshots()
+            .into_iter()
+            .find(|layer| layer.layer == "vector-arena")
+            .map_or(0, |layer| layer.build_refused);
+        assert_eq!(
+            refused,
+            u64::from(rushdb_storage::resident::residents_enabled())
+        );
         // Never refused: exact search reads the stored vectors.
         let query = vec![0.5f32; 64];
         let hits = engine

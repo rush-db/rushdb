@@ -551,55 +551,18 @@ impl RequestScope<'_> {
         Ok(Self::canonical_record_with(&rec, &proptypes))
     }
 
-    /// Map of normalized field name -> property type name ("datetime",
-    /// "number", "string", "boolean") from the declared definitions.
-    pub(super) fn proptypes_in_view(
-        &self,
-        view: &rushdb_storage::ReadView,
-    ) -> Result<std::collections::BTreeMap<String, String>, String> {
-        Ok(self
-            .property_meta_in_view(view)?
-            .into_iter()
-            .filter_map(|(name, defs)| defs.into_iter().next().map(|(_, _, ty, _)| (name, ty)))
-            .collect())
-    }
-
-    /// Property dictionary for `view`, served from the byte-accounted logical
-    /// cache keyed by `(tenant, commit index)` when enabled. Family/definition
-    /// rows are immutable within one commit, so the map is exact for that view.
+    /// Property dictionary for `view`, from the resident layer: exact for
+    /// the view, valid until a commit writes the tenant's definitions.
     pub(super) fn proptypes_cached(
         &self,
         view: &rushdb_storage::ReadView,
     ) -> Result<std::sync::Arc<PropertyTypeMap>, String> {
-        let policy_generation = rushdb_authz::load_active_policy_in_view(view, self.tenant())
-            .map_err(|e| e.to_string())?
-            .map_or(0, |active| active.generation);
-        let key = (self.tenant(), view.commit_index(), policy_generation);
-        {
-            let mut cache = self
-                .property_cache
-                .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner);
-            if let Some(cache) = cache.as_mut() {
-                if let Some(meta) = cache.get(&key) {
-                    return Ok(meta.clone());
-                }
-            }
-        }
-        let meta = std::sync::Arc::new(self.proptypes_in_view(view)?);
-        let bytes = meta
-            .iter()
-            .map(|(name, ty)| name.len() + ty.len() + 48)
-            .sum::<usize>()
-            + 64;
-        let mut cache = self
-            .property_cache
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
-        if let Some(cache) = cache.as_mut() {
-            cache.insert(key, meta.clone(), bytes);
-        }
-        Ok(meta)
+        let tenant = self.tenant();
+        super::resident_catalog::cached::<super::resident_catalog::Properties, _>(
+            view,
+            tenant,
+            || super::resident_catalog::property_types(view, tenant),
+        )
     }
 
     pub(super) fn canonical_record_with(

@@ -468,8 +468,6 @@ pub(crate) fn spawn_gc_worker(
                 // long tick names the step that held the writer.
                 let step = std::time::Instant::now();
                 store.expire_read_pins(node.read_lease_ms());
-                // Planner statistics unused past their idle TTL go.
-                store.planner_stats().evict_idle();
                 // Freeze and merge ANN segments off the write path.
                 let step = node.observe_maintenance_step("read_pins", step);
                 node.maintain_vector_segments();

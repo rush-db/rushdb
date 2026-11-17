@@ -23,6 +23,8 @@ mod queries;
 mod records;
 mod relationship_reads;
 mod relationship_updates;
+mod resident_catalog;
+mod resident_metrics;
 mod writer_holds;
 pub(crate) use records::UnlabeledUpsert;
 mod relationships;
@@ -167,16 +169,6 @@ type CachedMetadata = std::sync::Arc<(Vec<String>, Vec<(String, u64)>)>;
 /// Normalized property name -> declared type name (the property dictionary).
 type PropertyTypeMap = std::collections::BTreeMap<String, String>;
 
-/// A byte-accounted logical cache charged to the shared budget tree.
-type LogicalCache<K, V> = rushdb_storage::cache::LogicalCache<K, V>;
-
-/// Commit/policy-generation-keyed `(labels, counts)` logical cache.
-type MetadataCache = std::sync::Mutex<Option<LogicalCache<(TenantId, u64), (u64, CachedMetadata)>>>;
-
-/// Commit/policy-generation-keyed property-dictionary logical cache.
-type PropertyCache =
-    std::sync::Mutex<Option<LogicalCache<(TenantId, u64, u64), std::sync::Arc<PropertyTypeMap>>>>;
-
 /// Embedded database node: one store plus the per-tenant engine instances,
 /// metrics, request-scope state, and maintenance caches shared by every
 /// transport adapter.
@@ -207,14 +199,6 @@ pub struct Node {
     max_request_bytes: usize,
     cursors: std::sync::Mutex<HashMap<String, ResultCursor>>,
     cursor_bytes: std::sync::Mutex<usize>,
-    /// Byte-accounted logical cache for `(labels, per-label counts)` keyed by
-    /// tenant and policy generation. Pinned views make these results pure
-    /// over the commit index, so entries are exact until the next commit or
-    /// policy rotation. `None` when `resources.logical-cache-bytes` is 0.
-    metadata_cache: MetadataCache,
-    /// Byte-accounted logical cache for the property dictionary (normalized
-    /// name -> type), keyed by `(tenant, commit index, policy generation)`.
-    property_cache: PropertyCache,
     /// Last computed [`rushdb_storage::StorageStatistics`] and when. Refreshed
     /// at most once per scrape interval so `/metrics` never scans per scrape.
     storage_stats:
@@ -441,6 +425,13 @@ impl Node {
         self.store.committed_version()
     }
 
+    /// The store's resident layers. Public for tests that compare resident
+    /// answers with storage's.
+    #[must_use]
+    pub fn residents(&self) -> Arc<rushdb_storage::resident::Residents> {
+        Arc::clone(self.store.residents())
+    }
+
     /// `true` while `--replica-of` is polling/applying;
     /// writes are rejected until [`Self::request_promotion`] stops it.
     #[must_use]
@@ -595,17 +586,6 @@ impl Node {
             boot_phases.push(("raft", phase_started.elapsed()));
         }
 
-        let metadata_cache = store
-            .cache_budget()
-            .map(rushdb_storage::cache::LogicalCache::new)
-            .transpose()
-            .map_err(|error| format!("create metadata cache: {error}"))?;
-        let property_cache = store
-            .cache_budget()
-            .map(rushdb_storage::cache::LogicalCache::new)
-            .transpose()
-            .map_err(|error| format!("create property cache: {error}"))?;
-
         let node = Node {
             store: Arc::clone(&store),
             base_tenant: tenant,
@@ -632,8 +612,6 @@ impl Node {
             max_request_bytes: cfg.max_request_bytes,
             cursors: std::sync::Mutex::new(HashMap::new()),
             cursor_bytes: std::sync::Mutex::new(0),
-            metadata_cache: std::sync::Mutex::new(metadata_cache),
-            property_cache: std::sync::Mutex::new(property_cache),
             storage_stats: std::sync::Mutex::new(None),
             records_by_tenant_cache: std::sync::Mutex::new(None),
             slow_call_threshold_ms: cfg.resources.logs_query_threshold_ms,

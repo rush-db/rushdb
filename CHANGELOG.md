@@ -40,6 +40,86 @@ in [`docs/manual/operations/upgrading-from-2x.md`](docs/manual/operations/upgrad
   now kept until a commit writes one of the indexes it read, so other
   tenants' writes and writes to other properties no longer force it to be
   read again.
+- **Breaking: planner statistics are never stale; two keys are removed.**
+  A cached value distribution used to be recomputed after
+  `planner-stats-max-age-commits` commits or dropped after
+  `planner-stats-idle-seconds` idle. It is now dropped by the first commit
+  that writes the property's values. Both keys (flags
+  `--planner-stats-idle-seconds`, `--planner-stats-max-age-commits`,
+  variables `RUSHDB_PLANNER_STATS_IDLE_SECONDS`,
+  `RUSHDB_PLANNER_STATS_MAX_AGE_COMMITS`) are gone, and a configuration
+  that still sets one is refused at startup; delete them.
+  `planner-stats-bytes` stays. The gauges `rushdb_planner_stats_bytes` and
+  `rushdb_planner_stats_entries` are replaced by
+  `rushdb_resident_bytes{layer="planner-stats"}` and
+  `rushdb_resident_entries{layer="planner-stats"}`.
+- **In-memory state follows one version rule.** Owner sets of indexed
+  filters, relationship graphs, the label catalog, the property dictionary,
+  planner statistics, vector rows and the tenant directory are now layers of
+  one framework ([resident state](docs/manual/architecture/resident-state.md)).
+  Each entry records the version of the storage areas it read; every commit
+  raises the versions of the areas it writes before it becomes visible
+  (local commits, commits a follower applies, WAL replay and restore), and
+  an entry whose areas changed is not used. Relationship graphs and catalogs
+  are no longer dropped by commits to other tenants or areas. Each layer has
+  a byte budget and reports `rushdb_resident_*{layer}` metrics; answers are
+  the same bytes as without the layers. New keys: `owner-set-cache-bytes`
+  (default 64 MiB, the owner-set share of the logical cache),
+  `resident-caches` (`on`/`off`; `off` answers every read from storage) and
+  `resident-verify-rate` (default `0`: the share of hits rebuilt from storage
+  in the background and compared, counted in
+  `rushdb_resident_verify_mismatch_total`).
+- **Grouped aggregates read resident columns.** A grouped aggregate over
+  one label (no traversal) whose properties are stored scalars now reads
+  them from in-memory typed columns once those are built: rows are folded
+  by their cells' codes, the label's members come from the column, and a
+  filter is evaluated once per distinct combination of its properties'
+  values instead of per record. Over 1M records, grouped `count`, `sum`,
+  `avg`, `min` and `max` by one or two keys, with or without a two-field
+  filter, went from 290-440 ms to 15-20 ms. Answers are the same bytes as
+  before, and a column never makes an aggregate fail where reading records
+  succeeds. Columns are built in the background after the reads they
+  replace would pay for one (about one read per record); the first
+  aggregates after a start or after a write to the label or property read
+  records as before. New key: `column-cache-bytes` (default 256 MiB, about
+  17 bytes per record and property; `0` keeps none).
+- **A merge import is one commit.** An `ingest` with `mergeBy`,
+  `mergeStrategy` or `merge` used to commit its records in chunks of 1,024
+  and its relationships in one more commit, so a reader could see part of a
+  request and a failure left the committed chunks behind. Now every record
+  and relationship of the request is committed at once, all visible or
+  none; a cancelled or failed request leaves nothing. Results of a request
+  that succeeds are unchanged (same matching, rows sharing a key applied in
+  order, existing links not duplicated). Merges running at the same time
+  over the same new keys used to each create them, leaving duplicate
+  records; now a key is created once: the later merge is re-run on the new
+  data, after a short random wait, and updates the record the first one
+  created. Merges that only update the same records (other fields, or the
+  same key values) do not interfere. Under several writers merging
+  overlapping new keys at once, a merge import can now fail with
+  `write_conflict` (HTTP 409, `retryable: true`) once its own re-runs are
+  used up; nothing of it is written, and clients should retry it with
+  backoff (before, such a request succeeded, with duplicates). Because a
+  merge request is one commit and commits are published one at a time, a
+  large merge request now holds the commit order for its own commit time:
+  other tenants' writes beside it wait for up to one such request instead
+  of one chunk of 1,024 records. On shared hosts, send merge imports of
+  about 1,000 records per request.
+  **Breaking for very large merge calls:** a merge request is now bounded
+  as a whole by `max-expanded-commit-bytes` (512 MiB by default) and is
+  refused with `resource_exhausted` (HTTP 429, `retryable: false`) above
+  it, with nothing written; before, each chunk of 1,024
+  records was bounded on its own. Typical documents expand 4 to 18 times
+  when stored, so a request within the default 16 MiB body limit fits; a
+  request made of many tiny nested objects (each one a record and a
+  relationship) can expand over 100 times and should be kept to about
+  4 MiB. Split larger loads into several requests, and split again when a
+  request is refused with `resource_exhausted`.
+- **Merge imports can be staged in a transaction.** A transaction `stage`
+  of an `ingest` with `mergeBy`/`mergeStrategy` was refused with
+  `unsupported`. It is now staged like a standalone merge import, matching
+  committed records and the records the transaction staged before it; a
+  concurrent write to a matched key aborts the commit (retryable).
 - **Filtered describes and label counts read less.** When a query names one
   label, label counts and per-property statistics no longer read each
   match's record header, and per-property statistics over large match sets
@@ -88,6 +168,36 @@ in [`docs/manual/operations/upgrading-from-2x.md`](docs/manual/operations/upgrad
 
 ### Fixed
 
+- **A restore or WAL replay no longer leaves cached answers behind.** Cached
+  entries computed before a restore into a running store, or before the WAL
+  replay that finishes startup, could answer from the rows those paths
+  replaced. Both paths now invalidate what they write.
+- **Large transactions stay fast as they grow and no longer stall other
+  commits.** Each statement staged into a transaction copied everything the
+  transaction had staged before it, and a commit compared each key written
+  since the transaction began against every read it had recorded, one at a
+  time, while other commits waited. Staging now moves the transaction's
+  state instead of copying it (a failed statement is undone exactly), and
+  the commit check looks reads up in a sorted index. A merge import of
+  about 460,000 tiny nested records, which did not finish in 25 minutes,
+  now stages in about 10 seconds, and eight concurrent merge imports of 500
+  documents each keep the throughput they had before a merge import became
+  one commit.
+- **A store killed during background maintenance reopens quickly.** A
+  process killed (for example by a container stop timeout) after a history
+  cleanup batch or a store compaction step, while the store was otherwise
+  idle, left a file that the next start checked in full before opening:
+  several reads of the whole file, with no log line or progress. Cleanup
+  batches are now made durable in groups (one fsync per four batches
+  instead of one per batch), each durable one saves the allocator state
+  with its commit, and the next
+  checkpoint after a compaction step (periodic or at shutdown) is always
+  written, so such a kill reopens without the check. When a check is still
+  needed (a kill in the middle of a compaction step), the start logs it and
+  `/health` reports `repairing-storage` with its `progress`.
+- **A follower stops resolving a tenant the leader retired.** A follower kept
+  its cached scope → tenant entry after replicating the tenant's retirement
+  and kept serving the old tenant until restart.
 - **A filter on a reserved name is refused.** `{"__id": ...}` (or any
   `__`-prefixed key) in a `where` matched nothing, silently; it is now
   `invalid_request`, pointing to `$id` for record ids.

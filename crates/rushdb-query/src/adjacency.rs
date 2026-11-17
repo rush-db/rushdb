@@ -1,7 +1,7 @@
 //! Adjacency of one relationship type for traversals: read from the store's
-//! `adj` rows, or from a resident graph cached per snapshot
-//! (`rushdb_storage::graph_cache`, which decides when one is worth
-//! building).
+//! `adj` rows, or from a resident graph (a layer of
+//! `rushdb_storage::resident`, which decides when one is worth building and
+//! drops it when a commit writes the tenant's adjacency).
 //!
 //! Every relationship has one outgoing and one incoming row,
 //! `T/adj/{out|in}/<node:8>/<type>/<other:8>/<rel:8>`, keyed by record: a
@@ -75,36 +75,26 @@ pub(crate) enum TypeAdjacency {
 
 impl TypeAdjacency {
     /// The adjacency of `rel_type` for a traversal along `direction`: the
-    /// resident graph when the snapshot's cache holds it, or when the rows
-    /// traversals already read at this snapshot pay for building it;
-    /// otherwise the store, whose reads are rented toward a build.
+    /// resident graph when the layer holds one valid at the snapshot;
+    /// otherwise the store, whose reads are rented toward a background
+    /// build.
     pub(crate) fn open(
         snap: &QuerySnapshot,
         tenant: TenantId,
         rel_type: Option<&str>,
         direction: Direction,
-        cancel: &dyn Fn() -> Result<(), QueryError>,
-    ) -> Result<Self, QueryError> {
-        let key = graph_key(tenant, rel_type);
-        let ci = snap.commit_index();
-        let cache = snap.graphs();
-        if let Some(graph) = cache
-            .get(&key, ci)
-            .and_then(|graph| graph.downcast::<ResidentGraph>().ok())
-        {
-            return Ok(Self::Resident { graph, direction });
+    ) -> Self {
+        let key = GraphKey::new(tenant, rel_type);
+        if let Some(graph) = snap.residents().layer::<Graphs>().get(&key, snap) {
+            return Self::Resident { graph, direction };
         }
-        if cache.rent(&key, ci, 0, build_rows(snap, tenant)?) {
-            let graph = ResidentGraph::keep(snap, tenant, rel_type, cancel)?;
-            return Ok(Self::Resident { graph, direction });
-        }
-        Ok(Self::Store(StoreAdjacency {
+        Self::Store(StoreAdjacency {
             snap: Arc::clone(snap),
             tenant,
             rel_type: rel_type.map(str::to_owned),
             direction,
             rows: std::cell::Cell::new(0),
-        }))
+        })
     }
 }
 
@@ -144,8 +134,70 @@ fn build_rows(snap: &ReadView, tenant: TenantId) -> Result<u64, QueryError> {
     Ok(rushdb_lmpg::derived::tenant_usage(snap, tenant)?.relationships)
 }
 
-fn graph_key(tenant: TenantId, rel_type: Option<&str>) -> Vec<u8> {
-    format!("{tenant:?}|{rel_type:?}").into_bytes()
+/// One relationship type (every type when `None`) of one tenant.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub(crate) struct GraphKey {
+    tenant: TenantId,
+    rel_type: Option<String>,
+}
+
+impl GraphKey {
+    fn new(tenant: TenantId, rel_type: Option<&str>) -> Self {
+        Self {
+            tenant,
+            rel_type: rel_type.map(str::to_owned),
+        }
+    }
+}
+
+/// Resident graphs, one per relationship type, valid until a commit writes
+/// the tenant's adjacency (its rows are keyed by record, not by type).
+#[derive(Default)]
+pub(crate) struct Graphs;
+
+impl rushdb_storage::resident::Resident for Graphs {
+    type Key = GraphKey;
+    type Value = ResidentGraph;
+    const NAME: &'static str = "graph";
+    const BUDGET: rushdb_storage::resident::Budget = rushdb_storage::resident::Budget::Graph;
+
+    fn deps(
+        &self,
+        key: &GraphKey,
+        _view: &ReadView,
+    ) -> Result<Vec<rushdb_storage::resident::Dep>, rushdb_storage::StorageError> {
+        Ok(vec![rushdb_storage::resident::Dep::Adjacency(key.tenant)])
+    }
+
+    fn build(
+        &self,
+        key: &GraphKey,
+        view: &ReadView,
+        cx: &rushdb_storage::resident::BuildCx,
+    ) -> Result<Option<ResidentGraph>, rushdb_storage::resident::BuildError> {
+        let refused = std::cell::Cell::new(false);
+        let built = ResidentGraph::build(
+            view,
+            key.tenant,
+            key.rel_type.as_deref(),
+            &|| Ok(()),
+            &|bytes| {
+                let fits = cx.admit(bytes).is_ok();
+                refused.set(!fits);
+                fits
+            },
+        );
+        match built {
+            Ok(graph) => Ok(Some(graph)),
+            Err(_) if refused.get() => Err(rushdb_storage::resident::BuildError::Refused),
+            Err(QueryError::Storage(error)) => Err(error.into()),
+            Err(other) => Err(rushdb_storage::StorageError::InvalidRead(other.to_string()).into()),
+        }
+    }
+
+    fn bytes(graph: &ResidentGraph) -> usize {
+        graph.outgoing.bytes() + graph.incoming.bytes()
+    }
 }
 
 /// Adjacency read from the store's `adj` rows: one key-only range scan per
@@ -208,9 +260,9 @@ impl Drop for StoreAdjacency {
             return;
         }
         if let Ok(build) = build_rows(&self.snap, self.tenant) {
-            let _ = self.snap.graphs().rent(
-                &graph_key(self.tenant, self.rel_type.as_deref()),
-                self.snap.commit_index(),
+            self.snap.residents().layer::<Graphs>().rent(
+                &GraphKey::new(self.tenant, self.rel_type.as_deref()),
+                &self.snap,
                 rows,
                 build,
             );
@@ -231,6 +283,7 @@ fn adjacency_tail(key: &[u8]) -> Result<(u64, u64), QueryError> {
 
 /// Every relationship of one type at one snapshot, in both directions,
 /// sorted by record for lookup (compressed sparse rows).
+#[derive(PartialEq)]
 pub(crate) struct ResidentGraph {
     outgoing: Rows,
     incoming: Rows,
@@ -238,6 +291,7 @@ pub(crate) struct ResidentGraph {
 
 /// One direction: `edges[start[i]..start[i + 1]]` are the
 /// `(neighbour, relationship)` pairs of `nodes[i]`.
+#[derive(PartialEq)]
 struct Rows {
     nodes: Vec<u64>,
     start: Vec<usize>,
@@ -277,39 +331,32 @@ impl Rows {
 
 impl ResidentGraph {
     /// The resident graph of `rel_type` (every type when `None`) at the
-    /// view's snapshot: the cached one, or one built now from every
-    /// outgoing adjacency row of the tenant and kept when it fits.
+    /// view's snapshot: the resident one, or one built now from every
+    /// outgoing adjacency row of the tenant and offered to the layer.
     pub(crate) fn keep(
         snap: &ReadView,
         tenant: TenantId,
         rel_type: Option<&str>,
         cancel: &dyn Fn() -> Result<(), QueryError>,
     ) -> Result<Arc<Self>, QueryError> {
-        let key = graph_key(tenant, rel_type);
-        let ci = snap.commit_index();
-        if let Some(graph) = snap
-            .graphs()
-            .get(&key, ci)
-            .and_then(|graph| graph.downcast::<ResidentGraph>().ok())
-        {
+        let key = GraphKey::new(tenant, rel_type);
+        let layer = snap.residents().layer::<Graphs>();
+        if let Some(graph) = layer.get(&key, snap) {
             return Ok(graph);
         }
-        let graph = Arc::new(Self::build(snap, tenant, rel_type, cancel)?);
-        let bytes = graph.outgoing.bytes() + graph.incoming.bytes();
-        snap.graphs().insert(
-            key,
-            ci,
-            Arc::clone(&graph) as rushdb_storage::graph_cache::Graph,
-            bytes,
-        );
+        let graph = Arc::new(Self::build(snap, tenant, rel_type, cancel, &|_| true)?);
+        layer.offer(key, snap, Arc::clone(&graph));
         Ok(graph)
     }
 
+    /// Every relationship of `rel_type` at `snap`. `admit(bytes)` is asked
+    /// as the rows grow; `false` stops the build (a resource-limit error).
     fn build(
         snap: &ReadView,
         tenant: TenantId,
         rel_type: Option<&str>,
         cancel: &dyn Fn() -> Result<(), QueryError>,
+        admit: &dyn Fn(usize) -> bool,
     ) -> Result<Self, QueryError> {
         let prefix = rushdb_types::keys::key(tenant, &[b"adj", b"out", b""]);
         let mut cursor = snap.scan(ScanBounds::prefix(&prefix), ScanProjection::Keys)?;
@@ -331,6 +378,10 @@ impl ResidentGraph {
                 let source = u64::from_be_bytes(rest[..8].try_into().unwrap_or_default());
                 let (target, rel) = adjacency_tail(rest)?;
                 triples.push((source, target, rel));
+            }
+            // Both directions of every triple end up resident.
+            if !admit(triples.len().saturating_mul(2 * 8 * 4)) {
+                return Err(QueryError::ResourceLimit("graph exceeds its budget".into()));
             }
             if batch.done {
                 break;

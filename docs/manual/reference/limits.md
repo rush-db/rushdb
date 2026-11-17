@@ -75,6 +75,9 @@ in this release.
 | Vector cache (resident ANN indexes) | 256 MiB | `vector-cache-bytes` |
 | Graph cache (resident relationship graphs) | 128 MiB | `graph-cache-bytes` |
 | Planner statistics | 32 MiB (child of the logical caches) | `planner-stats-bytes` |
+| Owner sets of indexed filters | 64 MiB (child of the logical caches) | `owner-set-cache-bytes` |
+| Resident typed columns | 256 MiB | `column-cache-bytes` |
+| Resident-state version table | 8 MiB (2^20 slots) | no |
 | ANN segment cache | 256 MiB, and at most 12 cached generations | no |
 | Resident tenant handles | 512 MiB (16 KiB minimum charge per tenant) | `tenant-resident-bytes` |
 | Tenant handle idle time | 300 s | `tenant-idle-seconds` |

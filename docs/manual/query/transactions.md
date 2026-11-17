@@ -96,7 +96,7 @@ Staged mutations:
 | `deleteRecord` | `record` | Delete the record. |
 | `createRelationship` | `relationType`, `source`, `target`, `properties` | Create a relationship `source → target`. |
 | `statement` | `language` (`gql`, `cypher`, or `gremlin`), `statement`, optional `parameters` | Run a graph-language write; its exact changes are staged. |
-| `ingest` | `ingest`: an import as for the `ingest` operation (`documents` or `csv`) | Stage the import's records (each with its id pinned) and the relationships between them. The response is `transactionIngested` with `count` and `relationships`. An import with `mergeBy`/`mergeStrategy` or inline vectors is refused with `unsupported`. |
+| `ingest` | `ingest`: an import as for the `ingest` operation (`documents` or `csv`) | Stage the import's records (each with its id pinned) and the relationships between them. An import with `mergeBy`/`mergeStrategy` matches against committed records and the records the transaction staged before it, updates the matched ones and creates the rest, as a [merge import](../data-model/nested-import.md#upserts-merge) does; its lookups are read dependencies, so a concurrent write that creates or changes a matched key aborts the commit (retryable). Each staged operation counts toward the transaction's operation and byte limits; a merge that fails leaves the transaction as it was. The response is `transactionIngested` with `count` and `relationships`. An import with inline vectors is refused with `unsupported`. |
 | `getRecord` | `record` | Read a record inside the transaction (see below). |
 
 `record`, `source` and `target` are record references of the form

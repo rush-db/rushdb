@@ -39,6 +39,29 @@ pub fn phase() -> &'static str {
     PHASES[PHASE.load(Ordering::Acquire).min(PHASES.len() - 1)]
 }
 
+/// The phase probes report, with its progress in percent when known: while
+/// the store file is checked in full after an unclean close (redb repair),
+/// `opening-storage` reads as `repairing-storage`.
+fn reported_phase() -> (&'static str, Option<f64>) {
+    report(phase(), rushdb_storage::open_repair::progress())
+}
+
+fn report(phase: &'static str, repair: Option<f64>) -> (&'static str, Option<f64>) {
+    match (phase, repair) {
+        ("opening-storage", Some(progress)) => ("repairing-storage", Some(progress * 100.0)),
+        (phase, _) => (phase, None),
+    }
+}
+
+/// The JSON fields of a reported phase: `"phase":…` and, while known,
+/// `"progress":…` (percent).
+fn phase_fields(reported: (&'static str, Option<f64>)) -> String {
+    match reported {
+        (phase, Some(percent)) => format!(r#""phase":"{phase}","progress":{percent:.1}"#),
+        (phase, None) => format!(r#""phase":"{phase}""#),
+    }
+}
+
 /// A pre-bound HTTP listener that answers health/readiness probes while the
 /// node boots.
 pub struct BootListener {
@@ -114,16 +137,17 @@ fn answer(mut stream: std::net::TcpStream, started: Instant) {
         .next()
         .unwrap_or("");
     let path = line.split_whitespace().nth(1).unwrap_or("");
-    let phase = phase();
+    let reported = reported_phase();
+    let (phase, fields) = (reported.0, phase_fields(reported));
     let elapsed_ms = started.elapsed().as_millis();
     let (status, body) = match path {
         "/health" => (
             "200 OK",
-            format!(r#"{{"status":"starting","phase":"{phase}","elapsedMs":{elapsed_ms}}}"#),
+            format!(r#"{{"status":"starting",{fields},"elapsedMs":{elapsed_ms}}}"#),
         ),
         "/ready" => (
             "503 Service Unavailable",
-            format!(r#"{{"status":"starting","phase":"{phase}","elapsedMs":{elapsed_ms}}}"#),
+            format!(r#"{{"status":"starting",{fields},"elapsedMs":{elapsed_ms}}}"#),
         ),
         _ => (
             "503 Service Unavailable",
@@ -150,6 +174,26 @@ mod tests {
         let mut out = String::new();
         stream.read_to_string(&mut out).unwrap();
         out
+    }
+
+    #[test]
+    fn a_store_repair_reads_as_repairing_storage_with_its_progress() {
+        let reported = report("opening-storage", Some(0.42));
+        assert_eq!(reported.0, "repairing-storage");
+        assert_eq!(
+            phase_fields(reported),
+            r#""phase":"repairing-storage","progress":42.0"#
+        );
+        // Only while the store opens, and only while a repair runs.
+        assert_eq!(report("opening-storage", None), ("opening-storage", None));
+        assert_eq!(
+            report("starting-engines", Some(0.9)),
+            ("starting-engines", None)
+        );
+        assert_eq!(
+            phase_fields(report("opening-storage", None)),
+            r#""phase":"opening-storage""#
+        );
     }
 
     #[test]

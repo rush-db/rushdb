@@ -254,6 +254,7 @@ fn ordinary_txn_reads_are_captured_for_prepared_commands() {
             set_keys: BTreeSet::default(),
             watermark_keys: BTreeSet::default(),
             ids: &store.ids,
+            undo: None,
             deps: Some(&recorder),
         };
         txn.get(b"absent").unwrap();
@@ -305,6 +306,7 @@ fn prefix_scans_include_unbounded_successors_and_transaction_overlays() {
         set_keys: BTreeSet::default(),
         watermark_keys: BTreeSet::default(),
         ids: &store.ids,
+        undo: None,
         deps: None,
     };
     txn.del(vec![255]);
@@ -474,4 +476,46 @@ fn idle_compaction_measures_growth_from_the_file_as_opened() {
     ));
     drop(store);
     crate::remove_store(&path).unwrap();
+}
+
+#[test]
+fn the_dependency_index_answers_like_the_recorded_reads() {
+    // Random point reads, ranges (overlapping, nested, touching, empty or
+    // unbounded) and probes over a small alphabet, so every case collides.
+    let mut seed = 0x0dd5_eed5_u64;
+    let mut next = |bound: u64| {
+        seed ^= seed << 13;
+        seed ^= seed >> 7;
+        seed ^= seed << 17;
+        seed % bound
+    };
+    let key = |next: &mut dyn FnMut(u64) -> u64| -> Vec<u8> {
+        let len = usize::try_from(next(4)).unwrap_or_default();
+        (0..len)
+            .map(|_| b'a' + u8::try_from(next(4)).unwrap_or_default())
+            .collect()
+    };
+    for round in 0..400 {
+        let mut deps = DependencySet::default();
+        for _ in 0..next(12) {
+            match next(4) {
+                0 => {
+                    let point = key(&mut next);
+                    deps.record(point.clone(), point);
+                }
+                1 => deps.record_prefix(&key(&mut next)),
+                2 => deps.record(key(&mut next), Vec::new()),
+                _ => deps.record(key(&mut next), key(&mut next)),
+            }
+        }
+        let index = deps.index();
+        for _ in 0..60 {
+            let probe = key(&mut next);
+            assert_eq!(
+                index.contains(&probe),
+                deps.intersects_key(&probe),
+                "round {round}: {probe:?} against {deps:?}"
+            );
+        }
+    }
 }

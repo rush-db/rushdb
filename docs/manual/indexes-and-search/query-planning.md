@@ -68,13 +68,12 @@ statistics, both derived from data the engine already maintains:
   values and the walk saw all of them, the range count is computed exactly
   instead of interpolated.
 
-The histogram cache is bounded and self-refreshing:
+A kept distribution is dropped as soon as a commit writes the property's
+values ([resident state](../architecture/resident-state.md)):
 
 | Setting (env) | Default | Effect |
 |---|---|---|
-| `RUSHDB_PLANNER_STATS_BYTES` | 32 MiB | Byte budget of the cache (part of the logical-cache budget). `0` disables caching: every estimate walks the dictionary. |
-| `RUSHDB_PLANNER_STATS_IDLE_SECONDS` | 600 | An entry unused this long is evicted. |
-| `RUSHDB_PLANNER_STATS_MAX_AGE_COMMITS` | 10,000 | An entry older than this many commits is recomputed. |
+| `RUSHDB_PLANNER_STATS_BYTES` | 32 MiB | Byte budget of the kept distributions (part of the logical-cache budget). `0` keeps none: every estimate walks the dictionary. |
 
 Statistics only change the **order** in which leaves are materialized and
 whether the planner falls back to a scan. They never change results.

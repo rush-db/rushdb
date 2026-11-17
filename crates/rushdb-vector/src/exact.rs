@@ -293,7 +293,7 @@ impl VectorEngine {
             k,
             candidates,
             min_score,
-            arena: self.arena(space.space_id),
+            arena: self.arena(snap, space),
         };
         let mut top = TopK::new(k);
         match candidates {

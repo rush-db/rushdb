@@ -32,6 +32,17 @@ fn setup_without_graphs() -> Lmpg {
     Lmpg::new(Arc::new(store), TenantId::from_ordinal(73))
 }
 
+/// Search until a run reads no adjacency rows (the graph is resident);
+/// fails rather than spinning when it never becomes resident.
+fn until_resident(lmpg: &Lmpg, req: &SearchRequest) {
+    for _ in 0..50 {
+        if adjacency_reads(lmpg, req).1 == 0 {
+            return;
+        }
+    }
+    panic!("the graph never became resident in 50 searches");
+}
+
 /// Adjacency rows one search reads from storage.
 fn adjacency_reads(lmpg: &Lmpg, req: &SearchRequest) -> (BTreeSet<u64>, u64) {
     rushdb_storage::read_accounting::enable(true);
@@ -362,6 +373,15 @@ fn traversals_build_a_resident_graph_once_their_reads_pay_for_it() {
     // 200 relationships: one build reads 200 rows. Each query below reads
     // about 2 scans and a few rows per visited record.
     let req = request(&neighbourhood_query(100, "both", 1, 3));
+    if !rushdb_storage::resident::residents_enabled() {
+        // Layers off: no graph is ever built, every search reads rows.
+        for _ in 0..30 {
+            let (found, reads) = adjacency_reads(&lmpg, &req);
+            assert_eq!(found, BTreeSet::from([97, 98, 99, 101, 102, 103]));
+            assert!(reads > 0);
+        }
+        return;
+    }
     let mut spent = 0;
     let mut queries = 0;
     loop {
@@ -404,8 +424,11 @@ fn a_resident_graph_answers_only_its_own_snapshot() {
     }
     let req = request(&neighbourhood_query(10, "out", 1, 1));
     let before = Arc::new(lmpg.store.read_view().unwrap());
+    let resident = rushdb_storage::resident::residents_enabled();
     // Read until the graph of this snapshot is resident.
-    while adjacency_reads(&lmpg, &req).1 > 0 {}
+    if resident {
+        until_resident(&lmpg, &req);
+    }
     lmpg.create_relationship("K", refs[30], refs[10], vec![])
         .unwrap();
     let (found, reads) = adjacency_reads(&lmpg, &req);
@@ -418,7 +441,9 @@ fn a_resident_graph_answers_only_its_own_snapshot() {
         reads > 0,
         "a commit moved the reader past the resident graph"
     );
-    while adjacency_reads(&lmpg, &req).1 > 0 {}
+    if resident {
+        until_resident(&lmpg, &req);
+    }
     assert_eq!(adjacency_reads(&lmpg, &req).0, BTreeSet::from([9, 30]));
     let pinned: BTreeSet<u64> = find_records_in_view(&lmpg, &req, &|| false, before)
         .unwrap()

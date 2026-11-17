@@ -115,6 +115,50 @@ fn transaction_reads_resolve_at_their_pinned_snapshot() {
 }
 
 #[test]
+fn a_failed_statement_or_a_read_leaves_the_transaction_as_it_was() {
+    // The buffer and read deps move into each statement instead of being
+    // copied; what a failed statement or a reader wrote is undone.
+    let store = Store::new_in_memory();
+    store.set_expander(Arc::new(Box::new(|_, _, txn| {
+        txn.put(b"x".to_vec(), vec![9]);
+        Ok(())
+    })));
+    let mut acc = TxAccumulator::new(TenantId::from_ordinal(1), 0);
+    acc.base_view = Some(Arc::new(store.read_at(0).unwrap()));
+    store
+        .tx_apply(&mut acc, Uuid::new_v4(), |_, txn| {
+            txn.put(b"a".to_vec(), vec![1]);
+            txn.get(b"r1").map_err(|e| e.to_string())?;
+            Ok((batch(Uuid::new_v4()), ()))
+        })
+        .unwrap();
+    let (buffer, deps) = (acc.buffer.clone(), acc.deps.ranges.clone());
+    assert_eq!(buffer.len(), 2, "the statement's and the expander's writes");
+    assert!(!deps.is_empty());
+
+    let failed = store.tx_apply(&mut acc, Uuid::new_v4(), |_, txn| {
+        txn.put(b"a".to_vec(), vec![2]);
+        txn.del(b"x".to_vec());
+        txn.put(b"b".to_vec(), vec![3]);
+        txn.purge(b"a".to_vec());
+        txn.get(b"r2").map_err(|e| e.to_string())?;
+        Err::<(crate::CommitBatch, ()), _>("refused".into())
+    });
+    assert!(failed.is_err());
+    assert_eq!(acc.buffer, buffer);
+    assert_eq!(acc.deps.ranges, deps);
+
+    store
+        .tx_read(&mut acc, |txn| {
+            txn.put(b"c".to_vec(), vec![4]);
+            txn.del(b"a".to_vec());
+            Ok(())
+        })
+        .unwrap();
+    assert_eq!(acc.buffer, buffer, "a read leaves no write behind");
+}
+
+#[test]
 fn two_transactions_writing_one_key_cannot_both_commit() {
     // D01 regression: transaction validation must be serialized with
     // publication. Both accumulators share a write key and the same base
@@ -603,6 +647,7 @@ fn bounded_keys_prefix_stops_at_limit_and_skips_tombstones() {
         set_keys: BTreeSet::default(),
         watermark_keys: BTreeSet::default(),
         ids: &store.ids,
+        undo: None,
         deps: None,
     };
     // A staged replacement stays; a staged tombstone drops out.
@@ -771,6 +816,7 @@ fn txn_reads_through_the_sequencer_overlay() {
         set_keys: BTreeSet::default(),
         watermark_keys: BTreeSet::default(),
         ids: &store.ids,
+        undo: None,
         deps: None,
     };
 
@@ -980,4 +1026,33 @@ fn a_light_tenant_is_admitted_ahead_of_a_busy_tenants_queue() {
         "busy tenant committed at {busy_cis:?}"
     );
     assert_eq!(busy_cis, (first_ci + 2..first_ci + 6).collect::<Vec<_>>());
+}
+
+#[test]
+fn a_conflict_published_while_a_commit_scans_outside_the_gate_still_aborts_it() {
+    // A transaction commit scans the commits already published before it
+    // takes the admission gate; one that publishes in between is scanned
+    // under the gate.
+    let store = Arc::new(Store::new_in_memory());
+    store.set_expander(Arc::new(Box::new(|_, _, txn| {
+        txn.put(b"k".to_vec(), vec![1]);
+        Ok(())
+    })));
+    let mut reader = TxAccumulator::new(TenantId::from_ordinal(1), 0);
+    reader.base_view = Some(Arc::new(store.read_at(0).unwrap()));
+    store
+        .tx_read(&mut reader, |txn| txn.get(b"k").map_err(|e| e.to_string()))
+        .unwrap();
+    let writer = Arc::clone(&store);
+    *store.after_conflict_prescan.lock().unwrap() = Some(Box::new(move || {
+        writer
+            .commit(Uuid::new_v4(), |_, _| Ok((batch(Uuid::new_v4()), ())))
+            .unwrap();
+    }));
+    let outcome = store.tx_commit(Uuid::new_v4(), &reader);
+    assert!(
+        matches!(&outcome, Err(StorageError::Builder(reason)) if reason.starts_with("transaction_conflict")),
+        "{outcome:?}"
+    );
+    assert_eq!(store.committed_version(), 1, "only the writer committed");
 }

@@ -107,29 +107,38 @@ pub struct ResourceConfig {
     /// keeps no ANN resident: searches answer exactly. Default 256 MiB.
     #[arg(long, env = "RUSHDB_VECTOR_CACHE_BYTES", default_value = "256MiB")]
     pub vector_cache_bytes: ByteSize,
-    /// Bytes resident relationship graphs may hold (one relationship type
-    /// at one snapshot, ~32 B per relationship), a budget of its own under
-    /// managed-limit. Traversals build one once the adjacency rows they read
-    /// at a snapshot would pay for it. 0 keeps none: traversals read
-    /// adjacency from storage. Default 128 MiB.
+    /// Bytes resident relationship graphs may hold (one relationship type,
+    /// ~32 B per relationship), a budget of its own under managed-limit.
+    /// Traversals build one once the adjacency rows they read since the
+    /// tenant's adjacency last changed would pay for it. 0 keeps none:
+    /// traversals read adjacency from storage. Default 128 MiB.
     #[arg(long, env = "RUSHDB_GRAPH_CACHE_BYTES", default_value = "128MiB")]
     pub graph_cache_bytes: ByteSize,
-    /// Byte budget of the evictable planner-statistics cache (value
-    /// distributions loaded on demand), a child of the logical cache budget.
-    /// 0 disables caching. Default 32 MiB.
+    /// Byte budget of the resident planner statistics (value distributions
+    /// loaded on demand, dropped when a commit writes the property), a child
+    /// of the logical cache budget. 0 keeps none. Default 32 MiB.
     #[arg(long, env = "RUSHDB_PLANNER_STATS_BYTES", default_value = "32MiB")]
     pub planner_stats_bytes: ByteSize,
-    /// Seconds an unused planner-statistics entry stays cached. Default 600.
-    #[arg(long, env = "RUSHDB_PLANNER_STATS_IDLE_SECONDS", default_value_t = 600)]
-    pub planner_stats_idle_seconds: u64,
-    /// Commits after which a cached planner-statistics entry is recomputed.
-    /// Default 10000.
-    #[arg(
-        long,
-        env = "RUSHDB_PLANNER_STATS_MAX_AGE_COMMITS",
-        default_value_t = 10_000
-    )]
-    pub planner_stats_max_age_commits: u64,
+    /// Bytes the owner sets of indexed filter leaves may hold across
+    /// requests, a child of the logical cache budget. 0 disables them.
+    /// Default 64 MiB.
+    #[arg(long, env = "RUSHDB_OWNER_SET_CACHE_BYTES", default_value = "64MiB")]
+    pub owner_set_cache_bytes: ByteSize,
+    /// Bytes resident typed columns may hold (one property of one label,
+    /// ~17 B per record), a budget of its own under managed-limit. Grouped
+    /// aggregates read them once a label's rows read would pay for one. 0
+    /// keeps none: aggregates read records. Default 256 MiB.
+    #[arg(long, env = "RUSHDB_COLUMN_CACHE_BYTES", default_value = "256MiB")]
+    pub column_cache_bytes: ByteSize,
+    /// `off` keeps no resident entry anywhere (owner sets, graphs, columns,
+    /// catalogs, planner statistics, vector rows): storage answers every
+    /// request. For diagnostics; results are the same either way.
+    #[arg(long, env = "RUSHDB_RESIDENT_CACHES", default_value = "on")]
+    pub resident_caches: SwitchArg,
+    /// Share of resident hits rebuilt from storage in the background and
+    /// compared; a difference is counted and drops the entry. 0 = never.
+    #[arg(long, env = "RUSHDB_RESIDENT_VERIFY_RATE", default_value_t = 0.0)]
+    pub resident_verify_rate: f64,
     /// Seconds an unused tenant's in-memory handles (vector engine,
     /// transaction coordinator) stay resident. Default 300.
     #[arg(long, env = "RUSHDB_TENANT_IDLE_SECONDS", default_value_t = 300)]
@@ -361,6 +370,16 @@ pub struct ResourceConfig {
     pub introspection_value_max_chars: usize,
 }
 
+/// `on` or `off`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, clap::ValueEnum)]
+#[serde(rename_all = "kebab-case")]
+pub enum SwitchArg {
+    /// Enabled (default).
+    On,
+    /// Disabled.
+    Off,
+}
+
 /// Config-surface spelling of the durability contract.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, clap::ValueEnum)]
 #[serde(rename_all = "kebab-case")]
@@ -401,8 +420,10 @@ impl Default for ResourceConfig {
             vector_cache_bytes: ByteSize(storage.vector_cache_bytes),
             graph_cache_bytes: ByteSize(storage.graph_cache_bytes),
             planner_stats_bytes: ByteSize(storage.planner_stats_bytes),
-            planner_stats_idle_seconds: storage.planner_stats_idle_seconds,
-            planner_stats_max_age_commits: storage.planner_stats_max_age_commits,
+            owner_set_cache_bytes: ByteSize(storage.owner_set_cache_bytes),
+            column_cache_bytes: ByteSize(storage.column_cache_bytes),
+            resident_caches: SwitchArg::On,
+            resident_verify_rate: storage.resident_verify_rate,
             tenant_idle_seconds: 300,
             tenant_resident_bytes: ByteSize(512 * 1024 * 1024),
             metrics_tenant_limit: 0,
@@ -498,13 +519,18 @@ impl ResourceConfig {
             lock_acquisition_timeout_ms: self.lock_timeout_ms,
             max_expanded_commit_bytes: self.max_expanded_commit_bytes.0,
             planner_stats_bytes: self.planner_stats_bytes.0,
-            planner_stats_idle_seconds: self.planner_stats_idle_seconds,
-            planner_stats_max_age_commits: self.planner_stats_max_age_commits,
             // Segmented-WAL rotation target (log-first). Not yet an
             // operator knob; the default matches the storage default.
             log_segment_bytes: 64 * 1024 * 1024,
             idempotency_window_seconds: self.idempotency_window_seconds,
+            owner_set_cache_bytes: self.owner_set_cache_bytes.0,
+            column_cache_bytes: self.column_cache_bytes.0,
+            resident_caches: self.resident_caches == SwitchArg::On,
+            resident_verify_rate: self.resident_verify_rate,
         };
+        if !(0.0..=1.0).contains(&self.resident_verify_rate) {
+            return Err("resident-verify-rate must be between 0 and 1".into());
+        }
         storage.validate().map_err(|e| e.to_string())?;
         if self.memory_headroom.0 == 0 {
             return Err("memory-headroom must be positive".into());

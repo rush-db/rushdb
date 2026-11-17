@@ -131,6 +131,24 @@ where
         true
     }
 
+    /// Mutable access to a live entry without touching its LRU position.
+    pub fn get_mut(&mut self, key: &K) -> Option<&mut V> {
+        self.entries.get_mut(key).map(|entry| &mut entry.value)
+    }
+
+    /// Drop `key`'s entry, releasing its bytes (not counted as an
+    /// eviction). Returns whether it was present.
+    pub fn remove(&mut self, key: &K) -> bool {
+        let Some(entry) = self.entries.remove(key) else {
+            return false;
+        };
+        self.order.remove(&entry.seq);
+        let _ = self
+            .reserved
+            .resize(self.reserved.bytes().saturating_sub(entry.bytes));
+        true
+    }
+
     /// Remove the least-recently-used entry. Returns false when empty.
     fn evict_one(&mut self) -> bool {
         let Some((&seq, key)) = self.order.iter().next() else {

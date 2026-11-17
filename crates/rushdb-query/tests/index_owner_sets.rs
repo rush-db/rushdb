@@ -108,7 +108,12 @@ fn cached_owner_sets_survive_commits_that_do_not_write_their_indexes() {
         vec![("text".into(), FieldChange::Set(json!("x")))],
     )
     .unwrap();
-    assert_eq!(index_entry_reads(&lmpg, 5), (30, 0));
+    // With resident layers off (the reference run) every query reads its
+    // entries; the answers are the same either way.
+    let cached = rushdb_storage::resident::residents_enabled();
+    let (matched, reads) = index_entry_reads(&lmpg, 5);
+    assert_eq!(matched, 30);
+    assert_eq!(reads == 0, cached);
     // A write to an indexed property invalidates them, and the new record
     // is found.
     lmpg.create_record("Big", None, record(305)).unwrap();
@@ -118,5 +123,7 @@ fn cached_owner_sets_survive_commits_that_do_not_write_their_indexes() {
         reread > 0,
         "the sets are read again after their index changed"
     );
-    assert_eq!(index_entry_reads(&lmpg, 5), (31, 0));
+    let (matched, reads) = index_entry_reads(&lmpg, 5);
+    assert_eq!(matched, 31);
+    assert_eq!(reads == 0, cached);
 }

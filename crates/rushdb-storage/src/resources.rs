@@ -521,17 +521,25 @@ pub struct StorageResources {
     /// pipeline, not the live transactional path (matching Postgres `COPY`,
     /// Neo4j's offline bulk importer, MongoDB's `mongoimport`).
     pub max_expanded_commit_bytes: usize,
-    /// Byte budget of the planner-statistics cache, a child of the
-    /// logical cache budget when that is enabled. 0 = no caching (every
-    /// estimate walks the value dictionary).
+    /// Byte budget of the resident planner statistics, a child of the
+    /// logical cache budget when that is enabled. 0 = none (every estimate
+    /// walks the value dictionary).
     pub planner_stats_bytes: usize,
-    /// Seconds a planner-statistics entry may sit unused before eviction.
-    pub planner_stats_idle_seconds: u64,
-    /// Commits after which a cached planner-statistics entry is recomputed.
-    pub planner_stats_max_age_commits: u64,
     /// How long a retry receipt answers a repeated commit key. A
     /// retry after the window executes as a new commit.
     pub idempotency_window_seconds: u64,
+    /// Bytes the owner sets of declared-index leaves may hold (READ-2), a
+    /// child of the logical cache budget. 0 = none.
+    pub owner_set_cache_bytes: usize,
+    /// Bytes resident typed columns (grouped aggregates) may hold, a budget
+    /// of its own under the managed limit. 0 = aggregates read records.
+    pub column_cache_bytes: usize,
+    /// Whether resident layers keep entries at all (`resident-caches`).
+    /// Off, storage answers everything: the reference behaviour.
+    pub resident_caches: bool,
+    /// Share of resident hits rebuilt from storage in the background and
+    /// compared (`resident-verify-rate`, 0 = never, 1 = every hit).
+    pub resident_verify_rate: f64,
 }
 
 /// Logical durability contract (research D10). `Local` is the default and
@@ -590,9 +598,13 @@ impl Default for StorageResources {
             // from).
             max_expanded_commit_bytes: 512 * 1024 * 1024,
             planner_stats_bytes: 32 * 1024 * 1024,
-            planner_stats_idle_seconds: 600,
-            planner_stats_max_age_commits: 10_000,
             idempotency_window_seconds: 24 * 3600,
+            // Today's hardcoded READ-2 value.
+            owner_set_cache_bytes: 64 * 1024 * 1024,
+            // ~9 B per row per column: 7 columns of 1M rows ≈ 63 MB.
+            column_cache_bytes: 256 * 1024 * 1024,
+            resident_caches: true,
+            resident_verify_rate: 0.0,
         }
     }
 }

@@ -105,6 +105,12 @@ fn an_indexed_equality_page_reads_its_matches_only() {
 
 #[test]
 fn an_indexed_range_page_reads_its_matches_only() {
+    // A range plan reads the property's value distribution; with resident
+    // layers off it is walked again on every query, so a steady query's
+    // cost grows with the distinct values.
+    if !rushdb_storage::resident::residents_enabled() {
+        return;
+    }
     assert_flat("records where score < 50", |lmpg| {
         records_reads(
             lmpg,

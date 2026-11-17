@@ -154,9 +154,18 @@ fn aggregate_budgeted(
         plan.names.iter().map(String::as_str),
     )?;
     let selected = Rows::selection(&plan);
+    // Resident columns serve the row when every name is a stored property
+    // of the one label and the pass follows no traversal branch.
+    let served = crate::columns::Served::lookup(
+        &snap,
+        lmpg.tenant,
+        (&req.labels, !page_req.related.is_empty()),
+        points.as_ref(),
+    );
     let rows = Rows {
         points: points.as_ref(),
         selected: &selected,
+        columns: served.as_ref().and_then(crate::columns::Served::row),
     };
     let scan = Scan {
         lmpg,
@@ -172,22 +181,39 @@ fn aggregate_budgeted(
     } else {
         Mode::Groups
     };
-    let pass = aggregate_scan::run(&scan, &rows, mode, is_cancelled)?;
-    let total_matched = pass.total;
-    let candidate_bytes = pass.candidate_bytes;
-    let mut buckets = match mode {
-        Mode::Count => {
-            let mut buckets = count_only_bucket(total_matched);
-            apply_aggregate_pagination(&mut buckets, req);
-            return Ok((buckets, total_matched));
-        }
-        Mode::Roots => per_root_rows(&scan, &rows, &pass, req, is_cancelled)?,
-        Mode::Groups => pass.groups.finish(&plan),
+    let pass = aggregate_scan::run(&scan, &rows, mode, is_cancelled, false)?;
+    // Point reads of the row's properties pay toward their columns.
+    if let (Some(served), Mode::Groups) = (&served, mode) {
+        served.pay(&snap, lmpg.tenant, pass.total, || {
+            crate::walk_total(lmpg, &snap, &req.labels)
+        })?;
+    }
+    if mode == Mode::Count {
+        let mut buckets = count_only_bucket(pass.total);
+        apply_aggregate_pagination(&mut buckets, req);
+        return Ok((buckets, pass.total));
+    }
+    let finish = |pass: aggregate_scan::Pass| -> Result<_, QueryError> {
+        let buckets = match mode {
+            Mode::Roots => per_root_rows(&scan, &rows, &pass, req, is_cancelled)?,
+            _ => pass.groups.finish(&plan),
+        };
+        let retained_bytes = buckets.iter().fold(pass.candidate_bytes, |sum, b| {
+            sum.saturating_add(aggregate_budget::bucket_bytes(b))
+        });
+        Budget::WorkingSet
+            .check(budget, retained_bytes)
+            .map(|()| (buckets, pass.total, pass.candidate_bytes, retained_bytes))
     };
-    let retained_bytes = buckets.iter().fold(candidate_bytes, |sum, b| {
-        sum.saturating_add(aggregate_budget::bucket_bytes(b))
-    });
-    Budget::WorkingSet.check(budget, retained_bytes)?;
+    // Columns never refuse what storage answers: a pass that read columns
+    // and does not fit with its groups is run again as storage runs it.
+    let used_columns = pass.used_columns;
+    let (mut buckets, total_matched, candidate_bytes, retained_bytes) = match finish(pass) {
+        Err(QueryError::ResourceLimit(_)) if used_columns => {
+            finish(aggregate_scan::run(&scan, &rows, mode, is_cancelled, true)?)?
+        }
+        other => other?,
+    };
 
     // Derived outputs ($ref chains): source sums materialize first, then
     // refs resolve in declaration order; cycles surface as unresolved refs.
@@ -307,6 +333,7 @@ fn per_root_rows(
     let mut session = reconstruct::ReconstructSession::new(snap, tenant);
     let mut partial = Partial::default();
     let mut row = Vec::new();
+    let mut cursor = Vec::new();
     let mut retained = pass
         .candidate_bytes
         .saturating_add(pass.roots.len().saturating_mul(8));
@@ -314,7 +341,14 @@ fn per_root_rows(
         if is_cancelled() {
             return Err(QueryError::Cancelled);
         }
-        if !rows.read(scan.plan, snap, tenant, &mut session, ord, &mut row)? {
+        if !rows.read(
+            scan.plan,
+            snap,
+            tenant,
+            &mut session,
+            ord,
+            (&mut cursor, &mut row),
+        )? {
             continue;
         }
         let held = retained.saturating_add(row_bytes(&row));

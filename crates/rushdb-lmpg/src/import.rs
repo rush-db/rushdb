@@ -953,9 +953,15 @@ pub fn find_by_keys_any_label(
     let mut index = MergeIndex::new(lmpg);
     let mut found = Vec::new();
     for label in labels {
-        if let Some(record) =
-            find_record_by_keys(lmpg, &snap, &mut index, &label, (&keys, None), properties)?
-        {
+        if let Some(record) = find_record_by_keys(
+            lmpg,
+            &snap,
+            &mut index,
+            &label,
+            (&keys, None),
+            properties,
+            &BTreeSet::new(),
+        )? {
             found.push((label, record));
         }
     }
@@ -970,20 +976,25 @@ fn merge_snapshot(lmpg: &Lmpg) -> Result<rushdb_storage::ReadView, LmpgError> {
 
 fn find_record_by_keys(
     lmpg: &Lmpg,
-    snap: &rushdb_storage::ReadView,
+    snap: &impl TryRead,
     index: &mut MergeIndex,
     label: &str,
     (keys, explicit_id): (&[String], Option<[u8; 16]>),
     props: &[(String, FieldChange)],
+    staged: &BTreeSet<u64>,
 ) -> Result<Option<RecordRef>, LmpgError> {
     if keys.iter().any(|key| normalize_name(key) == ID_KEY) {
         return find_record_by_id(lmpg, snap, label, (keys, explicit_id), props);
     }
-    let Some(candidates) = index_candidates(snap, index, lmpg.tenant, label, keys, props)? else {
+    let Some(mut candidates) = index_candidates(snap, index, lmpg.tenant, label, keys, props)?
+    else {
         return scan_record_by_keys(snap, lmpg.tenant, label, keys, props);
     };
-    // Only the merge keys are decoded of each candidate.
+    // Records staged in the same transaction are not in the derived rows yet.
+    candidates.extend(staged);
+    // Only the merge keys are read and decoded of each candidate.
     let selected = key_selection(keys);
+    let pids = index.key_pids(snap, lmpg.tenant, keys)?;
     let mut session = crate::reconstruct::ReconstructSession::new(snap, lmpg.tenant);
     for ord in candidates {
         let Some(hdr) = crate::reader::try_access::record_by_ord(snap, lmpg.tenant, ord)
@@ -997,7 +1008,7 @@ fn find_record_by_keys(
             continue;
         }
         let Some(rec) = session
-            .reconstruct_record_selected(ord, &selected)
+            .reconstruct_record_pids(ord, &pids, &selected)
             .map_err(|error| {
                 LmpgError::Conflict(format!("merge lookup reconstruction failed: {error}"))
             })?
@@ -1019,7 +1030,7 @@ fn find_record_by_keys(
 /// a draft without an `__id` cannot match.
 fn find_record_by_id(
     lmpg: &Lmpg,
-    snap: &rushdb_storage::ReadView,
+    snap: &impl TryRead,
     label: &str,
     (keys, explicit_id): (&[String], Option<[u8; 16]>),
     props: &[(String, FieldChange)],
@@ -1256,6 +1267,8 @@ struct MergeIndex {
     /// The working-set cap the walked values are charged against
     /// (`query-memory-max`, tightened by the request).
     memory_limit: Option<u64>,
+    /// Every property id each normalized key name can be stored under.
+    key_pids: HashMap<String, Vec<u64>>,
 }
 
 impl MergeIndex {
@@ -1265,7 +1278,58 @@ impl MergeIndex {
             ordered: HashMap::new(),
             walk_limit: lmpg.limits().unindexed_walk_max_owners(),
             memory_limit: lmpg.limits().query_memory_max_bytes(),
+            key_pids: HashMap::new(),
         }
+    }
+
+    /// The property ids `keys` can be stored under, ascending: point reads
+    /// of each key's family and of its definition per type, so a tracked
+    /// read depends on those rows only.
+    fn key_pids(
+        &mut self,
+        snap: &impl TryRead,
+        tenant: TenantId,
+        keys: &[String],
+    ) -> Result<Vec<u64>, LmpgError> {
+        let mut pids = Vec::new();
+        for key in keys {
+            let norm = normalize_name(key);
+            if !self.key_pids.contains_key(&norm) {
+                let mut found = Vec::new();
+                if let Some(fid) = family_id(snap, tenant, &norm)? {
+                    let states = std::iter::once(TypeState::Unresolved).chain(
+                        [
+                            LogicalType::Boolean,
+                            LogicalType::Int64,
+                            LogicalType::Float64,
+                            LogicalType::Utf8,
+                            LogicalType::DateTime,
+                        ]
+                        .map(TypeState::Known),
+                    );
+                    for state in states {
+                        let raw =
+                            snap.get(&kx::definition_key(tenant, fid, state))
+                                .map_err(|error| {
+                                    LmpgError::Conflict(format!(
+                                        "merge definition lookup failed: {error}"
+                                    ))
+                                })?;
+                        if let Some(raw) = raw {
+                            let bytes: [u8; 8] = raw.as_slice().try_into().map_err(|_| {
+                                LmpgError::Conflict("merge definition row has invalid width".into())
+                            })?;
+                            found.push(u64::from_be_bytes(bytes));
+                        }
+                    }
+                }
+                self.key_pids.insert(norm.clone(), found);
+            }
+            pids.extend(self.key_pids[&norm].iter().copied());
+        }
+        pids.sort_unstable();
+        pids.dedup();
+        Ok(pids)
     }
 
     /// The Ready ordered index on `(label, norm)` at this snapshot, if any.
@@ -1529,7 +1593,7 @@ pub fn import_bfs_with_cancel(
     if options.merge_by.is_none() && options.merge_strategy.is_none() {
         return import_bfs_batch_create(lmpg, plan, is_cancelled);
     }
-    import_bfs_merge(lmpg, plan, options, is_cancelled)
+    import_bfs_merge(lmpg, &plan, options, is_cancelled)
 }
 
 /// BFS import without merge semantics: all record creates are staged into one
@@ -1577,45 +1641,154 @@ fn import_bfs_batch_create(
     Ok(idmap)
 }
 
-/// Records staged into one atomic merge commit. Merge keys must be unique
-/// within a chunk so each record resolves against committed state alone; a
-/// chunk containing duplicate keys falls back to per-record commits.
+/// Records whose merge lookups resolve against one view of the transaction.
+/// Merge keys must be unique within a chunk so each record resolves against
+/// the state before the chunk; a chunk containing duplicate keys resolves
+/// one record at a time, so a later row upserts the row an earlier one
+/// staged.
 const MERGE_BATCH: usize = 1024;
 
-/// Merge/upsert path (mergeBy / mergeStrategy). Records are matched through
-/// a per-chunk [`MergeIndex`] (`find_record_by_keys`) and written in
-/// bounded atomic batches instead of one commit per record: on a large store a
-/// per-record commit costs ~25ms, so a 192-row upsert spent ~5s in pure commit
-/// overhead. Records sharing a merge key inside one chunk still resolve
-/// sequentially, so a later row upserts the row an earlier one created. Plain
-/// CSV/JSON imports use the batched create path instead.
+/// Attempts of one merge call whose commit conflicts with a concurrent
+/// writer before the conflict is returned (`write_conflict`, retryable).
+const MERGE_ATTEMPTS: u32 = 6;
+
+/// Upper bound of the first re-run's wait; it doubles per re-run up to
+/// [`MERGE_BACKOFF_MAX`].
+const MERGE_BACKOFF_BASE: std::time::Duration = std::time::Duration::from_millis(5);
+const MERGE_BACKOFF_MAX: std::time::Duration = std::time::Duration::from_millis(250);
+
+/// A random wait before re-run `attempt` (2, 3, ...): full jitter over
+/// `0..min(MAX, BASE * 2^(attempt - 2))`, so writers that lost to each other
+/// spread out instead of colliding again.
+fn merge_backoff(attempt: u32) -> std::time::Duration {
+    use std::hash::BuildHasher;
+    let cap = MERGE_BACKOFF_BASE
+        .saturating_mul(1 << attempt.saturating_sub(2).min(16))
+        .min(MERGE_BACKOFF_MAX);
+    let cap_micros = u64::try_from(cap.as_micros()).unwrap_or(u64::MAX).max(1);
+    // A freshly seeded hasher is a random source without another dependency.
+    let random = std::collections::hash_map::RandomState::new().hash_one(attempt);
+    std::time::Duration::from_micros(random % cap_micros)
+}
+
+/// Merge/upsert path (mergeBy / mergeStrategy). One call is one commit:
+/// every record and relationship is staged into one transaction
+/// ([`stage_bfs_merge`]) and committed atomically, so the call's writes are
+/// all visible or none are. The lookups are tracked reads, so a concurrent
+/// writer that changes what they saw (another merge creating the same key)
+/// conflicts at commit; the call then restages on a fresh snapshot, where it
+/// finds that writer's records and updates them instead of duplicating
+/// them, after a short random wait ([`merge_backoff`]).
 fn import_bfs_merge(
     lmpg: &Lmpg,
-    plan: BfsPlan,
+    plan: &BfsPlan,
     options: &ImportOptions,
     is_cancelled: &dyn Fn() -> bool,
 ) -> Result<Vec<UpsertIdMap>, LmpgError> {
     check_merge_keys(options)?;
-    let mut idmap: Vec<UpsertIdMap> = Vec::with_capacity(plan.records.len());
-    let mut records = plan.records.into_iter();
+    let mut attempt = 1;
     loop {
-        let chunk: Vec<BfsRecord> = records.by_ref().take(MERGE_BATCH).collect();
-        if chunk.is_empty() {
-            break;
-        }
+        let view = merge_snapshot(lmpg)?;
+        let mut acc = rushdb_storage::TxAccumulator::new(lmpg.tenant, view.commit_index());
+        acc.base_view = Some(std::sync::Arc::new(view));
+        let idmap = stage_bfs_merge(
+            lmpg,
+            plan,
+            options,
+            is_cancelled,
+            &mut acc,
+            &mut |batch, acc| lmpg.stage_batch_tx(batch, acc),
+        )?;
         if is_cancelled() {
             return Err(LmpgError::Conflict("import cancelled".into()));
         }
-        if chunk_has_duplicate_keys(&chunk, options) {
-            import_chunk_sequential(lmpg, chunk, options, &mut idmap)?;
+        if acc.mutations.is_empty() {
+            return Ok(idmap);
+        }
+        match lmpg.store.tx_commit(uuid::Uuid::now_v7(), &acc) {
+            Ok(_) => return Ok(idmap),
+            Err(error) if is_commit_conflict(&error) => {
+                if attempt == MERGE_ATTEMPTS {
+                    return Err(LmpgError::WriteConflict(format!(
+                        "transaction_conflict: the merge conflicted with concurrent writes {MERGE_ATTEMPTS} times ({error})"
+                    )));
+                }
+                attempt += 1;
+                std::thread::sleep(merge_backoff(attempt));
+            }
+            Err(error) => return Err(LmpgError::Conflict(error.to_string())),
+        }
+    }
+}
+
+/// A commit refused because a concurrent writer changed what it read.
+fn is_commit_conflict(error: &rushdb_storage::StorageError) -> bool {
+    match error {
+        rushdb_storage::StorageError::Builder(reason) => reason.starts_with("transaction_conflict"),
+        rushdb_storage::StorageError::ConflictHistoryUnavailable { .. } => true,
+        _ => false,
+    }
+}
+
+/// Stages one batch of a merge into a transaction and returns the records
+/// and relationships it creates, in op order ([`Lmpg::stage_batch_tx`], or a
+/// caller that charges each op to its own limits first).
+pub type StageBatch<'a> = dyn FnMut(
+        crate::BatchTx,
+        &mut rushdb_storage::TxAccumulator,
+    ) -> Result<(Vec<RecordRef>, Vec<crate::RelationshipRef>), LmpgError>
+    + 'a;
+
+/// Stage a merge plan into the transaction `acc` (read-your-writes: records
+/// the transaction staged earlier are matched and linked like committed
+/// ones), one batch at a time through `stage`. Nothing is committed. Returns
+/// each draft's persisted id.
+///
+/// # Errors
+/// Returns [`LmpgError`] when a merge key is invalid, a lookup cannot read
+/// the store, a label is denied, planning fails, `stage` refuses a batch, or
+/// `is_cancelled` turns true.
+pub fn stage_bfs_merge(
+    lmpg: &Lmpg,
+    plan: &BfsPlan,
+    options: &ImportOptions,
+    is_cancelled: &dyn Fn() -> bool,
+    acc: &mut rushdb_storage::TxAccumulator,
+    stage: &mut StageBatch<'_>,
+) -> Result<Vec<UpsertIdMap>, LmpgError> {
+    check_merge_keys(options)?;
+    let mut idmap: Vec<UpsertIdMap> = Vec::with_capacity(plan.records.len());
+    let mut staged = read_in_merge(lmpg, acc, |txn| {
+        StagedKeys::of_transaction(txn, lmpg.tenant)
+    })?;
+    for chunk in plan.records.chunks(MERGE_BATCH) {
+        if is_cancelled() {
+            return Err(LmpgError::Conflict("import cancelled".into()));
+        }
+        if chunk_has_duplicate_keys(chunk, options) {
+            for record in chunk {
+                stage_merge_chunk(
+                    lmpg,
+                    std::slice::from_ref(record),
+                    options,
+                    (acc, &mut *stage, &mut staged),
+                    &mut idmap,
+                )?;
+            }
         } else {
-            import_chunk_batched(lmpg, chunk, options, &mut idmap)?;
+            stage_merge_chunk(
+                lmpg,
+                chunk,
+                options,
+                (acc, &mut *stage, &mut staged),
+                &mut idmap,
+            )?;
         }
     }
     if is_cancelled() {
         return Err(LmpgError::Conflict("import cancelled".into()));
     }
-    import_relations_batched(lmpg, &plan.relations, &idmap)?;
+    stage_merge_relations(lmpg, &plan.relations, &idmap, (acc, stage))?;
     Ok(idmap)
 }
 
@@ -1670,7 +1843,7 @@ fn chunk_has_duplicate_keys(chunk: &[BfsRecord], options: &ImportOptions) -> boo
         if keys.is_empty() {
             continue;
         }
-        let signature = (
+        let signature: MergeSignature = (
             rec.label.clone(),
             keys.iter()
                 .map(|k| {
@@ -1690,6 +1863,11 @@ fn chunk_has_duplicate_keys(chunk: &[BfsRecord], options: &ImportOptions) -> boo
                 })
                 .collect(),
         );
+        // A row missing a key value can match nothing (lookups need every
+        // key), so it never depends on another row of the chunk.
+        if signature.1.iter().any(|(_, value)| value.is_none()) {
+            continue;
+        }
         if !seen.insert(signature) {
             return true;
         }
@@ -1737,157 +1915,329 @@ fn canonical_key_repr(value: &Json) -> String {
     }
 }
 
-/// Batched merge for a chunk with pairwise-unique merge keys: matched records
-/// become `UpdateFields`, the rest `CreateRecord`, all in one atomic commit.
-fn import_chunk_batched(
+/// Records the transaction staged, by `(label, normalized property, value
+/// fingerprint)`. Merge lookups find candidates through derived rows (value
+/// dictionaries, index entries) that exist only once a commit publishes, so
+/// a record staged earlier in the transaction is found here instead. Values
+/// that can match share a fingerprint; every candidate is still checked
+/// exactly against the incoming keys.
+#[derive(Default)]
+struct StagedKeys {
+    owners: HashMap<(String, String, String), BTreeSet<u64>>,
+}
+
+impl StagedKeys {
+    /// Every record the transaction wrote before this call, with all its
+    /// scalar properties as they read now.
+    fn of_transaction(txn: &rushdb_storage::Txn<'_>, tenant: TenantId) -> Result<Self, LmpgError> {
+        let prefix = rushdb_types::keys::occ_kind_prefix(tenant, OwnerKind::Record);
+        let ords: BTreeSet<u64> = txn
+            .staged_keys_prefix(&prefix)
+            .filter_map(|key| rushdb_types::keys::parse_occ_key(key).map(|(_, _, ord, _, _)| ord))
+            .collect();
+        let mut staged = Self::default();
+        let failed = |error: &dyn std::fmt::Display| {
+            LmpgError::Conflict(format!("merge lookup of staged records failed: {error}"))
+        };
+        for ord in ords {
+            let Some(hdr) = crate::reader::try_access::record_by_ord(txn, tenant, ord)
+                .map_err(|error| failed(&error))?
+            else {
+                continue;
+            };
+            let Some(Json::Object(record)) =
+                crate::reconstruct::reconstruct_record(txn, tenant, ord)
+                    .map_err(|error| failed(&error))?
+            else {
+                continue;
+            };
+            for (name, value) in &record {
+                if !rushdb_types::value::is_reserved_name(name) {
+                    staged.add(&hdr.label, &normalize_name(name), value, ord);
+                }
+            }
+        }
+        Ok(staged)
+    }
+
+    fn add(&mut self, label: &str, norm: &str, value: &Json, ord: u64) {
+        if let Some(fingerprint) = staged_fingerprint(value) {
+            self.owners
+                .entry((label.to_owned(), norm.to_owned(), fingerprint))
+                .or_default()
+                .insert(ord);
+        }
+    }
+
+    /// Note the merge keys of `rec`, staged as record `ord`.
+    fn note(&mut self, rec: &BfsRecord, keys: &[String], ord: u64) {
+        for key in keys {
+            let norm = normalize_name(key);
+            if let Some((_, change)) = rec
+                .properties
+                .iter()
+                .find(|(pk, _)| normalize_name(pk) == norm)
+            {
+                self.add(&rec.label, &norm, &change_value(change), ord);
+            }
+        }
+    }
+
+    /// Staged records whose scalar keys could equal the incoming ones, like
+    /// [`index_candidates`] over committed records.
+    fn candidates(
+        &self,
+        label: &str,
+        keys: &[String],
+        props: &[(String, FieldChange)],
+    ) -> BTreeSet<u64> {
+        if self.owners.is_empty() {
+            return BTreeSet::new();
+        }
+        let mut acc: Option<BTreeSet<u64>> = None;
+        for key in keys {
+            let norm = normalize_name(key);
+            if norm.is_empty() || rushdb_types::value::is_reserved_name(&norm) {
+                continue;
+            }
+            let Some((_, change)) = props.iter().find(|(pk, _)| normalize_name(pk) == norm) else {
+                return BTreeSet::new();
+            };
+            let Some(fingerprint) = staged_fingerprint(&change_value(change)) else {
+                continue;
+            };
+            let owners = self
+                .owners
+                .get(&(label.to_owned(), norm, fingerprint))
+                .cloned()
+                .unwrap_or_default();
+            acc = Some(match acc {
+                None => owners,
+                Some(prev) => prev.intersection(&owners).copied().collect(),
+            });
+        }
+        acc.unwrap_or_default()
+    }
+}
+
+/// A key for values a merge key can match: numbers by their exact integer
+/// or float form, date strings by their epoch milliseconds (a date is stored
+/// as a datetime, and an integer probes datetimes), other strings and
+/// booleans as themselves. Arrays, objects and null are not looked up by
+/// value (`None`).
+fn staged_fingerprint(value: &Json) -> Option<String> {
+    infer_scalar(value)?;
+    Some(match value {
+        Json::String(s) => match rushdb_types::datetime::parse_datetime(s) {
+            Some(ms) => format!("i:{ms}"),
+            None => format!("s:{s}"),
+        },
+        Json::Number(_) => canonical_key_repr(value),
+        other => other.to_string(),
+    })
+}
+
+/// Run `read` as a tracked read of the transaction `acc`, keeping its error.
+fn read_in_merge<P>(
     lmpg: &Lmpg,
-    chunk: Vec<BfsRecord>,
+    acc: &mut rushdb_storage::TxAccumulator,
+    read: impl FnOnce(&rushdb_storage::Txn<'_>) -> Result<P, LmpgError>,
+) -> Result<P, LmpgError> {
+    let mut failure = None;
+    let result = lmpg.store.tx_read(acc, |txn| {
+        read(txn).map_err(|error| {
+            let reason = error.to_reason();
+            failure = Some(error);
+            reason
+        })
+    });
+    match (result, failure) {
+        (Ok(value), _) => Ok(value),
+        (Err(_), Some(error)) => Err(error),
+        (Err(error), None) => Err(LmpgError::Conflict(error.to_string())),
+    }
+}
+
+/// Stage one chunk with pairwise-unique merge keys: every record resolves
+/// against the transaction as it was before the chunk (one merge index
+/// serves it); matched records become `UpdateFields`, the rest
+/// `CreateRecord`.
+fn stage_merge_chunk(
+    lmpg: &Lmpg,
+    chunk: &[BfsRecord],
     options: &ImportOptions,
+    (acc, stage, staged): (
+        &mut rushdb_storage::TxAccumulator,
+        &mut StageBatch<'_>,
+        &mut StagedKeys,
+    ),
     idmap: &mut Vec<UpsertIdMap>,
 ) -> Result<(), LmpgError> {
     let rewrite = options.merge_strategy.as_deref() == Some("rewrite");
+    // Per draft: the matched record, its fields to delete (`rewrite`: every
+    // current property) and its merge keys that already hold the incoming
+    // value.
+    let matched = read_in_merge(lmpg, acc, |txn| {
+        let mut index = MergeIndex::new(lmpg);
+        let mut matched = Vec::with_capacity(chunk.len());
+        for rec in chunk {
+            let keys = merge_keys(rec, options);
+            let existing = if keys.is_empty() {
+                None
+            } else {
+                find_record_by_keys(
+                    lmpg,
+                    txn,
+                    &mut index,
+                    &rec.label,
+                    (&keys, rec.explicit_id),
+                    &rec.properties,
+                    &staged.candidates(&rec.label, &keys, &rec.properties),
+                )?
+            };
+            let matched_record = match existing {
+                Some(rr) => {
+                    let deletes = if rewrite {
+                        existing_field_deletes(txn, lmpg.tenant, rr)?
+                    } else {
+                        Vec::new()
+                    };
+                    let unchanged =
+                        unchanged_keys(txn, &mut index, lmpg.tenant, rr, &keys, &rec.properties)?;
+                    Some((rr, deletes, unchanged))
+                }
+                None => None,
+            };
+            matched.push(matched_record);
+        }
+        Ok(matched)
+    })?;
     let mut batch = lmpg.begin_batch();
     // Per draft: the matched id, or `None` when the batch creates it (created
     // ids come back in op order).
-    let mut resolved: Vec<([u8; 16], Option<[u8; 16]>)> = Vec::with_capacity(chunk.len());
-    // Every record resolves against the same committed snapshot (keys are
-    // pairwise unique within the chunk), so one merge index serves it.
-    let snap = merge_snapshot(lmpg)?;
-    let mut index = MergeIndex::new(lmpg);
-    for rec in chunk {
-        let keys = merge_keys(&rec, options);
-        let existing = if keys.is_empty() {
-            None
-        } else {
-            find_record_by_keys(
-                lmpg,
-                &snap,
-                &mut index,
-                &rec.label,
-                (&keys, rec.explicit_id),
-                &rec.properties,
-            )?
-        };
-        if let Some(rr) = existing {
+    let mut resolved: Vec<([u8; 16], Option<RecordRef>)> = Vec::with_capacity(chunk.len());
+    for (rec, existing) in chunk.iter().zip(matched) {
+        if let Some((rr, deletes, unchanged)) = existing {
             // The batch `UpdateFields` arm does not gate on label policy, so
             // mirror the per-record path's default-deny check here.
             lmpg.authorize_label(&rec.label)
                 .map_err(LmpgError::Conflict)?;
-            let fields = if rewrite {
-                let mut fields = existing_field_deletes(lmpg, rr)?;
-                fields.extend(rec.properties);
-                fields
-            } else {
-                rec.properties
-            };
-            batch.ops.push(crate::BatchOp::UpdateFields {
-                owner: OwnerKind::Record,
-                owner_ord: rr.ordinal,
-                owner_public_id: rr.record_id,
-                fields,
-            });
-            resolved.push((rec.draft_id, Some(rr.record_id)));
+            // A merge key that already holds the incoming value is not
+            // written again: the record ends the same, and a concurrent merge
+            // that only matched on it does not conflict with this one.
+            let fields: Vec<(String, FieldChange)> = deletes
+                .into_iter()
+                .chain(rec.properties.iter().cloned())
+                .filter(|(name, _)| !unchanged.contains(&normalize_name(name)))
+                .collect();
+            if !fields.is_empty() {
+                batch.ops.push(crate::BatchOp::UpdateFields {
+                    owner: OwnerKind::Record,
+                    owner_ord: rr.ordinal,
+                    owner_public_id: rr.record_id,
+                    fields,
+                });
+            }
+            resolved.push((rec.draft_id, Some(rr)));
         } else {
             batch.ops.push(crate::BatchOp::CreateRecord {
-                label: rec.label,
+                label: rec.label.clone(),
                 explicit_id: rec.explicit_id,
-                fields: rec.properties,
+                fields: rec.properties.clone(),
             });
             resolved.push((rec.draft_id, None));
         }
     }
-    let committed = lmpg.run_batch(batch)?;
-    let mut created = committed.created_records.into_iter();
-    for (draft_id, slot) in resolved {
-        let persisted_id = match slot {
-            Some(id) => id,
-            None => {
-                created
-                    .next()
-                    .ok_or_else(|| {
-                        LmpgError::Conflict("merge batch created fewer records than staged".into())
-                    })?
-                    .record_id
-            }
+    let (created, _) = stage(batch, acc)?;
+    let mut created = created.into_iter();
+    for (rec, (draft_id, slot)) in chunk.iter().zip(resolved) {
+        let rr = match slot {
+            Some(rr) => rr,
+            None => created.next().ok_or_else(|| {
+                LmpgError::Conflict("merge batch created fewer records than staged".into())
+            })?,
         };
+        staged.note(rec, &merge_keys(rec, options), rr.ordinal);
         idmap.push(UpsertIdMap {
             draft_id,
-            persisted_id,
+            persisted_id: rr.record_id,
         });
     }
     Ok(())
 }
 
-/// Per-record merge fallback for chunks that contain duplicate merge keys.
-fn import_chunk_sequential(
-    lmpg: &Lmpg,
-    chunk: Vec<BfsRecord>,
-    options: &ImportOptions,
-    idmap: &mut Vec<UpsertIdMap>,
-) -> Result<(), LmpgError> {
-    let rewrite = options.merge_strategy.as_deref() == Some("rewrite");
-    for rec in chunk {
-        let keys = merge_keys(&rec, options);
-        // Each record sees its predecessors' commits: a fresh snapshot and
-        // merge index per record.
-        let existing = if keys.is_empty() {
-            None
-        } else {
-            find_record_by_keys(
-                lmpg,
-                &merge_snapshot(lmpg)?,
-                &mut MergeIndex::new(lmpg),
-                &rec.label,
-                (&keys, rec.explicit_id),
-                &rec.properties,
-            )?
-        };
-        let persisted_id = if let Some(rr) = existing {
-            if rewrite {
-                lmpg.update_fields(rr, existing_field_deletes(lmpg, rr)?)?;
-            }
-            lmpg.update_fields(rr, rec.properties)?;
-            rr.record_id
-        } else {
-            lmpg.create_record(&rec.label, rec.explicit_id, rec.properties)?
-                .record_id
-        };
-        idmap.push(UpsertIdMap {
-            draft_id: rec.draft_id,
-            persisted_id,
-        });
+/// The merge keys of `rr` (normalized) whose stored value is exactly the
+/// incoming one, so writing them again would change nothing. Exact JSON
+/// equality, not merge matching: a key matched across representations
+/// (`43` against a stored `43.0`) is still written, as before.
+fn unchanged_keys(
+    snap: &impl TryRead,
+    index: &mut MergeIndex,
+    tenant: TenantId,
+    rr: RecordRef,
+    keys: &[String],
+    props: &[(String, FieldChange)],
+) -> Result<BTreeSet<String>, LmpgError> {
+    let wanted: Vec<String> = keys
+        .iter()
+        .map(|key| normalize_name(key))
+        .filter(|norm| !norm.is_empty() && !rushdb_types::value::is_reserved_name(norm))
+        .collect();
+    if wanted.is_empty() {
+        return Ok(BTreeSet::new());
     }
-    Ok(())
+    let pids = index.key_pids(snap, tenant, &wanted)?;
+    let rec = crate::reconstruct::ReconstructSession::new(snap, tenant)
+        .reconstruct_record_pids(rr.ordinal, &pids, &key_selection(&wanted))
+        .map_err(|error| {
+            LmpgError::Conflict(format!("merge lookup reconstruction failed: {error}"))
+        })?;
+    let Some(Json::Object(stored)) = rec else {
+        return Ok(BTreeSet::new());
+    };
+    Ok(wanted
+        .into_iter()
+        .filter(|norm| {
+            let incoming = props.iter().find_map(|(name, change)| match change {
+                FieldChange::Set(value) if normalize_name(name) == *norm => Some(value),
+                _ => None,
+            });
+            let held = stored.get(norm).or_else(|| {
+                stored
+                    .iter()
+                    .find(|(name, _)| normalize_name(name) == *norm)
+                    .map(|(_, value)| value)
+            });
+            incoming.is_some() && incoming == held
+        })
+        .collect())
 }
 
 /// Deletions for every live property of an existing record (`rewrite` merge).
 fn existing_field_deletes(
-    lmpg: &Lmpg,
+    snap: &impl TryRead,
+    tenant: TenantId,
     rr: RecordRef,
 ) -> Result<Vec<(String, FieldChange)>, LmpgError> {
-    let snap = lmpg
-        .store
-        .read_view()
-        .map_err(|e| LmpgError::Conflict(e.to_string()))?;
-    let fields: Vec<String> =
-        crate::reconstruct::reconstruct_record(&snap, lmpg.tenant, rr.ordinal)
-            .map_err(|e| LmpgError::Conflict(e.to_string()))?
-            .and_then(|r| r.as_object().cloned())
-            .map(|o| {
-                o.keys()
-                    .filter(|k| !rushdb_types::value::is_reserved_name(k))
-                    .cloned()
-                    .collect()
-            })
-            .unwrap_or_default();
+    let fields: Vec<String> = crate::reconstruct::reconstruct_record(snap, tenant, rr.ordinal)
+        .map_err(|e| LmpgError::Conflict(e.to_string()))?
+        .and_then(|r| r.as_object().cloned())
+        .map(|o| {
+            o.keys()
+                .filter(|k| !rushdb_types::value::is_reserved_name(k))
+                .cloned()
+                .collect()
+        })
+        .unwrap_or_default();
     Ok(fields
         .into_iter()
         .map(|k| (k, FieldChange::Delete))
         .collect())
 }
 
-/// All relationship creates for a merge plan in one atomic commit. Runs after
-/// every record chunk is committed, so endpoints resolve from persisted state.
+/// All relationship creates of a plain-create import in one atomic commit.
+/// Runs after the records are committed, so endpoints resolve from persisted
+/// state.
 fn import_relations_batched(
     lmpg: &Lmpg,
     relations: &[BfsRelation],
@@ -1957,6 +2307,81 @@ fn import_relations_batched(
     }
     if !batch.ops.is_empty() {
         lmpg.run_batch(batch)?;
+    }
+    Ok(())
+}
+
+/// Stage every relationship create of a merge plan. Runs after every record
+/// is staged, so endpoints resolve from the transaction's state; pairs
+/// already linked (committed or staged) are skipped.
+fn stage_merge_relations(
+    lmpg: &Lmpg,
+    relations: &[BfsRelation],
+    idmap: &[UpsertIdMap],
+    (acc, stage): (&mut rushdb_storage::TxAccumulator, &mut StageBatch<'_>),
+) -> Result<(), LmpgError> {
+    if relations.is_empty() {
+        return Ok(());
+    }
+    let by_draft: std::collections::HashMap<[u8; 16], [u8; 16]> =
+        idmap.iter().map(|m| (m.draft_id, m.persisted_id)).collect();
+    let ops = read_in_merge(lmpg, acc, |txn| {
+        let mut ops = Vec::new();
+        // One stage cannot see edges it stages earlier in the same batch, so
+        // dedupe pairs here.
+        let mut seen: BTreeSet<(u64, String, u64)> = BTreeSet::new();
+        for rel in relations {
+            let source = by_draft.get(&rel.source).copied().unwrap_or(rel.source);
+            let target = by_draft.get(&rel.target).copied().unwrap_or(rel.target);
+            let Some(src) = crate::reader::try_access::record_by_id(
+                txn,
+                lmpg.tenant,
+                &rushdb_types::ids::RecordId(source),
+            )
+            .map_err(|e| LmpgError::Conflict(e.to_string()))?
+            else {
+                continue;
+            };
+            let Some(tgt) = crate::reader::try_access::record_by_id(
+                txn,
+                lmpg.tenant,
+                &rushdb_types::ids::RecordId(target),
+            )
+            .map_err(|e| LmpgError::Conflict(e.to_string()))?
+            else {
+                continue;
+            };
+            if !seen.insert((src.ordinal, rel.rel_type.clone(), tgt.ordinal)) {
+                continue;
+            }
+            let already_linked = crate::reader::try_access::edge_exists(
+                txn,
+                lmpg.tenant,
+                src.ordinal,
+                &rel.rel_type,
+                tgt.ordinal,
+            )
+            .map_err(|e| LmpgError::Conflict(e.to_string()))?;
+            if already_linked {
+                continue;
+            }
+            ops.push(crate::BatchOp::CreateRelationship {
+                rel_type: rel.rel_type.clone(),
+                source: RecordRef {
+                    record_id: source,
+                    ordinal: src.ordinal,
+                },
+                target: RecordRef {
+                    record_id: target,
+                    ordinal: tgt.ordinal,
+                },
+                fields: vec![],
+            });
+        }
+        Ok(ops)
+    })?;
+    if !ops.is_empty() {
+        stage(crate::BatchTx { ops }, acc)?;
     }
     Ok(())
 }
