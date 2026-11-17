@@ -4,6 +4,17 @@ This project follows [Semantic Versioning](https://semver.org/). Release notes
 describe observable engine and protocol changes; migration instructions belong
 in [`docs/manual/operations/upgrading-from-2x.md`](docs/manual/operations/upgrading-from-2x.md).
 
+## Unreleased
+
+### Changed
+
+- **Faster unfiltered ANN vector search.** The label-membership check of an
+  unfiltered `query.vector` (and the vector leg of `query.hybrid`) now runs
+  on the reranked hits in rank order until `limit + offset` pass, instead
+  of on every gathered candidate, and a hit's record is read once. Responses
+  are byte-identical. 100,000 × 1,536-d cosine vectors, top 10: server time
+  1.54 → 1.37 ms at `ef` 128 and 0.93 → 0.86 ms at `ef` 64.
+
 ## 3.0.12 — 2026-11-17
 
 ### Fixed
