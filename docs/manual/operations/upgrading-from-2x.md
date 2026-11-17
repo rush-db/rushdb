@@ -86,7 +86,10 @@ Treat the move as an application migration, in three tracks:
   [Backup and restore](backup-and-restore.md#graph-snapshot-export-and-restore).
 - **Configuration.** `config.yml` carries a schema `version`; a mismatch is
   refused with `config version mismatch`. New settings that are absent from
-  an existing file take their defaults.
+  an existing file take their defaults. A setting a later release removed is
+  ignored with a warning (``ignoring setting `KEY`: it was removed in
+  VERSION``), in the file and as a flag or variable; delete it when
+  convenient. Any other unknown key is refused.
 - **Release notes.** Read the changelog for each release you skip.
 
 ## See also

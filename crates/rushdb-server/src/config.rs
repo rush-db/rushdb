@@ -34,6 +34,54 @@ pub const CONFIG_VERSION: u32 = 1;
 /// File name of the configuration record inside a data directory.
 pub const CONFIG_FILE_NAME: &str = "config.yml";
 
+/// Settings a 3.x release removed, as `(section, key, release)`. Every
+/// `config.yml` lists the whole `resources` section, so a data directory
+/// created by an earlier 3.x keeps these keys: loading skips them with a
+/// warning instead of refusing to start. `rushdb serve` accepts the matching
+/// flags and environment variables the same way.
+pub const REMOVED_KEYS: &[(&str, &str, &str)] = &[
+    ("resources", "planner-stats-idle-seconds", "3.0.11"),
+    ("resources", "planner-stats-max-age-commits", "3.0.11"),
+];
+
+/// Log, once per process and key, that a removed setting is ignored.
+///
+/// # Panics
+///
+/// Panics if `key` is not in [`REMOVED_KEYS`].
+pub fn warn_removed(key: &str) {
+    static WARNED: std::sync::Mutex<std::collections::BTreeSet<String>> =
+        std::sync::Mutex::new(std::collections::BTreeSet::new());
+    let (_, _, release) = REMOVED_KEYS
+        .iter()
+        .find(|(_, removed, _)| *removed == key)
+        .expect("a removed setting");
+    let first = WARNED
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .insert(key.to_string());
+    if first {
+        tracing::warn!("ignoring setting `{key}`: it was removed in {release}");
+    }
+}
+
+/// Remove the [`REMOVED_KEYS`] from a parsed `config.yml`, warning for each.
+/// Returns whether any was present.
+fn drop_removed_keys(file: &mut serde_yml::Value) -> bool {
+    let mut dropped = false;
+    for (section, key, _) in REMOVED_KEYS {
+        let removed = file
+            .get_mut(*section)
+            .and_then(serde_yml::Value::as_mapping_mut)
+            .and_then(|section| section.remove(key));
+        if removed.is_some() {
+            warn_removed(key);
+            dropped = true;
+        }
+    }
+    dropped
+}
+
 /// Versioned language enablement section rendered into `config.yml`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
@@ -245,9 +293,16 @@ impl ConfigFile {
             .map_err(|error| format!("read config `{}`: {error}", path.display()))?;
         let text = std::str::from_utf8(&bytes)
             .map_err(|error| format!("config `{}` is not UTF-8: {error}", path.display()))?;
-        serde_yml::from_str(text)
-            .map(Some)
-            .map_err(|error| format!("invalid config `{}`: {error}", path.display()))
+        let invalid =
+            |error: serde_yml::Error| format!("invalid config `{}`: {error}", path.display());
+        let mut file: serde_yml::Value = serde_yml::from_str(text).map_err(invalid)?;
+        // Parse the text itself when nothing was dropped: its errors carry
+        // line numbers.
+        if drop_removed_keys(&mut file) {
+            serde_yml::from_value(file).map(Some).map_err(invalid)
+        } else {
+            serde_yml::from_str(text).map(Some).map_err(invalid)
+        }
     }
 }
 

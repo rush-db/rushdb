@@ -1,0 +1,195 @@
+{
+ "alpha": {
+  "acmeEmployees": {
+   "kind": "records",
+   "records": [
+    {
+     "id": "01a1e9bc-51b3-70c0-b388-f369b20c51dc",
+     "label": "Employee",
+     "properties": {
+      "age": 36,
+      "companyKey": 1,
+      "name": "Ada"
+     },
+     "propertyTypes": {
+      "age": "number",
+      "companyKey": "number",
+      "name": "string"
+     }
+    },
+    {
+     "id": "01a1e9bc-51b3-70c0-b388-f37b2babfa0c",
+     "label": "Employee",
+     "properties": {
+      "age": 41,
+      "companyKey": 1,
+      "name": "Brian"
+     },
+     "propertyTypes": {
+      "age": "number",
+      "companyKey": "number",
+      "name": "string"
+     }
+    }
+   ],
+   "total": 2
+  },
+  "employees": {
+   "kind": "records",
+   "records": [
+    {
+     "id": "01a1e9bc-51b3-70c0-b388-f369b20c51dc",
+     "label": "Employee",
+     "properties": {
+      "age": 36,
+      "companyKey": 1,
+      "name": "Ada"
+     },
+     "propertyTypes": {
+      "age": "number",
+      "companyKey": "number",
+      "name": "string"
+     }
+    },
+    {
+     "id": "01a1e9bc-51b3-70c0-b388-f37b2babfa0c",
+     "label": "Employee",
+     "properties": {
+      "age": 41,
+      "companyKey": 1,
+      "name": "Brian"
+     },
+     "propertyTypes": {
+      "age": "number",
+      "companyKey": "number",
+      "name": "string"
+     }
+    },
+    {
+     "id": "01a1e9bc-51b4-7b23-b924-333adf642aa2",
+     "label": "Employee",
+     "properties": {
+      "age": 29,
+      "companyKey": 2,
+      "name": "Chen"
+     },
+     "propertyTypes": {
+      "age": "number",
+      "companyKey": "number",
+      "name": "string"
+     }
+    }
+   ],
+   "total": 3
+  },
+  "nearest": {
+   "kind": "records",
+   "records": [
+    {
+     "id": "01a1e9bc-51be-79d0-8772-85fa916c3eac",
+     "label": "Doc",
+     "properties": {
+      "body": "the quick brown fox",
+      "rank": 1
+     },
+     "propertyTypes": {
+      "body": "string",
+      "rank": "number"
+     },
+     "score": 1.0
+    },
+    {
+     "id": "01a1e9bc-51be-79d0-8772-861a4f2247f4",
+     "label": "Doc",
+     "properties": {
+      "body": "quick thinking wins",
+      "rank": 3
+     },
+     "propertyTypes": {
+      "body": "string",
+      "rank": "number"
+     },
+     "score": 0.983785092830658
+    }
+   ],
+   "total": 2,
+   "vectorSearch": {
+    "mode": "exact",
+    "pool": 3
+   }
+  },
+  "quick": {
+   "kind": "textHits",
+   "pending": 0,
+   "rows": [
+    {
+     "id": "01a1e9bc-51be-79d0-8772-861a4f2247f4",
+     "score": 0.5077717900276184
+    },
+    {
+     "id": "01a1e9bc-51be-79d0-8772-85fa916c3eac",
+     "score": 0.4531509280204773
+    }
+   ],
+   "total": 2
+  },
+  "worksAt": {
+   "kind": "relationships",
+   "relationships": [
+    {
+     "id": "01a1e9bc-51d1-7c62-a3f9-a25c909012eb",
+     "properties": {},
+     "propertyTypes": {},
+     "sourceId": "01a1e9bc-51b3-70c0-b388-f369b20c51dc",
+     "sourceLabel": "Employee",
+     "targetId": "01a1e9bc-51a0-7752-86cf-8782b3e365b5",
+     "targetLabel": "Company",
+     "type": "WORKS_AT"
+    },
+    {
+     "id": "01a1e9bc-51d1-7c62-a3f9-a26c00f3788d",
+     "properties": {},
+     "propertyTypes": {},
+     "sourceId": "01a1e9bc-51b3-70c0-b388-f37b2babfa0c",
+     "sourceLabel": "Employee",
+     "targetId": "01a1e9bc-51a0-7752-86cf-8782b3e365b5",
+     "targetLabel": "Company",
+     "type": "WORKS_AT"
+    },
+    {
+     "id": "01a1e9bc-51d1-7c62-a3f9-a27b40b7704a",
+     "properties": {},
+     "propertyTypes": {},
+     "sourceId": "01a1e9bc-51b4-7b23-b924-333adf642aa2",
+     "sourceLabel": "Employee",
+     "targetId": "01a1e9bc-51a0-7752-86cf-8795fe927c38",
+     "targetLabel": "Company",
+     "type": "WORKS_AT"
+    }
+   ],
+   "total": 3
+  }
+ },
+ "beta": {
+  "employees": {
+   "kind": "records",
+   "records": [
+    {
+     "id": "01a1e9bc-51e5-7ca1-80a3-d36edc7318e1",
+     "label": "Employee",
+     "properties": {
+      "age": 50,
+      "companyKey": 2,
+      "name": "Dana"
+     },
+     "propertyTypes": {
+      "age": "number",
+      "companyKey": "number",
+      "name": "string"
+     }
+    }
+   ],
+   "total": 1
+  }
+ }
+}

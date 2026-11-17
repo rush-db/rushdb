@@ -145,6 +145,12 @@ pub struct ServeArgs {
     resources: rushdb_server::resource_config::ResourceConfig,
     #[command(flatten)]
     transactions: rushdb_server::resource_config::TransactionConfig,
+    /// Removed in 3.0.11 (see `config::REMOVED_KEYS`); ignored with a warning.
+    #[arg(long, env = "RUSHDB_PLANNER_STATS_IDLE_SECONDS", hide = true)]
+    planner_stats_idle_seconds: Option<String>,
+    /// Removed in 3.0.11 (see `config::REMOVED_KEYS`); ignored with a warning.
+    #[arg(long, env = "RUSHDB_PLANNER_STATS_MAX_AGE_COMMITS", hide = true)]
+    planner_stats_max_age_commits: Option<String>,
 }
 
 #[expect(
@@ -174,6 +180,20 @@ pub fn run(args: ServeArgs, explicit_flags: std::collections::BTreeSet<String>) 
         tracing::warn!(
             "raft replication is EXPERIMENTAL: in-process only, volatile log/vote/snapshot, no linearizable reads"
         );
+    }
+    for (key, value) in [
+        (
+            "planner-stats-idle-seconds",
+            &args.planner_stats_idle_seconds,
+        ),
+        (
+            "planner-stats-max-age-commits",
+            &args.planner_stats_max_age_commits,
+        ),
+    ] {
+        if value.is_some() {
+            rushdb_server::config::warn_removed(key);
+        }
     }
     let languages = if args.languages.is_empty() {
         rushdb_protocol::LanguageSet::default()

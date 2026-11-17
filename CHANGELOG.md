@@ -4,6 +4,24 @@ This project follows [Semantic Versioning](https://semver.org/). Release notes
 describe observable engine and protocol changes; migration instructions belong
 in [`docs/manual/operations/upgrading-from-2x.md`](docs/manual/operations/upgrading-from-2x.md).
 
+## 3.0.12 — 2026-11-17
+
+### Fixed
+
+- **Existing data directories start again.** 3.0.11 refused to start on any
+  data directory created by 3.0.0–3.0.10 (`invalid config ... unknown field:
+  planner-stats-idle-seconds`): every `config.yml` lists the whole
+  `resources` section, including the two keys 3.0.11 removed. Removed keys
+  are now ignored with a warning naming the key and the release that removed
+  it (``ignoring setting `planner-stats-idle-seconds`: it was removed in
+  3.0.11``), in `config.yml` and as the flags `--planner-stats-idle-seconds`,
+  `--planner-stats-max-age-commits` and the variables
+  `RUSHDB_PLANNER_STATS_IDLE_SECONDS`, `RUSHDB_PLANNER_STATS_MAX_AGE_COMMITS`.
+  Any other unknown key is still refused. Data directories written by every
+  published 3.x release, in both tenancy modes, are now opened by the test
+  suite and by CI with the answers they gave recorded, so an upgrade that
+  breaks them fails before release.
+
 ## 3.0.11 — 2026-11-17
 
 ### Added

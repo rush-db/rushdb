@@ -317,3 +317,27 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
       - run: ./scripts/smoke-image.sh rushdb:ci
+
+  upgrade-matrix:
+    # A data directory written by any published 3.x release (its own
+    # config.yml, records, relationships, a vector and a text index, in both
+    # tenancy modes) must start on this build with deployment flags and answer
+    # as that release did; the newest release is also killed with SIGKILL
+    # before the upgrade. See scripts/upgrade-fixtures.py.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The release tags name the published images to upgrade from.
+          fetch-depth: 0
+      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # 1.98.1
+        with:
+          toolchain: 1.98.1
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+      - run: cargo build --release --locked -p rushdb-server --bin rushdb
+      - name: Upgrade the data directory of every published release
+        env:
+          # The runner's build tree can leave less than the production 10%
+          # free; this job checks upgrades, not the disk guard.
+          UPGRADE_FIXTURE_FLAGS: --disk-space-threshold-percent 0
+        run: ./scripts/upgrade-fixtures.py matrix ./target/release/rushdb

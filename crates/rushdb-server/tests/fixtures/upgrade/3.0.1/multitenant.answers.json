@@ -1,0 +1,192 @@
+{
+ "alpha": {
+  "acmeEmployees": {
+   "kind": "records",
+   "records": [
+    {
+     "id": "01a1e9bc-0372-7201-826a-27d1cee2a531",
+     "label": "Employee",
+     "properties": {
+      "age": 36,
+      "companyKey": 1,
+      "name": "Ada"
+     },
+     "propertyTypes": {
+      "age": "number",
+      "companyKey": "number",
+      "name": "string"
+     }
+    },
+    {
+     "id": "01a1e9bc-0372-7201-826a-27ea62e391b4",
+     "label": "Employee",
+     "properties": {
+      "age": 41,
+      "companyKey": 1,
+      "name": "Brian"
+     },
+     "propertyTypes": {
+      "age": "number",
+      "companyKey": "number",
+      "name": "string"
+     }
+    }
+   ],
+   "total": 2
+  },
+  "employees": {
+   "kind": "records",
+   "records": [
+    {
+     "id": "01a1e9bc-0372-7201-826a-27d1cee2a531",
+     "label": "Employee",
+     "properties": {
+      "age": 36,
+      "companyKey": 1,
+      "name": "Ada"
+     },
+     "propertyTypes": {
+      "age": "number",
+      "companyKey": "number",
+      "name": "string"
+     }
+    },
+    {
+     "id": "01a1e9bc-0372-7201-826a-27ea62e391b4",
+     "label": "Employee",
+     "properties": {
+      "age": 41,
+      "companyKey": 1,
+      "name": "Brian"
+     },
+     "propertyTypes": {
+      "age": "number",
+      "companyKey": "number",
+      "name": "string"
+     }
+    },
+    {
+     "id": "01a1e9bc-0372-7201-826a-27f6906350a2",
+     "label": "Employee",
+     "properties": {
+      "age": 29,
+      "companyKey": 2,
+      "name": "Chen"
+     },
+     "propertyTypes": {
+      "age": "number",
+      "companyKey": "number",
+      "name": "string"
+     }
+    }
+   ],
+   "total": 3
+  },
+  "nearest": {
+   "kind": "records",
+   "records": [
+    {
+     "id": "01a1e9bc-037c-7eb3-af43-664c7d760e39",
+     "label": "Doc",
+     "properties": {
+      "body": "the quick brown fox",
+      "rank": 1
+     },
+     "propertyTypes": {
+      "body": "string",
+      "rank": "number"
+     },
+     "score": 1.0
+    },
+    {
+     "id": "01a1e9bc-037c-7eb3-af43-6666a6215857",
+     "label": "Doc",
+     "properties": {
+      "body": "quick thinking wins",
+      "rank": 3
+     },
+     "propertyTypes": {
+      "body": "string",
+      "rank": "number"
+     },
+     "score": 0.983785092830658
+    }
+   ],
+   "total": 2,
+   "vectorSearch": {
+    "mode": "exact",
+    "pool": 3
+   }
+  },
+  "quick": {
+   "kind": "textHits",
+   "pending": 0,
+   "rows": [
+    {
+     "id": "01a1e9bc-037c-7eb3-af43-6666a6215857",
+     "score": 0.5077717900276184
+    },
+    {
+     "id": "01a1e9bc-037c-7eb3-af43-664c7d760e39",
+     "score": 0.4531509280204773
+    }
+   ],
+   "total": 2
+  },
+  "worksAt": {
+   "kind": "relationships",
+   "relationships": [
+    {
+     "id": "01a1e9bc-0390-70a0-baf3-e33106b6ee1c",
+     "properties": {},
+     "sourceId": "01a1e9bc-0372-7201-826a-27d1cee2a531",
+     "sourceLabel": "Employee",
+     "targetId": "01a1e9bc-035f-7b02-8c87-9a102570b324",
+     "targetLabel": "Company",
+     "type": "WORKS_AT"
+    },
+    {
+     "id": "01a1e9bc-0390-70a0-baf3-e3438abe5152",
+     "properties": {},
+     "sourceId": "01a1e9bc-0372-7201-826a-27ea62e391b4",
+     "sourceLabel": "Employee",
+     "targetId": "01a1e9bc-035f-7b02-8c87-9a102570b324",
+     "targetLabel": "Company",
+     "type": "WORKS_AT"
+    },
+    {
+     "id": "01a1e9bc-0390-70a0-baf3-e35e22ab8c9e",
+     "properties": {},
+     "sourceId": "01a1e9bc-0372-7201-826a-27f6906350a2",
+     "sourceLabel": "Employee",
+     "targetId": "01a1e9bc-035f-7b02-8c87-9a2eb0cc6283",
+     "targetLabel": "Company",
+     "type": "WORKS_AT"
+    }
+   ],
+   "total": 3
+  }
+ },
+ "beta": {
+  "employees": {
+   "kind": "records",
+   "records": [
+    {
+     "id": "01a1e9bc-03b5-7621-8045-fb55e5a06fc8",
+     "label": "Employee",
+     "properties": {
+      "age": 50,
+      "companyKey": 2,
+      "name": "Dana"
+     },
+     "propertyTypes": {
+      "age": "number",
+      "companyKey": "number",
+      "name": "string"
+     }
+    }
+   ],
+   "total": 1
+  }
+ }
+}

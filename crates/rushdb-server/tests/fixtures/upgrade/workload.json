@@ -1,0 +1,21 @@
+{
+  "writes": [
+    {"kind":"index","index":{"kind":"createVector","definition":{"name":"doc-embedding","label":"Doc","property":"embedding","dimensions":3,"similarity":"cosine","model":"fixture"}}},
+    {"kind":"index","index":{"kind":"create","definition":{"name":"docs","label":"Doc","property":"*","kind":"text","consistency":"immediate"}}},
+    {"kind":"ingest","ingest":{"kind":"documents","label":"Company","documents":[{"key":1,"name":"Acme"},{"key":2,"name":"Globex"}]}},
+    {"kind":"ingest","ingest":{"kind":"documents","label":"Employee","documents":[{"name":"Ada","companyKey":1,"age":36},{"name":"Brian","companyKey":1,"age":41},{"name":"Chen","companyKey":2,"age":29}]}},
+    {"kind":"ingest","ingest":{"kind":"documents","label":"Doc","documents":[
+      {"rank":1,"body":"the quick brown fox","$vectors":[{"propertyName":"embedding","vector":[0.1,0.9,0.0],"index":"doc-embedding"}]},
+      {"rank":2,"body":"a lazy dog sleeps","$vectors":[{"propertyName":"embedding","vector":[0.9,0.1,0.2],"index":"doc-embedding"}]},
+      {"rank":3,"body":"quick thinking wins","$vectors":[{"propertyName":"embedding","vector":[0.2,0.8,0.1],"index":"doc-embedding"}]}]}},
+    {"kind":"mutate","mutation":{"kind":"linkRecords","command":{"relationType":"WORKS_AT","source":{"label":"Employee","property":"companyKey"},"target":{"label":"Company","property":"key"}}}}
+  ],
+  "reads": {
+    "employees": {"kind":"query","query":{"kind":"records","query":{"labels":["Employee"],"order":{"name":"asc"}}}},
+    "acmeEmployees": {"kind":"query","query":{"kind":"records","query":{"labels":["Employee"],"predicate":{"Company":{"name":"Acme"}},"order":{"name":"asc"}}}},
+    "worksAt": {"kind":"query","query":{"kind":"relationships","query":{"relationType":"WORKS_AT"}}},
+    "nearest": {"kind":"query","query":{"kind":"vector","query":{"labels":["Doc"],"property":"embedding","index":"doc-embedding","vector":[0.1,0.9,0.0],"mode":"exact","limit":2}}},
+    "quick": {"kind":"query","query":{"kind":"text","index":"docs","query":"quick","limit":10}}
+  },
+  "write": {"kind":"ingest","ingest":{"kind":"documents","label":"Employee","documents":[{"name":"Dana","companyKey":2,"age":50}]}}
+}
