@@ -70,8 +70,9 @@ of a layer: an entry that does not fit is simply not kept.
 | `graph` | Both directions of one relationship type | the tenant's adjacency | `graph-cache-bytes` | 128 MiB |
 | `label-catalog` | Labels and per-label counts | label catalog, security rows | share of `logical-cache-bytes` | 128 MiB |
 | `property-dictionary` | Property name → type | property definitions, security rows | share of `logical-cache-bytes` | 128 MiB |
+| `describe` | One unfiltered `describe.properties` answer (also the property part of `describe.schema`), before policy masking | property definitions; per described label its members, its label-scoped property rows and the properties it holds; the label catalog when no label is named | share of `logical-cache-bytes` | 128 MiB |
 | `planner-stats` | One value distribution | the property's values | `planner-stats-bytes` (child of the logical cache) | 32 MiB |
-| `vector-arena` | One space's vectors as `f32` by slot | the space | share of `vector-cache-bytes` | 256 MiB |
+| `vector-arena` | One space's ready bindings and their vectors as `f32`, with each vector's norm | the space | share of `vector-cache-bytes` | 256 MiB |
 | `tenant-directory` | Scope → active tenant ordinal | the tenant directory | share of `logical-cache-bytes` | 128 MiB |
 | `column` | One stored property of one label: each member's value | the label's members, the property's values, the tenant's definitions | `column-cache-bytes` | 256 MiB |
 

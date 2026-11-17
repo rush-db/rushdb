@@ -40,15 +40,21 @@ fn harness(data_dir: Option<std::path::PathBuf>) -> Harness {
 }
 
 impl Harness {
+    /// `tenant` is empty on a single-tenant node.
     fn try_call(&self, tenant: &str, operation: &Value) -> Result<Value, String> {
+        let context = if tenant.is_empty() {
+            json!({})
+        } else {
+            json!({ "scope": tenant })
+        };
         let envelope: RequestEnvelope = serde_json::from_value(json!({
             "protocolVersion": 1,
-            "context": { "scope": tenant },
+            "context": context,
             "operation": operation,
         }))
         .map_err(|error| format!("envelope: {error}"))?;
         self.handler
-            .execute(envelope, Some(tenant.to_owned()))
+            .execute(envelope, (!tenant.is_empty()).then(|| tenant.to_owned()))
             .map(|response| serde_json::to_value(response.response).expect("response json"))
             .map_err(|error| format!("{error:?}"))
     }
@@ -348,6 +354,10 @@ fn corpus(path_ends: Option<(String, String)>) -> Vec<Value> {
         json!({ "kind": "query", "query": { "kind": "propertyValues", "property": "mixed", "query": { "labels": ["Trip"] }, "mode": "values", "limit": 20 } }),
         json!({ "kind": "describe", "describe": { "kind": "schema", "query": {} } }),
         json!({ "kind": "describe", "describe": { "kind": "properties", "query": {} } }),
+        json!({ "kind": "describe", "describe": { "kind": "properties", "query": { "labels": ["Trip"] } } }),
+        json!({ "kind": "describe", "describe": { "kind": "properties", "query": { "labels": ["Trip"] }, "detail": "catalog" } }),
+        json!({ "kind": "describe", "describe": { "kind": "properties", "query": { "labels": ["Trip", "STOP"] }, "skip": 2, "limit": 3 } }),
+        json!({ "kind": "describe", "describe": { "kind": "schema", "query": { "labels": ["Trip"] } } }),
         json!({ "kind": "describe", "describe": { "kind": "labels", "query": {} } }),
         json!({ "kind": "describe", "describe": { "kind": "schemaSummary", "labels": ["Trip"] } }),
         // SQL and vectors.
@@ -599,6 +609,8 @@ fn tiny_budgets_answer_like_storage() {
     cfg.resources.graph_cache_bytes = tiny;
     cfg.resources.column_cache_bytes = tiny;
     cfg.resources.vector_cache_bytes = rushdb_server::resource_config::ByteSize(64 * 1024);
+    // Catalog layers (labels, properties, describe answers) share it.
+    cfg.resources.logical_cache_bytes = rushdb_server::resource_config::ByteSize(16 * 1024);
     let node = Arc::new(Node::bootstrap(&mut cfg).expect("bootstrap"));
     let h = Harness {
         handler: NodeEnvelopeHandler::new(Arc::clone(&node), &cfg),
@@ -608,6 +620,121 @@ fn tiny_budgets_answer_like_storage() {
     for operation in corpus(path_ends(&h, "tenant-a")) {
         h.assert_same("tenant-a", &operation);
     }
+}
+
+/// A single-tenant node answers every read, describe included, with the
+/// same bytes with and without resident layers.
+#[test]
+fn a_single_tenant_node_answers_like_storage() {
+    let mut cfg = ServerConfig {
+        multitenant: false,
+        ..ServerConfig::default()
+    };
+    let node = Arc::new(Node::bootstrap(&mut cfg).expect("bootstrap"));
+    let h = Harness {
+        handler: NodeEnvelopeHandler::new(Arc::clone(&node), &cfg),
+        node,
+    };
+    setup(&h, "", 5);
+    for operation in corpus(path_ends(&h, "")) {
+        h.assert_same("", &operation);
+    }
+    if rushdb_storage::resident::residents_enabled() {
+        assert!(h.hits("describe") > 0);
+    }
+}
+
+/// Lookups of `layer`: `(hits, misses)`.
+fn lookups(h: &Harness, layer: &str) -> (u64, u64) {
+    h.residents()
+        .snapshots()
+        .iter()
+        .filter(|snapshot| snapshot.layer == layer)
+        .fold((0, 0), |(hits, misses), snapshot| {
+            (hits + snapshot.hits, misses + snapshot.misses)
+        })
+}
+
+/// A `describe.properties` answer is kept until a write reaches what it
+/// reads: the described label's rows or a property it holds, or a new
+/// property. Writes to another label's own properties and to another
+/// tenant keep it. Every answer is storage's, with and without a policy.
+#[test]
+fn describe_answers_are_kept_until_a_write_reaches_them() {
+    let h = harness(None);
+    setup(&h, "tenant-a", 1);
+    setup(&h, "tenant-b", 2);
+    h.call(
+        "tenant-a",
+        &ingest("Note", &json!([{ "memo": "a", "weight": 1 }])),
+    );
+    let trip = json!({ "kind": "describe", "describe": { "kind": "properties", "query": { "labels": ["Trip"] } } });
+    let on = rushdb_storage::resident::residents_enabled();
+    // The answer after `write`: storage's, and whether it came from the
+    // entry the earlier read left.
+    let after = |write: &dyn Fn()| -> (String, bool) {
+        h.assert_same("tenant-a", &trip);
+        write();
+        let before = lookups(&h, "describe");
+        let answer = render(h.try_call("tenant-a", &trip));
+        let (hits, _) = lookups(&h, "describe");
+        assert_eq!(answer, h.reference("tenant-a", &trip));
+        (answer, hits > before.0)
+    };
+    let (warm, kept) = after(&|| {});
+    assert_eq!(kept, on, "a repeated read is answered from the entry");
+    let (_, kept) = after(&|| {
+        h.call(
+            "tenant-a",
+            &ingest("Note", &json!([{ "memo": "b", "weight": 2 }])),
+        );
+    });
+    assert_eq!(kept, on, "another label's own properties");
+    let (_, kept) = after(&|| {
+        h.call("tenant-b", &ingest("Trip", &trips(9, 3)));
+    });
+    assert_eq!(kept, on, "another tenant");
+    let (_, kept) = after(&|| {
+        h.call(
+            "tenant-a",
+            &ingest("Note", &json!([{ "memo": "c", "fare": 3.5 }])),
+        );
+    });
+    assert!(!kept, "another label writing a property Trip holds");
+    let (grown, kept) = after(&|| {
+        h.call("tenant-a", &ingest("Trip", &trips(7, 2)));
+    });
+    assert!(!kept, "a write to the described label");
+    assert_ne!(grown, warm);
+    let (renamed, kept) = after(&|| {
+        h.call(
+            "tenant-a",
+            &ingest("Trip", &json!([{ "vendor": 1, "late_field": true }])),
+        );
+    });
+    assert!(!kept, "a new property");
+    assert!(renamed.contains("late_field"));
+    // A policy narrows the answer; the entry made without it never leaks
+    // what it hides, and comes back when the policy is lifted.
+    h.call(
+        "tenant-a",
+        &json!({ "kind": "policy", "policy": { "kind": "put", "enforced": true, "policy": {
+            "allowedLabels": ["Trip"], "visibleProperties": { "Trip": ["payment", "vendor"] } } } }),
+    );
+    let masked = h.resident("tenant-a", &trip);
+    assert_eq!(masked, h.reference("tenant-a", &trip));
+    assert!(
+        !masked.contains("\"fare\"") && masked.contains("\"vendor\""),
+        "{masked}"
+    );
+    h.call(
+        "tenant-a",
+        &json!({ "kind": "policy", "policy": { "kind": "put", "enforced": false, "policy": {
+            "allowedLabels": ["Trip"], "visibleProperties": { "Trip": ["payment", "vendor"] } } } }),
+    );
+    let lifted = h.resident("tenant-a", &trip);
+    assert_eq!(lifted, h.reference("tenant-a", &trip));
+    assert!(lifted.contains("\"fare\""));
 }
 
 /// Two tenants with the same labels and properties but different rows, and

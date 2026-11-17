@@ -38,6 +38,16 @@ in [`docs/manual/operations/upgrading-from-2x.md`](docs/manual/operations/upgrad
   `vector-exact-max-pool: fixed:5000` (or `--vector-exact-max-pool
   fixed:5000`, `RUSHDB_VECTOR_EXACT_MAX_POOL=fixed:5000`) to keep it. New
   data directories are written with `auto`.
+- **Repeated schema reads are answered from memory.** An unfiltered
+  `describe.properties` answer (and the property part of `describe.schema`)
+  is kept in a resident layer (`describe`, a share of
+  `logical-cache-bytes`) until a write reaches what it reads: the described
+  labels' records and property rows, a property they hold, or the property
+  definitions. Writes to other labels' own properties and to other tenants
+  keep it; a policy still narrows and masks every answer. Answers are
+  byte-identical. 10,000 nested documents (4 labels): `describe.properties`
+  server time 3.1 → 0.2 ms; one `describe.schema` plus one
+  `describe.properties` per label, client side: 11.8 → 1.5–2.0 ms.
 
 ## 3.0.12 — 2026-11-17
 
