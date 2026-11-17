@@ -14,6 +14,15 @@ in [`docs/manual/operations/upgrading-from-2x.md`](docs/manual/operations/upgrad
   of on every gathered candidate, and a hit's record is read once. Responses
   are byte-identical. 100,000 × 1,536-d cosine vectors, top 10: server time
   1.54 → 1.37 ms at `ef` 128 and 0.93 → 0.86 ms at `ef` 64.
+- **Exact vector search twice as fast once a space is resident.** A
+  space's resident vectors (`vector-cache-bytes`) now also hold its ready
+  bindings and each vector's norm, so an exact search without a predicate
+  (or with one matching more records than the space holds vectors) scores
+  them in one parallel pass instead of first reading every binding from
+  storage on one thread, and cosine scoring computes one sum per vector
+  instead of two. Scores and order are bit-identical. 100,000 × 1,536-d
+  cosine vectors, exact top 10: server time 24.1 → 11.7 ms. The resident
+  form of a space grows by 48 bytes per vector (under 1% at 1,536-d).
 
 ## 3.0.12 — 2026-11-17
 

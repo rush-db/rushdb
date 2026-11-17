@@ -51,7 +51,7 @@ const SEGMENT_FORMAT_VERSION: u8 = 2;
 /// it projects, and the value hash recorded at bind time. Mirrors
 /// `ann::AnnEntry`; kept separate because segments have their own identity
 /// (position within ONE segment, not a single generation's slot order).
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct SegmentEntry {
     pub slot: u64,
     pub source: SourceRef,

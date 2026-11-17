@@ -160,7 +160,7 @@ pub enum VectorError {
 
 /// Canonical identity of one vector's source occurrence: the owning record or
 /// relationship ordinal plus the property/element address that produced it.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SourceRef {
     /// Whether the source is a record or a relationship occurrence.
     pub kind: OwnerKind,

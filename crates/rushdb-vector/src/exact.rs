@@ -171,17 +171,24 @@ impl Scorer<'_> {
                 self.snap
                     .with_value(&key, |raw| raw.and_then(|raw| self.query.score_stored(raw)))
             })?;
+        self.offer(candidate, score, bar, top);
+        Ok(())
+    }
+
+    /// Keep `candidate`, scored `score`, in `top` when it passes the
+    /// threshold, the bar and the candidates' point check.
+    fn offer(&self, candidate: Candidate, score: f32, bar: Option<Bar>, top: &mut TopK) {
         if self.min_score.is_some_and(|min| score < min)
             || bar.is_some_and(|bar| {
                 Ranked::order(score, candidate.source, bar.score, bar.source) != Ordering::Greater
             })
             || !top.admits(score, candidate.source)
         {
-            return Ok(());
+            return;
         }
         if let Candidates::Check(check) = self.candidates {
             if !check(candidate.source) {
-                return Ok(());
+                return;
             }
         }
         top.push(ScoredSource {
@@ -189,7 +196,40 @@ impl Scorer<'_> {
             score,
             value_hash: candidate.value_hash,
         });
-        Ok(())
+    }
+
+    /// Score every binding `arena` holds that the candidates admit by key,
+    /// in fixed parts on the shared budget, merged in part order into
+    /// `top`. The arena's bindings are the ready bindings a scan of the
+    /// space at this view returns, so this is the scan's answer without
+    /// reading storage.
+    fn score_arena(&self, arena: &crate::arena::VectorArena, top: &mut TopK) {
+        let entries = arena.entries();
+        let parts = entries.len().div_ceil(PART_VECTORS);
+        let scored = rushdb_storage::parallel::run_parts(parts, |part| {
+            let mut local = TopK::new(self.k);
+            let first = part * PART_VECTORS;
+            let end = (first + PART_VECTORS).min(entries.len());
+            for (offset, entry) in entries[first..end].iter().enumerate() {
+                if let Candidates::Owners { kind, ords } = self.candidates {
+                    if entry.source.kind != kind || !ords.contains(entry.source.owner_ord) {
+                        continue;
+                    }
+                }
+                let candidate = Candidate {
+                    slot: entry.slot,
+                    source: entry.source,
+                    value_hash: entry.value_hash,
+                };
+                let score = arena.score_row(&self.query, first + offset);
+                self.offer(candidate, score, None, &mut local);
+            }
+            Ok::<_, std::convert::Infallible>(local)
+        });
+        let Ok(scored) = scored;
+        for local in scored {
+            top.merge(local);
+        }
     }
 
     /// Score `chunk` in fixed-size parts on the shared budget and merge
@@ -261,8 +301,10 @@ impl VectorEngine {
     /// An owner set no larger than the space is answered by reading each
     /// candidate owner's bindings (one prefix seek per owner), so the cost
     /// follows the candidate count, not the space size; the owners are
-    /// split into parts of [`PART_OWNERS`]. Every other search streams the
-    /// space's bindings once and scores them in parts of [`PART_VECTORS`].
+    /// split into parts of [`PART_OWNERS`]. Every other search scores the
+    /// bindings of the space's arena when it is resident at `snap`, else
+    /// streams the space's bindings once; either way in parts of
+    /// [`PART_VECTORS`].
     pub(crate) fn exact_in_view(
         &self,
         snap: &ReadView,
@@ -319,16 +361,20 @@ impl VectorEngine {
                 }
             }
             _ => {
-                let mut chunk = Vec::with_capacity(SCAN_CHUNK);
-                scorer.scan(&emb_bindings_prefix(t, space.space_id), &mut |candidate| {
-                    chunk.push(candidate);
-                    if chunk.len() == SCAN_CHUNK {
-                        scorer.score_chunk(&chunk, &mut top)?;
-                        chunk.clear();
-                    }
-                    Ok(())
-                })?;
-                scorer.score_chunk(&chunk, &mut top)?;
+                if let Some(arena) = &scorer.arena {
+                    scorer.score_arena(arena, &mut top);
+                } else {
+                    let mut chunk = Vec::with_capacity(SCAN_CHUNK);
+                    scorer.scan(&emb_bindings_prefix(t, space.space_id), &mut |candidate| {
+                        chunk.push(candidate);
+                        if chunk.len() == SCAN_CHUNK {
+                            scorer.score_chunk(&chunk, &mut top)?;
+                            chunk.clear();
+                        }
+                        Ok(())
+                    })?;
+                    scorer.score_chunk(&chunk, &mut top)?;
+                }
             }
         }
         Ok(top.into_sorted())
