@@ -569,7 +569,7 @@ fn a_shard_past_its_buffered_bound_is_checkpointed_by_its_materializer() {
             ack,
         }];
         store
-            .persist_many_sharded(&batch, vec![Vec::new()], vec![Vec::new()])
+            .persist_many_sharded(&batch, vec![Vec::new()])
             .unwrap();
         store.gap(0).unwrap().wait_materialized(ci).unwrap();
     };
@@ -646,7 +646,7 @@ fn multi_shard_persist_fans_out_to_both_backends_in_parallel() {
         },
     ];
     store
-        .persist_many_sharded(&batch, vec![Vec::new(); 2], vec![Vec::new(); 2])
+        .persist_many_sharded(&batch, vec![Vec::new(); 2])
         .unwrap();
     store.gap(0).unwrap().wait_materialized(2).unwrap();
     store.gap(1).unwrap().wait_materialized(2).unwrap();

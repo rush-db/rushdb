@@ -106,7 +106,6 @@ impl Store {
         &self,
         batch: &[PendingCommit],
         derived: Vec<Vec<Op>>,
-        usage: Vec<Vec<Op>>,
     ) -> Result<(), StorageError> {
         let pairs: Vec<CommitOps<'_>> = batch
             .iter()
@@ -157,7 +156,7 @@ impl Store {
         }
         if self.publishes_ahead(batch) {
             drop(pairs);
-            return self.push_to_gaps(batch, derived, usage);
+            return self.push_to_gaps(batch, derived);
         }
         let apply_started = std::time::Instant::now();
         let op_bytes: u64 = pairs
@@ -254,24 +253,22 @@ impl Store {
         &self,
         batch: &[PendingCommit],
         derived: Vec<Vec<Op>>,
-        usage: Vec<Vec<Op>>,
     ) -> Result<(), StorageError> {
         let started = std::time::Instant::now();
         let op_bytes: u64 = batch
             .iter()
             .flat_map(|pc| pc.ops.iter())
             .chain(derived.iter().flatten())
-            .chain(usage.iter().flatten())
             .map(|op| u64::try_from(op.encoded_len()).unwrap_or(u64::MAX))
             .sum();
         self.applied_bytes
             .fetch_add(op_bytes, std::sync::atomic::Ordering::Relaxed);
-        for ((pc, derived), usage) in batch.iter().zip(derived).zip(usage) {
+        for (pc, derived) in batch.iter().zip(derived) {
             let gap = self
                 .gap(pc.shard)
                 .ok_or_else(|| StorageError::Durability("shard has no gap".into()))?;
-            let charge = gap.reserve(crate::gap::commit_bytes(&pc.ops, &derived, &usage))?;
-            gap.push(pc.ci, Arc::clone(&pc.ops), derived, usage, charge);
+            let charge = gap.reserve(crate::gap::commit_bytes(&pc.ops, &derived))?;
+            gap.push(pc.ci, Arc::clone(&pc.ops), derived, charge);
         }
         self.observe_phase(CommitPhase::GapPush, started);
         Ok(())

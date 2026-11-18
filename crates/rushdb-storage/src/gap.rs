@@ -2,8 +2,7 @@
 //! materialized into a shard's redb file.
 //!
 //! The publisher makes a commit visible once its WAL record is durable and
-//! pushes its ops (base, derived and the usage rows the apply would write)
-//! into its shard's [`Gap`]. The shard's materializer applies them to redb
+//! pushes its ops (base and derived) into its shard's [`Gap`]. The shard's materializer applies them to redb
 //! in commit order, off the publish path, and trims them from the gap.
 //! Readers see redb at its materialized commit through a [`GapView`], which
 //! answers from the gap's versions first with exactly the visibility rules
@@ -15,9 +14,17 @@
 //! before it opens the redb transaction, so everything the snapshot lacks
 //! is already in that transaction; versions the transaction also holds are
 //! skipped.
+//!
+//! A tenant's usage-bytes row is written by the apply itself, from the
+//! values each op replaces. The gap computes it only when a reader asks
+//! (the usage report is its only reader): the first read through a view
+//! computes the rows of every older gap commit with exactly the apply's
+//! rules ([`crate::usage::commit_rows`]) and caches them on each commit.
 
+use std::borrow::Cow;
 use std::collections::{BTreeMap, VecDeque};
 use std::ops::Bound;
+use std::sync::OnceLock;
 use std::sync::{Arc, Condvar, Mutex, PoisonError, RwLock};
 
 use crate::backend::StorageReadView;
@@ -25,73 +32,193 @@ use crate::read_view::{ReadLimits, ScanDirection, ScanProjection};
 use crate::resources::{ByteBudget, ByteReservation};
 use crate::{Op, StorageError};
 
-/// One commit's effect on one key.
-#[derive(Clone, Debug)]
+/// `Version::op` of a tenant's usage row: computed on demand.
+const USAGE: usize = usize::MAX;
+
+/// One commit's effect on one key: the key's last op in the commit, read
+/// in place (or, for a usage row, the commit's computed usage).
+#[derive(Clone)]
 pub(crate) struct Version {
     pub(crate) ci: u64,
-    /// The key's value after the commit (`None`: absent).
-    pub(crate) value: Option<Arc<[u8]>>,
+    commit: Arc<GapCommit>,
+    op: usize,
     /// The commit Set or Purged the key: redb drops the key's history then,
     /// so no snapshot older than this commit sees any version of it.
     pub(crate) erases: bool,
 }
 
 /// Versions of every key the gap's commits write, oldest first per key.
-pub(crate) type GapIndex = im::OrdMap<Arc<[u8]>, Arc<[Version]>>;
+type GapIndex = im::OrdMap<GapKey, Arc<[Version]>>;
+
+/// Key bytes a [`GapKey`] keeps inline.
+const INLINE: usize = 64;
+
+/// A gap index key that keeps its first [`INLINE`] bytes inside the index
+/// node: a descent compares node memory and reads the heap copy only when
+/// two keys share their first [`INLINE`] bytes (index keys are mostly
+/// shorter). With every comparison behind a pointer, the check a merge
+/// import's index lookups make against the gap cost as much as the apply
+/// the gap takes off their path.
+#[derive(Clone)]
+pub(crate) struct GapKey {
+    head: [u8; INLINE],
+    full: Arc<[u8]>,
+}
+
+impl GapKey {
+    fn new(full: Arc<[u8]>) -> Self {
+        let mut head = [0u8; INLINE];
+        let inline = full.len().min(INLINE);
+        head[..inline].copy_from_slice(&full[..inline]);
+        Self { head, full }
+    }
+
+    /// A key to look `key` up with.
+    fn probe(key: &[u8]) -> Self {
+        Self::new(Arc::from(key))
+    }
+
+    fn bytes(&self) -> &[u8] {
+        &self.full
+    }
+
+    fn head(&self) -> &[u8] {
+        &self.head[..self.full.len().min(INLINE)]
+    }
+}
+
+impl Ord for GapKey {
+    /// Byte order of the full keys.
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        match self.head().cmp(other.head()) {
+            std::cmp::Ordering::Equal if self.full.len() > INLINE && other.full.len() > INLINE => {
+                self.full[INLINE..].cmp(&other.full[INLINE..])
+            }
+            // Equal heads, one key no longer than them: the shorter first.
+            std::cmp::Ordering::Equal => self.full.len().cmp(&other.full.len()),
+            unequal => unequal,
+        }
+    }
+}
+
+impl PartialOrd for GapKey {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl PartialEq for GapKey {
+    fn eq(&self, other: &Self) -> bool {
+        self.full == other.full
+    }
+}
+
+impl Eq for GapKey {}
+
+/// Owned probe bounds for an index range.
+fn probes(lower: Bound<&[u8]>, upper: Bound<&[u8]>) -> (Bound<GapKey>, Bound<GapKey>) {
+    (lower.map(GapKey::probe), upper.map(GapKey::probe))
+}
+
+/// What a reader sees of a gap: its versions and its commits, oldest first.
+#[derive(Clone, Default)]
+pub(crate) struct GapSnapshot {
+    index: GapIndex,
+    commits: im::Vector<Arc<GapCommit>>,
+}
+
+impl GapSnapshot {
+    pub(crate) fn is_empty(&self) -> bool {
+        self.commits.is_empty()
+    }
+}
+
+/// A commit's usage rows after it: every usage-row key of the tenants it
+/// touches, with its value (`None`: absent).
+type UsageAfter = BTreeMap<Vec<u8>, Option<Vec<u8>>>;
 
 /// A published commit waiting for its shard's materializer.
 pub(crate) struct GapCommit {
     pub(crate) ci: u64,
     pub(crate) base: Arc<Vec<Op>>,
     pub(crate) derived: Vec<Op>,
-    /// The usage rows the apply computes for this commit; the gap serves them
-    /// until the commit is materialized (debug builds check they match).
-    pub(crate) usage: Vec<Op>,
-    charge: ByteReservation,
+    /// The usage rows after this commit, once a reader computed them.
+    usage: OnceLock<Result<UsageAfter, StorageError>>,
+    /// What the commit charges against the gap's budget.
+    bytes: usize,
+    /// Every key the commit writes, as the gap's index holds it.
+    keys: Vec<GapKey>,
 }
 
 impl GapCommit {
-    fn ops(&self) -> impl Iterator<Item = &Op> {
-        self.base.iter().chain(&self.derived).chain(&self.usage)
+    /// The usage rows this commit's tenants get.
+    #[cfg(debug_assertions)]
+    pub(crate) fn usage_keys(&self) -> impl Iterator<Item = &[u8]> {
+        self.keys
+            .iter()
+            .map(GapKey::bytes)
+            .filter(|key| crate::usage::is_usage_bytes_key(key))
     }
 
-    /// The commit's net effect per key, in key order.
-    fn versions(&self) -> BTreeMap<&[u8], Version> {
-        let mut out: BTreeMap<&[u8], Version> = BTreeMap::new();
-        for op in self.ops() {
-            let (value, erases) = match op {
-                Op::Put(_, value) => (Some(Arc::from(value.as_slice())), false),
-                Op::Set(_, value) => (Some(Arc::from(value.as_slice())), true),
-                Op::Del(_) => (None, false),
-                Op::Purge(_) => (None, true),
+    fn ops(&self) -> impl Iterator<Item = &Op> {
+        self.base.iter().chain(&self.derived)
+    }
+
+    /// The `index`-th op of [`Self::ops`].
+    fn op(&self, index: usize) -> &Op {
+        match index.checked_sub(self.base.len()) {
+            None => &self.base[index],
+            Some(at) => &self.derived[at],
+        }
+    }
+
+    /// Per key the commit writes, in key order: its last op (or [`USAGE`]
+    /// for the usage row of every tenant it touches) and whether any of its
+    /// ops erased the key's history.
+    fn effects(&self) -> BTreeMap<Cow<'_, [u8]>, (usize, bool)> {
+        let mut out: BTreeMap<Cow<'_, [u8]>, (usize, bool)> = BTreeMap::new();
+        let mut tenant = None;
+        for (index, op) in self.ops().enumerate() {
+            let key = op.key();
+            let erases = matches!(op, Op::Set(..) | Op::Purge(_));
+            let index = if crate::usage::is_usage_bytes_key(key) {
+                USAGE
+            } else {
+                // Consecutive ops mostly share a tenant: one usage-row
+                // entry per run.
+                let owner = rushdb_types::keys::parse_tenant(key);
+                if let Some(owner) = owner.filter(|_| owner != tenant) {
+                    tenant = Some(owner);
+                    out.entry(Cow::Owned(rushdb_types::keys::usage_bytes_key(owner)))
+                        .or_insert((USAGE, false));
+                }
+                index
             };
-            let version = out.entry(op.key()).or_insert(Version {
-                ci: self.ci,
-                value: None,
-                erases: false,
-            });
-            version.value = value;
-            version.erases |= erases;
+            let key = Cow::Borrowed(key);
+            let effect = out.entry(key).or_insert((index, false));
+            effect.0 = index;
+            effect.1 |= erases;
         }
         out
     }
 }
 
 /// Bytes a commit charges against the gap's budget.
-pub(crate) fn commit_bytes(base: &[Op], derived: &[Op], usage: &[Op]) -> usize {
+pub(crate) fn commit_bytes(base: &[Op], derived: &[Op]) -> usize {
     // Each key is held twice (the op and the index entry) plus per-entry
     // bookkeeping.
     base.iter()
         .chain(derived)
-        .chain(usage)
         .map(|op| op.encoded_len() + op.key().len() + 64)
         .sum()
 }
 
 struct State {
     /// The writer's copy; `snapshot` is a clone of it.
-    index: GapIndex,
-    queue: VecDeque<Arc<GapCommit>>,
+    readers: GapSnapshot,
+    /// Commits waiting for the materializer, with their charges (a
+    /// reader's snapshot may keep a commit's ops alive, not its charge).
+    queue: VecDeque<(Arc<GapCommit>, ByteReservation)>,
     /// Newest commit index pushed.
     top: u64,
     stopping: bool,
@@ -102,7 +229,7 @@ struct State {
 /// One shard's published, not yet materialized commits.
 pub(crate) struct Gap {
     state: Mutex<State>,
-    snapshot: RwLock<GapIndex>,
+    snapshot: RwLock<GapSnapshot>,
     changed: Condvar,
     budget: ByteBudget,
     bound: usize,
@@ -113,14 +240,14 @@ impl Gap {
         let bound = budget.snapshot().limit;
         Self {
             state: Mutex::new(State {
-                index: GapIndex::new(),
+                readers: GapSnapshot::default(),
                 queue: VecDeque::new(),
                 top: 0,
                 stopping: false,
                 paused: false,
                 failure: None,
             }),
-            snapshot: RwLock::new(GapIndex::new()),
+            snapshot: RwLock::new(GapSnapshot::default()),
             changed: Condvar::new(),
             budget,
             bound,
@@ -131,19 +258,19 @@ impl Gap {
         self.state.lock().unwrap_or_else(PoisonError::into_inner)
     }
 
-    /// The versions readers see now.
-    pub(crate) fn snapshot(&self) -> GapIndex {
+    /// What readers see now.
+    pub(crate) fn snapshot(&self) -> GapSnapshot {
         self.snapshot
             .read()
             .unwrap_or_else(PoisonError::into_inner)
             .clone()
     }
 
-    fn publish(&self, index: &GapIndex) {
+    fn publish(&self, readers: &GapSnapshot) {
         *self
             .snapshot
             .write()
-            .unwrap_or_else(PoisonError::into_inner) = index.clone();
+            .unwrap_or_else(PoisonError::into_inner) = readers.clone();
     }
 
     /// The materializer's failure, which fences the store.
@@ -184,29 +311,47 @@ impl Gap {
         ci: u64,
         base: Arc<Vec<Op>>,
         derived: Vec<Op>,
-        usage: Vec<Op>,
         charge: ByteReservation,
     ) {
-        let commit = Arc::new(GapCommit {
+        let mut commit = GapCommit {
             ci,
             base,
             derived,
-            usage,
-            charge,
-        });
+            usage: OnceLock::new(),
+            bytes: charge.bytes(),
+            keys: Vec::new(),
+        };
+        let effects: Vec<(GapKey, usize, bool)> = commit
+            .effects()
+            .into_iter()
+            .map(|(key, (op, erases))| (GapKey::new(Arc::from(&*key)), op, erases))
+            .collect();
+        commit.keys = effects.iter().map(|(key, ..)| key.clone()).collect();
+        let commit = Arc::new(commit);
         let mut state = self.lock();
         debug_assert!(ci > state.top, "gap commits arrive in commit order");
-        for (key, version) in commit.versions() {
-            let key: Arc<[u8]> = Arc::from(key);
-            let versions = match state.index.get(&key) {
-                Some(older) => older.iter().cloned().chain([version]).collect(),
-                None => Arc::from([version]),
+        for (key, op, erases) in effects {
+            let version = Version {
+                ci,
+                commit: Arc::clone(&commit),
+                op,
+                erases,
             };
-            state.index.insert(key, versions);
+            // One descent for a new key (the common case); a key with older
+            // versions is inserted again with them.
+            if let Some(older) = state
+                .readers
+                .index
+                .insert(key.clone(), Arc::from([version.clone()]))
+            {
+                let versions: Arc<[Version]> = older.iter().cloned().chain([version]).collect();
+                state.readers.index.insert(key, versions);
+            }
         }
         state.top = ci;
-        state.queue.push_back(commit);
-        self.publish(&state.index);
+        state.readers.commits.push_back(Arc::clone(&commit));
+        state.queue.push_back((commit, charge));
+        self.publish(&state.readers);
         drop(state);
         self.changed.notify_all();
     }
@@ -220,12 +365,11 @@ impl Gap {
             if !state.paused && !state.queue.is_empty() {
                 let mut bytes = 0usize;
                 let mut batch = Vec::new();
-                for commit in &state.queue {
-                    let size = commit.charge.bytes();
-                    if !batch.is_empty() && bytes + size > max_bytes {
+                for (commit, _) in &state.queue {
+                    if !batch.is_empty() && bytes + commit.bytes > max_bytes {
                         break;
                     }
-                    bytes += size;
+                    bytes += commit.bytes;
                     batch.push(Arc::clone(commit));
                 }
                 return Some(batch);
@@ -244,25 +388,26 @@ impl Gap {
     /// versions.
     pub(crate) fn materialized(&self, count: usize) {
         let mut state = self.lock();
-        let done: Vec<Arc<GapCommit>> = state.queue.drain(..count).collect();
-        let Some(last) = done.last().map(|commit| commit.ci) else {
+        let done: Vec<(Arc<GapCommit>, ByteReservation)> = state.queue.drain(..count).collect();
+        let Some(last) = done.last().map(|(commit, _)| commit.ci) else {
             return;
         };
-        for commit in &done {
-            for key in commit.versions().into_keys() {
-                let Some(versions) = state.index.get(key) else {
+        for (commit, _) in &done {
+            for key in &commit.keys {
+                let Some(versions) = state.readers.index.get(key) else {
                     continue;
                 };
                 let kept: Arc<[Version]> =
                     versions.iter().filter(|v| v.ci > last).cloned().collect();
                 if kept.is_empty() {
-                    state.index.remove(key);
+                    state.readers.index.remove(key);
                 } else if kept.len() != versions.len() {
-                    state.index.insert(Arc::from(key), kept);
+                    state.readers.index.insert(key.clone(), kept);
                 }
             }
+            state.readers.commits.pop_front();
         }
-        self.publish(&state.index);
+        self.publish(&state.readers);
         // Release the charges before a waiter can see the queue shorter.
         drop(done);
         drop(state);
@@ -281,7 +426,7 @@ impl Gap {
         self.lock()
             .queue
             .front()
-            .map_or(u64::MAX, |commit| commit.ci - 1)
+            .map_or(u64::MAX, |(commit, _)| commit.ci - 1)
     }
 
     /// Wait until every commit at or below `ci` is materialized (or the
@@ -292,7 +437,7 @@ impl Gap {
             if let Some(failure) = &state.failure {
                 return Err(StorageError::Durability(failure.clone()));
             }
-            if state.queue.front().is_none_or(|commit| commit.ci > ci) {
+            if state.queue.front().is_none_or(|(commit, _)| commit.ci > ci) {
                 return Ok(());
             }
             state = self
@@ -328,29 +473,135 @@ impl Gap {
 pub(crate) struct GapView {
     base: Box<dyn StorageReadView>,
     index: GapIndex,
+    commits: im::Vector<Arc<GapCommit>>,
     /// The base view's commit index: versions at or below it are in it.
     base_ci: u64,
 }
 
 impl GapView {
-    /// `index` must be snapshotted before `base` was opened.
+    /// `gap` must be snapshotted before `base` was opened.
     pub(crate) fn new(
         base: Box<dyn StorageReadView>,
-        index: GapIndex,
+        gap: GapSnapshot,
     ) -> Result<Self, StorageError> {
         let base_ci = base.visible_ci()?;
         Ok(Self {
             base,
-            index,
+            index: gap.index,
+            commits: gap.commits,
             base_ci,
         })
+    }
+
+    /// `key`'s value after `version`'s commit (`None`: absent).
+    fn value_of<'a>(
+        &'a self,
+        key: &[u8],
+        version: &'a Version,
+    ) -> Result<Option<&'a [u8]>, StorageError> {
+        if version.op != USAGE {
+            return Ok(match version.commit.op(version.op) {
+                Op::Put(_, value) | Op::Set(_, value) => Some(value),
+                Op::Del(_) | Op::Purge(_) => None,
+            });
+        }
+        let after = self.usage_after(&version.commit)?;
+        Ok(after.get(key).and_then(Option::as_deref))
+    }
+
+    /// The usage rows after `commit`, computing (and caching on each
+    /// commit) those of every older commit of this view first: each one's
+    /// rows depend on the rows before it.
+    fn usage_after<'a>(&self, commit: &'a GapCommit) -> Result<&'a UsageAfter, StorageError> {
+        if let Some(after) = commit.usage.get() {
+            return after.as_ref().map_err(Clone::clone);
+        }
+        for older in &self.commits {
+            if older.ci <= self.base_ci || older.usage.get().is_some() {
+                continue;
+            }
+            if older.ci > commit.ci {
+                break;
+            }
+            let computed = self.compute_usage(older);
+            // A concurrent reader may have stored the same rows first.
+            let _ = older.usage.set(computed);
+        }
+        commit
+            .usage
+            .get()
+            .ok_or(StorageError::CorruptLog)?
+            .as_ref()
+            .map_err(Clone::clone)
+    }
+
+    /// What the apply writes to the usage rows of `commit`'s tenants.
+    fn compute_usage(&self, commit: &GapCommit) -> Result<UsageAfter, StorageError> {
+        let before = BeforeCommit {
+            view: self,
+            ci: commit.ci,
+        };
+        let rows: BTreeMap<Vec<u8>, Option<Vec<u8>>> =
+            crate::usage::commit_rows(commit.ops(), &before)?
+                .into_iter()
+                .map(|op| match op {
+                    Op::Put(key, value) | Op::Set(key, value) => (key, Some(value)),
+                    Op::Del(key) | Op::Purge(key) => (key, None),
+                })
+                .collect();
+        let mut after = UsageAfter::new();
+        for key in &commit.keys {
+            let key = key.bytes();
+            if !crate::usage::is_usage_bytes_key(key) {
+                continue;
+            }
+            let value = if let Some(value) = rows.get(key) {
+                value.clone()
+            } else {
+                // No delta: the row keeps its value, or what the commit
+                // wrote to it directly (a purge).
+                match commit.ops().filter(|op| op.key() == key).last() {
+                    Some(Op::Put(_, value) | Op::Set(_, value)) => Some(value.clone()),
+                    Some(Op::Del(_) | Op::Purge(_)) => None,
+                    None => crate::DeriveRead::get(&before, key)?,
+                }
+            };
+            after.insert(key.to_vec(), value);
+        }
+        Ok(after)
+    }
+
+    /// `key`'s current value once commit `ci` is applied.
+    #[cfg(debug_assertions)]
+    pub(crate) fn current_at(&self, key: &[u8], ci: u64) -> Result<Option<Vec<u8>>, StorageError> {
+        self.before(key, ci + 1)
+    }
+
+    /// `key`'s current value before commit `ci` in this view.
+    fn before(&self, key: &[u8], ci: u64) -> Result<Option<Vec<u8>>, StorageError> {
+        let older = self
+            .versions(key)
+            .and_then(|mut versions| versions.rfind(|v| v.ci < ci));
+        match older {
+            Some(version) => Ok(self.value_of(key, version)?.map(<[u8]>::to_vec)),
+            None => self.base.read_value(
+                key,
+                0,
+                true,
+                ReadLimits {
+                    max_item_bytes: usize::MAX,
+                    ..ReadLimits::default()
+                },
+                ScanProjection::KeyValue,
+            ),
+        }
     }
 
     /// `key`'s versions newer than the base view, oldest first.
     fn versions(&self, key: &[u8]) -> Option<impl DoubleEndedIterator<Item = &Version>> {
         let base_ci = self.base_ci;
         self.index
-            .get(key)
+            .get(&GapKey::probe(key))
             .map(move |versions| versions.iter().filter(move |v| v.ci > base_ci))
     }
 
@@ -358,6 +609,41 @@ impl GapView {
     fn newest(&self, key: &[u8]) -> Option<&Version> {
         self.versions(key)
             .and_then(|mut versions| versions.next_back())
+    }
+
+    /// Whether a gap key lies within `(lower, upper)`. Most of a merge
+    /// import's lookups scan small ranges the gap holds nothing in, so this
+    /// runs before every overlaid scan: one descent of the index, no
+    /// allocation. `im`'s `get_next` can miss a parent's key when a child
+    /// holds only smaller ones (a false `None`, never a wrong key), so a
+    /// `None` is confirmed with a range.
+    fn may_hold(&self, lower: Bound<&[u8]>, upper: Bound<&[u8]>) -> bool {
+        let found = match lower {
+            Bound::Unbounded => self.index.get_min().map(|(key, _)| key),
+            Bound::Included(start) | Bound::Excluded(start) => {
+                let probe = GapKey::probe(start);
+                match self.index.get_next(&probe) {
+                    // The bound itself when excluded: let the range decide.
+                    Some((key, _)) if matches!(lower, Bound::Excluded(_)) && *key == probe => {
+                        return true;
+                    }
+                    Some((key, _)) => Some(key),
+                    None => self
+                        .index
+                        .range((lower.map(GapKey::probe), Bound::Unbounded))
+                        .next()
+                        .map(|(key, _)| key),
+                }
+            }
+        };
+        let Some(first) = found else {
+            return false;
+        };
+        match upper {
+            Bound::Unbounded => true,
+            Bound::Included(end) => first.bytes() <= end,
+            Bound::Excluded(end) => first.bytes() < end,
+        }
     }
 
     /// What the gap says about `key` at snapshot `ci`. redb's apply moves a superseded value into history, and a Set or
@@ -376,32 +662,51 @@ impl GapView {
             .iter()
             .rev()
             .find(|v| v.ci <= ci)
-            .map_or(GapRead::Base, |v| GapRead::from(v.value.as_deref()))
+            .map_or(GapRead::Base, |v| GapRead::Version(v))
+    }
+}
+
+/// The state before one gap commit, as the apply sees it.
+struct BeforeCommit<'a> {
+    view: &'a GapView,
+    ci: u64,
+}
+
+impl crate::DeriveRead for BeforeCommit<'_> {
+    fn get(&self, key: &[u8]) -> Result<Option<Vec<u8>>, StorageError> {
+        self.view.before(key, self.ci)
+    }
+
+    fn range_prefix(&self, _prefix: &[u8]) -> Result<Vec<(Vec<u8>, Vec<u8>)>, StorageError> {
+        Err(StorageError::InvalidRead(
+            "usage rows read single keys".into(),
+        ))
+    }
+
+    fn range(&self, _start: &[u8], _end: &[u8]) -> Result<Vec<(Vec<u8>, Vec<u8>)>, StorageError> {
+        Err(StorageError::InvalidRead(
+            "usage rows read single keys".into(),
+        ))
     }
 }
 
 /// The gap's answer to a point read.
 enum GapRead<'a> {
-    /// The gap holds the visible value.
-    Value(&'a [u8]),
+    /// The value after this version's commit decides the read.
+    Version(&'a Version),
     /// The gap decides the key is not visible.
     Absent,
     /// The gap says nothing: the base view answers.
     Base,
 }
 
-impl<'a> From<Option<&'a [u8]>> for GapRead<'a> {
-    fn from(value: Option<&'a [u8]>) -> Self {
-        value.map_or(Self::Absent, Self::Value)
-    }
-}
-
 /// A base range with the gap's newest values merged in (the gap wins).
 struct Overlaid<'a> {
+    view: &'a GapView,
     base: std::iter::Peekable<
         Box<dyn Iterator<Item = Result<(Vec<u8>, Vec<u8>), StorageError>> + 'a>,
     >,
-    gap: std::iter::Peekable<Box<dyn Iterator<Item = (&'a [u8], Option<&'a [u8]>)> + 'a>>,
+    gap: std::iter::Peekable<Box<dyn Iterator<Item = (&'a [u8], &'a Version)> + 'a>>,
     limits: ReadLimits,
     projection: ScanProjection,
 }
@@ -429,9 +734,11 @@ impl Iterator for Overlaid<'_> {
             if !gap_first {
                 return self.base.next();
             }
-            let (key, value) = self.gap.next()?;
-            let Some(value) = value else {
-                continue;
+            let (key, version) = self.gap.next()?;
+            let value = match self.view.value_of(key, version) {
+                Ok(Some(value)) => value,
+                Ok(None) => continue,
+                Err(error) => return Some(Err(error)),
             };
             crate::read_accounting::record("row", key);
             if self.projection == ScanProjection::Keys {
@@ -481,14 +788,16 @@ impl StorageReadView for GapView {
         visit: &mut dyn FnMut(&[u8]),
     ) -> Result<bool, StorageError> {
         let decided = if current {
-            self.newest(key)
-                .map_or(GapRead::Base, |v| GapRead::from(v.value.as_deref()))
+            self.newest(key).map_or(GapRead::Base, GapRead::Version)
         } else {
             self.at(key, ci)
         };
         match decided {
-            GapRead::Value(value) => {
+            GapRead::Version(version) => {
                 crate::read_accounting::record("get", key);
+                let Some(value) = self.value_of(key, version)? else {
+                    return Ok(false);
+                };
                 visit_projected(key, value, limits, projection, visit)?;
                 Ok(true)
             }
@@ -520,16 +829,17 @@ impl StorageReadView for GapView {
         let base = self
             .base
             .next_key(lower, upper, limits, include_history, direction)?;
+        if !self.may_hold(as_slices(lower), as_slices(upper)) {
+            return Ok(base);
+        }
         // Any key a gap commit writes is a candidate: callers check each
         // candidate's visibility at their snapshot.
-        let mut range = self
-            .index
-            .range::<_, [u8]>((as_slices(lower), as_slices(upper)));
+        let mut range = self.index.range(probes(as_slices(lower), as_slices(upper)));
         let gap = match direction {
             ScanDirection::Forward => range.next(),
             ScanDirection::Reverse => range.next_back(),
         }
-        .map(|(key, _)| key.to_vec());
+        .map(|(key, _)| key.bytes().to_vec());
         if let Some(key) = &gap {
             limits.check_item(key.len(), 0)?;
         }
@@ -573,11 +883,13 @@ impl StorageReadView for GapView {
     }
 
     fn visible_ci(&self) -> Result<u64, StorageError> {
-        match self.newest(crate::LAST_APPLIED_KEY) {
-            Some(Version {
-                value: Some(raw), ..
-            }) => crate::wal::decode_last_applied(raw).map_err(|_| StorageError::CorruptLog),
-            _ => Ok(self.base_ci),
+        let newest = match self.newest(crate::LAST_APPLIED_KEY) {
+            Some(version) => self.value_of(crate::LAST_APPLIED_KEY, version)?,
+            None => None,
+        };
+        match newest {
+            Some(raw) => crate::wal::decode_last_applied(raw).map_err(|_| StorageError::CorruptLog),
+            None => Ok(self.base_ci),
         }
     }
 
@@ -601,22 +913,58 @@ impl GapView {
         limits: ReadLimits,
         projection: ScanProjection,
     ) -> Box<dyn Iterator<Item = Result<(Vec<u8>, Vec<u8>), StorageError>> + 'a> {
-        if self.index.is_empty() {
+        if !self.may_hold(as_slices(lower), as_slices(upper)) {
             return base;
         }
         let base_ci = self.base_ci;
         let gap = self
             .index
-            .range::<_, [u8]>((as_slices(lower), as_slices(upper)))
+            .range(probes(as_slices(lower), as_slices(upper)))
             .filter_map(move |(key, versions)| {
                 let newest = versions.last().filter(|v| v.ci > base_ci)?;
-                Some((&**key, newest.value.as_deref()))
+                Some((key.bytes(), newest))
             });
         Box::new(Overlaid {
+            view: self,
             base: base.peekable(),
             gap: (Box::new(gap) as Box<dyn Iterator<Item = _> + 'a>).peekable(),
             limits,
             projection,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::GapKey;
+
+    #[test]
+    fn gap_keys_order_as_their_bytes() {
+        // Keys around the inline length over a tiny alphabet, so heads tie
+        // and one key is often a prefix of another.
+        let mut state = 0x9E37_79B9_7F4A_7C15_u64;
+        let mut next = || {
+            state ^= state << 13;
+            state ^= state >> 7;
+            state ^= state << 17;
+            state
+        };
+        let keys: Vec<Vec<u8>> = (0..600)
+            .map(|_| {
+                let len = usize::try_from(next() % 49).unwrap();
+                (0..len)
+                    .map(|_| u8::try_from(next() % 3).unwrap())
+                    .collect()
+            })
+            .collect();
+        for a in &keys {
+            for b in &keys {
+                assert_eq!(
+                    GapKey::probe(a).cmp(&GapKey::probe(b)),
+                    a.cmp(b),
+                    "{a:?} vs {b:?}"
+                );
+            }
+        }
     }
 }

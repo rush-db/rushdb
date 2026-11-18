@@ -145,6 +145,32 @@ fn answers(view: &ReadView) -> Answers {
                 [ScanProjection::KeyValue, ScanProjection::Keys]
                     .map(|projection| scan(view, ScanBounds::prefix(prefix), projection))
             })
+            // Ranges with every bound kind, starting and ending on keys
+            // that exist, that are gone and that never existed.
+            .chain(
+                (1..=TENANTS)
+                    .flat_map(|tenant| {
+                        (0..KEYS).step_by(3).flat_map(move |n| {
+                            [
+                                (
+                                    Bound::Included(key(tenant, n)),
+                                    Bound::Excluded(key(tenant, n + 5)),
+                                ),
+                                (
+                                    Bound::Excluded(key(tenant, n)),
+                                    Bound::Included(key(tenant, n + 4)),
+                                ),
+                                (
+                                    Bound::Excluded(key(tenant, n)),
+                                    Bound::Excluded(b"receipt".to_vec()),
+                                ),
+                            ]
+                        })
+                    })
+                    .map(|(start, end)| {
+                        scan(view, ScanBounds { start, end }, ScanProjection::KeyValue)
+                    }),
+            )
             // Every row up to the receipts (keyed by random commit keys).
             .chain([scan(
                 view,
@@ -163,6 +189,41 @@ fn answers(view: &ReadView) -> Answers {
             .iter()
             .map(|prefix| view.last_key(ScanBounds::prefix(prefix)).unwrap())
             .collect(),
+    }
+}
+
+/// Assert two answer lists match, reporting the first difference.
+#[track_caller]
+fn assert_same(got: &[Answers], want: &[Answers], context: &str) {
+    assert_eq!(got.len(), want.len(), "{context}: snapshot count");
+    for (got, want) in got.iter().zip(want) {
+        let ci = want.ci;
+        assert_eq!(got.ci, ci, "{context}");
+        for (field, a, b) in [
+            (
+                "gets",
+                format!("{:?}", got.gets),
+                format!("{:?}", want.gets),
+            ),
+            (
+                "last",
+                format!("{:?}", got.last),
+                format!("{:?}", want.last),
+            ),
+            (
+                "ranges",
+                format!("{:?}", got.ranges),
+                format!("{:?}", want.ranges),
+            ),
+        ] {
+            assert!(a == b, "{context}: ci {ci} {field}\n got {a}\nwant {b}");
+        }
+        for (index, (a, b)) in got.scans.iter().zip(&want.scans).enumerate() {
+            assert!(
+                a == b,
+                "{context}: ci {ci} scan {index}\n got {a:?}\nwant {b:?}"
+            );
+        }
     }
 }
 
@@ -250,7 +311,7 @@ fn gap_reads_equal_a_store_that_materializes_every_commit() {
             gap.pause_materialization(true);
         }
     }
-    assert_eq!(every_snapshot(&gap), every_snapshot(&inline));
+    assert_same(&every_snapshot(&gap), &every_snapshot(&inline), "");
     gap.pause_materialization(false);
     drop((gap, inline));
     crate::remove_store(&gap_path).unwrap();
@@ -282,7 +343,7 @@ fn concurrent_groups_read_the_same_from_the_gap_and_from_redb() {
     let from_gap = every_snapshot(&store);
     store.pause_materialization(false);
     store.wait_materialized().unwrap();
-    assert_eq!(from_gap, every_snapshot(&store));
+    assert_same(&from_gap, &every_snapshot(&store), "");
     drop(store);
     crate::remove_store(&path).unwrap();
 }
@@ -434,10 +495,10 @@ fn killed_at(scenario: &str, env: &[(&str, &str)]) -> (u64, u64) {
         commit(&reference, tenant, &ops);
     }
     reference.wait_materialized().unwrap();
-    assert_eq!(
-        every_snapshot(&reopened),
-        every_snapshot(&reference),
-        "{scenario}: {acked} acknowledged, {recovered} recovered"
+    assert_same(
+        &every_snapshot(&reopened),
+        &every_snapshot(&reference),
+        &format!("{scenario}: {acked} acknowledged, {recovered} recovered"),
     );
     // The recovered store keeps working: one more commit, materialized.
     let (tenant, ops) = &crash_steps(recovered + 1)[usize::try_from(recovered).unwrap()];
@@ -524,10 +585,10 @@ fn a_follower_with_its_gap_open_answers_like_its_leader() {
     }
     leader.wait_materialized().unwrap();
     assert!(follower.unmaterialized_bytes() > 0);
-    assert_eq!(every_snapshot(&follower), every_snapshot(&leader));
+    assert_same(&every_snapshot(&follower), &every_snapshot(&leader), "");
     follower.pause_materialization(false);
     follower.wait_materialized().unwrap();
-    assert_eq!(every_snapshot(&follower), every_snapshot(&leader));
+    assert_same(&every_snapshot(&follower), &every_snapshot(&leader), "");
     drop((leader, follower));
     crate::remove_store(&leader_path).unwrap();
     crate::remove_store(&follower_path).unwrap();

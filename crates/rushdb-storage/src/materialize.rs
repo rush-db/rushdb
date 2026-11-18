@@ -80,7 +80,7 @@ fn run(
 ) {
     while let Some(batch) = gap.next_batch(BATCH_BYTES) {
         let started = std::time::Instant::now();
-        let materialized = materialize(backend, &batch);
+        let materialized = materialize(gap, backend, &batch);
         let observer = observer
             .read()
             .unwrap_or_else(PoisonError::into_inner)
@@ -114,7 +114,15 @@ fn run(
     }
 }
 
-fn materialize(backend: &dyn StorageBackend, batch: &[Arc<GapCommit>]) -> Result<(), String> {
+fn materialize(
+    gap: &Gap,
+    backend: &dyn StorageBackend,
+    batch: &[Arc<GapCommit>],
+) -> Result<(), String> {
+    #[cfg(debug_assertions)]
+    let expected = expected_usage(gap, backend, batch)?;
+    #[cfg(not(debug_assertions))]
+    let _ = gap;
     let pairs: Vec<CommitOps<'_>> = batch
         .iter()
         .map(|commit| CommitOps {
@@ -125,31 +133,44 @@ fn materialize(backend: &dyn StorageBackend, batch: &[Arc<GapCommit>]) -> Result
         .collect();
     backend.apply_many(&pairs)?;
     #[cfg(debug_assertions)]
-    check_usage(backend, batch)?;
+    check_usage(backend, expected)?;
     Ok(())
 }
 
-/// The apply computed each tenant's usage row itself; the gap served the
-/// publisher's version of it until now. They must agree.
+/// The usage rows the gap answers after `batch`, computed before the apply.
 #[cfg(debug_assertions)]
-fn check_usage(backend: &dyn StorageBackend, batch: &[Arc<GapCommit>]) -> Result<(), String> {
+fn expected_usage(
+    gap: &Gap,
+    backend: &dyn StorageBackend,
+    batch: &[Arc<GapCommit>],
+) -> Result<Vec<(Vec<u8>, Option<Vec<u8>>)>, String> {
+    let snapshot = gap.snapshot();
+    let base = backend.read_view().map_err(|error| error.to_string())?;
+    let view = crate::gap::GapView::new(base, snapshot).map_err(|error| error.to_string())?;
+    let last = batch.last().map_or(0, |commit| commit.ci);
+    let mut keys: Vec<&[u8]> = batch
+        .iter()
+        .flat_map(|commit| commit.usage_keys())
+        .collect();
+    keys.sort_unstable();
+    keys.dedup();
+    keys.into_iter()
+        .map(|key| {
+            view.current_at(key, last)
+                .map(|value| (key.to_vec(), value))
+                .map_err(|error| error.to_string())
+        })
+        .collect()
+}
+
+/// The apply computed each tenant's usage row itself; the gap answered
+/// it on demand until now. They must agree.
+#[cfg(debug_assertions)]
+fn check_usage(
+    backend: &dyn StorageBackend,
+    expected: Vec<(Vec<u8>, Option<Vec<u8>>)>,
+) -> Result<(), String> {
     use crate::read_view::{ReadLimits, ScanProjection};
-    let mut expected: std::collections::BTreeMap<&[u8], Option<&[u8]>> =
-        std::collections::BTreeMap::new();
-    for commit in batch {
-        let ops = commit
-            .base
-            .iter()
-            .chain(&commit.derived)
-            .chain(&commit.usage);
-        for op in ops.filter(|op| crate::usage::is_usage_bytes_key(op.key())) {
-            let value = match op {
-                crate::Op::Put(_, value) | crate::Op::Set(_, value) => Some(value.as_slice()),
-                crate::Op::Del(_) | crate::Op::Purge(_) => None,
-            };
-            expected.insert(op.key(), value);
-        }
-    }
     if expected.is_empty() {
         return Ok(());
     }
@@ -157,14 +178,14 @@ fn check_usage(backend: &dyn StorageBackend, batch: &[Arc<GapCommit>]) -> Result
     for (key, value) in expected {
         let applied = view
             .read_value(
-                key,
+                &key,
                 0,
                 true,
                 ReadLimits::default(),
                 ScanProjection::KeyValue,
             )
             .map_err(|error| error.to_string())?;
-        if applied.as_deref() != value {
+        if applied != value {
             return Err(format!(
                 "usage row {key:?}: published {value:?}, materialized {applied:?}"
             ));

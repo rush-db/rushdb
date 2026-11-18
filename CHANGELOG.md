@@ -35,6 +35,27 @@ in [`docs/manual/operations/upgrading-from-2x.md`](docs/manual/operations/upgrad
 
   The openCypher TCK now passes 1,653 of 3,897 scenarios (was 1,385); of
   the 2,403 in the supported profile, 1,653 pass (was 1,385 of 2,431).
+- **Commits are published once their write-ahead log record is durable.**
+  Before, a commit became visible only after it was also written into the
+  store file, one group at a time, so every tenant's write waited for the
+  whole store-file write of any large commit ahead of it, such as a merge
+  import (one commit per request since 3.0.11). That write now happens on
+  a background thread per store file; reads include the commits it has not
+  written yet, with the same answers at every snapshot. The backlog is
+  bounded at a quarter of the managed budget, at most 256 MiB; at the bound
+  commits wait for it. 50 light tenants writing single records beside a
+  200,000-record merge import, same host, before → after: requests of
+  5,000 documents: light p99 717–867 → 377–455 ms, import 3,462–3,586 →
+  3,426–3,427 records/s; requests of 1,000 documents: light p99 438–607 →
+  268–328 ms, import 2,685–2,732 → 2,504–3,015 records/s (one further run
+  measured 1,092 records/s and a 1.3 s p99 while the whole host was slow;
+  reruns did not repeat it). The same import alone: 46.3–51.4 → 50.1–50.7 s
+  (about 4% slower: the import's index lookups also check the not yet
+  written commits). The advice to send merge imports of about 1,000
+  records on shared hosts is withdrawn. Metrics: the writer-hold label
+  `publish` is now `materialize`; new `rushdb_storage_unmaterialized_bytes`
+  and commit phase `gap_push`; `backend_apply` now times the background
+  writes.
 - **Faster unfiltered ANN vector search.** The label-membership check of an
   unfiltered `query.vector` (and the vector leg of `query.hybrid`) now runs
   on the reranked hits in rank order until `limit + offset` pass, instead
@@ -83,9 +104,9 @@ in [`docs/manual/operations/upgrading-from-2x.md`](docs/manual/operations/upgrad
   checkpoints; the first durable commit after a load (a checkpoint, or the
   history-GC batch that completes a sweep) wrote out and synced the whole
   load while it held the file's only writer, so the next commit of every
-  tenant waited for it. A shard whose unsynced writes pass 16 MiB is now
-  checkpointed right away by a background thread, so no durable commit
-  carries more than that. 50,000 nested documents, then 400 single-record
+  tenant waited for it. A store file whose unsynced writes pass 16 MiB is
+  now checkpointed right away by the thread that writes commits into it,
+  so no durable commit carries more than that. 50,000 nested documents, then 400 single-record
   writes (two runs each, btrfs): longest writer hold above 1 s → under
   0.5 s, slowest write after the load 188–319 → 92–105 ms. New metric
   `rushdb_storage_paced_checkpoints_total`.

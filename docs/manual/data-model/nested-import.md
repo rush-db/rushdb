@@ -288,15 +288,14 @@ and its re-runs are used up, the request fails with `write_conflict` (HTTP
 409, `retryable: true`) and nothing of it is visible. Retry such a request
 with backoff.
 
-Commits are published one at a time, and a merge request is one commit, so
-while a large merge request commits, the commits of other requests (other
-tenants' included) wait for it: their latency grows with the size of the
-merge requests running beside them. The fair admission order lets each
-waiting tenant in after at most one such commit per busy tenant, so the
-wait is bounded by one request's commit, not by the whole load. On a
-shared host where other tenants' latency matters, send merge imports of
-about 1,000 records per request; larger requests load a little faster but
-make neighbours wait longer.
+A merge request is one commit. A commit becomes visible as soon as its
+write-ahead log record is durable; writing it into the store file happens
+afterwards, in the background, so other requests (other tenants' included)
+do not wait for a large merge request to be written out. They still share
+the commit order with it, and the fair admission order lets each waiting
+tenant in after at most one commit per busy tenant. Requests of a few
+thousand records load fastest; there is no need to split merge imports
+into small requests for the sake of other tenants.
 
 A plain create import is not atomic: a reader can briefly see its records
 before their relationships exist, a failure between the two commits leaves

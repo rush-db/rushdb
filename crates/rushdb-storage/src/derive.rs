@@ -25,6 +25,15 @@ pub trait DeriveRead: Sync {
     /// Returns [`StorageError`] if the underlying read fails.
     fn get(&self, key: &[u8]) -> Result<Option<Vec<u8>>, StorageError>;
 
+    /// Length of `key`'s current value, or `None` when absent: what usage
+    /// accounting needs, without copying the value.
+    ///
+    /// # Errors
+    /// Returns [`StorageError`] if the underlying read fails.
+    fn value_len(&self, key: &[u8]) -> Result<Option<usize>, StorageError> {
+        Ok(self.get(key)?.map(|value| value.len()))
+    }
+
     /// Every live `(key, value)` whose key starts with `prefix`, in key order.
     ///
     /// # Errors
@@ -131,6 +140,13 @@ impl DeriveRead for Layered<'_, '_> {
         }
     }
 
+    fn value_len(&self, key: &[u8]) -> Result<Option<usize>, StorageError> {
+        match self.buffer.get(key) {
+            Some(value) => Ok(value.map(<[u8]>::len)),
+            None => self.base.value_len(key),
+        }
+    }
+
     fn range_prefix(&self, prefix: &[u8]) -> Result<Vec<(Vec<u8>, Vec<u8>)>, StorageError> {
         let merged = self.base.range_prefix(prefix)?.into_iter().collect();
         let upper = crate::prefix_range(prefix).1;
@@ -183,6 +199,22 @@ impl DeriveRead for BackendRead {
             ReadLimits::default(),
             ScanProjection::KeyValue,
         )
+    }
+
+    fn value_len(&self, key: &[u8]) -> Result<Option<usize>, StorageError> {
+        let mut len = None;
+        self.0.visit_value(
+            key,
+            u64::MAX,
+            true,
+            ReadLimits {
+                max_item_bytes: usize::MAX,
+                ..ReadLimits::default()
+            },
+            ScanProjection::KeyValue,
+            &mut |value| len = Some(value.len()),
+        )?;
+        Ok(len)
     }
 
     fn range_prefix(&self, prefix: &[u8]) -> Result<Vec<(Vec<u8>, Vec<u8>)>, StorageError> {

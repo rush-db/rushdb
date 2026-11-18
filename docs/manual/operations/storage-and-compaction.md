@@ -24,6 +24,14 @@ And beside it:
 |---|---|---|
 | `rushdb.redb.wal/` | Committed command log in 64 MiB segments | `rushdb_wal_retained_bytes` |
 
+A commit is durable, and visible to reads, once its WAL record is synced.
+Writing it into the store file happens afterwards on a background thread
+per store file; until then reads include it from memory. That backlog is
+bounded at a quarter of the managed budget, at most 256 MiB
+(`rushdb_storage_unmaterialized_bytes`): at the bound new commits wait for
+it. A checkpoint, a backup and a compaction first let the backlog drain,
+and after a crash it is replayed from the WAL.
+
 The byte categories inside the store are refreshed every 15 minutes; the
 file size and WAL size are live.
 

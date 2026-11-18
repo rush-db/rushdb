@@ -109,7 +109,7 @@ pub(crate) fn commit_rows<'a>(
         }
         let old = match after.get(key) {
             Some(len) => *len,
-            None => before.get(key)?.map(|value| value.len()),
+            None => before.value_len(key)?,
         };
         let new = new.map(<[u8]>::len);
         usage.record(key, old, new);
