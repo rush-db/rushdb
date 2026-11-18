@@ -10,7 +10,10 @@
 //!
 //! The gap's versions live in a persistent ordered map: a reader takes a
 //! snapshot in O(1) and keeps it for the life of its view while the
-//! publisher adds and the materializer trims. A reader snapshots the gap
+//! publisher adds and the materializer trims. A commit that writes many
+//! keys (a bulk import's) goes in as one sorted run instead: inserting its
+//! keys one by one cost the publisher more than the redb apply the gap
+//! takes off its path, and the materializer drops a run whole. A reader snapshots the gap
 //! before it opens the redb transaction, so everything the snapshot lacks
 //! is already in that transaction; versions the transaction also holds are
 //! skipped.
@@ -47,8 +50,92 @@ pub(crate) struct Version {
     pub(crate) erases: bool,
 }
 
-/// Versions of every key the gap's commits write, oldest first per key.
-type GapIndex = im::OrdMap<GapKey, Arc<[Version]>>;
+/// Commits that write at least this many keys enter the gap as a [`Run`].
+/// Few commits are that large, so a read checks few runs; tests use a small
+/// threshold so both forms meet in every scenario.
+const RUN_KEYS: usize = if cfg!(test) { 6 } else { 16_384 };
+
+/// Versions of every key the gap's commits write.
+#[derive(Clone, Default)]
+struct GapIndex {
+    /// Small commits' versions, oldest first per key.
+    map: im::OrdMap<GapKey, Arc<[Version]>>,
+    /// Large commits, one run each, oldest first.
+    runs: im::Vector<Arc<Run>>,
+}
+
+/// One large commit's versions, sorted by key, one per key.
+struct Run {
+    ci: u64,
+    entries: Box<[(GapKey, Version)]>,
+}
+
+impl Run {
+    fn get(&self, probe: &GapKey) -> Option<&Version> {
+        self.entries
+            .binary_search_by(|(key, _)| key.cmp(probe))
+            .ok()
+            .map(|at| &self.entries[at].1)
+    }
+
+    /// The entries with keys in `(lower, upper)`.
+    fn range(&self, lower: Bound<&[u8]>, upper: Bound<&[u8]>) -> &[(GapKey, Version)] {
+        let start = match lower {
+            Bound::Unbounded => 0,
+            Bound::Included(start) => self.entries.partition_point(|(key, _)| key.bytes() < start),
+            Bound::Excluded(start) => self
+                .entries
+                .partition_point(|(key, _)| key.bytes() <= start),
+        };
+        let end = match upper {
+            Bound::Unbounded => self.entries.len(),
+            Bound::Included(end) => self.entries.partition_point(|(key, _)| key.bytes() <= end),
+            Bound::Excluded(end) => self.entries.partition_point(|(key, _)| key.bytes() < end),
+        };
+        self.entries.get(start..end.max(start)).unwrap_or_default()
+    }
+}
+
+impl GapIndex {
+    /// The runs of commits newer than `base_ci`, oldest first.
+    fn runs_after(&self, base_ci: u64) -> impl DoubleEndedIterator<Item = &Run> {
+        self.runs
+            .iter()
+            .map(|run| &**run)
+            .filter(move |run| run.ci > base_ci)
+    }
+
+    /// `key`'s versions newer than `base_ci`, oldest first.
+    fn versions(&self, key: &[u8], base_ci: u64) -> Vec<&Version> {
+        let probe = GapKey::probe(key);
+        let mut out: Vec<&Version> = self.map.get(&probe).map_or_else(Vec::new, |versions| {
+            versions.iter().filter(|v| v.ci > base_ci).collect()
+        });
+        let from_map = out.len();
+        out.extend(self.runs_after(base_ci).filter_map(|run| run.get(&probe)));
+        if from_map > 0 && out.len() > from_map {
+            out.sort_by_key(|v| v.ci);
+        }
+        out
+    }
+
+    /// `key`'s newest version newer than `base_ci`.
+    fn newest(&self, key: &[u8], base_ci: u64) -> Option<&Version> {
+        let probe = GapKey::probe(key);
+        let in_map = self
+            .map
+            .get(&probe)
+            .and_then(|versions| versions.last())
+            .filter(|v| v.ci > base_ci);
+        let floor = in_map.map_or(base_ci, |v| v.ci);
+        self.runs
+            .iter()
+            .rev()
+            .take_while(|run| run.ci > floor)
+            .find_map(|run| run.get(&probe))
+            .or(in_map)
+    }
+}
 
 /// Key bytes a [`GapKey`] keeps inline.
 const INLINE: usize = 64;
@@ -146,18 +233,17 @@ pub(crate) struct GapCommit {
     usage: OnceLock<Result<UsageAfter, StorageError>>,
     /// What the commit charges against the gap's budget.
     bytes: usize,
-    /// Every key the commit writes, as the gap's index holds it.
+    /// Every key the commit writes into the index's map (none for a
+    /// commit in a run, which leaves the gap whole).
     keys: Vec<GapKey>,
+    /// The usage rows of the tenants the commit touches.
+    usage_rows: Vec<Vec<u8>>,
 }
 
 impl GapCommit {
     /// The usage rows this commit's tenants get.
-    #[cfg(debug_assertions)]
     pub(crate) fn usage_keys(&self) -> impl Iterator<Item = &[u8]> {
-        self.keys
-            .iter()
-            .map(GapKey::bytes)
-            .filter(|key| crate::usage::is_usage_bytes_key(key))
+        self.usage_rows.iter().map(Vec::as_slice)
     }
 
     fn ops(&self) -> impl Iterator<Item = &Op> {
@@ -320,14 +406,48 @@ impl Gap {
             usage: OnceLock::new(),
             bytes: charge.bytes(),
             keys: Vec::new(),
+            usage_rows: Vec::new(),
         };
+        // In key order (the effects map's), as a run keeps them.
         let effects: Vec<(GapKey, usize, bool)> = commit
             .effects()
             .into_iter()
             .map(|(key, (op, erases))| (GapKey::new(Arc::from(&*key)), op, erases))
             .collect();
-        commit.keys = effects.iter().map(|(key, ..)| key.clone()).collect();
+        commit.usage_rows = effects
+            .iter()
+            .map(|(key, ..)| key.bytes())
+            .filter(|key| crate::usage::is_usage_bytes_key(key))
+            .map(<[u8]>::to_vec)
+            .collect();
+        let run = effects.len() >= RUN_KEYS;
+        if !run {
+            commit.keys = effects.iter().map(|(key, ..)| key.clone()).collect();
+        }
         let commit = Arc::new(commit);
+        if run {
+            let entries = effects
+                .into_iter()
+                .map(|(key, op, erases)| {
+                    let commit = Arc::clone(&commit);
+                    (
+                        key,
+                        Version {
+                            ci,
+                            commit,
+                            op,
+                            erases,
+                        },
+                    )
+                })
+                .collect();
+            let run = Arc::new(Run { ci, entries });
+            let mut state = self.lock();
+            debug_assert!(ci > state.top, "gap commits arrive in commit order");
+            state.readers.index.runs.push_back(run);
+            self.enqueue(state, commit, charge);
+            return;
+        }
         let mut state = self.lock();
         debug_assert!(ci > state.top, "gap commits arrive in commit order");
         for (key, op, erases) in effects {
@@ -342,13 +462,24 @@ impl Gap {
             if let Some(older) = state
                 .readers
                 .index
+                .map
                 .insert(key.clone(), Arc::from([version.clone()]))
             {
                 let versions: Arc<[Version]> = older.iter().cloned().chain([version]).collect();
-                state.readers.index.insert(key, versions);
+                state.readers.index.map.insert(key, versions);
             }
         }
-        state.top = ci;
+        self.enqueue(state, commit, charge);
+    }
+
+    /// Queue `commit`, whose versions are in the index, and publish.
+    fn enqueue(
+        &self,
+        mut state: std::sync::MutexGuard<'_, State>,
+        commit: Arc<GapCommit>,
+        charge: ByteReservation,
+    ) {
+        state.top = commit.ci;
         state.readers.commits.push_back(Arc::clone(&commit));
         state.queue.push_back((commit, charge));
         self.publish(&state.readers);
@@ -394,23 +525,33 @@ impl Gap {
         };
         for (commit, _) in &done {
             for key in &commit.keys {
-                let Some(versions) = state.readers.index.get(key) else {
+                let Some(versions) = state.readers.index.map.get(key) else {
                     continue;
                 };
                 let kept: Arc<[Version]> =
                     versions.iter().filter(|v| v.ci > last).cloned().collect();
                 if kept.is_empty() {
-                    state.readers.index.remove(key);
+                    state.readers.index.map.remove(key);
                 } else if kept.len() != versions.len() {
-                    state.readers.index.insert(key.clone(), kept);
+                    state.readers.index.map.insert(key.clone(), kept);
                 }
             }
             state.readers.commits.pop_front();
+        }
+        let mut runs = Vec::new();
+        while let Some(run) = state.readers.index.runs.pop_front() {
+            if run.ci > last {
+                state.readers.index.runs.push_front(run);
+                break;
+            }
+            runs.push(run);
         }
         self.publish(&state.readers);
         // Release the charges before a waiter can see the queue shorter.
         drop(done);
         drop(state);
+        // A run's last snapshot may be this one: free it off the lock.
+        drop(runs);
         self.changed.notify_all();
     }
 
@@ -550,11 +691,7 @@ impl GapView {
                 })
                 .collect();
         let mut after = UsageAfter::new();
-        for key in &commit.keys {
-            let key = key.bytes();
-            if !crate::usage::is_usage_bytes_key(key) {
-                continue;
-            }
+        for key in commit.usage_keys() {
             let value = if let Some(value) = rows.get(key) {
                 value.clone()
             } else {
@@ -579,10 +716,8 @@ impl GapView {
 
     /// `key`'s current value before commit `ci` in this view.
     fn before(&self, key: &[u8], ci: u64) -> Result<Option<Vec<u8>>, StorageError> {
-        let older = self
-            .versions(key)
-            .and_then(|mut versions| versions.rfind(|v| v.ci < ci));
-        match older {
+        let versions = self.index.versions(key, self.base_ci);
+        match versions.into_iter().rfind(|v| v.ci < ci) {
             Some(version) => Ok(self.value_of(key, version)?.map(<[u8]>::to_vec)),
             None => self.base.read_value(
                 key,
@@ -597,18 +732,9 @@ impl GapView {
         }
     }
 
-    /// `key`'s versions newer than the base view, oldest first.
-    fn versions(&self, key: &[u8]) -> Option<impl DoubleEndedIterator<Item = &Version>> {
-        let base_ci = self.base_ci;
-        self.index
-            .get(&GapKey::probe(key))
-            .map(move |versions| versions.iter().filter(move |v| v.ci > base_ci))
-    }
-
     /// The newest gap version of `key`, if any.
     fn newest(&self, key: &[u8]) -> Option<&Version> {
-        self.versions(key)
-            .and_then(|mut versions| versions.next_back())
+        self.index.newest(key, self.base_ci)
     }
 
     /// Whether a gap key lies within `(lower, upper)`. Most of a merge
@@ -618,18 +744,26 @@ impl GapView {
     /// holds only smaller ones (a false `None`, never a wrong key), so a
     /// `None` is confirmed with a range.
     fn may_hold(&self, lower: Bound<&[u8]>, upper: Bound<&[u8]>) -> bool {
+        self.map_may_hold(lower, upper)
+            || self
+                .index
+                .runs_after(self.base_ci)
+                .any(|run| !run.range(lower, upper).is_empty())
+    }
+
+    fn map_may_hold(&self, lower: Bound<&[u8]>, upper: Bound<&[u8]>) -> bool {
+        let map = &self.index.map;
         let found = match lower {
-            Bound::Unbounded => self.index.get_min().map(|(key, _)| key),
+            Bound::Unbounded => map.get_min().map(|(key, _)| key),
             Bound::Included(start) | Bound::Excluded(start) => {
                 let probe = GapKey::probe(start);
-                match self.index.get_next(&probe) {
+                match map.get_next(&probe) {
                     // The bound itself when excluded: let the range decide.
                     Some((key, _)) if matches!(lower, Bound::Excluded(_)) && *key == probe => {
                         return true;
                     }
                     Some((key, _)) => Some(key),
-                    None => self
-                        .index
+                    None => map
                         .range((lower.map(GapKey::probe), Bound::Unbounded))
                         .next()
                         .map(|(key, _)| key),
@@ -651,10 +785,7 @@ impl GapView {
     /// that erased the key hides every older version, and otherwise the
     /// newest gap version at or below `ci` is the answer.
     fn at(&self, key: &[u8], ci: u64) -> GapRead<'_> {
-        let Some(versions) = self.versions(key) else {
-            return GapRead::Base;
-        };
-        let versions: Vec<&Version> = versions.collect();
+        let versions = self.index.versions(key, self.base_ci);
         if versions.iter().any(|v| v.ci > ci && v.erases) {
             return GapRead::Absent;
         }
@@ -834,12 +965,29 @@ impl StorageReadView for GapView {
         }
         // Any key a gap commit writes is a candidate: callers check each
         // candidate's visibility at their snapshot.
-        let mut range = self.index.range(probes(as_slices(lower), as_slices(upper)));
-        let gap = match direction {
+        let (lower, upper) = (as_slices(lower), as_slices(upper));
+        let mut range = self.index.map.range(probes(lower, upper));
+        let in_map = match direction {
             ScanDirection::Forward => range.next(),
             ScanDirection::Reverse => range.next_back(),
         }
-        .map(|(key, _)| key.bytes().to_vec());
+        .map(|(key, _)| key.bytes());
+        let in_runs = self.index.runs_after(self.base_ci).filter_map(|run| {
+            let entries = run.range(lower, upper);
+            match direction {
+                ScanDirection::Forward => entries.first(),
+                ScanDirection::Reverse => entries.last(),
+            }
+            .map(|(key, _)| key.bytes())
+        });
+        let gap = in_map
+            .into_iter()
+            .chain(in_runs)
+            .reduce(|a, b| match direction {
+                ScanDirection::Forward => a.min(b),
+                ScanDirection::Reverse => a.max(b),
+            })
+            .map(<[u8]>::to_vec);
         if let Some(key) = &gap {
             limits.check_item(key.len(), 0)?;
         }
@@ -917,20 +1065,60 @@ impl GapView {
             return base;
         }
         let base_ci = self.base_ci;
-        let gap = self
-            .index
-            .range(probes(as_slices(lower), as_slices(upper)))
-            .filter_map(move |(key, versions)| {
-                let newest = versions.last().filter(|v| v.ci > base_ci)?;
-                Some((key.bytes(), newest))
-            });
+        let (lower, upper) = (as_slices(lower), as_slices(upper));
+        let in_map =
+            self.index
+                .map
+                .range(probes(lower, upper))
+                .filter_map(move |(key, versions)| {
+                    let newest = versions.last().filter(|v| v.ci > base_ci)?;
+                    Some((key.bytes(), newest))
+                });
+        let mut sources: Vec<Source<'a>> =
+            vec![(Box::new(in_map) as Box<dyn Iterator<Item = _> + 'a>).peekable()];
+        for run in self.index.runs_after(base_ci) {
+            let entries = run.range(lower, upper);
+            if !entries.is_empty() {
+                let entries = entries.iter().map(|(key, version)| (key.bytes(), version));
+                sources.push((Box::new(entries) as Box<dyn Iterator<Item = _> + 'a>).peekable());
+            }
+        }
+        let gap: Box<dyn Iterator<Item = (&'a [u8], &'a Version)> + 'a> = if sources.len() == 1 {
+            Box::new(sources.pop().into_iter().flatten())
+        } else {
+            Box::new(NewestOf { sources })
+        };
         Box::new(Overlaid {
             view: self,
             base: base.peekable(),
-            gap: (Box::new(gap) as Box<dyn Iterator<Item = _> + 'a>).peekable(),
+            gap: gap.peekable(),
             limits,
             projection,
         })
+    }
+}
+
+/// One key-ordered stream of gap versions.
+type Source<'a> = std::iter::Peekable<Box<dyn Iterator<Item = (&'a [u8], &'a Version)> + 'a>>;
+
+/// Key-ordered streams merged: each key once, with its newest version.
+struct NewestOf<'a> {
+    sources: Vec<Source<'a>>,
+}
+
+impl<'a> Iterator for NewestOf<'a> {
+    type Item = (&'a [u8], &'a Version);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let key = self
+            .sources
+            .iter_mut()
+            .filter_map(|source| source.peek().map(|(key, _)| *key))
+            .min()?;
+        self.sources
+            .iter_mut()
+            .filter_map(|source| source.next_if(|(at, _)| *at == key))
+            .max_by_key(|(_, version)| version.ci)
     }
 }
 

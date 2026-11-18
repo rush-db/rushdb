@@ -45,13 +45,18 @@ in [`docs/manual/operations/upgrading-from-2x.md`](docs/manual/operations/upgrad
   bounded at a quarter of the managed budget, at most 256 MiB; at the bound
   commits wait for it. 50 light tenants writing single records beside a
   200,000-record merge import, same host, before → after: requests of
-  5,000 documents: light p99 717–867 → 377–455 ms, import 3,462–3,586 →
-  3,426–3,427 records/s; requests of 1,000 documents: light p99 438–607 →
-  268–328 ms, import 2,685–2,732 → 2,504–3,015 records/s (one further run
-  measured 1,092 records/s and a 1.3 s p99 while the whole host was slow;
-  reruns did not repeat it). The same import alone: 46.3–51.4 → 50.1–50.7 s
-  (about 4% slower: the import's index lookups also check the not yet
-  written commits). The advice to send merge imports of about 1,000
+  5,000 documents: light p99 491–500 → 188–287 ms, import 3,663–3,664 →
+  3,226–3,496 records/s (one further run measured 2,527 records/s while
+  every commit phase on the host was slow alike); requests of 1,000
+  documents: light p99 383–407 → 183–184 ms, import 3,011–3,146 →
+  3,402–3,460 records/s. The same import alone: 44.9 → 49.1–49.4 s (about
+  9% slower: the import's index lookups also check the not yet written
+  commits). A commit of 16,384 keys or more, such as a large import
+  request, enters that backlog as one sorted run instead of key by key, so
+  bulk loads are not slowed by it; against 3.0.12: a 1,000,000-row CSV
+  import 22.9–23.0k → 24.2k rows/s, nested JSON documents in requests of
+  5,000 4.5–4.6k → 4.7–5.4k documents/s and of 500 3.6k → 4.8k
+  documents/s. The advice to send merge imports of about 1,000
   records on shared hosts is withdrawn. Metrics: the writer-hold label
   `publish` is now `materialize`; new `rushdb_storage_unmaterialized_bytes`
   and commit phase `gap_push`; `backend_apply` now times the background
