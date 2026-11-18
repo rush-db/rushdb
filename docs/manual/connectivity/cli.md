@@ -20,7 +20,7 @@ Usage: rushdb <COMMAND>
 
 Commands:
   serve   Run the database server. Without `--data-dir` the node is in memory
-  up      Run a persistent local node: `serve` with a `./.rushdb` data directory and a startup summary. Takes every `serve` option
+  up      Run a persistent local node: `serve` with a `./.rushdb` data directory (`./.rushdb/data` when `./.rushdb` holds this binary) and a startup summary. Takes every `serve` option
   health  Check that a node is up: exits 0 when `GET /health` answers 200
   help    Print this message or the help of the given subcommand(s)
 
@@ -33,8 +33,9 @@ Options:
 
 Starts a persistent, single-node server in the foreground. It is
 `rushdb serve` with two differences: the data directory defaults to
-`./.rushdb` instead of memory, and it prints where the node listens before it
-starts. It takes every `rushdb serve` option and environment variable.
+`./.rushdb` instead of memory (`./.rushdb/data` when `./.rushdb` holds the
+`rushdb` binary itself, as `~/.rushdb` does after `install.sh`), and it
+prints where the node listens before it starts. It takes every `rushdb serve` option and environment variable.
 
 ```bash
 rushdb up --data-dir ~/rushdb-data

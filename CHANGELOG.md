@@ -99,6 +99,14 @@ in [`docs/manual/operations/upgrading-from-2x.md`](docs/manual/operations/upgrad
 
 ### Fixed
 
+- **`rushdb up` no longer keeps its data beside the installed binary.**
+  `install.sh` installs into `~/.rushdb/bin`, and `rushdb up` defaults to
+  `./.rushdb`, so started from the home directory it put the store in
+  `~/.rushdb` itself: deleting that data directory deleted the binary. When
+  `./.rushdb` holds the running binary, the default is now `./.rushdb/data`.
+  A store already in `~/.rushdb` keeps opening there, with a one-line notice
+  on how to move it; nothing is moved. An explicit `--data-dir` or
+  `RUSHDB_DATA_DIR` is unchanged.
 - **No more half-second write stall after a large load.** Commits are
   applied to the store file without a sync and made durable by periodic
   checkpoints; the first durable commit after a load (a checkpoint, or the

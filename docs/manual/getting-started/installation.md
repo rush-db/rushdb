@@ -14,7 +14,7 @@ RushDB is one binary, `rushdb`, with three commands:
 | Command | Purpose |
 |---|---|
 | `rushdb serve` | The database server. Every option is a command-line flag or an environment variable; `rushdb serve --help` lists them all. |
-| `rushdb up` | The server for a local node: a persistent `./.rushdb` data directory by default and a startup summary. Takes every `serve` option. |
+| `rushdb up` | The server for a local node: a persistent `./.rushdb` data directory by default (`./.rushdb/data` when `./.rushdb` holds the binary) and a startup summary. Takes every `serve` option. |
 | `rushdb health` | Check that a node is up. |
 
 ## Install script (Linux and macOS)
@@ -161,10 +161,16 @@ settings the node:
 
 - serves the native HTTP protocol on `http://127.0.0.1:3000` (loopback only);
 - serves the PostgreSQL wire protocol on `127.0.0.1:5432`;
-- keeps its data in `./.rushdb`;
+- keeps its data in `./.rushdb`, or `./.rushdb/data` when `./.rushdb` holds the `rushdb` binary itself (as `~/.rushdb` does after `install.sh`, so `rushdb up` from your home directory keeps its data in `~/.rushdb/data`);
 - accepts the token `local-token`;
 - runs in single-tenant mode, with SQL, Gremlin, SQL/PGQ and Mongo-style
   statements enabled.
+
+A store that an earlier release already keeps in `~/.rushdb` itself, next
+to `~/.rushdb/bin`, keeps opening there; `rushdb up` then says so in one
+line. To keep the data apart from the binary, stop the node and move the
+store files (everything in `~/.rushdb` except `bin/`) into
+`~/.rushdb/data`.
 
 Check that it is up:
 
@@ -184,7 +190,7 @@ returns the same document.
 
 | Option | Environment variable | Default | Meaning |
 |---|---|---|---|
-| `--data-dir <path>` | `RUSHDB_DATA_DIR` | `./.rushdb` | Persistent database directory |
+| `--data-dir <path>` | `RUSHDB_DATA_DIR` | `./.rushdb` (`./.rushdb/data` when it holds the binary) | Persistent database directory |
 | `--port <n>` | — | `3000` | HTTP port |
 | `--pgwire-port <n>` | — | `5432` | PostgreSQL wire port; `0` disables it |
 | `--token <token>` | `RUSHDB_TOKEN` | `local-token` | Token clients must present |

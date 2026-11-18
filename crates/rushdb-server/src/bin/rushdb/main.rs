@@ -22,7 +22,8 @@ enum Commands {
     /// Run the database server. Without `--data-dir` the node is in memory.
     Serve(serve::ServeArgs),
     /// Run a persistent local node: `serve` with a `./.rushdb` data directory
-    /// and a startup summary. Takes every `serve` option.
+    /// (`./.rushdb/data` when `./.rushdb` holds this binary) and a startup
+    /// summary. Takes every `serve` option.
     Up(serve::ServeArgs),
     /// Check that a node is up: exits 0 when `GET /health` answers 200.
     Health {
@@ -57,9 +58,24 @@ fn main() {
     };
     match cli.command {
         Commands::Serve(args) => serve::run(args, explicit_flags("serve")),
-        Commands::Up(args) => {
+        Commands::Up(mut args) => {
+            let explicit = explicit_flags("up");
+            if !explicit.contains("data-dir") {
+                let cwd = std::env::current_dir().unwrap_or_else(|_| ".".into());
+                let exe = std::env::current_exe().ok();
+                match up_data_dir(&cwd, exe.as_deref()) {
+                    UpDataDir::Local => {}
+                    UpDataDir::BesideBinary(dir) => args.data_dir = Some(dir),
+                    UpDataDir::SharedWithBinary(dir) => println!(
+                        "Using the existing store in {}, which also holds the installed binary; \
+                         to keep them apart, stop the node and move the store into {}",
+                        dir.display(),
+                        dir.join(UP_DATA_SUBDIR).display()
+                    ),
+                }
+            }
             print_summary(&args);
-            serve::run(args, explicit_flags("up"));
+            serve::run(args, explicit);
         }
         Commands::Health { url } => match health(&url) {
             Ok(body) => println!("{body}"),
@@ -68,6 +84,46 @@ fn main() {
                 std::process::exit(1);
             }
         },
+    }
+}
+
+/// Where `rushdb up` keeps its data when `--data-dir` is not given.
+#[derive(Debug, PartialEq, Eq)]
+enum UpDataDir {
+    /// `./.rushdb`.
+    Local,
+    /// `./.rushdb` holds the running binary (`install.sh` installs into
+    /// `~/.rushdb/bin`, so `rushdb up` from the home directory): the data
+    /// goes into this subdirectory of it instead, so deleting the data
+    /// never deletes the binary.
+    BesideBinary(std::path::PathBuf),
+    /// As above, but a store from an earlier release is already in
+    /// `./.rushdb` itself: it keeps opening there (nothing is moved).
+    SharedWithBinary(std::path::PathBuf),
+}
+
+/// The subdirectory of `./.rushdb` `up` uses when `./.rushdb` holds the
+/// binary.
+const UP_DATA_SUBDIR: &str = "data";
+
+/// `up`'s default data directory for a node started in `cwd` by the
+/// binary at `exe`.
+fn up_data_dir(cwd: &std::path::Path, exe: Option<&std::path::Path>) -> UpDataDir {
+    let local = cwd.join(".rushdb");
+    let (Ok(root), Some(Ok(exe))) = (local.canonicalize(), exe.map(std::path::Path::canonicalize))
+    else {
+        return UpDataDir::Local;
+    };
+    if !exe.starts_with(&root) {
+        return UpDataDir::Local;
+    }
+    let has_store = ["rushdb.redb", rushdb_server::config::CONFIG_FILE_NAME]
+        .iter()
+        .any(|file| local.join(file).exists());
+    if has_store {
+        UpDataDir::SharedWithBinary(local)
+    } else {
+        UpDataDir::BesideBinary(local.join(UP_DATA_SUBDIR))
     }
 }
 
@@ -137,7 +193,7 @@ fn health(url: &str) -> Result<String, String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{command, Cli, Commands};
+    use super::{command, up_data_dir, Cli, Commands, UpDataDir};
     use clap::FromArgMatches;
 
     fn parse(args: &[&str]) -> Commands {
@@ -155,6 +211,66 @@ mod tests {
             panic!("expected serve")
         };
         assert_eq!(args.languages, ["sql", "cypher"]);
+    }
+
+    /// A directory tree for `up_data_dir`: `cwd` with the given files.
+    fn tree(name: &str, files: &[&str]) -> std::path::PathBuf {
+        let root = std::env::temp_dir().join(format!(
+            "rushdb-up-{name}-{}-{}",
+            std::process::id(),
+            uuid::Uuid::now_v7()
+        ));
+        for file in files {
+            let path = root.join(file);
+            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+            std::fs::write(path, b"").unwrap();
+        }
+        std::fs::create_dir_all(&root).unwrap();
+        root
+    }
+
+    #[test]
+    fn up_keeps_data_apart_from_a_binary_installed_in_its_default_directory() {
+        // `install.sh` installs into ~/.rushdb/bin; `rushdb up` from ~.
+        let home = tree("installed", &[".rushdb/bin/rushdb"]);
+        let exe = home.join(".rushdb/bin/rushdb");
+        assert_eq!(
+            up_data_dir(&home, Some(&exe)),
+            UpDataDir::BesideBinary(home.join(".rushdb/data"))
+        );
+        std::fs::remove_dir_all(home).unwrap();
+    }
+
+    #[test]
+    fn up_keeps_opening_a_store_that_already_shares_the_binary_directory() {
+        for store_file in [".rushdb/rushdb.redb", ".rushdb/config.yml"] {
+            let home = tree("shared", &[".rushdb/bin/rushdb", store_file]);
+            let exe = home.join(".rushdb/bin/rushdb");
+            assert_eq!(
+                up_data_dir(&home, Some(&exe)),
+                UpDataDir::SharedWithBinary(home.join(".rushdb")),
+                "{store_file}"
+            );
+            std::fs::remove_dir_all(home).unwrap();
+        }
+    }
+
+    #[test]
+    fn up_uses_the_local_directory_when_the_binary_lives_elsewhere() {
+        let project = tree("project", &[".rushdb/config.yml", "bin/rushdb"]);
+        // A binary outside ./.rushdb, an existing or a missing ./.rushdb.
+        assert_eq!(
+            up_data_dir(&project, Some(&project.join("bin/rushdb"))),
+            UpDataDir::Local
+        );
+        let empty = tree("empty", &["bin/rushdb"]);
+        assert_eq!(
+            up_data_dir(&empty, Some(&empty.join("bin/rushdb"))),
+            UpDataDir::Local
+        );
+        assert_eq!(up_data_dir(&empty, None), UpDataDir::Local);
+        std::fs::remove_dir_all(project).unwrap();
+        std::fs::remove_dir_all(empty).unwrap();
     }
 
     #[test]
