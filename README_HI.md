@@ -1,185 +1,221 @@
 <div align="center">
 
-![RushDB Logo](https://raw.githubusercontent.com/rush-db/rushdb/main/rushdb-logo.svg)
+<img src="https://raw.githubusercontent.com/rush-db/rushdb/main/rushdb-logo.svg" alt="RushDB logo" width="96">
 
-# RushDB — AI के लिए database
+# RushDB
 
-### आपके records, उनके relationships और उन पर search — सब एक database में।
+<sub>AI के लिए database</sub>
 
-JSON लिखिए। RushDB types का अनुमान लगाता है, nested objects को एक graph में जोड़ता है, और आपको उसे अपनी JSON query language, SQL, Cypher, Gremlin या Mongo-style documents से query करने देता है — साथ में vector, full-text और hybrid search भी। एक Rust binary, एक data directory, Apache-2.0।
+**Graph, vector और analytics, एक ही records पर। हर write labels, fields और values का एक live schema बनाए रखता है, इसलिए agents अनुमान लगाने के बजाय असली fields पर query करते हैं।**
 
 [![CI](https://img.shields.io/github/actions/workflow/status/rush-db/rushdb/ci.yml?branch=main&label=CI)](https://github.com/rush-db/rushdb/actions/workflows/ci.yml)
-[![License](https://img.shields.io/badge/license-Apache%202.0-blue)](LICENSE)
+[![Release](https://img.shields.io/github/v/release/rush-db/rushdb?label=release)](https://github.com/rush-db/rushdb/releases)
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue)](https://github.com/rush-db/rushdb/blob/main/LICENSE)
 [![GitHub Stars](https://img.shields.io/github/stars/rush-db/rushdb?style=social)](https://github.com/rush-db/rushdb)
-[![Follow on X](https://img.shields.io/twitter/follow/RushDatabase?style=social)](https://x.com/RushDatabase)
 
-[वेबसाइट](https://rushdb.com) • [दस्तावेज़](https://docs.rushdb.com) • [मैनुअल](docs/manual/README.md) • [RushDB Cloud](https://app.rushdb.com) • [Deploy](deploy/README.md)
-
-[English](README.md) • [中文](README_ZH.md) • [日本語](README_JA.md) • [한국어](README_KO.md) • [Deutsch](README_DE.md) • [Français](README_FR.md) • [Português](README_PT.md) • [Español](README_ES.md) • **हिन्दी** • [العربية](README_AR.md) • [Bahasa Indonesia](README_ID.md) • [ไทย](README_TH.md)
+[दस्तावेज़](https://docs.rushdb.com) • [Quickstart](https://docs.rushdb.com/engine/getting-started/quickstart/) • [चर्चाएँ](https://github.com/orgs/rush-db/discussions) • [X](https://x.com/RushDatabase) • [RushDB Cloud](https://app.rushdb.com)
 
 </div>
 
 ---
 
-## Quick start
+अपने app से JSON लिखिए। RushDB उसे typed records के रूप में store करता है जो
+एक graph में जुड़े होते हैं, और यही records relationship queries, vector और
+full-text search, और aggregations का जवाब देते हैं, इसलिए sync में रखने के लिए
+कोई दूसरा store नहीं होता। हर write मौजूद labels, fields, types और values का
+catalog भी update करता है: agent पहले देखता है कि क्या मौजूद है, फिर उसी से मेल
+खाती query लिखता है। SDKs, SQL या Cypher इस्तेमाल कीजिए। एक Rust binary, Apache-2.0।
+
+| Graph | Vector और full-text search | Analytics |
+|---|---|---|
+| Nested JSON जुड़े हुए records बन जाता है। Relationships के पार filter कीजिए और typed, directed relationships को एक ही query में follow कीजिए। | Vector (exact और HNSW), BM25 full-text और hybrid search, उन्हीं graph predicates से filter किए हुए। | `groupBy` के साथ count, sum, average, min और max, या PostgreSQL wire protocol पर `GROUP BY` वाला सीधा SQL। |
+
+## Quickstart
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/rush-db/rushdb/main/install.sh | sh
-rushdb up
+curl -fsSL https://rushdb.com/install.sh | sh    # or: brew install rush-db/tap/rushdb
+export PATH="$HOME/.rushdb/bin:$PATH"             # or open a new shell
+mkdir my-app && cd my-app && rushdb up
 ```
 
-Script release का checksum जाँचता है (और `cosign` installed हो तो उसका Sigstore signature भी), फिर `rushdb` binary को `~/.rushdb/bin` में install करता है। `rushdb up` `http://127.0.0.1:3000` पर एक durable node शुरू करता है; data `./.rushdb` में रहता है और local token `local-token` है।
-
-एक nested JSON document लिखिए। हर nested object अपना अलग record बनता है, जो अपने parent से जुड़ा होता है:
-
-```bash
-export RUSHDB_TOKEN=local-token
-curl -s http://127.0.0.1:3000/protocol/v1/execute \
-  -H "Authorization: Bearer $RUSHDB_TOKEN" -H 'Content-Type: application/json' \
-  -d '{"protocolVersion":1,"operation":{"kind":"ingest","ingest":{"kind":"documents","label":"COMPANY",
-       "documents":{"name":"Acme","DEPARTMENT":[
-         {"name":"Engineering","headcount":12,"EMPLOYEE":[{"name":"Ada","role":"Staff Engineer"},{"name":"Linus","role":"Engineer"}]},
-         {"name":"Sales","headcount":4,"EMPLOYEE":[{"name":"Grace","role":"Account Executive"}]}]}}}}'
-```
-
-फिर Acme के engineers ढूँढिए। Filter related labels का नाम लेकर relationships के पार जाता है:
-
-```bash
-curl -s http://127.0.0.1:3000/protocol/v1/execute \
-  -H "Authorization: Bearer $RUSHDB_TOKEN" -H 'Content-Type: application/json' \
-  -d '{"protocolVersion":1,"operation":{"kind":"query","query":{"kind":"records","query":{
-       "labels":["EMPLOYEE"],
-       "predicate":{"role":{"$contains":"Engineer"},"DEPARTMENT":{"COMPANY":{"name":"Acme"}}}}}}}'
-```
-
-आगे [Quickstart](docs/manual/getting-started/quickstart.md) पढ़िए।
-
-## अपने तरीके से query करें
-
-वही records हर interface से जवाब देते हैं।
-
-**SQL**, PostgreSQL wire protocol पर, `psql` या किसी भी PostgreSQL driver से। Labels ही tables हैं:
-
-```bash
-PGPASSWORD=$RUSHDB_TOKEN psql "host=127.0.0.1 port=5432 user=rushdb dbname=rushdb sslmode=disable" \
-  -c "SELECT name, headcount FROM department ORDER BY headcount DESC"
-```
-
-**Cypher**, HTTP पर, या Neo4j drivers के साथ Bolt पर (`rushdb up --languages sql,cypher --bolt-port 7687`):
-
-```cypher
-MATCH (d:DEPARTMENT)-->(e:EMPLOYEE)
-RETURN d.name AS department, count(e) AS people ORDER BY people DESC
-```
-
-**SDKs** direct mode में (`npm install @rushdb/javascript-sdk`):
+`rushdb up` `http://127.0.0.1:3000` पर serve करता है; data `./.rushdb` में रहता है और
+token `local-token` है। दूसरे terminal में `npm install @rushdb/javascript-sdk` चलाइए:
 
 ```typescript
 import RushDB from '@rushdb/javascript-sdk'
 
-const db = new RushDB(process.env.RUSHDB_TOKEN, { direct: true, engineUrl: 'http://127.0.0.1:3000' })
+const db = new RushDB('local-token', { direct: true, engineUrl: 'http://127.0.0.1:3000' })
 
+// Nested JSON becomes linked records: COMPANY -> DEPARTMENT -> EMPLOYEE
+await db.records.importJson({
+  label: 'COMPANY',
+  data: { name: 'Acme', DEPARTMENT: [
+    { name: 'Engineering', EMPLOYEE: [
+      { name: 'Ada', role: 'Staff Engineer', salary: 180000 },
+      { name: 'Linus', role: 'Engineer', salary: 140000 } ] },
+    { name: 'Sales', EMPLOYEE: [{ name: 'Grace', role: 'Account Executive', salary: 120000 }] } ] }
+})
+
+// Graph: filter across relationships by naming the related labels
 const engineers = await db.records.find({
   labels: ['EMPLOYEE'],
   where: { role: { $contains: 'Engineer' }, DEPARTMENT: { COMPANY: { name: 'Acme' } } },
   orderBy: { name: 'asc' }
 })
 console.log(engineers.data.map((employee) => employee.data.name)) // [ 'Ada', 'Linus' ]
+
+// Analytics: headcount and average salary per department
+const perDepartment = await db.records.find({
+  labels: ['EMPLOYEE'],
+  where: { DEPARTMENT: { $alias: '$department' } },
+  select: { people: { $count: '*' }, avgSalary: { $avg: '$record.salary' } },
+  groupBy: ['$department.name']
+})
+console.log(perDepartment.data.map((row) => row.data))
+// [ { name: 'Engineering', people: 2, avgSalary: 160000 }, { name: 'Sales', people: 1, avgSalary: 120000 } ]
+
+// The live schema an agent reads before it writes a query
+console.log((await db.ai.getSchemaMarkdown()).data)
 ```
 
-Gremlin, SQL/PGQ `GRAPH_TABLE`, Mongo-style documents और ISO GQL भी उसी HTTP endpoint का उपयोग करते हैं। [Query languages](docs/manual/languages/README.md) देखें।
+Schema catalog से आता है, records को scan करके नहीं:
 
-## इसमें क्या है
+```text
+## `EMPLOYEE` (3 records)
 
-| क्षमता | मतलब |
-|---|---|
-| **Schema design करने की ज़रूरत नहीं** | किसी भी shape का JSON लिखिए। Types हर value के हिसाब से inferred होते हैं, nested objects जुड़े हुए records बनते हैं, और engine labels, properties और relationships का एक सटीक catalog रखता है जिसे आप query कर सकते हैं। |
-| **Properties first-class हैं** | Labeled Meta-Property Graph (LMPG) हर property को एक typed definition के रूप में store करता है, जिसे उसका उपयोग करने वाले records साझा करते हैं — इसलिए schema discovery, value ranges और facets सीधे storage layout से मिलते हैं। |
-| **कई query languages** | एक native JSON query language, SQL, Gremlin, SQL/PGQ, Mongo-style documents, और release candidate के रूप में openCypher और ISO GQL। |
-| **Search** | आपके दिए vectors पर vector indexes (exact और HNSW), BM25 full-text indexes, और दोनों को मिलाने वाला hybrid search। |
-| **Durable और transactional** | Write-ahead log, MVCC snapshots, multi-statement transactions, point-in-time restore वाले backups, और read-only followers तक streaming replication। |
-| **Standard protocols** | एक ही process से HTTP, PostgreSQL wire protocol, gRPC और Bolt। |
-| **Multitenancy** | वैकल्पिक fail-closed tenants, हर एक का अपना keyspace। |
-| **एक binary** | `rushdb serve` server चलाता है; `rushdb up` एक local node। चलाने के लिए कोई दूसरी service नहीं। |
+| Property | Type | Values / Range | Semantic Search |
+|----------|------|----------------|-----------------|
+| `name` | string | `Ada`, `Linus`, `Grace` | — |
+| `role` | string | `Staff Engineer`, `Engineer`, `Account Executive` | — |
+| `salary` | number | `120000`..`180000` | — |
+```
 
-## Deploy
+<details>
+<summary>यही Python में</summary>
 
-| कहाँ | कैसे |
-|---|---|
-| Docker | `docker run -p 127.0.0.1:3000:3000 -v rushdb:/data -e RUSHDB_TOKEN=change-me rushdb/rushdb` |
-| Docker Compose | [`deploy/templates/docker-compose`](deploy/templates/docker-compose/), Caddy के पीछे HTTPS variant के साथ |
-| Kubernetes | [Helm chart](charts/rushdb/): `helm install rushdb oci://ghcr.io/rush-db/charts/rushdb --set auth.token=...` |
-| Linux VM | DigitalOcean, Hetzner, AWS, GCP, Azure के लिए [cloud-init](deploy/templates/cloud-init/); [systemd unit](deploy/templates/systemd/) |
-| Platforms | [Fly.io](deploy/templates/fly/), [Render](deploy/templates/render/), [Coolify](deploy/templates/coolify/), [Dokploy](deploy/templates/dokploy/) |
+`pip install rushdb`:
 
-[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/rush-db/rushdb)
+```python
+from rushdb import RushDB
 
-### Install करने के दूसरे तरीके
+db = RushDB("local-token", direct=True, engine_url="http://127.0.0.1:3000")
 
-| तरीका | Command | टिप्पणी |
-|---|---|---|
-| Install script | `curl -fsSL https://raw.githubusercontent.com/rush-db/rushdb/main/install.sh \| sh` | Linux (glibc 2.28+) और macOS, x86-64 और arm64। `sh -s -- --version v3.0.0` से कोई release तय करें। |
-| Homebrew | `brew install rush-db/tap/rushdb` | macOS और Linux। `brew services start rushdb` इसे background में चलाता है। |
-| Docker | `rushdb/rushdb` | `linux/amd64` और `linux/arm64`; `ghcr.io/rush-db/rushdb` पर भी। |
-| Cargo | `cargo binstall rushdb-server` या `cargo install rushdb-server --locked` | `binstall` release binary लाता है; `install` compile करता है (C++ compiler चाहिए)। |
-| Release archive | [GitHub releases](https://github.com/rush-db/rushdb/releases) | SHA-256 checksums, SBOM और Sigstore signatures वाले archives। |
-| Source | `cargo build --release -p rushdb-server --bin rushdb` | [Installation](docs/manual/getting-started/installation.md) देखें। |
+db.records.import_json(label="COMPANY", data={"name": "Acme", "DEPARTMENT": [
+    {"name": "Engineering", "EMPLOYEE": [
+        {"name": "Ada", "role": "Staff Engineer", "salary": 180000},
+        {"name": "Linus", "role": "Engineer", "salary": 140000}]},
+    {"name": "Sales", "EMPLOYEE": [{"name": "Grace", "role": "Account Executive", "salary": 120000}]}]})
 
-Windows natively supported नहीं है; WSL 2 या Docker इस्तेमाल करें। किसी node को loopback से बाहर खोलने से पहले [Security](docs/manual/operations/security.md) पढ़ें।
+engineers = db.records.find({
+    "labels": ["EMPLOYEE"],
+    "where": {"role": {"$contains": "Engineer"}, "DEPARTMENT": {"COMPANY": {"name": "Acme"}}},
+    "orderBy": {"name": "asc"},
+})
+print([employee.data["name"] for employee in engineers])  # ['Ada', 'Linus']
 
-## स्थिति
+per_department = db.records.find({
+    "labels": ["EMPLOYEE"],
+    "where": {"DEPARTMENT": {"$alias": "$department"}},
+    "select": {"people": {"$count": "*"}, "avgSalary": {"$avg": "$record.salary"}},
+    "groupBy": ["$department.name"],
+})
+print([row.data for row in per_department])
 
-| क्षेत्र | स्थिति |
-|---|---|
-| Native protocol, SQL, Gremlin text traversals, Mongo-style documents | Stable |
-| SQL/PGQ `GRAPH_TABLE` | Stable, read-only |
-| openCypher, ISO GQL, Bolt | Release candidate, opt-in: external conformance suites पूरी तरह pass नहीं होते ([विवरण](docs/manual/languages/README.md)) |
-| PostgreSQL wire | SQL reads और single-statement writes; `psql`, node-postgres, psycopg और `tokio-postgres` से जाँचा गया, हर client या ORM से नहीं |
-| Replication | Read-only followers तक asynchronous streaming; promotion manual है, automatic failover नहीं |
-| Raft, storage sharding | Preview, production के लिए नहीं: Raft एक process में in-memory state के साथ चलता है; multi-shard commits crash-atomic नहीं हैं |
+print(db.ai.get_schema_markdown().data)
+```
 
-[मैनुअल](docs/manual/README.md) हर interface की सटीक सीमाएँ बताता है।
+</details>
 
-## Connect
-
-| Interface | Default | Enable |
-|---|---|---|
-| HTTP native protocol | `127.0.0.1:3000`, `POST /protocol/v1/execute` | हमेशा चालू |
-| PostgreSQL wire | `127.0.0.1:5432` | `sql` के साथ चालू (default) |
-| gRPC (`rushdb.v1.Database/Execute`) | बंद | `--grpc-port` |
-| Bolt 5.0 | बंद | `cypher` के साथ `--bolt-port` |
-
-[JavaScript](https://www.npmjs.com/package/@rushdb/javascript-sdk) और [Python](https://pypi.org/project/rushdb/) SDKs, [MCP server](https://www.npmjs.com/package/@rushdb/mcp-server) और [agent skills](https://github.com/rush-db/skills) direct mode में self-hosted engine के साथ काम करते हैं।
-
-## Self-hosted engine और RushDB Cloud
-
-यह engine RushDB का वह हिस्सा है जिसे आप self-host करते हैं। यह embeddings नहीं बनाता, dashboard host नहीं करता और users manage नहीं करता: ये [RushDB Cloud](https://app.rushdb.com) के साथ आते हैं — वह managed service जो इसी engine को चलाती है और dashboard, managed embeddings और AI features (natural-language search, relationship-pattern suggestions) जोड़ती है। SDKs और MCP server दोनों के साथ काम करते हैं: उन्हें RushDB Cloud API key दें, या उन्हें सीधे अपने engine पर point करें (`direct: true`, `engineUrl`) — तब Cloud features को छोड़कर सब कुछ चलता है, और Cloud features `CloudOnlyError` के साथ मना कर दिए जाते हैं।
-
-## Documentation
-
-- [मैनुअल](docs/manual/README.md): शुरुआत, data model, queries, languages, search, operations और reference tables।
-- [docs.rushdb.com](https://docs.rushdb.com): tutorials, SDKs और MCP server।
-- [RushDB 2.x से upgrade](docs/manual/operations/upgrading-from-2x.md): 2.x Neo4j-आधारित stack था, जो अब इस repository की `2.x` branch पर है।
-
-## Versions
-
-- **RushDB 3.x** (`main`): मौजूदा version।
-- **RushDB 2.x (legacy)**: Neo4j-आधारित stack, [`2.x` branch](https://github.com/rush-db/rushdb/tree/2.x) और `rushdb/platform` image पर। 2027-10-28 तक केवल security fixes।
-
-## योगदान
-
-[CONTRIBUTING.md](CONTRIBUTING.md) देखें। Quality gate:
+SQL पहले से आती है? Labels ही tables हैं:
 
 ```bash
-cargo test --workspace --no-fail-fast --locked
-cargo clippy --workspace --all-targets --locked
-cargo fmt --all -- --check
-scripts/check-quality-bar.sh
+PGPASSWORD=local-token psql "host=127.0.0.1 port=5432 user=rushdb dbname=rushdb sslmode=disable" \
+  -c "SELECT name, role, salary FROM employee ORDER BY salary DESC"
 ```
 
-- [Security policy](SECURITY.md)
-- [Release process](RELEASING.md)
-- [Code of conduct](CODE_OF_CONDUCT.md)
-- [Changelog](CHANGELOG.md)
+आगे: [पूरा quickstart](https://docs.rushdb.com/engine/getting-started/quickstart/) ·
+[Docker और install के दूसरे तरीके](https://docs.rushdb.com/engine/getting-started/installation/)
 
-[Apache-2.0](LICENSE) के तहत licensed।
+## आप क्या बना सकते हैं
+
+| | |
+|---|---|
+| **Agent memory** | Memories relationships वाले records के रूप में, scope से filter की हुई और आपके store किए vectors से rank की हुई। OpenClaw और Hermes के लिए तैयार providers। |
+| **आपके app के data पर search** | उन records पर full-text, vector और hybrid search जिन्हें आपका app पहले से लिखता है, और उसी query में graph filters। |
+| **जुड़े हुए data पर सवाल** | Agent schema पढ़ता है, फिर ऐसी query लिखता है जिसे आप जाँच सकते हैं: JSON query language, SQL या Cypher। |
+| **Export के बिना reports** | आपके app के लिखे records को group और aggregate कीजिए, SDKs से या किसी भी PostgreSQL client से। |
+
+## Features
+
+- **Emergent schema.** Types हर value के हिसाब से infer होते हैं, nested objects जुड़े हुए records बन जाते हैं, और catalog सटीक counts और value lists रखता है। [Schema catalog](https://docs.rushdb.com/engine/data-model/schema-catalog/)
+- **Graph queries.** Label के आधार पर relationships के पार filter कीजिए, उन्हें type और direction से सीमित कीजिए, और projections व aggregations के लिए जुड़े records को bind कीजिए। [Relationships और traversal](https://docs.rushdb.com/engine/query/relationships-and-traversal/)
+- **Search साथ में।** आपके दिए vectors पर vector indexes, BM25 full-text, और दोनों को मिलाने वाला hybrid search। [Indexes और search](https://docs.rushdb.com/engine/indexes-and-search/)
+- **Aggregations.** Counts, sums, averages, time buckets और nested collections के साथ `select` और `groupBy`। [Aggregations](https://docs.rushdb.com/engine/query/aggregations/)
+- **वही भाषा जो आप इस्तेमाल करते हैं।** PostgreSQL wire protocol पर SQL, Gremlin, SQL/PGQ, Mongo-style documents, और release candidates के रूप में openCypher और ISO GQL। [Query languages](https://docs.rushdb.com/engine/languages/)
+- **Durable.** Write-ahead log, transactions, point-in-time restore वाले backups, और read replicas। [Operations](https://docs.rushdb.com/engine/operations/)
+- **एक binary.** एक ही process से HTTP, PostgreSQL wire, gRPC और Bolt, साथ में optional isolated tenants। [Connectivity](https://docs.rushdb.com/engine/connectivity/)
+
+## Ecosystem
+
+| Project | किसके लिए |
+|---|---|
+| [`@rushdb/javascript-sdk`](https://github.com/rush-db/javascript-sdk) · [`rushdb`](https://github.com/rush-db/rushdb-python) (PyPI) | TypeScript और Python apps |
+| [`@rushdb/mcp-server`](https://github.com/rush-db/mcp-server) | Claude, Cursor और दूसरे MCP clients |
+| [Agent skills](https://github.com/rush-db/skills) · [agent plugins](https://github.com/rush-db/agent-plugins) | Coding agents |
+| [LangChain और LangGraph](https://github.com/rush-db/langchain-rushdb) · [LlamaIndex](https://github.com/rush-db/llama-index-rushdb) | Retrieval, memory और property graph stores |
+| [OpenClaw](https://github.com/rush-db/rushdb-openclaw-memory) · [Hermes](https://github.com/rush-db/rushdb-hermes-memory) · [memory contract](https://github.com/rush-db/agent-memory-contract) | Agent memory providers |
+| [Debezium sink](https://github.com/rush-db/debezium-server-rushdb) · [Obsidian plugin](https://github.com/rush-db/obsidian-plugin) | Change data capture, notes |
+
+ये सभी self-hosted engine के साथ काम करते हैं। RushDB का setup अपने coding agent से
+करवाने के लिए उसे [rushdb.com/agent-setup](https://rushdb.com/agent-setup) दीजिए।
+
+## कहीं भी चलाइए
+
+```bash
+docker run -p 127.0.0.1:3000:3000 -v rushdb:/data -e RUSHDB_TOKEN=change-me rushdb/rushdb:3
+```
+
+Docker Compose, Kubernetes (Helm), cloud-init, systemd, Fly.io, Render,
+Coolify और Dokploy: [Deploy](https://docs.rushdb.com/deploy/) देखिए। किसी node को
+loopback से बाहर expose करने से पहले [Security](https://docs.rushdb.com/engine/operations/security/)
+पढ़िए।
+
+## Self-hosted और RushDB Cloud
+
+- **Self-hosted:** यही repository। ऊपर बताई हर चीज़ उसी engine में चलती है जिसे आप install करते हैं।
+- **[RushDB Cloud](https://app.rushdb.com):** वही engine, managed रूप में, साथ में
+  dashboard, managed embeddings, natural-language search और SaaS tools के लिए
+  connectors। SDKs और MCP server दोनों के साथ काम करते हैं।
+
+## FAQ
+
+**क्या यह production के लिए तैयार है?** SQL, native JSON query language, Gremlin और
+Mongo-style documents stable हैं। openCypher, ISO GQL और Bolt release candidates
+हैं। Replication asynchronous है और promotion manual होता है।
+[Status page](https://docs.rushdb.com/engine/reference/status/) हर surface और उसकी
+सीमाएँ बताता है।
+
+**क्या मुझे अलग vector database चाहिए?** नहीं। Vectors, text indexes और
+relationships एक ही engine में रहते हैं, और किसी record को उसके vector के साथ एक ही
+commit में लिखा जा सकता है। Engine आपके दिए vectors पर search करता है; RushDB
+Cloud उन्हें आपके लिए generate कर सकता है।
+
+**Live schema क्या है?** हर label, property, type, value और relationship shape का
+catalog, जो हर commit पर सटीक counts के साथ update होता है। एक call उसे लौटा देती
+है, इसलिए agents और tools को field names का अनुमान नहीं लगाना पड़ता।
+[Schema catalog](https://docs.rushdb.com/engine/data-model/schema-catalog/)
+
+**Windows?** WSL 2 या Docker इस्तेमाल कीजिए।
+
+---
+
+[योगदान](https://github.com/rush-db/rushdb/blob/main/CONTRIBUTING.md) •
+[Security](https://github.com/rush-db/rushdb/blob/main/SECURITY.md) •
+[Changelog](https://github.com/rush-db/rushdb/blob/main/CHANGELOG.md) •
+[Apache-2.0](https://github.com/rush-db/rushdb/blob/main/LICENSE)
+
+RushDB 2.x (legacy, Neo4j-आधारित)
+[`2.x` branch](https://github.com/rush-db/rushdb/tree/2.x) पर है और उसे
+2027-10-28 तक security fixes मिलेंगे। [2.x से upgrade करना](https://docs.rushdb.com/engine/operations/upgrading-from-2x/)
+
+[English](https://github.com/rush-db/rushdb/blob/main/README.md) • [中文](https://github.com/rush-db/rushdb/blob/main/README_ZH.md) • [日本語](https://github.com/rush-db/rushdb/blob/main/README_JA.md) • [한국어](https://github.com/rush-db/rushdb/blob/main/README_KO.md) • [Deutsch](https://github.com/rush-db/rushdb/blob/main/README_DE.md) • [Français](https://github.com/rush-db/rushdb/blob/main/README_FR.md) • [Português](https://github.com/rush-db/rushdb/blob/main/README_PT.md) • [Español](https://github.com/rush-db/rushdb/blob/main/README_ES.md) • **हिन्दी** • [العربية](https://github.com/rush-db/rushdb/blob/main/README_AR.md) • [Bahasa Indonesia](https://github.com/rush-db/rushdb/blob/main/README_ID.md) • [ไทย](https://github.com/rush-db/rushdb/blob/main/README_TH.md)

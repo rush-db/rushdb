@@ -19,7 +19,9 @@ code, metric, and limit. Task-oriented explanations live in
    meaning.
 6. [Limits](limits.md) — size caps, budgets, lifetimes, and background
    intervals.
-7. [Glossary](glossary.md) — terms used in this manual.
+7. [Feature status](status.md) — how mature each query language, protocol
+   and replication mode is.
+8. [Glossary](glossary.md) — terms used in this manual.
 
 ## See also
 

@@ -1,185 +1,222 @@
 <div align="center">
 
-![RushDB Logo](https://raw.githubusercontent.com/rush-db/rushdb/main/rushdb-logo.svg)
+<img src="https://raw.githubusercontent.com/rush-db/rushdb/main/rushdb-logo.svg" alt="Logo RushDB" width="96">
 
-# RushDB — database untuk AI
+# RushDB
 
-### Satu database untuk record Anda, relasinya, dan pencarian di atasnya.
+<sub>Database untuk AI</sub>
 
-Tulis JSON. RushDB menyimpulkan tipe data, menghubungkan objek bersarang menjadi graf, dan memungkinkan Anda mengkuerinya dengan bahasa kueri JSON miliknya, SQL, Cypher, Gremlin, atau dokumen bergaya Mongo, ditambah pencarian vektor, teks penuh, dan hibrida. Satu biner Rust, satu direktori data, Apache-2.0.
+**Graf, vektor, dan analitik pada record yang sama. Setiap penulisan menjaga skema hidup berisi label, field, dan nilai, sehingga agen membuat kueri atas field yang benar-benar ada, bukan menebak.**
 
 [![CI](https://img.shields.io/github/actions/workflow/status/rush-db/rushdb/ci.yml?branch=main&label=CI)](https://github.com/rush-db/rushdb/actions/workflows/ci.yml)
-[![License](https://img.shields.io/badge/license-Apache%202.0-blue)](LICENSE)
+[![Release](https://img.shields.io/github/v/release/rush-db/rushdb?label=release)](https://github.com/rush-db/rushdb/releases)
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue)](https://github.com/rush-db/rushdb/blob/main/LICENSE)
 [![GitHub Stars](https://img.shields.io/github/stars/rush-db/rushdb?style=social)](https://github.com/rush-db/rushdb)
-[![Follow on X](https://img.shields.io/twitter/follow/RushDatabase?style=social)](https://x.com/RushDatabase)
 
-[Situs web](https://rushdb.com) • [Dokumentasi](https://docs.rushdb.com) • [Manual](docs/manual/README.md) • [RushDB Cloud](https://app.rushdb.com) • [Deploy](deploy/README.md)
-
-[English](README.md) • [中文](README_ZH.md) • [日本語](README_JA.md) • [한국어](README_KO.md) • [Deutsch](README_DE.md) • [Français](README_FR.md) • [Português](README_PT.md) • [Español](README_ES.md) • [हिन्दी](README_HI.md) • [العربية](README_AR.md) • **Bahasa Indonesia** • [ไทย](README_TH.md)
+[Dokumentasi](https://docs.rushdb.com) • [Mulai cepat](https://docs.rushdb.com/engine/getting-started/quickstart/) • [Diskusi](https://github.com/orgs/rush-db/discussions) • [X](https://x.com/RushDatabase) • [RushDB Cloud](https://app.rushdb.com)
 
 </div>
 
 ---
 
+Tulis JSON dari aplikasi Anda. RushDB menyimpannya sebagai record bertipe yang
+saling terhubung dalam graf, dan record yang sama menjawab kueri relasi,
+pencarian vektor dan teks lengkap, serta agregasi, sehingga tidak ada
+penyimpanan kedua yang harus disinkronkan. Setiap penulisan juga memperbarui
+katalog label, field, tipe, dan nilai yang ada: agen melihat apa yang tersedia,
+lalu menulis kueri yang sesuai dengannya.
+Gunakan SDK, SQL, atau Cypher. Satu binary Rust, Apache-2.0.
+
+| Graf | Pencarian vektor dan teks lengkap | Analitik |
+|---|---|---|
+| JSON bersarang menjadi record yang saling terhubung. Filter lintas relasi dan telusuri relasi bertipe dan berarah dalam satu kueri. | Pencarian vektor (eksak dan HNSW), teks lengkap BM25, dan hibrida, difilter dengan predikat graf yang sama. | Count, sum, rata-rata, min, dan max dengan `groupBy`, atau SQL biasa dengan `GROUP BY` lewat protokol wire PostgreSQL. |
+
 ## Mulai cepat
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/rush-db/rushdb/main/install.sh | sh
-rushdb up
+curl -fsSL https://rushdb.com/install.sh | sh    # or: brew install rush-db/tap/rushdb
+export PATH="$HOME/.rushdb/bin:$PATH"             # or open a new shell
+mkdir my-app && cd my-app && rushdb up
 ```
 
-Skrip memeriksa checksum rilis (dan tanda tangan Sigstore bila `cosign` terpasang), lalu memasang biner `rushdb` ke `~/.rushdb/bin`. `rushdb up` menjalankan node yang tahan lama di `http://127.0.0.1:3000` dengan data di `./.rushdb` dan token lokal `local-token`.
-
-Tulis dokumen JSON bersarang. Setiap objek bersarang menjadi record tersendiri yang terhubung ke induknya:
-
-```bash
-export RUSHDB_TOKEN=local-token
-curl -s http://127.0.0.1:3000/protocol/v1/execute \
-  -H "Authorization: Bearer $RUSHDB_TOKEN" -H 'Content-Type: application/json' \
-  -d '{"protocolVersion":1,"operation":{"kind":"ingest","ingest":{"kind":"documents","label":"COMPANY",
-       "documents":{"name":"Acme","DEPARTMENT":[
-         {"name":"Engineering","headcount":12,"EMPLOYEE":[{"name":"Ada","role":"Staff Engineer"},{"name":"Linus","role":"Engineer"}]},
-         {"name":"Sales","headcount":4,"EMPLOYEE":[{"name":"Grace","role":"Account Executive"}]}]}}}}'
-```
-
-Lalu cari para engineer di Acme. Filter menelusuri relasi dengan menyebut label yang terkait:
-
-```bash
-curl -s http://127.0.0.1:3000/protocol/v1/execute \
-  -H "Authorization: Bearer $RUSHDB_TOKEN" -H 'Content-Type: application/json' \
-  -d '{"protocolVersion":1,"operation":{"kind":"query","query":{"kind":"records","query":{
-       "labels":["EMPLOYEE"],
-       "predicate":{"role":{"$contains":"Engineer"},"DEPARTMENT":{"COMPANY":{"name":"Acme"}}}}}}}'
-```
-
-Lanjutkan dengan [Quickstart](docs/manual/getting-started/quickstart.md).
-
-## Kueri dengan cara Anda
-
-Record yang sama menjawab lewat setiap antarmuka.
-
-**SQL** lewat protokol wire PostgreSQL, dengan `psql` atau driver PostgreSQL apa pun. Label adalah tabel:
-
-```bash
-PGPASSWORD=$RUSHDB_TOKEN psql "host=127.0.0.1 port=5432 user=rushdb dbname=rushdb sslmode=disable" \
-  -c "SELECT name, headcount FROM department ORDER BY headcount DESC"
-```
-
-**Cypher** lewat HTTP, atau lewat Bolt dengan driver Neo4j (`rushdb up --languages sql,cypher --bolt-port 7687`):
-
-```cypher
-MATCH (d:DEPARTMENT)-->(e:EMPLOYEE)
-RETURN d.name AS department, count(e) AS people ORDER BY people DESC
-```
-
-**SDK** dalam mode langsung (`npm install @rushdb/javascript-sdk`):
+`rushdb up` melayani `http://127.0.0.1:3000` dengan data di `./.rushdb` dan
+token `local-token`. Di terminal lain, `npm install @rushdb/javascript-sdk`:
 
 ```typescript
 import RushDB from '@rushdb/javascript-sdk'
 
-const db = new RushDB(process.env.RUSHDB_TOKEN, { direct: true, engineUrl: 'http://127.0.0.1:3000' })
+const db = new RushDB('local-token', { direct: true, engineUrl: 'http://127.0.0.1:3000' })
 
+// Nested JSON becomes linked records: COMPANY -> DEPARTMENT -> EMPLOYEE
+await db.records.importJson({
+  label: 'COMPANY',
+  data: { name: 'Acme', DEPARTMENT: [
+    { name: 'Engineering', EMPLOYEE: [
+      { name: 'Ada', role: 'Staff Engineer', salary: 180000 },
+      { name: 'Linus', role: 'Engineer', salary: 140000 } ] },
+    { name: 'Sales', EMPLOYEE: [{ name: 'Grace', role: 'Account Executive', salary: 120000 }] } ] }
+})
+
+// Graph: filter across relationships by naming the related labels
 const engineers = await db.records.find({
   labels: ['EMPLOYEE'],
   where: { role: { $contains: 'Engineer' }, DEPARTMENT: { COMPANY: { name: 'Acme' } } },
   orderBy: { name: 'asc' }
 })
 console.log(engineers.data.map((employee) => employee.data.name)) // [ 'Ada', 'Linus' ]
+
+// Analytics: headcount and average salary per department
+const perDepartment = await db.records.find({
+  labels: ['EMPLOYEE'],
+  where: { DEPARTMENT: { $alias: '$department' } },
+  select: { people: { $count: '*' }, avgSalary: { $avg: '$record.salary' } },
+  groupBy: ['$department.name']
+})
+console.log(perDepartment.data.map((row) => row.data))
+// [ { name: 'Engineering', people: 2, avgSalary: 160000 }, { name: 'Sales', people: 1, avgSalary: 120000 } ]
+
+// The live schema an agent reads before it writes a query
+console.log((await db.ai.getSchemaMarkdown()).data)
 ```
 
-Gremlin, SQL/PGQ `GRAPH_TABLE`, dokumen bergaya Mongo, dan ISO GQL memakai endpoint HTTP yang sama. Lihat [Bahasa kueri](docs/manual/languages/README.md).
+Skema ini berasal dari katalog, bukan dari pemindaian record:
 
-## Apa yang tersedia
+```text
+## `EMPLOYEE` (3 records)
 
-| Kemampuan | Artinya |
-|---|---|
-| **Tanpa skema untuk dirancang** | Tulis JSON dengan bentuk apa pun. Tipe disimpulkan per nilai, objek bersarang menjadi record yang terhubung, dan engine menyimpan katalog label, properti, dan relasi yang tepat dan dapat dikueri. |
-| **Properti adalah warga kelas satu** | Labeled Meta-Property Graph (LMPG) menyimpan setiap properti sebagai definisi bertipe yang dibagi oleh record yang memakainya, sehingga penemuan skema, rentang nilai, dan facet berasal dari tata letak penyimpanan itu sendiri. |
-| **Banyak bahasa kueri** | Bahasa kueri JSON native, SQL, Gremlin, SQL/PGQ, dokumen bergaya Mongo, serta openCypher dan ISO GQL sebagai release candidate. |
-| **Pencarian** | Indeks vektor (eksak dan HNSW) atas vektor yang Anda berikan, indeks teks penuh BM25, dan pencarian hibrida yang menggabungkan keduanya. |
-| **Tahan lama dan transaksional** | Write-ahead log, snapshot MVCC, transaksi multi-pernyataan, backup dengan pemulihan ke titik waktu, dan replikasi streaming ke follower baca-saja. |
-| **Protokol standar** | HTTP, protokol wire PostgreSQL, gRPC, dan Bolt dari satu proses. |
-| **Multitenansi** | Tenant opsional yang gagal-tertutup, masing-masing dengan keyspace sendiri. |
-| **Satu biner** | `rushdb serve` menjalankan server; `rushdb up` menjalankan node lokal. Tidak ada layanan lain untuk dioperasikan. |
+| Property | Type | Values / Range | Semantic Search |
+|----------|------|----------------|-----------------|
+| `name` | string | `Ada`, `Linus`, `Grace` | — |
+| `role` | string | `Staff Engineer`, `Engineer`, `Account Executive` | — |
+| `salary` | number | `120000`..`180000` | — |
+```
 
-## Deploy
+<details>
+<summary>Hal yang sama dengan Python</summary>
 
-| Di mana | Caranya |
-|---|---|
-| Docker | `docker run -p 127.0.0.1:3000:3000 -v rushdb:/data -e RUSHDB_TOKEN=change-me rushdb/rushdb` |
-| Docker Compose | [`deploy/templates/docker-compose`](deploy/templates/docker-compose/), dengan varian HTTPS di belakang Caddy |
-| Kubernetes | [Helm chart](charts/rushdb/): `helm install rushdb oci://ghcr.io/rush-db/charts/rushdb --set auth.token=...` |
-| VM Linux | [cloud-init](deploy/templates/cloud-init/) untuk DigitalOcean, Hetzner, AWS, GCP, Azure; [unit systemd](deploy/templates/systemd/) |
-| Platform | [Fly.io](deploy/templates/fly/), [Render](deploy/templates/render/), [Coolify](deploy/templates/coolify/), [Dokploy](deploy/templates/dokploy/) |
+`pip install rushdb`:
 
-[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/rush-db/rushdb)
+```python
+from rushdb import RushDB
 
-### Cara lain untuk memasang
+db = RushDB("local-token", direct=True, engine_url="http://127.0.0.1:3000")
 
-| Metode | Perintah | Catatan |
-|---|---|---|
-| Skrip instalasi | `curl -fsSL https://raw.githubusercontent.com/rush-db/rushdb/main/install.sh \| sh` | Linux (glibc 2.28+) dan macOS, x86-64 dan arm64. `sh -s -- --version v3.0.0` mengunci rilis. |
-| Homebrew | `brew install rush-db/tap/rushdb` | macOS dan Linux. `brew services start rushdb` menjalankannya di latar belakang. |
-| Docker | `rushdb/rushdb` | `linux/amd64` dan `linux/arm64`; juga `ghcr.io/rush-db/rushdb`. |
-| Cargo | `cargo binstall rushdb-server` atau `cargo install rushdb-server --locked` | `binstall` mengambil biner rilis; `install` mengompilasi (perlu kompiler C++). |
-| Arsip rilis | [GitHub releases](https://github.com/rush-db/rushdb/releases) | Arsip dengan checksum SHA-256, SBOM, dan tanda tangan Sigstore. |
-| Sumber | `cargo build --release -p rushdb-server --bin rushdb` | Lihat [Instalasi](docs/manual/getting-started/installation.md). |
+db.records.import_json(label="COMPANY", data={"name": "Acme", "DEPARTMENT": [
+    {"name": "Engineering", "EMPLOYEE": [
+        {"name": "Ada", "role": "Staff Engineer", "salary": 180000},
+        {"name": "Linus", "role": "Engineer", "salary": 140000}]},
+    {"name": "Sales", "EMPLOYEE": [{"name": "Grace", "role": "Account Executive", "salary": 120000}]}]})
 
-Windows tidak didukung secara native; gunakan WSL 2 atau Docker. Baca [Keamanan](docs/manual/operations/security.md) sebelum membuka node di luar loopback.
+engineers = db.records.find({
+    "labels": ["EMPLOYEE"],
+    "where": {"role": {"$contains": "Engineer"}, "DEPARTMENT": {"COMPANY": {"name": "Acme"}}},
+    "orderBy": {"name": "asc"},
+})
+print([employee.data["name"] for employee in engineers])  # ['Ada', 'Linus']
 
-## Status
+per_department = db.records.find({
+    "labels": ["EMPLOYEE"],
+    "where": {"DEPARTMENT": {"$alias": "$department"}},
+    "select": {"people": {"$count": "*"}, "avgSalary": {"$avg": "$record.salary"}},
+    "groupBy": ["$department.name"],
+})
+print([row.data for row in per_department])
 
-| Area | Status |
-|---|---|
-| Protokol native, SQL, traversal teks Gremlin, dokumen bergaya Mongo | Stabil |
-| SQL/PGQ `GRAPH_TABLE` | Stabil, baca-saja |
-| openCypher, ISO GQL, Bolt | Release candidate, harus diaktifkan: suite kesesuaian eksternal belum lulus sepenuhnya ([detail](docs/manual/languages/README.md)) |
-| Wire PostgreSQL | Pembacaan SQL dan penulisan satu pernyataan; diperiksa dengan `psql`, node-postgres, psycopg, dan `tokio-postgres`, bukan dengan setiap klien atau ORM |
-| Replikasi | Streaming asinkron ke follower baca-saja; promosi manual, tanpa failover otomatis |
-| Raft, sharding penyimpanan | Pratinjau, bukan untuk produksi: Raft berjalan dalam satu proses dengan state di memori; commit lintas shard tidak atomik saat crash |
+print(db.ai.get_schema_markdown().data)
+```
 
-[Manual](docs/manual/README.md) mendokumentasikan batas tepat setiap antarmuka.
+</details>
 
-## Terhubung
-
-| Antarmuka | Bawaan | Aktifkan |
-|---|---|---|
-| Protokol HTTP native | `127.0.0.1:3000`, `POST /protocol/v1/execute` | selalu aktif |
-| Wire PostgreSQL | `127.0.0.1:5432` | aktif dengan `sql` (bawaan) |
-| gRPC (`rushdb.v1.Database/Execute`) | mati | `--grpc-port` |
-| Bolt 5.0 | mati | `--bolt-port` dengan `cypher` |
-
-SDK [JavaScript](https://www.npmjs.com/package/@rushdb/javascript-sdk) dan [Python](https://pypi.org/project/rushdb/), [server MCP](https://www.npmjs.com/package/@rushdb/mcp-server), dan [skill agen](https://github.com/rush-db/skills) bekerja dengan engine yang di-host sendiri dalam mode langsung.
-
-## Engine yang di-host sendiri dan RushDB Cloud
-
-Engine ini adalah bagian RushDB yang Anda host sendiri. Ia tidak membuat embedding, tidak menyediakan dasbor, dan tidak mengelola pengguna: semua itu disediakan oleh [RushDB Cloud](https://app.rushdb.com), layanan terkelola yang menjalankan engine ini dan menambahkan dasbor, embedding terkelola, dan fitur AI (pencarian bahasa alami, saran pola relasi). SDK dan server MCP bekerja dengan keduanya: berikan kunci API RushDB Cloud, atau arahkan langsung ke engine Anda (`direct: true`, `engineUrl`) untuk semua hal kecuali fitur Cloud, yang ditolak dengan `CloudOnlyError`.
-
-## Dokumentasi
-
-- [Manual](docs/manual/README.md): memulai, model data, kueri, bahasa, pencarian, operasi, dan tabel referensi.
-- [docs.rushdb.com](https://docs.rushdb.com): tutorial, SDK, dan server MCP.
-- [Upgrade dari RushDB 2.x](docs/manual/operations/upgrading-from-2x.md): 2.x adalah stack berbasis Neo4j, sekarang ada di branch `2.x` repositori ini.
-
-## Versi
-
-- **RushDB 3.x** (`main`): versi saat ini.
-- **RushDB 2.x (legacy)**: stack berbasis Neo4j, di [branch `2.x`](https://github.com/rush-db/rushdb/tree/2.x) dan image `rushdb/platform`. Hanya perbaikan keamanan hingga 2027-10-28.
-
-## Berkontribusi
-
-Lihat [CONTRIBUTING.md](CONTRIBUTING.md). Gerbang kualitas:
+Sudah terbiasa dengan SQL? Label adalah tabel:
 
 ```bash
-cargo test --workspace --no-fail-fast --locked
-cargo clippy --workspace --all-targets --locked
-cargo fmt --all -- --check
-scripts/check-quality-bar.sh
+PGPASSWORD=local-token psql "host=127.0.0.1 port=5432 user=rushdb dbname=rushdb sslmode=disable" \
+  -c "SELECT name, role, salary FROM employee ORDER BY salary DESC"
 ```
 
-- [Kebijakan keamanan](SECURITY.md)
-- [Proses rilis](RELEASING.md)
-- [Kode etik](CODE_OF_CONDUCT.md)
-- [Changelog](CHANGELOG.md)
+Selanjutnya: [panduan mulai cepat lengkap](https://docs.rushdb.com/engine/getting-started/quickstart/) ·
+[Docker dan cara instalasi lain](https://docs.rushdb.com/engine/getting-started/installation/)
 
-Dilisensikan di bawah [Apache-2.0](LICENSE).
+## Apa yang bisa Anda bangun
+
+| | |
+|---|---|
+| **Memori agen** | Memori sebagai record dengan relasi, difilter berdasarkan cakupan dan diurutkan menurut vektor yang Anda simpan. Provider siap pakai untuk OpenClaw dan Hermes. |
+| **Pencarian atas data aplikasi Anda** | Pencarian teks lengkap, vektor, dan hibrida atas record yang sudah ditulis aplikasi Anda, dengan filter graf dalam kueri yang sama. |
+| **Pertanyaan atas data yang saling terhubung** | Agen membaca skema, lalu menulis kueri yang bisa Anda periksa: dalam bahasa kueri JSON, SQL, atau Cypher. |
+| **Laporan tanpa ekspor** | Kelompokkan dan agregasikan record yang ditulis aplikasi Anda, dari SDK atau klien PostgreSQL apa pun. |
+
+## Fitur
+
+- **Skema yang terbentuk dengan sendirinya.** Tipe disimpulkan per nilai, objek bersarang menjadi record yang saling terhubung, dan katalog menyimpan jumlah yang tepat serta daftar nilai. [Katalog skema](https://docs.rushdb.com/engine/data-model/schema-catalog/)
+- **Kueri graf.** Filter lintas relasi berdasarkan label, batasi berdasarkan tipe dan arah, dan ikat record terkait untuk proyeksi dan agregasi. [Relasi dan penelusuran](https://docs.rushdb.com/engine/query/relationships-and-traversal/)
+- **Pencarian bawaan.** Indeks vektor atas vektor yang Anda berikan, teks lengkap BM25, dan pencarian hibrida yang menggabungkan keduanya. [Indeks dan pencarian](https://docs.rushdb.com/engine/indexes-and-search/)
+- **Agregasi.** `select` dan `groupBy` dengan count, sum, rata-rata, bucket waktu, dan koleksi bersarang. [Agregasi](https://docs.rushdb.com/engine/query/aggregations/)
+- **Mendukung yang Anda pakai.** SQL lewat protokol wire PostgreSQL, Gremlin, SQL/PGQ, dokumen bergaya Mongo, serta openCypher dan ISO GQL sebagai release candidate. [Bahasa kueri](https://docs.rushdb.com/engine/languages/)
+- **Tahan lama.** Write-ahead log, transaksi, backup dengan pemulihan ke titik waktu tertentu, dan replika baca. [Operasional](https://docs.rushdb.com/engine/operations/)
+- **Satu binary.** HTTP, wire PostgreSQL, gRPC, dan Bolt dari satu proses, dengan tenant terisolasi opsional. [Konektivitas](https://docs.rushdb.com/engine/connectivity/)
+
+## Ekosistem
+
+| Proyek | Untuk |
+|---|---|
+| [`@rushdb/javascript-sdk`](https://github.com/rush-db/javascript-sdk) · [`rushdb`](https://github.com/rush-db/rushdb-python) (PyPI) | Aplikasi TypeScript dan Python |
+| [`@rushdb/mcp-server`](https://github.com/rush-db/mcp-server) | Claude, Cursor, dan klien MCP lainnya |
+| [Skill agen](https://github.com/rush-db/skills) · [plugin agen](https://github.com/rush-db/agent-plugins) | Agen coding |
+| [LangChain dan LangGraph](https://github.com/rush-db/langchain-rushdb) · [LlamaIndex](https://github.com/rush-db/llama-index-rushdb) | Retrieval, memori, dan property graph store |
+| [OpenClaw](https://github.com/rush-db/rushdb-openclaw-memory) · [Hermes](https://github.com/rush-db/rushdb-hermes-memory) · [kontrak memori](https://github.com/rush-db/agent-memory-contract) | Provider memori agen |
+| [Debezium sink](https://github.com/rush-db/debezium-server-rushdb) · [plugin Obsidian](https://github.com/rush-db/obsidian-plugin) | Change data capture, catatan |
+
+Semuanya bekerja dengan engine self-hosted. Agar agen coding Anda bisa
+menyiapkan RushDB, berikan [rushdb.com/agent-setup](https://rushdb.com/agent-setup) kepadanya.
+
+## Jalankan di mana saja
+
+```bash
+docker run -p 127.0.0.1:3000:3000 -v rushdb:/data -e RUSHDB_TOKEN=change-me rushdb/rushdb:3
+```
+
+Docker Compose, Kubernetes (Helm), cloud-init, systemd, Fly.io, Render,
+Coolify, dan Dokploy: lihat [Deploy](https://docs.rushdb.com/deploy/). Baca
+[Keamanan](https://docs.rushdb.com/engine/operations/security/) sebelum Anda
+membuka node ke luar loopback.
+
+## Self-hosted dan RushDB Cloud
+
+- **Self-hosted:** repositori ini. Semua hal di atas berjalan di engine yang Anda instal.
+- **[RushDB Cloud](https://app.rushdb.com):** engine yang sama dalam versi terkelola, ditambah
+  dashboard, embedding terkelola, pencarian bahasa alami, dan konektor untuk
+  tool SaaS. SDK dan server MCP bekerja dengan keduanya.
+
+## FAQ
+
+**Apakah sudah siap untuk produksi?** SQL, bahasa kueri JSON native, Gremlin, dan
+dokumen bergaya Mongo sudah stabil. openCypher, ISO GQL, dan Bolt masih berstatus
+release candidate. Replikasi bersifat asinkron dengan promosi manual.
+[Halaman status](https://docs.rushdb.com/engine/reference/status/) mencantumkan setiap
+antarmuka beserta batasannya.
+
+**Apakah saya butuh database vektor terpisah?** Tidak. Vektor, indeks teks, dan
+relasi berada dalam satu engine, dan sebuah record bisa ditulis bersama
+vektornya dalam satu commit. Engine mencari atas vektor yang Anda berikan; RushDB
+Cloud bisa membuatkannya untuk Anda.
+
+**Apa itu skema hidup?** Katalog berisi setiap label, properti, tipe, nilai,
+dan bentuk relasi, diperbarui pada setiap commit, dengan jumlah yang tepat. Satu panggilan
+mengembalikannya, sehingga agen dan tool tidak perlu menebak nama field.
+[Katalog skema](https://docs.rushdb.com/engine/data-model/schema-catalog/)
+
+**Windows?** Gunakan WSL 2 atau Docker.
+
+---
+
+[Berkontribusi](https://github.com/rush-db/rushdb/blob/main/CONTRIBUTING.md) •
+[Keamanan](https://github.com/rush-db/rushdb/blob/main/SECURITY.md) •
+[Changelog](https://github.com/rush-db/rushdb/blob/main/CHANGELOG.md) •
+[Apache-2.0](https://github.com/rush-db/rushdb/blob/main/LICENSE)
+
+RushDB 2.x (legacy, berbasis Neo4j) ada di
+[branch `2.x`](https://github.com/rush-db/rushdb/tree/2.x) dengan perbaikan keamanan
+hingga 2027-10-28. [Upgrade dari 2.x](https://docs.rushdb.com/engine/operations/upgrading-from-2x/)
+
+[English](https://github.com/rush-db/rushdb/blob/main/README.md) • [中文](https://github.com/rush-db/rushdb/blob/main/README_ZH.md) • [日本語](https://github.com/rush-db/rushdb/blob/main/README_JA.md) • [한국어](https://github.com/rush-db/rushdb/blob/main/README_KO.md) • [Deutsch](https://github.com/rush-db/rushdb/blob/main/README_DE.md) • [Français](https://github.com/rush-db/rushdb/blob/main/README_FR.md) • [Português](https://github.com/rush-db/rushdb/blob/main/README_PT.md) • [Español](https://github.com/rush-db/rushdb/blob/main/README_ES.md) • [हिन्दी](https://github.com/rush-db/rushdb/blob/main/README_HI.md) • [العربية](https://github.com/rush-db/rushdb/blob/main/README_AR.md) • **Bahasa Indonesia** • [ไทย](https://github.com/rush-db/rushdb/blob/main/README_TH.md)

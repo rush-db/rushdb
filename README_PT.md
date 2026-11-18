@@ -1,185 +1,222 @@
 <div align="center">
 
-![RushDB Logo](https://raw.githubusercontent.com/rush-db/rushdb/main/rushdb-logo.svg)
+<img src="https://raw.githubusercontent.com/rush-db/rushdb/main/rushdb-logo.svg" alt="Logo do RushDB" width="96">
 
-# RushDB — o banco de dados para IA
+# RushDB
 
-### Um só banco de dados para seus registros, suas relações e a busca sobre eles.
+<sub>O banco de dados para IA</sub>
 
-Escreva JSON. O RushDB infere os tipos, liga objetos aninhados em um grafo e permite consultá-lo com sua linguagem de consulta JSON, SQL, Cypher, Gremlin ou documentos no estilo Mongo, além de busca vetorial, de texto completo e híbrida. Um binário Rust, um diretório de dados, Apache-2.0.
+**Grafo, vetores e análise sobre os mesmos registros. Cada escrita mantém um schema vivo de rótulos, campos e valores, para que agentes consultem campos reais em vez de adivinhar.**
 
 [![CI](https://img.shields.io/github/actions/workflow/status/rush-db/rushdb/ci.yml?branch=main&label=CI)](https://github.com/rush-db/rushdb/actions/workflows/ci.yml)
-[![License](https://img.shields.io/badge/license-Apache%202.0-blue)](LICENSE)
+[![Release](https://img.shields.io/github/v/release/rush-db/rushdb?label=release)](https://github.com/rush-db/rushdb/releases)
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue)](https://github.com/rush-db/rushdb/blob/main/LICENSE)
 [![GitHub Stars](https://img.shields.io/github/stars/rush-db/rushdb?style=social)](https://github.com/rush-db/rushdb)
-[![Follow on X](https://img.shields.io/twitter/follow/RushDatabase?style=social)](https://x.com/RushDatabase)
 
-[Site](https://rushdb.com) • [Documentação](https://docs.rushdb.com) • [Manual](docs/manual/README.md) • [RushDB Cloud](https://app.rushdb.com) • [Implantação](deploy/README.md)
-
-[English](README.md) • [中文](README_ZH.md) • [日本語](README_JA.md) • [한국어](README_KO.md) • [Deutsch](README_DE.md) • [Français](README_FR.md) • **Português** • [Español](README_ES.md) • [हिन्दी](README_HI.md) • [العربية](README_AR.md) • [Bahasa Indonesia](README_ID.md) • [ไทย](README_TH.md)
+[Documentação](https://docs.rushdb.com) • [Início rápido](https://docs.rushdb.com/engine/getting-started/quickstart/) • [Discussões](https://github.com/orgs/rush-db/discussions) • [X](https://x.com/RushDatabase) • [RushDB Cloud](https://app.rushdb.com)
 
 </div>
 
 ---
 
+Escreva JSON a partir do seu app. O RushDB o guarda como registros tipados,
+ligados em um grafo, e os mesmos registros respondem a consultas de relações,
+busca vetorial e de texto completo e agregações, então não há um segundo
+armazenamento para manter sincronizado. Cada escrita também atualiza um
+catálogo dos rótulos, campos, tipos e valores existentes: um agente consulta o
+que está lá e então escreve uma consulta que corresponde a isso.
+Use os SDKs, SQL ou Cypher. Um binário Rust, Apache-2.0.
+
+| Grafo | Busca vetorial e de texto completo | Análise |
+|---|---|---|
+| JSON aninhado vira registros ligados. Filtre através de relações e siga relações tipadas e direcionadas em uma única consulta. | Busca vetorial (exata e HNSW), de texto completo BM25 e híbrida, filtrada pelos mesmos predicados do grafo. | Contagem, soma, média, mínimo e máximo com `groupBy`, ou SQL puro com `GROUP BY` pelo protocolo de rede do PostgreSQL. |
+
 ## Início rápido
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/rush-db/rushdb/main/install.sh | sh
-rushdb up
+curl -fsSL https://rushdb.com/install.sh | sh    # or: brew install rush-db/tap/rushdb
+export PATH="$HOME/.rushdb/bin:$PATH"             # or open a new shell
+mkdir my-app && cd my-app && rushdb up
 ```
 
-O script confere o checksum da versão (e a assinatura Sigstore quando o `cosign` está instalado) e instala o binário `rushdb` em `~/.rushdb/bin`. `rushdb up` inicia um nó persistente em `http://127.0.0.1:3000`, com os dados em `./.rushdb` e o token local `local-token`.
-
-Escreva um documento JSON aninhado. Cada objeto aninhado vira um registro próprio, ligado ao seu pai:
-
-```bash
-export RUSHDB_TOKEN=local-token
-curl -s http://127.0.0.1:3000/protocol/v1/execute \
-  -H "Authorization: Bearer $RUSHDB_TOKEN" -H 'Content-Type: application/json' \
-  -d '{"protocolVersion":1,"operation":{"kind":"ingest","ingest":{"kind":"documents","label":"COMPANY",
-       "documents":{"name":"Acme","DEPARTMENT":[
-         {"name":"Engineering","headcount":12,"EMPLOYEE":[{"name":"Ada","role":"Staff Engineer"},{"name":"Linus","role":"Engineer"}]},
-         {"name":"Sales","headcount":4,"EMPLOYEE":[{"name":"Grace","role":"Account Executive"}]}]}}}}'
-```
-
-Depois encontre os engenheiros da Acme. O filtro atravessa relações ao nomear os rótulos relacionados:
-
-```bash
-curl -s http://127.0.0.1:3000/protocol/v1/execute \
-  -H "Authorization: Bearer $RUSHDB_TOKEN" -H 'Content-Type: application/json' \
-  -d '{"protocolVersion":1,"operation":{"kind":"query","query":{"kind":"records","query":{
-       "labels":["EMPLOYEE"],
-       "predicate":{"role":{"$contains":"Engineer"},"DEPARTMENT":{"COMPANY":{"name":"Acme"}}}}}}}'
-```
-
-Continue com o [início rápido do manual](docs/manual/getting-started/quickstart.md).
-
-## Consulte do seu jeito
-
-Os mesmos registros respondem por todas as interfaces.
-
-**SQL** pelo protocolo de rede do PostgreSQL, com `psql` ou qualquer driver PostgreSQL. Rótulos são tabelas:
-
-```bash
-PGPASSWORD=$RUSHDB_TOKEN psql "host=127.0.0.1 port=5432 user=rushdb dbname=rushdb sslmode=disable" \
-  -c "SELECT name, headcount FROM department ORDER BY headcount DESC"
-```
-
-**Cypher** por HTTP, ou por Bolt com os drivers do Neo4j (`rushdb up --languages sql,cypher --bolt-port 7687`):
-
-```cypher
-MATCH (d:DEPARTMENT)-->(e:EMPLOYEE)
-RETURN d.name AS department, count(e) AS people ORDER BY people DESC
-```
-
-**Os SDKs** em modo direto (`npm install @rushdb/javascript-sdk`):
+`rushdb up` atende em `http://127.0.0.1:3000`, com os dados em `./.rushdb` e o
+token `local-token`. Em outro terminal, `npm install @rushdb/javascript-sdk`:
 
 ```typescript
 import RushDB from '@rushdb/javascript-sdk'
 
-const db = new RushDB(process.env.RUSHDB_TOKEN, { direct: true, engineUrl: 'http://127.0.0.1:3000' })
+const db = new RushDB('local-token', { direct: true, engineUrl: 'http://127.0.0.1:3000' })
 
+// Nested JSON becomes linked records: COMPANY -> DEPARTMENT -> EMPLOYEE
+await db.records.importJson({
+  label: 'COMPANY',
+  data: { name: 'Acme', DEPARTMENT: [
+    { name: 'Engineering', EMPLOYEE: [
+      { name: 'Ada', role: 'Staff Engineer', salary: 180000 },
+      { name: 'Linus', role: 'Engineer', salary: 140000 } ] },
+    { name: 'Sales', EMPLOYEE: [{ name: 'Grace', role: 'Account Executive', salary: 120000 }] } ] }
+})
+
+// Graph: filter across relationships by naming the related labels
 const engineers = await db.records.find({
   labels: ['EMPLOYEE'],
   where: { role: { $contains: 'Engineer' }, DEPARTMENT: { COMPANY: { name: 'Acme' } } },
   orderBy: { name: 'asc' }
 })
 console.log(engineers.data.map((employee) => employee.data.name)) // [ 'Ada', 'Linus' ]
+
+// Analytics: headcount and average salary per department
+const perDepartment = await db.records.find({
+  labels: ['EMPLOYEE'],
+  where: { DEPARTMENT: { $alias: '$department' } },
+  select: { people: { $count: '*' }, avgSalary: { $avg: '$record.salary' } },
+  groupBy: ['$department.name']
+})
+console.log(perDepartment.data.map((row) => row.data))
+// [ { name: 'Engineering', people: 2, avgSalary: 160000 }, { name: 'Sales', people: 1, avgSalary: 120000 } ]
+
+// The live schema an agent reads before it writes a query
+console.log((await db.ai.getSchemaMarkdown()).data)
 ```
 
-Gremlin, SQL/PGQ `GRAPH_TABLE`, documentos no estilo Mongo e ISO GQL usam o mesmo endpoint HTTP. Veja [Linguagens de consulta](docs/manual/languages/README.md).
+O schema vem do catálogo, não de uma varredura dos registros:
 
-## O que vem incluído
+```text
+## `EMPLOYEE` (3 records)
 
-| Recurso | O que significa |
-|---|---|
-| **Nenhum esquema para projetar** | Escreva JSON de qualquer formato. Os tipos são inferidos por valor, objetos aninhados viram registros ligados, e o motor mantém um catálogo exato e consultável de rótulos, propriedades e relações. |
-| **Propriedades de primeira classe** | O Labeled Meta-Property Graph (LMPG) guarda cada propriedade como uma definição tipada compartilhada pelos registros que a usam, então a descoberta do esquema, as faixas de valores e as facetas vêm do próprio layout de armazenamento. |
-| **Várias linguagens de consulta** | Uma linguagem de consulta JSON nativa, SQL, Gremlin, SQL/PGQ, documentos no estilo Mongo, e openCypher e ISO GQL como release candidates. |
-| **Busca** | Índices vetoriais (exatos e HNSW) sobre os vetores que você fornece, índices de texto completo BM25 e busca híbrida que combina os dois. |
-| **Durável e transacional** | Log de escrita antecipada, snapshots MVCC, transações com várias instruções, backups com restauração para um ponto no tempo e replicação em streaming para seguidores somente leitura. |
-| **Protocolos padrão** | HTTP, o protocolo de rede do PostgreSQL, gRPC e Bolt a partir de um processo. |
-| **Multilocação** | Locatários opcionais que falham fechados, cada um com seu próprio espaço de chaves. |
-| **Um binário** | `rushdb serve` executa o servidor; `rushdb up` executa um nó local. Nenhum outro serviço para operar. |
+| Property | Type | Values / Range | Semantic Search |
+|----------|------|----------------|-----------------|
+| `name` | string | `Ada`, `Linus`, `Grace` | — |
+| `role` | string | `Staff Engineer`, `Engineer`, `Account Executive` | — |
+| `salary` | number | `120000`..`180000` | — |
+```
 
-## Implantação
+<details>
+<summary>O mesmo em Python</summary>
 
-| Onde | Como |
-|---|---|
-| Docker | `docker run -p 127.0.0.1:3000:3000 -v rushdb:/data -e RUSHDB_TOKEN=change-me rushdb/rushdb` |
-| Docker Compose | [`deploy/templates/docker-compose`](deploy/templates/docker-compose/), com uma variante HTTPS atrás do Caddy |
-| Kubernetes | [Chart Helm](charts/rushdb/): `helm install rushdb oci://ghcr.io/rush-db/charts/rushdb --set auth.token=...` |
-| VM Linux | [cloud-init](deploy/templates/cloud-init/) para DigitalOcean, Hetzner, AWS, GCP, Azure; [unidade systemd](deploy/templates/systemd/) |
-| Plataformas | [Fly.io](deploy/templates/fly/), [Render](deploy/templates/render/), [Coolify](deploy/templates/coolify/), [Dokploy](deploy/templates/dokploy/) |
+`pip install rushdb`:
 
-[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/rush-db/rushdb)
+```python
+from rushdb import RushDB
 
-### Outras formas de instalar
+db = RushDB("local-token", direct=True, engine_url="http://127.0.0.1:3000")
 
-| Método | Comando | Observações |
-|---|---|---|
-| Script de instalação | `curl -fsSL https://raw.githubusercontent.com/rush-db/rushdb/main/install.sh \| sh` | Linux (glibc 2.28+) e macOS, x86-64 e arm64. `sh -s -- --version v3.0.0` fixa uma versão. |
-| Homebrew | `brew install rush-db/tap/rushdb` | macOS e Linux. `brew services start rushdb` executa em segundo plano. |
-| Docker | `rushdb/rushdb` | `linux/amd64` e `linux/arm64`; também `ghcr.io/rush-db/rushdb`. |
-| Cargo | `cargo binstall rushdb-server` ou `cargo install rushdb-server --locked` | `binstall` baixa o binário publicado; `install` compila (precisa de um compilador C++). |
-| Arquivo da versão | [GitHub releases](https://github.com/rush-db/rushdb/releases) | Arquivos com checksums SHA-256, SBOM e assinaturas Sigstore. |
-| Código-fonte | `cargo build --release -p rushdb-server --bin rushdb` | Veja [Instalação](docs/manual/getting-started/installation.md). |
+db.records.import_json(label="COMPANY", data={"name": "Acme", "DEPARTMENT": [
+    {"name": "Engineering", "EMPLOYEE": [
+        {"name": "Ada", "role": "Staff Engineer", "salary": 180000},
+        {"name": "Linus", "role": "Engineer", "salary": 140000}]},
+    {"name": "Sales", "EMPLOYEE": [{"name": "Grace", "role": "Account Executive", "salary": 120000}]}]})
 
-O Windows não é suportado nativamente; use WSL 2 ou Docker. Leia [Segurança](docs/manual/operations/security.md) antes de expor um nó além do loopback.
+engineers = db.records.find({
+    "labels": ["EMPLOYEE"],
+    "where": {"role": {"$contains": "Engineer"}, "DEPARTMENT": {"COMPANY": {"name": "Acme"}}},
+    "orderBy": {"name": "asc"},
+})
+print([employee.data["name"] for employee in engineers])  # ['Ada', 'Linus']
 
-## Situação
+per_department = db.records.find({
+    "labels": ["EMPLOYEE"],
+    "where": {"DEPARTMENT": {"$alias": "$department"}},
+    "select": {"people": {"$count": "*"}, "avgSalary": {"$avg": "$record.salary"}},
+    "groupBy": ["$department.name"],
+})
+print([row.data for row in per_department])
 
-| Área | Situação |
-|---|---|
-| Protocolo nativo, SQL, travessias de texto Gremlin, documentos no estilo Mongo | Estável |
-| SQL/PGQ `GRAPH_TABLE` | Estável, somente leitura |
-| openCypher, ISO GQL, Bolt | Release candidate, opcional: as suítes externas de conformidade não passam por completo ([detalhes](docs/manual/languages/README.md)) |
-| Protocolo PostgreSQL | Leituras SQL e escritas de instrução única; verificado com `psql`, node-postgres, psycopg e `tokio-postgres`, não com todo cliente ou ORM |
-| Replicação | Streaming assíncrono para seguidores somente leitura; a promoção é manual, sem failover automático |
-| Raft, sharding de armazenamento | Prévia, não para produção: o Raft roda em um processo com estado em memória; commits entre shards não são atômicos em caso de falha |
+print(db.ai.get_schema_markdown().data)
+```
 
-O [manual](docs/manual/README.md) documenta os limites exatos de cada interface.
+</details>
 
-## Conectar
-
-| Interface | Padrão | Ativação |
-|---|---|---|
-| Protocolo HTTP nativo | `127.0.0.1:3000`, `POST /protocol/v1/execute` | sempre ativo |
-| Protocolo PostgreSQL | `127.0.0.1:5432` | ativo com `sql` (padrão) |
-| gRPC (`rushdb.v1.Database/Execute`) | desativado | `--grpc-port` |
-| Bolt 5.0 | desativado | `--bolt-port` com `cypher` |
-
-Os SDKs de [JavaScript](https://www.npmjs.com/package/@rushdb/javascript-sdk) e [Python](https://pypi.org/project/rushdb/), o [servidor MCP](https://www.npmjs.com/package/@rushdb/mcp-server) e as [skills para agentes](https://github.com/rush-db/skills) funcionam com um motor auto-hospedado em modo direto.
-
-## Motor auto-hospedado e RushDB Cloud
-
-Este motor é a parte do RushDB que você auto-hospeda. Ele não gera embeddings, não hospeda um painel e não gerencia usuários: isso vem com o [RushDB Cloud](https://app.rushdb.com), o serviço gerenciado que executa este motor e adiciona o painel, embeddings gerenciados e os recursos de IA (busca em linguagem natural, sugestões de padrões de relação). Os SDKs e o servidor MCP funcionam com qualquer um: passe uma chave de API do RushDB Cloud ou aponte-os para o seu motor (`direct: true`, `engineUrl`) para tudo exceto os recursos do Cloud, que eles recusam com `CloudOnlyError`.
-
-## Documentação
-
-- [Manual](docs/manual/README.md): primeiros passos, modelo de dados, consultas, linguagens, busca, operação e tabelas de referência.
-- [docs.rushdb.com](https://docs.rushdb.com): tutoriais, os SDKs e o servidor MCP.
-- [Atualizando do RushDB 2.x](docs/manual/operations/upgrading-from-2x.md): a 2.x era a pilha baseada em Neo4j, agora no branch `2.x` deste repositório.
-
-## Versões
-
-- **RushDB 3.x** (`main`): a versão atual.
-- **RushDB 2.x (legado)**: a pilha baseada em Neo4j, no [branch `2.x`](https://github.com/rush-db/rushdb/tree/2.x) e na imagem `rushdb/platform`. Apenas correções de segurança até 2027-10-28.
-
-## Contribuir
-
-Veja [CONTRIBUTING.md](CONTRIBUTING.md). O controle de qualidade:
+Já fala SQL? Rótulos são tabelas:
 
 ```bash
-cargo test --workspace --no-fail-fast --locked
-cargo clippy --workspace --all-targets --locked
-cargo fmt --all -- --check
-scripts/check-quality-bar.sh
+PGPASSWORD=local-token psql "host=127.0.0.1 port=5432 user=rushdb dbname=rushdb sslmode=disable" \
+  -c "SELECT name, role, salary FROM employee ORDER BY salary DESC"
 ```
 
-- [Política de segurança](SECURITY.md)
-- [Processo de release](RELEASING.md)
-- [Código de conduta](CODE_OF_CONDUCT.md)
-- [Changelog](CHANGELOG.md)
+Próximos passos: o [início rápido completo](https://docs.rushdb.com/engine/getting-started/quickstart/) ·
+[Docker e outras formas de instalação](https://docs.rushdb.com/engine/getting-started/installation/)
 
-Licenciado sob [Apache-2.0](LICENSE).
+## O que você pode construir
+
+| | |
+|---|---|
+| **Memória para agentes** | Memórias como registros com relações, filtradas por escopo e ordenadas pelos vetores que você armazena. Provedores prontos para OpenClaw e Hermes. |
+| **Busca nos dados do seu app** | Busca de texto completo, vetorial e híbrida sobre os registros que seu app já escreve, com filtros de grafo na mesma consulta. |
+| **Perguntas sobre dados conectados** | Um agente lê o schema e então escreve uma consulta que você pode inspecionar: na linguagem de consulta JSON, em SQL ou em Cypher. |
+| **Relatórios sem exportação** | Agrupe e agregue os registros que seu app escreve, pelos SDKs ou por qualquer cliente PostgreSQL. |
+
+## Recursos
+
+- **Schema emergente.** Os tipos são inferidos por valor, objetos aninhados viram registros ligados, e o catálogo mantém contagens exatas e listas de valores. [Catálogo de schema](https://docs.rushdb.com/engine/data-model/schema-catalog/)
+- **Consultas de grafo.** Filtre através de relações por rótulo, restrinja-as por tipo e direção e vincule registros relacionados para projeções e agregações. [Relações e travessia](https://docs.rushdb.com/engine/query/relationships-and-traversal/)
+- **Busca integrada.** Índices vetoriais sobre os vetores que você fornece, texto completo BM25 e busca híbrida que combina os dois. [Índices e busca](https://docs.rushdb.com/engine/indexes-and-search/)
+- **Agregações.** `select` e `groupBy` com contagens, somas, médias, intervalos de tempo e coleções aninhadas. [Agregações](https://docs.rushdb.com/engine/query/aggregations/)
+- **Fala o que você usa.** SQL pelo protocolo de rede do PostgreSQL, Gremlin, SQL/PGQ, documentos no estilo Mongo, e openCypher e ISO GQL como release candidates. [Linguagens de consulta](https://docs.rushdb.com/engine/languages/)
+- **Durável.** Write-ahead log, transações, backups com restauração para um ponto no tempo e réplicas de leitura. [Operações](https://docs.rushdb.com/engine/operations/)
+- **Um binário.** HTTP, protocolo de rede do PostgreSQL, gRPC e Bolt em um único processo, com tenants isolados opcionais. [Conectividade](https://docs.rushdb.com/engine/connectivity/)
+
+## Ecossistema
+
+| Projeto | Para |
+|---|---|
+| [`@rushdb/javascript-sdk`](https://github.com/rush-db/javascript-sdk) · [`rushdb`](https://github.com/rush-db/rushdb-python) (PyPI) | Apps em TypeScript e Python |
+| [`@rushdb/mcp-server`](https://github.com/rush-db/mcp-server) | Claude, Cursor e outros clientes MCP |
+| [Skills para agentes](https://github.com/rush-db/skills) · [plugins para agentes](https://github.com/rush-db/agent-plugins) | Agentes de programação |
+| [LangChain e LangGraph](https://github.com/rush-db/langchain-rushdb) · [LlamaIndex](https://github.com/rush-db/llama-index-rushdb) | Recuperação, memória e property graph stores |
+| [OpenClaw](https://github.com/rush-db/rushdb-openclaw-memory) · [Hermes](https://github.com/rush-db/rushdb-hermes-memory) · [contrato de memória](https://github.com/rush-db/agent-memory-contract) | Provedores de memória para agentes |
+| [Debezium sink](https://github.com/rush-db/debezium-server-rushdb) · [plugin para Obsidian](https://github.com/rush-db/obsidian-plugin) | Change data capture, notas |
+
+Todos funcionam com um engine auto-hospedado. Para que seu agente de programação
+configure o RushDB, passe a ele [rushdb.com/agent-setup](https://rushdb.com/agent-setup).
+
+## Rode em qualquer lugar
+
+```bash
+docker run -p 127.0.0.1:3000:3000 -v rushdb:/data -e RUSHDB_TOKEN=change-me rushdb/rushdb:3
+```
+
+Docker Compose, Kubernetes (Helm), cloud-init, systemd, Fly.io, Render,
+Coolify e Dokploy: veja [Deploy](https://docs.rushdb.com/deploy/). Leia
+[Segurança](https://docs.rushdb.com/engine/operations/security/) antes de
+expor um nó além do loopback.
+
+## Auto-hospedado e RushDB Cloud
+
+- **Auto-hospedado:** este repositório. Tudo o que está acima roda no engine que você instala.
+- **[RushDB Cloud](https://app.rushdb.com):** o mesmo engine, gerenciado, com um
+  dashboard, embeddings gerenciados, busca em linguagem natural e conectores para
+  ferramentas SaaS. Os SDKs e o servidor MCP funcionam com os dois.
+
+## FAQ
+
+**Está pronto para produção?** SQL, a linguagem de consulta JSON nativa, Gremlin e
+documentos no estilo Mongo são estáveis. openCypher, ISO GQL e Bolt são release
+candidates. A replicação é assíncrona, com promoção manual. A
+[página de status](https://docs.rushdb.com/engine/reference/status/) lista cada
+interface e seus limites.
+
+**Preciso de um banco de dados vetorial separado?** Não. Vetores, índices de texto e
+relações ficam em um único engine, e um registro pode ser escrito junto com
+seu vetor em um único commit. O engine busca nos vetores que você fornece; o RushDB
+Cloud pode gerá-los para você.
+
+**O que é o schema vivo?** Um catálogo de cada rótulo, propriedade, tipo, valor
+e formato de relação, atualizado a cada commit, com contagens exatas. Uma chamada
+o retorna, então agentes e ferramentas não adivinham nomes de campos.
+[Catálogo de schema](https://docs.rushdb.com/engine/data-model/schema-catalog/)
+
+**Windows?** Use WSL 2 ou Docker.
+
+---
+
+[Contribuir](https://github.com/rush-db/rushdb/blob/main/CONTRIBUTING.md) •
+[Segurança](https://github.com/rush-db/rushdb/blob/main/SECURITY.md) •
+[Changelog](https://github.com/rush-db/rushdb/blob/main/CHANGELOG.md) •
+[Apache-2.0](https://github.com/rush-db/rushdb/blob/main/LICENSE)
+
+O RushDB 2.x (legado, baseado em Neo4j) fica no
+[branch `2.x`](https://github.com/rush-db/rushdb/tree/2.x), com correções de segurança
+até 2027-10-28. [Atualizar a partir do 2.x](https://docs.rushdb.com/engine/operations/upgrading-from-2x/)
+
+[English](https://github.com/rush-db/rushdb/blob/main/README.md) • [中文](https://github.com/rush-db/rushdb/blob/main/README_ZH.md) • [日本語](https://github.com/rush-db/rushdb/blob/main/README_JA.md) • [한국어](https://github.com/rush-db/rushdb/blob/main/README_KO.md) • [Deutsch](https://github.com/rush-db/rushdb/blob/main/README_DE.md) • [Français](https://github.com/rush-db/rushdb/blob/main/README_FR.md) • **Português** • [Español](https://github.com/rush-db/rushdb/blob/main/README_ES.md) • [हिन्दी](https://github.com/rush-db/rushdb/blob/main/README_HI.md) • [العربية](https://github.com/rush-db/rushdb/blob/main/README_AR.md) • [Bahasa Indonesia](https://github.com/rush-db/rushdb/blob/main/README_ID.md) • [ไทย](https://github.com/rush-db/rushdb/blob/main/README_TH.md)

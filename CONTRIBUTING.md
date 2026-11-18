@@ -12,7 +12,18 @@ You also need a C/C++ compiler. Then run:
 make gate   # fmt-check + clippy + test
 ```
 
-`make gate` is the same check CI runs. The individual targets are:
+`make gate` is the same check CI runs. Before you open a pull request, run
+the full quality gate:
+
+```bash
+cargo test --workspace --no-fail-fast --locked
+cargo clippy --workspace --all-targets --locked
+cargo fmt --all -- --check
+scripts/check-quality-bar.sh
+```
+
+`scripts/check-quality-bar.sh` caps the size of known hotspot files. The
+individual `make` targets are:
 
 ```bash
 cargo build --workspace
