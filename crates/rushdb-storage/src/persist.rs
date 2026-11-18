@@ -104,9 +104,19 @@ impl Store {
     /// different tenants' commits persist in parallel.
     pub(super) fn persist_many_sharded(
         &self,
-        pairs: &[CommitOps<'_>],
         batch: &[PendingCommit],
+        derived: Vec<Vec<Op>>,
+        usage: Vec<Vec<Op>>,
     ) -> Result<(), StorageError> {
+        let pairs: Vec<CommitOps<'_>> = batch
+            .iter()
+            .zip(&derived)
+            .map(|(pc, derived)| CommitOps {
+                ci: pc.ci,
+                base: &pc.ops,
+                derived,
+            })
+            .collect();
         self.check_health()?;
         self.check_publisher()?;
         #[cfg(test)]
@@ -145,6 +155,10 @@ impl Store {
                 .collect();
             self.append_log(&records)?;
         }
+        if self.publishes_ahead(batch) {
+            drop(pairs);
+            return self.push_to_gaps(batch, derived, usage);
+        }
         let apply_started = std::time::Instant::now();
         let op_bytes: u64 = pairs
             .iter()
@@ -153,7 +167,7 @@ impl Store {
             .sum();
         self.applied_bytes
             .fetch_add(op_bytes, std::sync::atomic::Ordering::Relaxed);
-        let applied = self.apply_sharded(pairs, batch);
+        let applied = self.apply_sharded(&pairs, batch);
         self.observe_phase(CommitPhase::BackendApply, apply_started);
         applied
     }
@@ -179,7 +193,6 @@ impl Store {
                 backend
                     .apply_many(&shard_pairs)
                     .map_err(StorageError::Durability)?;
-                self.pace_checkpoint(backend, &shard_pairs);
             }
             return Ok(());
         }
@@ -224,22 +237,43 @@ impl Store {
             if let Some(error) = first_err {
                 return Err(error);
             }
-            for (_, backend, shard_pairs) in &backends {
-                if let Some(backend) = backend {
-                    self.pace_checkpoint(Arc::clone(backend), shard_pairs);
-                }
-            }
             Ok(())
         })
     }
 
-    /// Hand a shard whose buffered writes passed its bound to the flusher,
-    /// to checkpoint at the newest commit just applied (see `flusher`).
-    fn pace_checkpoint(&self, backend: Arc<dyn StorageBackend>, applied: &[CommitOps<'_>]) {
-        if let Some(last) = applied.last() {
-            if backend.take_flush_due() {
-                self.flusher.request(backend, last.ci);
-            }
+    /// Whether this group publishes at WAL durability: every shard it
+    /// writes has a gap (a redb store), so its materializers apply it.
+    pub(super) fn publishes_ahead(&self, batch: &[PendingCommit]) -> bool {
+        !batch.is_empty() && batch.iter().all(|pc| self.gap(pc.shard).is_some())
+    }
+
+    /// Hand a durable group to its shards' gaps (PUB-1). Waits while a gap
+    /// is at its bound, so a materializer that falls behind slows
+    /// publication down to its pace instead of growing memory.
+    fn push_to_gaps(
+        &self,
+        batch: &[PendingCommit],
+        derived: Vec<Vec<Op>>,
+        usage: Vec<Vec<Op>>,
+    ) -> Result<(), StorageError> {
+        let started = std::time::Instant::now();
+        let op_bytes: u64 = batch
+            .iter()
+            .flat_map(|pc| pc.ops.iter())
+            .chain(derived.iter().flatten())
+            .chain(usage.iter().flatten())
+            .map(|op| u64::try_from(op.encoded_len()).unwrap_or(u64::MAX))
+            .sum();
+        self.applied_bytes
+            .fetch_add(op_bytes, std::sync::atomic::Ordering::Relaxed);
+        for ((pc, derived), usage) in batch.iter().zip(derived).zip(usage) {
+            let gap = self
+                .gap(pc.shard)
+                .ok_or_else(|| StorageError::Durability("shard has no gap".into()))?;
+            let charge = gap.reserve(crate::gap::commit_bytes(&pc.ops, &derived, &usage))?;
+            gap.push(pc.ci, Arc::clone(&pc.ops), derived, usage, charge);
         }
+        self.observe_phase(CommitPhase::GapPush, started);
+        Ok(())
     }
 }

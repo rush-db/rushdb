@@ -49,6 +49,7 @@ pub struct Metrics {
     wal_retained_bytes: prometheus::IntGauge,
     /// C0: bytes held by the in-memory conflict window.
     conflict_window_bytes: prometheus::IntGauge,
+    unmaterialized_bytes: prometheus::IntGauge,
     /// C0: HTTP request-body bytes reserved in flight.
     http_inflight_body_bytes: prometheus::IntGauge,
     /// C0: duration of each maintenance (GC/retention/checkpoint) tick.
@@ -221,6 +222,9 @@ impl Metrics {
         if let Ok(bytes) = store.retained_log_bytes() {
             self.wal_retained_bytes.set(clamp(bytes));
         }
+        self.unmaterialized_bytes.set(clamp(
+            u64::try_from(store.unmaterialized_bytes()).unwrap_or(u64::MAX),
+        ));
         self.conflict_window_bytes.set(clamp(
             u64::try_from(store.conflict_window_bytes()).unwrap_or(u64::MAX),
         ));
@@ -490,6 +494,11 @@ impl Metrics {
         let wal_retained_bytes =
             prometheus::IntGauge::new("rushdb_wal_retained_bytes", "WAL bytes retained on disk")
                 .expect("valid Prometheus metric");
+        let unmaterialized_bytes = prometheus::IntGauge::new(
+            "rushdb_storage_unmaterialized_bytes",
+            "Bytes of published commits not yet applied to the store file (commits wait at the bound)",
+        )
+        .expect("valid Prometheus metric");
         let conflict_window_bytes = prometheus::IntGauge::new(
             "rushdb_conflict_window_bytes",
             "Bytes held by the in-memory conflict-validation window",
@@ -645,6 +654,7 @@ impl Metrics {
             Box::new(storage_backend_mutex_hold_max_ms.clone()),
             Box::new(wal_retained_bytes.clone()),
             Box::new(conflict_window_bytes.clone()),
+            Box::new(unmaterialized_bytes.clone()),
             Box::new(http_inflight_body_bytes.clone()),
             Box::new(gc_tick_seconds.clone()),
             Box::new(retention_consumers.clone()),
@@ -719,6 +729,7 @@ impl Metrics {
             storage_backend_mutex_hold_max_ms,
             wal_retained_bytes,
             conflict_window_bytes,
+            unmaterialized_bytes,
             http_inflight_body_bytes,
             gc_tick_seconds,
             retention_consumers,

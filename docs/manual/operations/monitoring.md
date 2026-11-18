@@ -77,7 +77,7 @@ a subset.
 | Disk | `rushdb_storage_file_bytes`, `rushdb_wal_retained_bytes` | Growth; WAL held by a lagging consumer. |
 | Retention | `rushdb_retention_consumers`, `rushdb_retention_protected_floor`, `rushdb_retention_oldest_reader_commit` | A consumer or reader pinning history. |
 | Maintenance | `rushdb_gc_tick_seconds`, `rushdb_maintenance_step_seconds{step}`, `rushdb_storage_compactions_total` | Maintenance falling behind; a long tick's `step` names what held the writer (a slow `checkpoint` is a slow fsync). |
-| Writer | `rushdb_writer_hold_seconds{holder}` | Long writer holds stall every tenant's commits; `holder` names the work (`publish`, `history_gc`, `checkpoint`, `pause`). |
+| Writer | `rushdb_writer_hold_seconds{holder}` | Long writer holds delay materialization, and commits once the not-yet-materialized commits reach their bound; `holder` names the work (`materialize`, `history_gc`, `checkpoint`, `pause`). |
 | Search | `rushdb_text_pending`, `rushdb_ann_exact_fallbacks_total`, `rushdb_vector_searches_total{path,reason}` | Text index backlog; vector cache too small; vector searches answered exactly instead of by the ANN index. |
 | Tenants | `rushdb_tenants_resident`, `rushdb_tenant_resident_bytes` | Residency budget pressure. |
 

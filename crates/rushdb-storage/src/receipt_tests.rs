@@ -104,7 +104,11 @@ fn receipt_sweep_is_bounded_per_tick() {
     now.fetch_add(10_000, Ordering::SeqCst);
     let fresh = Uuid::now_v7();
     let fresh_outcome = commit(&store, fresh, "fresh");
-    let rows = |store: &Store| store.storage_stats().unwrap().receipt_keys;
+    // File statistics count what is materialized.
+    let rows = |store: &Store| {
+        store.wait_materialized().unwrap();
+        store.storage_stats().unwrap().receipt_keys
+    };
     // Two rows per receipt (the receipt and its expiry index entry).
     assert_eq!(rows(&store), 52);
     // Nothing is past the window yet.

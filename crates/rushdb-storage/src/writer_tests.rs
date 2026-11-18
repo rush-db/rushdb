@@ -537,10 +537,10 @@ fn bounded_writer_byte_cap_splits_groups() {
 }
 
 #[test]
-fn a_shard_past_its_buffered_bound_is_checkpointed_off_the_publish_path() {
-    // PERF-2: a group that leaves more than the paced bound buffered hands
-    // its shard to the flusher, which checkpoints it before the next
-    // maintenance tick; the group itself returns without waiting for it.
+fn a_shard_past_its_buffered_bound_is_checkpointed_by_its_materializer() {
+    // PERF-2: once a shard's materializer has left more than the paced
+    // bound buffered, it checkpoints the shard itself instead of leaving it
+    // to the next maintenance tick; publication never waits for it.
     let dir = std::env::temp_dir().join(format!(
         "rushdb-paced-flush-{}-{}",
         std::process::id(),
@@ -568,25 +568,18 @@ fn a_shard_past_its_buffered_bound_is_checkpointed_off_the_publish_path() {
             command_payload: Vec::new(),
             ack,
         }];
-        let pairs: Vec<crate::backend::CommitOps<'_>> = batch
-            .iter()
-            .map(|pc| crate::backend::CommitOps {
-                ci: pc.ci,
-                base: &pc.ops,
-                derived: &[],
-            })
-            .collect();
-        store.persist_many_sharded(&pairs, &batch).unwrap();
+        store
+            .persist_many_sharded(&batch, vec![Vec::new()], vec![Vec::new()])
+            .unwrap();
+        store.gap(0).unwrap().wait_materialized(ci).unwrap();
     };
     group(1, 4);
-    store.flusher.stop();
     assert_eq!(
         store.write_counters().paced_checkpoints,
         0,
         "below the bound"
     );
     group(2, 16);
-    store.flusher.stop();
     assert_eq!(store.write_counters().paced_checkpoints, 1);
     // It wrote everything out: the same checkpoint again writes nothing.
     assert!(!store.backend(0).unwrap().checkpoint(2).unwrap());
@@ -652,15 +645,11 @@ fn multi_shard_persist_fans_out_to_both_backends_in_parallel() {
             ack: ack1,
         },
     ];
-    let pairs: Vec<crate::backend::CommitOps<'_>> = batch
-        .iter()
-        .map(|pc| crate::backend::CommitOps {
-            ci: pc.ci,
-            base: &pc.ops,
-            derived: &[],
-        })
-        .collect();
-    store.persist_many_sharded(&pairs, &batch).unwrap();
+    store
+        .persist_many_sharded(&batch, vec![Vec::new(); 2], vec![Vec::new(); 2])
+        .unwrap();
+    store.gap(0).unwrap().wait_materialized(2).unwrap();
+    store.gap(1).unwrap().wait_materialized(2).unwrap();
     let get = |shard: usize, key: &[u8]| {
         store
             .backend(shard)

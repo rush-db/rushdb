@@ -4367,6 +4367,7 @@ name = "rushdb-storage"
 version = "3.0.12"
 dependencies = [
  "crc32fast",
+ "im",
  "redb",
  "rushdb-storage",
  "rushdb-types",

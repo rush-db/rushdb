@@ -1621,7 +1621,7 @@ impl RedbBackend {
         }
         let db = self.lock_db()?;
         let mut tx = db.begin_write().map_err(|e| e.to_string())?;
-        let _hold = self.writer_hold(crate::WriterHolder::Publish);
+        let _hold = self.writer_hold(crate::WriterHolder::Materialize);
         // Log-first: the WAL is the durable truth, so a redb commit is a
         // buffered materialization write. Durability is forced by the periodic
         // `checkpoint()`; recovery replays any WAL tail beyond the last
@@ -1898,6 +1898,14 @@ impl RedbBackend {
         let db = self.lock_db()?;
         let mut tx = db.begin_write().map_err(|e| e.to_string())?;
         let _hold = self.writer_hold(crate::WriterHolder::Checkpoint);
+        #[cfg(test)]
+        if std::env::var("RUSHDB_TEST_KILL_AT").as_deref() == Ok("checkpoint") {
+            // Killed while this checkpoint writes out and syncs.
+            std::thread::spawn(|| {
+                std::thread::sleep(std::time::Duration::from_micros(300));
+                crate::kill_point::kill();
+            });
+        }
         tx.set_durability(redb::Durability::Immediate)
             .map_err(|e| e.to_string())?;
         // Quick repair: persist the allocator state with every durable
@@ -2493,7 +2501,7 @@ mod tests {
                 .map(|(holder, holds)| (holder.label(), holds))
                 .collect();
         let count = |label: &str| holds[label].counts.iter().sum::<u64>();
-        assert_eq!(count("publish"), 2);
+        assert_eq!(count("materialize"), 2);
         assert_eq!(count("checkpoint"), 1);
         assert_eq!(count("history_gc"), 1);
         assert_eq!(count("pause"), 0);

@@ -116,7 +116,7 @@ impl Store {
             // WAL still receives base ops only (`batch`), the backend receives
             // base + derived (`pairs`).
             let derive_started = std::time::Instant::now();
-            let derived = match self.derive_group(&batch) {
+            let (derived, usage) = match self.derive_group(&batch) {
                 Ok(derived) => {
                     self.observe_phase(CommitPhase::Derive, derive_started);
                     derived
@@ -136,9 +136,12 @@ impl Store {
                 })
                 .collect();
             self.note_resident_writes(&pairs);
-            let publication = self.persist_many_sharded(&pairs, &batch);
             drop(pairs);
-            drop(derived);
+            let publication = self.persist_many_sharded(&batch, derived, usage);
+            #[cfg(test)]
+            if publication.is_ok() {
+                crate::kill_point::hit("before-publish");
+            }
             match publication {
                 Ok(()) => {
                     let publish_started = std::time::Instant::now();
@@ -180,47 +183,74 @@ impl Store {
         }
     }
 
-    /// Per commit of a publish group, the ops derived from it (empty when
-    /// nothing was derived), each derived against the state before it: its
-    /// shard backend plus the earlier commits of the group. That prior state
-    /// borrows the group's ops; nothing is copied into it.
-    fn derive_group(&self, batch: &[PendingCommit]) -> Result<Vec<Vec<Op>>, StorageError> {
-        let Some(deriver) = self.deriver() else {
-            return Ok(vec![Vec::new(); batch.len()]);
-        };
-        // Each commit's derived ops are written once into its cell and never
-        // move, so later commits' layered state can borrow them.
-        let outputs: Vec<std::cell::OnceCell<Vec<Op>>> =
+    /// Per commit of a publish group, the ops derived from it and, when its
+    /// shard publishes ahead of materialization, the usage rows its apply
+    /// will write (empty otherwise), each computed against the state before
+    /// it: its shard's view plus the earlier commits of the group. That
+    /// prior state borrows the group's ops; nothing is copied into it.
+    #[expect(clippy::type_complexity, reason = "two parallel per-commit lists")]
+    fn derive_group(
+        &self,
+        batch: &[PendingCommit],
+    ) -> Result<(Vec<Vec<Op>>, Vec<Vec<Op>>), StorageError> {
+        let deriver = self.deriver();
+        let ahead = self.publishes_ahead(batch);
+        if deriver.is_none() && !ahead {
+            return Ok((vec![Vec::new(); batch.len()], vec![Vec::new(); batch.len()]));
+        }
+        // Each commit's ops are written once into its cells and never move,
+        // so later commits' layered state can borrow them.
+        let derived_ops: Vec<std::cell::OnceCell<Vec<Op>>> =
+            batch.iter().map(|_| std::cell::OnceCell::new()).collect();
+        let usage_rows: Vec<std::cell::OnceCell<Vec<Op>>> =
             batch.iter().map(|_| std::cell::OnceCell::new()).collect();
         {
             let mut bases: BTreeMap<usize, Box<dyn DeriveRead>> = BTreeMap::new();
             let mut buffers: BTreeMap<usize, BTreeMap<&[u8], Option<&[u8]>>> = BTreeMap::new();
-            for (position, (pc, cell)) in batch.iter().zip(&outputs).enumerate() {
+            for (position, pc) in batch.iter().enumerate() {
                 if let std::collections::btree_map::Entry::Vacant(slot) = bases.entry(pc.shard) {
                     slot.insert(match self.backend(pc.shard) {
-                        Some(backend) => Box::new(derive::BackendRead(backend.read_view()?)),
+                        Some(backend) => Box::new(derive::BackendRead(
+                            self.shard_read_view(pc.shard, backend.as_ref())?,
+                        )),
                         None => Box::new(derive::Empty),
                     });
                 }
                 let buffer = buffers.entry(pc.shard).or_default();
-                let ops = {
+                let (ops, rows) = {
                     let before = derive::Layered {
                         base: bases[&pc.shard].as_ref(),
                         buffer,
                     };
-                    Self::derive_ops(Some(&deriver), pc.ci, &pc.ops, &before)?
+                    let ops = match &deriver {
+                        Some(deriver) => Self::derive_ops(Some(deriver), pc.ci, &pc.ops, &before)?,
+                        None => Vec::new(),
+                    };
+                    let rows = if ahead {
+                        crate::usage::commit_rows(pc.ops.iter().chain(&ops), &before)?
+                    } else {
+                        Vec::new()
+                    };
+                    (ops, rows)
                 };
-                let ops = cell.get_or_init(|| ops);
+                let ops = derived_ops[position].get_or_init(|| ops);
+                let rows = usage_rows[position].get_or_init(|| rows);
                 // The last commit has no successor in this group to read it.
                 if position + 1 < batch.len() {
-                    derive::fold(buffer, pc.ops.iter().chain(ops));
+                    derive::fold(buffer, pc.ops.iter().chain(ops).chain(rows));
                 }
             }
         }
-        Ok(outputs
-            .into_iter()
-            .map(|cell| cell.into_inner().unwrap_or_default())
-            .collect())
+        Ok((
+            derived_ops
+                .into_iter()
+                .map(|cell| cell.into_inner().unwrap_or_default())
+                .collect(),
+            usage_rows
+                .into_iter()
+                .map(|cell| cell.into_inner().unwrap_or_default())
+                .collect(),
+        ))
     }
 
     /// Fence the publisher after a failed group: fail this group and every

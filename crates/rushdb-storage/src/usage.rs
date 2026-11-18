@@ -75,3 +75,57 @@ impl UsageBytes {
         Ok(out)
     }
 }
+
+/// The usage rows applying `ops` (one commit, in apply order) on top of
+/// `before` writes: what a backend's apply computes from the values it
+/// replaces, computed ahead of the apply for a commit published before it
+/// is materialized.
+///
+/// # Errors
+/// Returns [`crate::StorageError`] when a read of `before` fails or the
+/// accounting has diverged (see [`UsageBytes::rows`]).
+pub(crate) fn commit_rows<'a>(
+    ops: impl Iterator<Item = &'a crate::Op>,
+    before: &dyn crate::DeriveRead,
+) -> Result<Vec<crate::Op>, crate::StorageError> {
+    use crate::Op;
+    let mut usage = UsageBytes::default();
+    // Value lengths after the commit's earlier ops (`None`: absent).
+    let mut after: BTreeMap<&[u8], Option<usize>> = BTreeMap::new();
+    // The commit's own writes of usage rows (a tenant purge erases them).
+    let mut written: BTreeMap<&[u8], Option<&[u8]>> = BTreeMap::new();
+    for op in ops {
+        let key = op.key();
+        let new = match op {
+            Op::Put(_, value) | Op::Set(_, value) => Some(value.as_slice()),
+            Op::Del(_) | Op::Purge(_) => None,
+        };
+        if is_usage_bytes_key(key) {
+            written.insert(key, new);
+            continue;
+        }
+        if parse_tenant(key).is_none() {
+            continue;
+        }
+        let old = match after.get(key) {
+            Some(len) => *len,
+            None => before.get(key)?.map(|value| value.len()),
+        };
+        let new = new.map(<[u8]>::len);
+        usage.record(key, old, new);
+        after.insert(key, new);
+    }
+    let rows = usage
+        .rows(|key| match written.get(key) {
+            Some(value) => Ok(value.map(<[u8]>::to_vec)),
+            None => before.get(key).map_err(|error| error.to_string()),
+        })
+        .map_err(crate::StorageError::Durability)?;
+    Ok(rows
+        .into_iter()
+        .map(|(key, value)| match value {
+            Some(value) => Op::Put(key, value),
+            None => Op::Del(key),
+        })
+        .collect())
+}

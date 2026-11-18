@@ -104,7 +104,11 @@ impl Store {
     pub fn checkpoint(&self) -> Result<bool, StorageError> {
         self.check_health()?;
         let started = std::time::Instant::now();
-        let durable_lsn = self.committed_version();
+        // Every commit published by now goes into the files first (at most
+        // the gap bound of apply work), so a checkpoint still covers every
+        // commit published before it was called.
+        self.wait_materialized()?;
+        let durable_lsn = self.materialized_version();
         let written = self
             .for_each_backend_parallel(|backend| backend.checkpoint(durable_lsn))?
             .contains(&true);
@@ -156,6 +160,7 @@ impl Store {
         self.check_health()?;
         let _guard = self.health.guard(self.publish_lock.lock())?;
         self.drain_and_publish();
+        self.wait_materialized()?;
         let durable_lsn = self.committed_version();
         let started = std::time::Instant::now();
         if self
@@ -256,6 +261,7 @@ impl Store {
             return Ok(None);
         }
         self.drain_and_publish();
+        self.wait_materialized()?;
         let commit_index = self.committed_version();
         self.retire_before_locked(commit_index)?;
         // Compact every shard file concurrently (independent files). The

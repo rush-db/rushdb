@@ -54,17 +54,22 @@ pub enum CommitPhase {
     WalEncode,
     /// Publisher: appending and fsyncing a group's WAL records.
     WalAppendSync,
-    /// Publisher: applying a group's ops to the backend materialization.
+    /// Applying a group's ops to the backend materialization: on the
+    /// publish path for an in-memory store, by a shard's materializer (once
+    /// per batch, off the publish path) for a redb store.
     BackendApply,
     /// Publisher: advancing derived state for a group.
     Derive,
+    /// Publisher: handing a durable group to its shards' gaps, waiting
+    /// while a gap is at its bound (PUB-1).
+    GapPush,
     /// Publisher: conflict-window recording, watermark advance and acks.
     Publish,
 }
 
 impl CommitPhase {
     /// Every phase, in pipeline order.
-    pub const ALL: [Self; 11] = [
+    pub const ALL: [Self; 12] = [
         Self::AdmissionWait,
         Self::Build,
         Self::Expand,
@@ -75,6 +80,7 @@ impl CommitPhase {
         Self::WalAppendSync,
         Self::BackendApply,
         Self::Derive,
+        Self::GapPush,
         Self::Publish,
     ];
 
@@ -92,6 +98,7 @@ impl CommitPhase {
             Self::WalAppendSync => "wal_append_sync",
             Self::BackendApply => "backend_apply",
             Self::Derive => "derive",
+            Self::GapPush => "gap_push",
             Self::Publish => "publish",
         }
     }
@@ -112,12 +119,13 @@ pub struct BackendLockTimes {
 }
 
 /// What holds a backend's single writer: one redb write transaction, from
-/// `begin_write` to its commit. Every other writer waits meanwhile, so the
-/// longest holds are what stall other tenants' commits.
+/// `begin_write` to its commit. Every other writer waits meanwhile, the
+/// shard's materializer included: long holds delay materialization, and
+/// commits only once the shard's gap is at its bound.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum WriterHolder {
-    /// Publishing commit groups into the materialization.
-    Publish,
+    /// A materializer applying published commits.
+    Materialize,
     /// One batch of history garbage collection.
     HistoryGc,
     /// A durable checkpoint (fsync).
@@ -129,7 +137,7 @@ pub enum WriterHolder {
 impl WriterHolder {
     /// Every holder.
     pub const ALL: [Self; 4] = [
-        Self::Publish,
+        Self::Materialize,
         Self::HistoryGc,
         Self::Checkpoint,
         Self::Pause,
@@ -139,7 +147,7 @@ impl WriterHolder {
     #[must_use]
     pub const fn label(self) -> &'static str {
         match self {
-            Self::Publish => "publish",
+            Self::Materialize => "materialize",
             Self::HistoryGc => "history_gc",
             Self::Checkpoint => "checkpoint",
             Self::Pause => "pause",
@@ -148,7 +156,7 @@ impl WriterHolder {
 
     pub(crate) const fn index(self) -> usize {
         match self {
-            Self::Publish => 0,
+            Self::Materialize => 0,
             Self::HistoryGc => 1,
             Self::Checkpoint => 2,
             Self::Pause => 3,
@@ -251,7 +259,7 @@ impl Store {
             admission_wait_ms: self.admission_wait_ms.load(Ordering::Relaxed),
             checkpoints: self.checkpoints.load(Ordering::Relaxed),
             checkpoint_wait_ms: self.checkpoint_wait_ms.load(Ordering::Relaxed),
-            paced_checkpoints: self.flusher.written(),
+            paced_checkpoints: self.materializers.paced_checkpoints(),
             wal_bytes_appended: self.wal_bytes_appended.load(Ordering::Relaxed),
             applied_bytes: self.applied_bytes.load(Ordering::Relaxed),
         }
