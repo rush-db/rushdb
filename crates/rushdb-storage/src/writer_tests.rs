@@ -537,6 +537,64 @@ fn bounded_writer_byte_cap_splits_groups() {
 }
 
 #[test]
+fn a_shard_past_its_buffered_bound_is_checkpointed_off_the_publish_path() {
+    // PERF-2: a group that leaves more than the paced bound buffered hands
+    // its shard to the flusher, which checkpoints it before the next
+    // maintenance tick; the group itself returns without waiting for it.
+    let dir = std::env::temp_dir().join(format!(
+        "rushdb-paced-flush-{}-{}",
+        std::process::id(),
+        Uuid::now_v7()
+    ));
+    std::fs::create_dir_all(&dir).unwrap();
+    let store = Store::new_with_resources(resources::StorageResources {
+        managed_limit_bytes: 256 * 1024 * 1024,
+        page_cache_bytes: 1024 * 1024,
+        durability: resources::Durability::Local,
+        ..resources::StorageResources::default()
+    })
+    .unwrap();
+    store.attach_redb(&dir.join("rushdb.redb")).unwrap();
+    let group = |ci: u64, values: u32| {
+        let ops: Vec<Op> = (0..values)
+            .map(|n| Op::Put(format!("k{ci}-{n}").into_bytes(), vec![5u8; 1024 * 1024]))
+            .collect();
+        let (ack, _rx) = mpsc::channel();
+        let batch = vec![PendingCommit {
+            ci,
+            shard: 0,
+            prepared: PreparedCommand::from_ops(ci, &ops),
+            ops: Arc::new(ops),
+            command_payload: Vec::new(),
+            ack,
+        }];
+        let pairs: Vec<crate::backend::CommitOps<'_>> = batch
+            .iter()
+            .map(|pc| crate::backend::CommitOps {
+                ci: pc.ci,
+                base: &pc.ops,
+                derived: &[],
+            })
+            .collect();
+        store.persist_many_sharded(&pairs, &batch).unwrap();
+    };
+    group(1, 4);
+    store.flusher.stop();
+    assert_eq!(
+        store.write_counters().paced_checkpoints,
+        0,
+        "below the bound"
+    );
+    group(2, 16);
+    store.flusher.stop();
+    assert_eq!(store.write_counters().paced_checkpoints, 1);
+    // It wrote everything out: the same checkpoint again writes nothing.
+    assert!(!store.backend(0).unwrap().checkpoint(2).unwrap());
+    drop(store);
+    std::fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
 fn multi_shard_persist_fans_out_to_both_backends_in_parallel() {
     // One drain group spanning two physical shards must persist each
     // shard's op-sets to its own backend file (parallel since disjoint).

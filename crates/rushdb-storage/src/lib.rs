@@ -27,6 +27,7 @@ mod dependency_set;
 mod derive;
 pub mod derived_health;
 mod fair_gate;
+mod flusher;
 pub mod history_v2;
 mod layout;
 mod log_export;
@@ -687,6 +688,9 @@ pub struct Store {
     wal_bytes_appended: AtomicU64,
     /// Encoded op bytes handed to the backends, cumulative.
     applied_bytes: AtomicU64,
+    /// Runs the checkpoints of shards whose buffered writes passed their
+    /// bound, off the publish path (PERF-2).
+    flusher: flusher::Flusher,
     /// Whether a physical compaction holds the database: every read and
     /// commit waits on it, so readiness reports it.
     compacting: AtomicBool,
@@ -824,6 +828,7 @@ impl Store {
             purged_since_compaction: AtomicU64::new(0),
             wal_bytes_appended: AtomicU64::new(0),
             applied_bytes: AtomicU64::new(0),
+            flusher: flusher::Flusher::default(),
             compacting: AtomicBool::new(false),
         })
     }

@@ -39,6 +39,7 @@ pub struct Metrics {
     storage_admission_wait_ms: prometheus::IntCounter,
     storage_checkpoints: prometheus::IntCounter,
     storage_checkpoint_wait_ms: prometheus::IntCounter,
+    storage_paced_checkpoints: prometheus::IntCounter,
     storage_wal_bytes: prometheus::IntCounter,
     storage_applied_bytes: prometheus::IntCounter,
     storage_backend_mutex_wait_ms: prometheus::IntCounter,
@@ -197,6 +198,10 @@ impl Metrics {
         advance(
             &self.storage_checkpoint_wait_ms,
             clamp(written.checkpoint_wait_ms),
+        );
+        advance(
+            &self.storage_paced_checkpoints,
+            clamp(written.paced_checkpoints),
         );
         advance(&self.storage_wal_bytes, clamp(written.wal_bytes_appended));
         advance(&self.storage_applied_bytes, clamp(written.applied_bytes));
@@ -457,6 +462,11 @@ impl Metrics {
             "Cumulative milliseconds spent in durability checkpoints",
         )
         .expect("valid Prometheus metric");
+        let storage_paced_checkpoints = prometheus::IntCounter::new(
+            "rushdb_storage_paced_checkpoints_total",
+            "Cumulative checkpoints run between maintenance ticks because a shard's buffered writes passed their bound",
+        )
+        .expect("valid Prometheus metric");
         let storage_wal_bytes = prometheus::IntCounter::new(
             "rushdb_storage_wal_bytes_total",
             "Cumulative bytes appended to the write-ahead log",
@@ -627,6 +637,7 @@ impl Metrics {
             Box::new(storage_admission_wait_ms.clone()),
             Box::new(storage_checkpoints.clone()),
             Box::new(storage_checkpoint_wait_ms.clone()),
+            Box::new(storage_paced_checkpoints.clone()),
             Box::new(storage_wal_bytes.clone()),
             Box::new(storage_applied_bytes.clone()),
             Box::new(storage_backend_mutex_wait_ms.clone()),
@@ -700,6 +711,7 @@ impl Metrics {
             storage_admission_wait_ms,
             storage_checkpoints,
             storage_checkpoint_wait_ms,
+            storage_paced_checkpoints,
             storage_wal_bytes,
             storage_applied_bytes,
             storage_backend_mutex_wait_ms,

@@ -230,6 +230,15 @@ pub(crate) trait StorageBackend: Send + Sync {
         Ok(false)
     }
 
+    /// Whether enough buffered writes piled up since the last durable commit
+    /// that a checkpoint should run now rather than at the next maintenance
+    /// tick. True at most once per durable commit, so the caller that sees
+    /// it owns scheduling that checkpoint. Backends with no buffered writes
+    /// never ask.
+    fn take_flush_due(&self) -> bool {
+        false
+    }
+
     /// Run `run` while this backend commits nothing (readers continue), so
     /// its file can be copied consistently. Backends without a file just run
     /// it.

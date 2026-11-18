@@ -20,6 +20,9 @@ pub struct WriteCounters {
     pub checkpoints: u64,
     /// Milliseconds spent in the checkpoints counted above.
     pub checkpoint_wait_ms: u64,
+    /// Checkpoints that wrote because a shard's buffered writes passed
+    /// their bound between maintenance ticks (not in `checkpoints`).
+    pub paced_checkpoints: u64,
     /// Bytes appended to the WAL (framed records).
     pub wal_bytes_appended: u64,
     /// Encoded bytes of every op, base and derived, handed to the backends.
@@ -248,6 +251,7 @@ impl Store {
             admission_wait_ms: self.admission_wait_ms.load(Ordering::Relaxed),
             checkpoints: self.checkpoints.load(Ordering::Relaxed),
             checkpoint_wait_ms: self.checkpoint_wait_ms.load(Ordering::Relaxed),
+            paced_checkpoints: self.flusher.written(),
             wal_bytes_appended: self.wal_bytes_appended.load(Ordering::Relaxed),
             applied_bytes: self.applied_bytes.load(Ordering::Relaxed),
         }

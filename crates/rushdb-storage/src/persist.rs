@@ -179,6 +179,7 @@ impl Store {
                 backend
                     .apply_many(&shard_pairs)
                     .map_err(StorageError::Durability)?;
+                self.pace_checkpoint(backend, &shard_pairs);
             }
             return Ok(());
         }
@@ -223,7 +224,22 @@ impl Store {
             if let Some(error) = first_err {
                 return Err(error);
             }
+            for (_, backend, shard_pairs) in &backends {
+                if let Some(backend) = backend {
+                    self.pace_checkpoint(Arc::clone(backend), shard_pairs);
+                }
+            }
             Ok(())
         })
+    }
+
+    /// Hand a shard whose buffered writes passed its bound to the flusher,
+    /// to checkpoint at the newest commit just applied (see `flusher`).
+    fn pace_checkpoint(&self, backend: Arc<dyn StorageBackend>, applied: &[CommitOps<'_>]) {
+        if let Some(last) = applied.last() {
+            if backend.take_flush_due() {
+                self.flusher.request(backend, last.ci);
+            }
+        }
     }
 }

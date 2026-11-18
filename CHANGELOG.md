@@ -76,6 +76,20 @@ in [`docs/manual/operations/upgrading-from-2x.md`](docs/manual/operations/upgrad
   server time 3.1 → 0.2 ms; one `describe.schema` plus one
   `describe.properties` per label, client side: 11.8 → 1.5–2.0 ms.
 
+### Fixed
+
+- **No more half-second write stall after a large load.** Commits are
+  applied to the store file without a sync and made durable by periodic
+  checkpoints; the first durable commit after a load (a checkpoint, or the
+  history-GC batch that completes a sweep) wrote out and synced the whole
+  load while it held the file's only writer, so the next commit of every
+  tenant waited for it. A shard whose unsynced writes pass 16 MiB is now
+  checkpointed right away by a background thread, so no durable commit
+  carries more than that. 50,000 nested documents, then 400 single-record
+  writes (two runs each, btrfs): longest writer hold above 1 s → under
+  0.5 s, slowest write after the load 188–319 → 92–105 ms. New metric
+  `rushdb_storage_paced_checkpoints_total`.
+
 ## 3.0.12 — 2026-11-17
 
 ### Fixed

@@ -460,6 +460,16 @@ pub(crate) struct RedbBackend {
     /// History-GC batches committed with `Durability::None` since the last
     /// durable commit of this handle (a durable GC batch or a checkpoint).
     gc_batches_buffered: AtomicUsize,
+    /// Encoded op bytes applied with `Durability::None` since the last
+    /// durable commit: what the next durable commit writes out and syncs
+    /// while it holds the writer, in op terms (pages run larger).
+    buffered_bytes: AtomicU64,
+    /// `buffered_bytes` past which a checkpoint is due now
+    /// ([`PACED_FLUSH_BYTES`]; tests lower it).
+    flush_bound: u64,
+    /// The checkpoint due at `flush_bound` was handed out (cleared by the
+    /// next durable commit).
+    flush_claimed: AtomicBool,
     /// Progress points of the full repair this open ran (empty: none ran).
     #[cfg(test)]
     open_repair: Vec<f64>,
@@ -488,6 +498,18 @@ const HISTORY_GC_BATCH_MAX_HOLD: std::time::Duration = std::time::Duration::from
 /// beside GC grew the file and its checkpoints, and its writes ran up to
 /// 17% slower than with every GC batch durable.
 const GC_DURABLE_EVERY: usize = 4;
+
+/// Buffered op bytes after which a shard's checkpoint runs at once instead
+/// of at the next maintenance tick (PERF-2). A durable redb commit writes
+/// out and syncs every page buffered since the previous one while it holds
+/// the only writer: after a 50K-document nested load the first durable
+/// commit (the GC batch that completes a sweep) held it for over 1 s and
+/// the next commit waited that long. Each durable commit also has a fixed
+/// cost (two syncs, 50-100 ms on a busy copy-on-write file system), so the
+/// bound is not made small: at 4 MiB that load ran 56 checkpoints and
+/// spent 8.6 s holding the writer in them; at 16 MiB, 21 checkpoints, 1.6 s,
+/// and no hold over 0.5 s (2026-11-18, btrfs).
+const PACED_FLUSH_BYTES: u64 = 16 << 20;
 
 /// Per-holder writer-hold histograms: counts per bucket of
 /// [`crate::WRITER_HOLD_BOUNDS`] (last slot: above every bound) and the
@@ -1287,6 +1309,10 @@ impl crate::backend::StorageBackend for RedbBackend {
         self.checkpoint(durable_lsn)
     }
 
+    fn take_flush_due(&self) -> bool {
+        self.take_flush_due()
+    }
+
     fn compact(&self) -> Result<(), String> {
         self.compact()
     }
@@ -1425,6 +1451,9 @@ impl RedbBackend {
             checkpointed_lsn: AtomicU64::new(u64::MAX),
             quick_repair_due: AtomicBool::new(false),
             gc_batches_buffered: AtomicUsize::new(0),
+            buffered_bytes: AtomicU64::new(0),
+            flush_bound: PACED_FLUSH_BYTES,
+            flush_claimed: AtomicBool::new(false),
             #[cfg(test)]
             open_repair,
             #[cfg(test)]
@@ -1599,14 +1628,35 @@ impl RedbBackend {
         // checkpoint.
         tx.set_durability(redb::Durability::None)
             .map_err(|e| e.to_string())?;
+        let mut bytes = 0u64;
         for commit in batches {
             apply_in_txn(&tx, commit.ops(), commit.ci)?;
+            bytes += commit
+                .ops()
+                .map(|op| u64::try_from(op.encoded_len()).unwrap_or(u64::MAX))
+                .sum::<u64>();
         }
         // Marked inside the write transaction: redb runs one writer at a
         // time, so a checkpoint either begins after this commit (and makes
         // it durable) or sees the mark on its next tick.
         self.unsynced.store(true, Ordering::SeqCst);
+        self.buffered_bytes.fetch_add(bytes, Ordering::SeqCst);
         tx.commit().map_err(|e| e.to_string())
+    }
+
+    /// See [`StorageBackend::take_flush_due`].
+    pub(crate) fn take_flush_due(&self) -> bool {
+        self.buffered_bytes.load(Ordering::SeqCst) >= self.flush_bound
+            && !self.flush_claimed.swap(true, Ordering::SeqCst)
+    }
+
+    /// Called inside a durable write transaction: it writes out everything
+    /// buffered so far. A later buffered commit cannot interleave (one
+    /// writer); a failed commit leaves the count low, which only delays the
+    /// next paced checkpoint to the maintenance tick.
+    fn reset_buffered(&self) {
+        self.buffered_bytes.store(0, Ordering::SeqCst);
+        self.flush_claimed.store(false, Ordering::SeqCst);
     }
 
     pub(crate) fn retire_before(&self, watermark: u64) -> Result<(), String> {
@@ -1756,6 +1806,7 @@ impl RedbBackend {
                 self.unsynced.store(true, Ordering::SeqCst);
             } else {
                 tx.set_quick_repair(true);
+                self.reset_buffered();
             }
             tx.commit().map_err(|e| e.to_string())?;
             if !buffered {
@@ -1874,6 +1925,7 @@ impl RedbBackend {
                 .insert(CHECKPOINT_KEY, encoded.as_slice())
                 .map_err(|e| e.to_string())?;
         }
+        self.reset_buffered();
         tx.commit().map_err(|e| e.to_string())
     }
 
@@ -2151,11 +2203,12 @@ mod tests {
             return;
         };
         let budget = ByteBudget::new("test", 8 * 1024 * 1024).unwrap();
-        let backend = RedbBackend::open(
+        let mut backend = RedbBackend::open(
             Path::new(&path),
             budget.try_reserve(8 * 1024 * 1024).unwrap(),
         )
         .unwrap();
+        backend.flush_bound = 64 * 1024;
         // One key per batch: `batches` GC batches, the walk left unfinished.
         let gc_batches = |batches: usize| {
             let mut cursor = None;
@@ -2169,6 +2222,23 @@ mod tests {
             // The last two buffered behind the last durable batch.
             "gc-mid-loop" => gc_batches(5 * GC_DURABLE_EVERY + 2),
             "compact" => backend.compact().unwrap(),
+            "paced" => {
+                // Rewrites of the surviving keys (32 KiB a commit), each
+                // checkpointed as the flusher does once its bound is due;
+                // the last one stays buffered.
+                let value = vec![9u8; 4096];
+                for ci in 41..=61u64 {
+                    let ops: Vec<Op> = (0..64u32)
+                        .map(u32::to_be_bytes)
+                        .filter(|key| key[3] % 8 == 0)
+                        .map(|key| Op::Put(key.to_vec(), value.clone()))
+                        .collect();
+                    let _ = backend.apply(&ops, ci);
+                    if backend.take_flush_due() {
+                        let _ = backend.checkpoint(ci);
+                    }
+                }
+            }
             "compact-then-tick" => {
                 // Checkpointed before: the tick after the compaction finds
                 // nothing unsynced and the LSN unchanged (an idle store).
@@ -2184,6 +2254,53 @@ mod tests {
             .args(["-KILL", &std::process::id().to_string()])
             .status();
         std::process::abort();
+    }
+
+    #[test]
+    fn a_kill_between_paced_checkpoints_reopens_without_a_full_repair() {
+        let killed = kill_after("paced", 64);
+        assert_eq!(killed.repair, Vec::<f64>::new());
+        assert!(
+            killed.reopen < std::time::Duration::from_secs(5),
+            "{:?}",
+            killed.reopen
+        );
+        // The paced checkpoints made the child's rewrites durable.
+        assert_ne!(killed.data[1], killed.data[0]);
+        assert_eq!(killed.data[2], killed.data[1]);
+        assert_eq!(killed.expiry[2], 0);
+    }
+
+    #[test]
+    fn a_shard_asks_for_one_checkpoint_per_bound_of_buffered_writes() {
+        let (dir, mut backend) = open_backend("paced-flush");
+        backend.flush_bound = 64 * 1024;
+        let put = |backend: &RedbBackend, ci: u64| {
+            backend
+                .apply(
+                    &[Op::Put(ci.to_be_bytes().to_vec(), vec![1u8; 40 * 1024])],
+                    ci,
+                )
+                .unwrap();
+        };
+        put(&backend, 1);
+        assert!(!backend.take_flush_due(), "below the bound");
+        put(&backend, 2);
+        assert!(backend.take_flush_due());
+        assert!(!backend.take_flush_due(), "handed out once");
+        put(&backend, 3);
+        assert!(!backend.take_flush_due(), "claimed until a durable commit");
+        assert!(backend.checkpoint(3).unwrap());
+        assert!(!backend.take_flush_due(), "the checkpoint wrote it out");
+        put(&backend, 4);
+        put(&backend, 5);
+        assert!(backend.take_flush_due());
+        // The GC batch that completes a sweep is durable: it counts too.
+        backend.retire_before(5).unwrap();
+        put(&backend, 6);
+        assert!(!backend.take_flush_due());
+        drop(backend);
+        std::fs::remove_dir_all(dir).unwrap();
     }
 
     #[test]
