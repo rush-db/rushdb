@@ -128,9 +128,9 @@ multiple-label sets.
       SearchQuery and relational SQL as well.
 - [ ] SearchQuery lowers to the shared IR without response regressions.
 - [ ] Cypher passes the openCypher TCK with no unexplained skips. *Every
-      scenario runs and every failure is attributed (below): 1,466 test
-      features outside the Cypher profile, 1,385 of the other 2,431 pass,
-      and 1,046 are known Grafeo defects. Cypher stays release candidate
+      scenario runs and every failure is attributed (below): 1,494 test
+      features outside the Cypher profile, 1,653 of the other 2,403 pass,
+      and 750 are known Grafeo defects. Cypher stays release candidate
       while defects remain.*
 - [x] GQL's supported ISO profile is advertised explicitly and passes its
       public conformance corpus. *Profile v1 (`gql-profile-v1.json`, its
@@ -196,25 +196,26 @@ join plan, while a single `MATCH` returns the same wrong rows there.
 The job fails when any scenario's outcome differs from the ledger (a
 regression, or an improvement not yet recorded with `--write-ledger`), when a
 failure matches no profile category, or when plain Grafeo passes a defect.
-Current result (2026-10-12): **1,385 of 3,897 scenarios pass**. 1,466
-scenarios test excluded features; of the 2,431 in the profile, 1,385 pass
-(57%) and 1,046 fail on known defects:
+Current result (2026-11-18, Grafeo 0.5.44): **1,653 of 3,897 scenarios
+pass**. 1,494 scenarios test excluded features; of the 2,403 in the profile,
+1,653 pass (69%) and 750 fail on known defects:
 
 | Category | Kind | Scenarios | Cause |
 | --- | --- | ---: | --- |
-| `temporal` | exclusion (`limitedTemporalTypes`) | 991 | The openCypher temporal type system beyond ISO `date`/`time`/`datetime`/`duration` |
-| `lmpg-single-label` | exclusion (`singlePrimaryLabelPerRecord`, `statementLabelMutationUnavailable`) | 425 | LMPG records carry exactly one label: 388 create label-less nodes, 22 multi-label nodes, 15 change labels |
+| `temporal` | exclusion (`limitedTemporalTypes`) | 1,000 | The openCypher temporal type system beyond ISO `date`/`time`/`datetime`/`duration` |
+| `lmpg-single-label` | exclusion (`singlePrimaryLabelPerRecord`, `statementLabelMutationUnavailable`) | 444 | LMPG records carry exactly one label: 429 create nodes without exactly one label, 15 change labels |
 | `procedures` | exclusion (`noProcedures`) | 50 | `CALL` procedures |
-| `grafeo-error-detection` | defect | 478 | Grafeo accepts statements the TCK requires to fail |
-| `grafeo-result` | defect | 118 | Grafeo returns a different result |
-| `grafeo-semantic` | defect | 108 | Grafeo's binder refuses a valid statement |
-| `grafeo-quantifiers` | defect | 92 | `all`/`any`/`none`/`single` results |
-| `grafeo-internal` | defect | 65 | Grafeo internal errors (50 in `WITH ... ORDER BY`) |
-| `grafeo-write-column-names` | defect | 65 | Write statements name aggregate columns differently |
-| `grafeo-syntax` | defect | 57 | Syntax Grafeo's parser does not accept |
+| `grafeo-error-detection` | defect | 392 | Grafeo accepts statements the TCK requires to fail |
+| `grafeo-result` | defect | 102 | Grafeo returns a different result |
+| `grafeo-quantifiers` | defect | 91 | `all`/`any`/`none`/`single` results |
 | `grafeo-precedence` | defect | 52 | Operator precedence |
+| `grafeo-semantic` | defect | 36 | Grafeo's binder refuses a valid statement (18 are the triadic anti-join `WITH c WHERE r IS NULL`) |
+| `grafeo-syntax` | defect | 35 | Syntax Grafeo's parser does not accept |
+| `grafeo-null-writes` | defect | 11 | A write on a null from `OPTIONAL MATCH` fails instead of doing nothing |
+| `grafeo-internal` | defect | 10 | Grafeo internal errors (path and variable-length patterns) |
 | `grafeo-lazy-writes` | defect | 10 | `LIMIT` after an updating clause limits the updates |
-| `grafeo-nontermination` | defect | 1 | A variable-length match around a cycle never ends; the deadline cancels it |
+| `grafeo-write-column-names` | defect | 9 | Some unaliased columns are named differently from their expression text |
+| `grafeo-nontermination` | defect | 2 | A variable-length match around a cycle never ends; the deadline cancels it |
 
 Running the full TCK found and fixed eight adapter defects on the RushDB side:
 a long statement (the TCK's 500-clause movie graph) overflowed the worker

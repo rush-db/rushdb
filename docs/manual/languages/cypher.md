@@ -19,9 +19,9 @@ Cypher database.
 
 > **Note:** Cypher is a release candidate, not full openCypher. The engine
 > reports `noFullOpenCypherTckConformance`. The full openCypher TCK runs in CI:
-> of 3,897 scenarios, 1,466 test features outside the supported profile (see
-> [Conformance](#conformance)), and 1,385 of the remaining 2,431 pass. The
-> other 1,046 hit known defects of the embedded Grafeo engine, listed below.
+> of 3,897 scenarios, 1,494 test features outside the supported profile (see
+> [Conformance](#conformance)), and 1,653 of the remaining 2,403 pass. The
+> other 750 hit known defects of the embedded Grafeo engine, listed below.
 > Do not rely on behavior this page does not list as supported.
 
 ## Data model mapping
@@ -209,29 +209,26 @@ be reported upstream; RushDB does not patch Grafeo.
 
 | Defect | TCK scenarios | What you see |
 |---|---:|---|
-| Invalid statements accepted | 478 | A statement openCypher requires to fail (type errors such as `NOT 'a'`, undefined variables in some positions, invalid argument types) runs and returns a result. |
-| Different result | 118 | Wrong rows, order or null handling in some queries, for example an empty variable-length interval (`*2..1`) still expands. |
-| Valid statements refused by the binder | 108 | Some variable scopes, `OPTIONAL MATCH` without input rows, `DELETE` of an expression. |
-| Quantifiers | 92 | `all`/`any`/`none`/`single` give different results when nested, over lists containing nulls, and over some list literals. |
-| Internal errors | 65 | Some statements fail with an internal error, mostly `WITH ... ORDER BY` (50 of 65). |
-| Write column names | 65 | An updating statement names an aggregate column differently from its expression text (`count(...)` for `count(*)`). |
-| Syntax | 57 | openCypher syntax the parser does not accept. |
+| Invalid statements accepted | 392 | A statement openCypher requires to fail (type errors such as `NOT 'a'`, undefined variables in some positions, invalid argument types) runs and returns a result. |
+| Different result | 102 | Wrong rows, values or null handling in some queries, for example some comparisons of lists or of null, and an empty variable-length interval (`*2..1`) that still expands. |
+| Quantifiers | 91 | `all`/`any`/`none`/`single` give different results when nested, over lists containing nulls, and over some list literals. |
 | Operator precedence | 52 | Some operator combinations evaluate in a different order. |
+| Valid statements refused by the binder | 36 | A `WITH ... WHERE` that reads a variable the `WITH` does not project, `DELETE` of an expression, some `ORDER BY` scopes. |
+| Syntax | 35 | openCypher syntax the parser does not accept, such as keywords as map keys (`{null: 1}`) and `[:T\|:T]`. |
+| Writes on null | 11 | `SET`, `REMOVE` or `DELETE` on a null from `OPTIONAL MATCH` fails with a type mismatch instead of doing nothing. |
+| Internal errors | 10 | Some path and variable-length patterns, and `nodes()`/`relationships()` of an expression, fail with an internal error. |
 | Lazy writes | 10 | `SKIP`/`LIMIT` after an updating clause also limits the updates. |
-| Non-termination | 1 | A variable-length match around a cycle does not end; the request deadline cancels it. |
+| Column names | 9 | Some unaliased columns are named differently from their expression text. |
+| Non-termination | 2 | A variable-length match around a cycle does not end; the request deadline cancels it. |
 
-One internal error has a workaround. Grafeo builds a `CREATE` property only
-from a literal, a parameter, a variable or a property, so a computed value
-(a list index such as `r[0]`, `CASE`, arithmetic, a function call) fails.
-RushDB reports it as `unsupported`, not as an internal error. Compute the
-value in a `WITH` first:
+The anti-join `OPTIONAL MATCH (a)-[r]->(c) WITH c WHERE r IS NULL` is refused
+with `Undefined variable 'r'`. Project the variable the condition reads:
 
 ```cypher
-// Fails: CREATE (a)-[:FOLLOWS {since: r[2]}]->(b)
-UNWIND $rows AS r
-WITH r[0] AS src, r[1] AS dst, r[2] AS since
-MATCH (a:User {name: src}), (b:User {name: dst})
-CREATE (a)-[:FOLLOWS {since: since}]->(b)
+MATCH (a:A)-[:KNOWS]->(b)-->(c)
+OPTIONAL MATCH (a)-[r:KNOWS]->(c)
+WITH c, r WHERE r IS NULL
+RETURN c.name
 ```
 
 ## Conformance
@@ -242,11 +239,13 @@ each failure is attributed to an exclusion or a defect in the profile
 [`opencypher-tck-v2024.2-profile.json`](../../../crates/rushdb-server/conformance/opencypher-tck-v2024.2-profile.json).
 The job fails on any change against the ledger, and on a defect that passes
 on plain Grafeo (then RushDB caused it). Share of in-profile scenarios that
-pass, by area: triadic selection 100%, `CASE` and null handling 92%,
-strings 88%, literals 86%, `WITH ... WHERE` 83%, `SKIP`/`LIMIT` 80%,
-`MATCH ... WHERE` 77%, `SET` 76%, quantifiers 72%; weakest are `MATCH` 19%
-and boolean expressions 17% (both mostly invalid statements accepted),
-aggregation 17% and graph functions 6%. Details and per-category counts are in
+pass, by area: `UNION` 100%, null handling 98%, `CASE` 92%,
+`WITH ... ORDER BY` 92%, type conversion 92%, strings 91%,
+`MATCH ... WHERE` 88%, aggregation 88%, `MERGE` 86%, literals 86%,
+`WITH ... WHERE` 83%, quantifiers 83%, `SKIP`/`LIMIT` 80%, `SET` 76%; weakest
+are triadic selection 5% (the anti-join above), boolean expressions 17%
+(mostly invalid statements accepted), graph functions 22% and `MATCH` 49%.
+Details and per-category counts are in
 [Query language conformance](../../QUERY_LANGUAGE_CONFORMANCE.md#opencypher-tck).
 
 ## Errors
@@ -255,7 +254,6 @@ aggregation 17% and graph functions 6%. Details and per-category counts are in
 |---|---|---|
 | Cypher not enabled | `language_disabled` | `Neo.ClientError.Statement.SyntaxError` |
 | Syntax not accepted by the parser | `unsupported` | `Neo.ClientError.Statement.SyntaxError` |
-| Computed property value in `CREATE` (see [Known defects](#known-defects)) | `unsupported` | `Neo.ClientError.Statement.SyntaxError` |
 | Statement error (undefined variable, type error, a write sent with `query.statement`) | `invalid_request`, with the engine's reason | `Neo.ClientError.Statement.SyntaxError` |
 | More than 8,192 clauses in one statement | `invalid_request` | `Neo.ClientError.Statement.SyntaxError` |
 | Index DDL sent with `query.statement` | `invalid_request` | `Neo.ClientError.Statement.SyntaxError` |

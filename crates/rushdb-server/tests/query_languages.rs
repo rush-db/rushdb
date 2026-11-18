@@ -491,34 +491,49 @@ fn cypher_relationship_created_with_its_endpoints_is_in_the_catalog_and_sql() {
 }
 
 #[test]
-fn cypher_computed_create_property_is_unsupported_with_the_workaround() {
+fn cypher_create_writes_computed_property_values() {
     let node = bootstrap();
-    // Grafeo plans a CREATE property only from a literal, parameter, variable
-    // or property (a Grafeo defect, verified on plain Grafeo).
-    let envelope = RequestEnvelope {
-        protocol_version: 1,
-        request_id: None,
-        context: RequestContext::default(),
-        operation: Operation::Mutate {
-            mutation: Mutation::Statement {
-                language: StatementLanguage::Cypher,
-                statement: "UNWIND [['a', 1]] AS r CREATE (:Item {name: r[0], n: r[1]})".into(),
-                parameters: None,
-            },
-        },
-    };
-    let error = rushdb_server::protocol::ProtocolExecutor::new(&node, None)
-        .execute(envelope)
-        .unwrap_err();
-    assert_eq!(error.code, ErrorCode::Unsupported, "{error:?}");
-    assert!(error.message.contains("WITH"), "{error:?}");
-    // The workaround the message names.
+    assert_eq!(
+        write(
+            &node,
+            StatementLanguage::Cypher,
+            "UNWIND [['a', 1], ['b', 2]] AS r \
+             CREATE (:Item {name: r[0], n: r[1] * 10, tag: toString(r[1])})",
+        ),
+        2
+    );
+    let rows = read(
+        &node,
+        StatementLanguage::Cypher,
+        "MATCH (i:Item) RETURN i.name AS name, i.n AS n, i.tag AS tag ORDER BY name",
+    );
+    assert_eq!(
+        rows,
+        vec![
+            json!({"name": "a", "n": 10, "tag": "1"}),
+            json!({"name": "b", "n": 20, "tag": "2"}),
+        ]
+    );
+}
+
+#[test]
+fn cypher_anti_join_projects_the_variable_its_condition_reads() {
+    let node = bootstrap();
     write(
         &node,
         StatementLanguage::Cypher,
-        "UNWIND [['a', 1]] AS r WITH r[0] AS name, r[1] AS n CREATE (:Item {name: name, n: n})",
+        "CREATE (a:A {name: 'a'})-[:KNOWS]->(b:B {name: 'b'})-[:KNOWS]->(:C {name: 'c'}), \
+         (b)-[:KNOWS]->(d:C {name: 'd'}), (a)-[:KNOWS]->(d)",
     );
-    assert_eq!(label_count(&node, "Item"), 1);
+    // The form docs/manual/languages/cypher.md gives for the friend-of-a-friend
+    // anti-join: `WITH c WHERE r IS NULL` is refused, so `r` is projected.
+    let rows = read(
+        &node,
+        StatementLanguage::Cypher,
+        "MATCH (a:A)-[:KNOWS]->(b)-->(c) OPTIONAL MATCH (a)-[r:KNOWS]->(c) \
+         WITH c, r WHERE r IS NULL RETURN c.name AS name ORDER BY name",
+    );
+    assert_eq!(rows, vec![json!({"name": "c"})]);
 }
 
 #[test]

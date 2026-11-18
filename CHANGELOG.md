@@ -8,6 +8,33 @@ in [`docs/manual/operations/upgrading-from-2x.md`](docs/manual/operations/upgrad
 
 ### Changed
 
+- **Breaking: Cypher, GQL, Gremlin and SQL/PGQ run on Grafeo 0.5.44**
+  (was 0.5.42). Some statement results change:
+  - An unaliased column is named after its expression as written:
+    `RETURN count(n)` returns a column `count(n)`, not `countnonnull(...)`.
+  - Statements that returned wrong rows now fail with an error: two columns
+    with the same name (`RETURN 1 AS a, 2 AS a`; give one another alias),
+    an unnamed expression in `WITH`, and `UNION` mixed with `UNION ALL`. A
+    parameter that was not supplied fails with `Missing parameter: $name`
+    instead of an internal error.
+  - `ORDER BY` uses the openCypher order across value types (strings before
+    numbers), and GQL `NULLS FIRST`/`NULLS LAST` are no longer reversed
+    with `DESC`.
+  - Cypher `=~` must match the whole string: `'abc' =~ 'b'` is false.
+  - A variable-length relationship variable holds the list of the path's
+    relationships (`size(rs)` was null).
+  - `MERGE` binds every matching node, one row each, instead of the first.
+  - `keys(r)` of a relationship lists its keys (was null).
+  - `EXISTS { ... }` over a multi-hop pattern runs (was an internal error).
+  - Computed property values in `CREATE` (`CREATE (:Item {n: r[0]})`) now
+    work; they used to be refused as `unsupported`.
+  - One form that worked is now refused: a `WITH ... WHERE` that reads a
+    variable the `WITH` does not project, such as the anti-join
+    `OPTIONAL MATCH (a)-[r]->(c) WITH c WHERE r IS NULL`. Write
+    `WITH c, r WHERE r IS NULL`.
+
+  The openCypher TCK now passes 1,653 of 3,897 scenarios (was 1,385); of
+  the 2,403 in the supported profile, 1,653 pass (was 1,385 of 2,431).
 - **Faster unfiltered ANN vector search.** The label-membership check of an
   unfiltered `query.vector` (and the vector leg of `query.hybrid`) now runs
   on the reranked hits in rank order until `limit + offset` pass, instead
