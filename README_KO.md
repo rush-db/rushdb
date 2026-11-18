@@ -36,8 +36,9 @@ Mongo 스타일 쓰기, 또는 사용 중인 데이터베이스의 변경 스트
 ## 빠른 시작
 
 ```bash
-curl -fsSL https://rushdb.com/install.sh | sh    # or: brew install rush-db/tap/rushdb
-export PATH="$HOME/.rushdb/bin:$PATH"             # or open a new shell
+# or: brew install rush-db/tap/rushdb
+curl -fsSL https://rushdb.com/install.sh | sh
+export PATH="$HOME/.rushdb/bin:$PATH"   # or open a new shell
 mkdir my-app && cd my-app && rushdb up
 ```
 
@@ -50,16 +51,33 @@ from rushdb import RushDB
 db = RushDB("local-token", direct=True, engine_url="http://127.0.0.1:3000")
 
 # Nested JSON becomes linked records: COMPANY -> DEPARTMENT -> EMPLOYEE
-db.records.import_json(label="COMPANY", data={"name": "Acme", "DEPARTMENT": [
-    {"name": "Engineering", "EMPLOYEE": [
-        {"name": "Ada", "role": "Staff Engineer", "salary": 180000},
-        {"name": "Linus", "role": "Engineer", "salary": 140000}]},
-    {"name": "Sales", "EMPLOYEE": [{"name": "Grace", "role": "Account Executive", "salary": 120000}]}]})
+db.records.import_json(label="COMPANY", data={
+    "name": "Acme",
+    "DEPARTMENT": [
+        {
+            "name": "Engineering",
+            "EMPLOYEE": [
+                {"name": "Ada", "role": "Staff Engineer", "salary": 180000},
+                {"name": "Linus", "role": "Engineer", "salary": 140000},
+            ],
+        },
+        {
+            "name": "Sales",
+            "EMPLOYEE": [
+                {"name": "Grace", "role": "Account Executive",
+                 "salary": 120000},
+            ],
+        },
+    ],
+})
 
 # Graph: filter across relationships by naming the related labels
 engineers = db.records.find({
     "labels": ["EMPLOYEE"],
-    "where": {"role": {"$contains": "Engineer"}, "DEPARTMENT": {"COMPANY": {"name": "Acme"}}},
+    "where": {
+        "role": {"$contains": "Engineer"},
+        "DEPARTMENT": {"COMPANY": {"name": "Acme"}},
+    },
     "orderBy": {"name": "asc"},
 })
 print([employee.data["name"] for employee in engineers])  # ['Ada', 'Linus']
@@ -68,11 +86,15 @@ print([employee.data["name"] for employee in engineers])  # ['Ada', 'Linus']
 per_department = db.records.find({
     "labels": ["EMPLOYEE"],
     "where": {"DEPARTMENT": {"$alias": "$department"}},
-    "select": {"people": {"$count": "*"}, "avgSalary": {"$avg": "$record.salary"}},
+    "select": {
+        "people": {"$count": "*"},
+        "avgSalary": {"$avg": "$record.salary"},
+    },
     "groupBy": ["$department.name"],
 })
 print([row.data for row in per_department])
-# [{'name': 'Engineering', 'people': 2, 'avgSalary': 160000.0}, {'name': 'Sales', 'people': 1, 'avgSalary': 120000.0}]
+# [{'name': 'Engineering', 'people': 2, 'avgSalary': 160000.0},
+#  {'name': 'Sales', 'people': 1, 'avgSalary': 120000.0}]
 
 # The live schema an agent reads before it writes a query
 print(db.ai.get_schema_markdown().data)
@@ -98,35 +120,59 @@ print(db.ai.get_schema_markdown().data)
 ```typescript
 import RushDB from '@rushdb/javascript-sdk'
 
-const db = new RushDB('local-token', { direct: true, engineUrl: 'http://127.0.0.1:3000' })
+const db = new RushDB('local-token', {
+  direct: true,
+  engineUrl: 'http://127.0.0.1:3000'
+})
 
 // Nested JSON becomes linked records: COMPANY -> DEPARTMENT -> EMPLOYEE
 await db.records.importJson({
   label: 'COMPANY',
-  data: { name: 'Acme', DEPARTMENT: [
-    { name: 'Engineering', EMPLOYEE: [
-      { name: 'Ada', role: 'Staff Engineer', salary: 180000 },
-      { name: 'Linus', role: 'Engineer', salary: 140000 } ] },
-    { name: 'Sales', EMPLOYEE: [{ name: 'Grace', role: 'Account Executive', salary: 120000 }] } ] }
+  data: {
+    name: 'Acme',
+    DEPARTMENT: [
+      {
+        name: 'Engineering',
+        EMPLOYEE: [
+          { name: 'Ada', role: 'Staff Engineer', salary: 180000 },
+          { name: 'Linus', role: 'Engineer', salary: 140000 }
+        ]
+      },
+      {
+        name: 'Sales',
+        EMPLOYEE: [
+          { name: 'Grace', role: 'Account Executive', salary: 120000 }
+        ]
+      }
+    ]
+  }
 })
 
 // Graph: filter across relationships by naming the related labels
 const engineers = await db.records.find({
   labels: ['EMPLOYEE'],
-  where: { role: { $contains: 'Engineer' }, DEPARTMENT: { COMPANY: { name: 'Acme' } } },
+  where: {
+    role: { $contains: 'Engineer' },
+    DEPARTMENT: { COMPANY: { name: 'Acme' } }
+  },
   orderBy: { name: 'asc' }
 })
-console.log(engineers.data.map((employee) => employee.data.name)) // [ 'Ada', 'Linus' ]
+console.log(engineers.data.map((employee) => employee.data.name))
+// [ 'Ada', 'Linus' ]
 
 // Analytics: headcount and average salary per department
 const perDepartment = await db.records.find({
   labels: ['EMPLOYEE'],
   where: { DEPARTMENT: { $alias: '$department' } },
-  select: { people: { $count: '*' }, avgSalary: { $avg: '$record.salary' } },
+  select: {
+    people: { $count: '*' },
+    avgSalary: { $avg: '$record.salary' }
+  },
   groupBy: ['$department.name']
 })
 console.log(perDepartment.data.map((row) => row.data))
-// [ { name: 'Engineering', people: 2, avgSalary: 160000 }, { name: 'Sales', people: 1, avgSalary: 120000 } ]
+// [ { name: 'Engineering', people: 2, avgSalary: 160000 },
+//   { name: 'Sales', people: 1, avgSalary: 120000 } ]
 
 // The live schema an agent reads before it writes a query
 console.log((await db.ai.getSchemaMarkdown()).data)
@@ -137,7 +183,8 @@ console.log((await db.ai.getSchemaMarkdown()).data)
 SQL이 익숙하신가요? 레이블이 곧 테이블입니다:
 
 ```bash
-PGPASSWORD=local-token psql "host=127.0.0.1 port=5432 user=rushdb dbname=rushdb sslmode=disable" \
+PGPASSWORD=local-token psql \
+  "host=127.0.0.1 port=5432 user=rushdb dbname=rushdb sslmode=disable" \
   -c "SELECT name, role, salary FROM employee ORDER BY salary DESC"
 ```
 
@@ -146,12 +193,10 @@ PGPASSWORD=local-token psql "host=127.0.0.1 port=5432 user=rushdb dbname=rushdb 
 
 ## 무엇을 만들 수 있나
 
-| | |
-|---|---|
-| **에이전트 메모리** | 메모리를 관계가 있는 레코드로 저장하고, 범위로 필터링하며, 저장한 벡터로 순위를 매깁니다. OpenClaw와 Hermes용 프로바이더를 바로 쓸 수 있습니다. |
-| **앱 데이터 검색** | 앱이 이미 쓰고 있는 레코드에 대한 전문, 벡터, 하이브리드 검색. 같은 쿼리 안에서 그래프 필터도 함께 씁니다. |
-| **연결된 데이터에 대한 질문** | 에이전트가 스키마를 읽은 뒤, 직접 검토할 수 있는 쿼리를 작성합니다. JSON 쿼리 언어, SQL 또는 Cypher로요. |
-| **내보내기 없는 리포트** | 앱이 쓴 레코드를 SDK나 아무 PostgreSQL 클라이언트에서 그룹화하고 집계합니다. |
+- **에이전트 메모리.** 메모리를 관계가 있는 레코드로 저장하고, 범위로 필터링하며, 저장한 벡터로 순위를 매깁니다. OpenClaw와 Hermes용 프로바이더를 바로 쓸 수 있습니다.
+- **앱 데이터 검색.** 앱이 이미 쓰고 있는 레코드에 대한 전문, 벡터, 하이브리드 검색. 같은 쿼리 안에서 그래프 필터도 함께 씁니다.
+- **연결된 데이터에 대한 질문.** 에이전트가 스키마를 읽은 뒤, 직접 검토할 수 있는 쿼리를 작성합니다. JSON 쿼리 언어, SQL 또는 Cypher로요.
+- **내보내기 없는 리포트.** 앱이 쓴 레코드를 SDK나 아무 PostgreSQL 클라이언트에서 그룹화하고 집계합니다.
 
 ## 기능
 
@@ -180,7 +225,8 @@ PGPASSWORD=local-token psql "host=127.0.0.1 port=5432 user=rushdb dbname=rushdb 
 ## 어디서나 실행
 
 ```bash
-docker run -p 127.0.0.1:3000:3000 -v rushdb:/data -e RUSHDB_TOKEN=change-me rushdb/rushdb:3
+docker run -p 127.0.0.1:3000:3000 -v rushdb:/data \
+  -e RUSHDB_TOKEN=change-me rushdb/rushdb:3
 ```
 
 Docker Compose, Kubernetes(Helm), cloud-init, systemd, Fly.io, Render,
@@ -190,9 +236,24 @@ Coolify, Dokploy: [배포](https://docs.rushdb.com/deploy/)를 참고하세요. 
 
 ## 셀프 호스팅과 RushDB Cloud
 
-- **셀프 호스팅:** 바로 이 저장소입니다. 위의 모든 기능은 직접 설치한 엔진에서 동작합니다.
-- **[RushDB Cloud](https://app.rushdb.com):** 같은 엔진의 관리형 버전으로, 여기에
-  대시보드, 관리형 임베딩, 자연어 검색, SaaS 도구용 커넥터가 더해집니다. SDK와 MCP 서버는 둘 다에서 동작합니다.
+이 저장소가 엔진이며, 전부 직접 호스팅할 수 있습니다. [RushDB Cloud](https://app.rushdb.com)는 같은 엔진을 대신 운영하고 아래 표시된 기능을 더합니다. SDK와 MCP 서버는 둘 다에서 동작합니다. 셀프 호스팅 엔진에서는 Cloud 전용 호출이 아무것도 보내기 전에 `CloudOnlyError`로 실패합니다.
+
+| 기능 | 셀프 호스팅 엔진 | RushDB Cloud |
+|---|---|---|
+| 엔진과 API: 레코드, 그래프 쿼리, 검색, 집계, 라이브 스키마 | ✓ | ✓ |
+| SDK와 MCP 서버 | ✓ 다이렉트 모드, stdio를 통한 MCP | ✓ OAuth를 지원하는 호스팅 MCP 포함 |
+| JSON 및 CSV 가져오기 | ✓ | ✓ |
+| 레코드, 그래프 뷰, 쿼리 빌더가 있는 [대시보드](https://docs.rushdb.com/rushdb-cloud/) | SDK 또는 아무 PostgreSQL 클라이언트 사용 | ✓ |
+| [관리형 임베딩](https://docs.rushdb.com/rushdb-cloud/capabilities/) | 직접 쓰는 모델의 벡터를 가져오기 | ✓ 월간 한도 |
+| [자연어 검색](https://docs.rushdb.com/learn/search-query/smart-search/) | 쿼리를 직접 또는 에이전트로 작성 | ✓ 월간 한도 |
+| [관계 제안](https://docs.rushdb.com/learn/relationships/suggested-patterns/) | 관계를 직접 생성 | ✓ |
+| 지표와 필터의 [정의](https://docs.rushdb.com/learn/search-query/definitions/) | 규칙을 직접 만든 프롬프트와 SQL에 보관 | ✓ |
+| SaaS 도구 [연결](https://docs.rushdb.com/learn/data-sources/connections/), 온프레미스 데이터베이스용 RushDB Sync | 직접 작성한 동기화 코드 또는 Debezium 싱크 | ✓ |
+| 프로젝트와 API 키 | 테넌트와 토큰을 직접 관리 | ✓ |
+| 팀 액세스 | — | 유료 플랜 |
+| 백업 | 직접 운영: 백업, 특정 시점 복원, 복제본 | 유료 플랜 |
+
+RushDB Cloud 열의 ✓는 Free 플랜에 포함된다는 뜻입니다. 플랜과 한도는 [rushdb.com/pricing](https://rushdb.com/pricing)에서 확인하세요.
 
 ## FAQ
 

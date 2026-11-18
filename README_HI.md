@@ -37,8 +37,9 @@ wire protocol, Bolt, gRPC या MCP से connect कीजिए, SDKs से
 ## Quickstart
 
 ```bash
-curl -fsSL https://rushdb.com/install.sh | sh    # or: brew install rush-db/tap/rushdb
-export PATH="$HOME/.rushdb/bin:$PATH"             # or open a new shell
+# or: brew install rush-db/tap/rushdb
+curl -fsSL https://rushdb.com/install.sh | sh
+export PATH="$HOME/.rushdb/bin:$PATH"   # or open a new shell
 mkdir my-app && cd my-app && rushdb up
 ```
 
@@ -51,16 +52,33 @@ from rushdb import RushDB
 db = RushDB("local-token", direct=True, engine_url="http://127.0.0.1:3000")
 
 # Nested JSON becomes linked records: COMPANY -> DEPARTMENT -> EMPLOYEE
-db.records.import_json(label="COMPANY", data={"name": "Acme", "DEPARTMENT": [
-    {"name": "Engineering", "EMPLOYEE": [
-        {"name": "Ada", "role": "Staff Engineer", "salary": 180000},
-        {"name": "Linus", "role": "Engineer", "salary": 140000}]},
-    {"name": "Sales", "EMPLOYEE": [{"name": "Grace", "role": "Account Executive", "salary": 120000}]}]})
+db.records.import_json(label="COMPANY", data={
+    "name": "Acme",
+    "DEPARTMENT": [
+        {
+            "name": "Engineering",
+            "EMPLOYEE": [
+                {"name": "Ada", "role": "Staff Engineer", "salary": 180000},
+                {"name": "Linus", "role": "Engineer", "salary": 140000},
+            ],
+        },
+        {
+            "name": "Sales",
+            "EMPLOYEE": [
+                {"name": "Grace", "role": "Account Executive",
+                 "salary": 120000},
+            ],
+        },
+    ],
+})
 
 # Graph: filter across relationships by naming the related labels
 engineers = db.records.find({
     "labels": ["EMPLOYEE"],
-    "where": {"role": {"$contains": "Engineer"}, "DEPARTMENT": {"COMPANY": {"name": "Acme"}}},
+    "where": {
+        "role": {"$contains": "Engineer"},
+        "DEPARTMENT": {"COMPANY": {"name": "Acme"}},
+    },
     "orderBy": {"name": "asc"},
 })
 print([employee.data["name"] for employee in engineers])  # ['Ada', 'Linus']
@@ -69,11 +87,15 @@ print([employee.data["name"] for employee in engineers])  # ['Ada', 'Linus']
 per_department = db.records.find({
     "labels": ["EMPLOYEE"],
     "where": {"DEPARTMENT": {"$alias": "$department"}},
-    "select": {"people": {"$count": "*"}, "avgSalary": {"$avg": "$record.salary"}},
+    "select": {
+        "people": {"$count": "*"},
+        "avgSalary": {"$avg": "$record.salary"},
+    },
     "groupBy": ["$department.name"],
 })
 print([row.data for row in per_department])
-# [{'name': 'Engineering', 'people': 2, 'avgSalary': 160000.0}, {'name': 'Sales', 'people': 1, 'avgSalary': 120000.0}]
+# [{'name': 'Engineering', 'people': 2, 'avgSalary': 160000.0},
+#  {'name': 'Sales', 'people': 1, 'avgSalary': 120000.0}]
 
 # The live schema an agent reads before it writes a query
 print(db.ai.get_schema_markdown().data)
@@ -99,35 +121,59 @@ Schema catalog से आता है, records को scan करके नह�
 ```typescript
 import RushDB from '@rushdb/javascript-sdk'
 
-const db = new RushDB('local-token', { direct: true, engineUrl: 'http://127.0.0.1:3000' })
+const db = new RushDB('local-token', {
+  direct: true,
+  engineUrl: 'http://127.0.0.1:3000'
+})
 
 // Nested JSON becomes linked records: COMPANY -> DEPARTMENT -> EMPLOYEE
 await db.records.importJson({
   label: 'COMPANY',
-  data: { name: 'Acme', DEPARTMENT: [
-    { name: 'Engineering', EMPLOYEE: [
-      { name: 'Ada', role: 'Staff Engineer', salary: 180000 },
-      { name: 'Linus', role: 'Engineer', salary: 140000 } ] },
-    { name: 'Sales', EMPLOYEE: [{ name: 'Grace', role: 'Account Executive', salary: 120000 }] } ] }
+  data: {
+    name: 'Acme',
+    DEPARTMENT: [
+      {
+        name: 'Engineering',
+        EMPLOYEE: [
+          { name: 'Ada', role: 'Staff Engineer', salary: 180000 },
+          { name: 'Linus', role: 'Engineer', salary: 140000 }
+        ]
+      },
+      {
+        name: 'Sales',
+        EMPLOYEE: [
+          { name: 'Grace', role: 'Account Executive', salary: 120000 }
+        ]
+      }
+    ]
+  }
 })
 
 // Graph: filter across relationships by naming the related labels
 const engineers = await db.records.find({
   labels: ['EMPLOYEE'],
-  where: { role: { $contains: 'Engineer' }, DEPARTMENT: { COMPANY: { name: 'Acme' } } },
+  where: {
+    role: { $contains: 'Engineer' },
+    DEPARTMENT: { COMPANY: { name: 'Acme' } }
+  },
   orderBy: { name: 'asc' }
 })
-console.log(engineers.data.map((employee) => employee.data.name)) // [ 'Ada', 'Linus' ]
+console.log(engineers.data.map((employee) => employee.data.name))
+// [ 'Ada', 'Linus' ]
 
 // Analytics: headcount and average salary per department
 const perDepartment = await db.records.find({
   labels: ['EMPLOYEE'],
   where: { DEPARTMENT: { $alias: '$department' } },
-  select: { people: { $count: '*' }, avgSalary: { $avg: '$record.salary' } },
+  select: {
+    people: { $count: '*' },
+    avgSalary: { $avg: '$record.salary' }
+  },
   groupBy: ['$department.name']
 })
 console.log(perDepartment.data.map((row) => row.data))
-// [ { name: 'Engineering', people: 2, avgSalary: 160000 }, { name: 'Sales', people: 1, avgSalary: 120000 } ]
+// [ { name: 'Engineering', people: 2, avgSalary: 160000 },
+//   { name: 'Sales', people: 1, avgSalary: 120000 } ]
 
 // The live schema an agent reads before it writes a query
 console.log((await db.ai.getSchemaMarkdown()).data)
@@ -138,7 +184,8 @@ console.log((await db.ai.getSchemaMarkdown()).data)
 SQL पहले से आती है? Labels ही tables हैं:
 
 ```bash
-PGPASSWORD=local-token psql "host=127.0.0.1 port=5432 user=rushdb dbname=rushdb sslmode=disable" \
+PGPASSWORD=local-token psql \
+  "host=127.0.0.1 port=5432 user=rushdb dbname=rushdb sslmode=disable" \
   -c "SELECT name, role, salary FROM employee ORDER BY salary DESC"
 ```
 
@@ -147,12 +194,10 @@ PGPASSWORD=local-token psql "host=127.0.0.1 port=5432 user=rushdb dbname=rushdb 
 
 ## आप क्या बना सकते हैं
 
-| | |
-|---|---|
-| **Agent memory** | Memories relationships वाले records के रूप में, scope से filter की हुई और आपके store किए vectors से rank की हुई। OpenClaw और Hermes के लिए तैयार providers। |
-| **आपके app के data पर search** | उन records पर full-text, vector और hybrid search जिन्हें आपका app पहले से लिखता है, और उसी query में graph filters। |
-| **जुड़े हुए data पर सवाल** | Agent schema पढ़ता है, फिर ऐसी query लिखता है जिसे आप जाँच सकते हैं: JSON query language, SQL या Cypher। |
-| **Export के बिना reports** | आपके app के लिखे records को group और aggregate कीजिए, SDKs से या किसी भी PostgreSQL client से। |
+- **Agent memory.** Memories relationships वाले records के रूप में, scope से filter की हुई और आपके store किए vectors से rank की हुई। OpenClaw और Hermes के लिए तैयार providers।
+- **आपके app के data पर search.** उन records पर full-text, vector और hybrid search जिन्हें आपका app पहले से लिखता है, और उसी query में graph filters।
+- **जुड़े हुए data पर सवाल.** Agent schema पढ़ता है, फिर ऐसी query लिखता है जिसे आप जाँच सकते हैं: JSON query language, SQL या Cypher।
+- **Export के बिना reports.** आपके app के लिखे records को group और aggregate कीजिए, SDKs से या किसी भी PostgreSQL client से।
 
 ## Features
 
@@ -181,7 +226,8 @@ PGPASSWORD=local-token psql "host=127.0.0.1 port=5432 user=rushdb dbname=rushdb 
 ## कहीं भी चलाइए
 
 ```bash
-docker run -p 127.0.0.1:3000:3000 -v rushdb:/data -e RUSHDB_TOKEN=change-me rushdb/rushdb:3
+docker run -p 127.0.0.1:3000:3000 -v rushdb:/data \
+  -e RUSHDB_TOKEN=change-me rushdb/rushdb:3
 ```
 
 Docker Compose, Kubernetes (Helm), cloud-init, systemd, Fly.io, Render,
@@ -191,10 +237,24 @@ loopback से बाहर expose करने से पहले [Security](
 
 ## Self-hosted और RushDB Cloud
 
-- **Self-hosted:** यही repository। ऊपर बताई हर चीज़ उसी engine में चलती है जिसे आप install करते हैं।
-- **[RushDB Cloud](https://app.rushdb.com):** वही engine, managed रूप में, साथ में
-  dashboard, managed embeddings, natural-language search और SaaS tools के लिए
-  connectors। SDKs और MCP server दोनों के साथ काम करते हैं।
+यह रिपॉज़िटरी इंजन है, और इसे पूरा का पूरा आप खुद होस्ट कर सकते हैं। [RushDB Cloud](https://app.rushdb.com) यही इंजन आपके लिए चलाता है और नीचे चिह्नित सुविधाएँ जोड़ता है। SDK और MCP सर्वर दोनों के साथ काम करते हैं; self-hosted इंजन पर, केवल Cloud वाली कॉल कुछ भी भेजे जाने से पहले `CloudOnlyError` के साथ विफल होती है।
+
+| सुविधा | Self-hosted इंजन | RushDB Cloud |
+|---|---|---|
+| इंजन और API: रिकॉर्ड, ग्राफ़ क्वेरी, खोज, एग्रीगेशन, लाइव स्कीमा | ✓ | ✓ |
+| SDK और MCP सर्वर | ✓ डायरेक्ट मोड, stdio पर MCP | ✓ साथ में OAuth वाला होस्टेड MCP |
+| JSON और CSV इंपोर्ट | ✓ | ✓ |
+| रिकॉर्ड, ग्राफ़ व्यू और क्वेरी बिल्डर वाला [डैशबोर्ड](https://docs.rushdb.com/rushdb-cloud/) | SDK या कोई भी PostgreSQL क्लाइंट इस्तेमाल करें | ✓ |
+| [मैनेज्ड एम्बेडिंग](https://docs.rushdb.com/rushdb-cloud/capabilities/) | अपने मॉडल के वेक्टर लाएँ | ✓ मासिक कोटा |
+| [प्राकृतिक भाषा में खोज](https://docs.rushdb.com/learn/search-query/smart-search/) | क्वेरी खुद या किसी एजेंट से बनाएँ | ✓ मासिक कोटा |
+| [संबंधों के सुझाव](https://docs.rushdb.com/learn/relationships/suggested-patterns/) | संबंध खुद बनाएँ | ✓ |
+| मेट्रिक्स और फ़िल्टर की [परिभाषाएँ](https://docs.rushdb.com/learn/search-query/definitions/) | नियम अपने प्रॉम्प्ट और SQL में रखें | ✓ |
+| SaaS टूल से [कनेक्शन](https://docs.rushdb.com/learn/data-sources/connections/), और ऑन-प्रेम डेटाबेस के लिए RushDB Sync | आपका अपना सिंक कोड, या Debezium sink | ✓ |
+| प्रोजेक्ट और API कुंजियाँ | टेनेंट और टोकन आप खुद मैनेज करते हैं | ✓ |
+| टीम एक्सेस | — | पेड प्लान |
+| बैकअप | आप खुद चलाते हैं: बैकअप, पॉइंट-इन-टाइम रिस्टोर, रेप्लिका | पेड प्लान |
+
+RushDB Cloud के नीचे ✓ का मतलब है कि Free प्लान में यह शामिल है। प्लान और कोटा [rushdb.com/pricing](https://rushdb.com/pricing) पर हैं।
 
 ## FAQ
 

@@ -35,8 +35,9 @@ Bolt、gRPC 或 MCP 连接，使用 SDK 或任意 PostgreSQL 客户端均可。�
 ## 快速开始
 
 ```bash
-curl -fsSL https://rushdb.com/install.sh | sh    # or: brew install rush-db/tap/rushdb
-export PATH="$HOME/.rushdb/bin:$PATH"             # or open a new shell
+# or: brew install rush-db/tap/rushdb
+curl -fsSL https://rushdb.com/install.sh | sh
+export PATH="$HOME/.rushdb/bin:$PATH"   # or open a new shell
 mkdir my-app && cd my-app && rushdb up
 ```
 
@@ -49,16 +50,33 @@ from rushdb import RushDB
 db = RushDB("local-token", direct=True, engine_url="http://127.0.0.1:3000")
 
 # Nested JSON becomes linked records: COMPANY -> DEPARTMENT -> EMPLOYEE
-db.records.import_json(label="COMPANY", data={"name": "Acme", "DEPARTMENT": [
-    {"name": "Engineering", "EMPLOYEE": [
-        {"name": "Ada", "role": "Staff Engineer", "salary": 180000},
-        {"name": "Linus", "role": "Engineer", "salary": 140000}]},
-    {"name": "Sales", "EMPLOYEE": [{"name": "Grace", "role": "Account Executive", "salary": 120000}]}]})
+db.records.import_json(label="COMPANY", data={
+    "name": "Acme",
+    "DEPARTMENT": [
+        {
+            "name": "Engineering",
+            "EMPLOYEE": [
+                {"name": "Ada", "role": "Staff Engineer", "salary": 180000},
+                {"name": "Linus", "role": "Engineer", "salary": 140000},
+            ],
+        },
+        {
+            "name": "Sales",
+            "EMPLOYEE": [
+                {"name": "Grace", "role": "Account Executive",
+                 "salary": 120000},
+            ],
+        },
+    ],
+})
 
 # Graph: filter across relationships by naming the related labels
 engineers = db.records.find({
     "labels": ["EMPLOYEE"],
-    "where": {"role": {"$contains": "Engineer"}, "DEPARTMENT": {"COMPANY": {"name": "Acme"}}},
+    "where": {
+        "role": {"$contains": "Engineer"},
+        "DEPARTMENT": {"COMPANY": {"name": "Acme"}},
+    },
     "orderBy": {"name": "asc"},
 })
 print([employee.data["name"] for employee in engineers])  # ['Ada', 'Linus']
@@ -67,11 +85,15 @@ print([employee.data["name"] for employee in engineers])  # ['Ada', 'Linus']
 per_department = db.records.find({
     "labels": ["EMPLOYEE"],
     "where": {"DEPARTMENT": {"$alias": "$department"}},
-    "select": {"people": {"$count": "*"}, "avgSalary": {"$avg": "$record.salary"}},
+    "select": {
+        "people": {"$count": "*"},
+        "avgSalary": {"$avg": "$record.salary"},
+    },
     "groupBy": ["$department.name"],
 })
 print([row.data for row in per_department])
-# [{'name': 'Engineering', 'people': 2, 'avgSalary': 160000.0}, {'name': 'Sales', 'people': 1, 'avgSalary': 120000.0}]
+# [{'name': 'Engineering', 'people': 2, 'avgSalary': 160000.0},
+#  {'name': 'Sales', 'people': 1, 'avgSalary': 120000.0}]
 
 # The live schema an agent reads before it writes a query
 print(db.ai.get_schema_markdown().data)
@@ -97,35 +119,59 @@ schema 来自目录，而不是扫描记录得到的：
 ```typescript
 import RushDB from '@rushdb/javascript-sdk'
 
-const db = new RushDB('local-token', { direct: true, engineUrl: 'http://127.0.0.1:3000' })
+const db = new RushDB('local-token', {
+  direct: true,
+  engineUrl: 'http://127.0.0.1:3000'
+})
 
 // Nested JSON becomes linked records: COMPANY -> DEPARTMENT -> EMPLOYEE
 await db.records.importJson({
   label: 'COMPANY',
-  data: { name: 'Acme', DEPARTMENT: [
-    { name: 'Engineering', EMPLOYEE: [
-      { name: 'Ada', role: 'Staff Engineer', salary: 180000 },
-      { name: 'Linus', role: 'Engineer', salary: 140000 } ] },
-    { name: 'Sales', EMPLOYEE: [{ name: 'Grace', role: 'Account Executive', salary: 120000 }] } ] }
+  data: {
+    name: 'Acme',
+    DEPARTMENT: [
+      {
+        name: 'Engineering',
+        EMPLOYEE: [
+          { name: 'Ada', role: 'Staff Engineer', salary: 180000 },
+          { name: 'Linus', role: 'Engineer', salary: 140000 }
+        ]
+      },
+      {
+        name: 'Sales',
+        EMPLOYEE: [
+          { name: 'Grace', role: 'Account Executive', salary: 120000 }
+        ]
+      }
+    ]
+  }
 })
 
 // Graph: filter across relationships by naming the related labels
 const engineers = await db.records.find({
   labels: ['EMPLOYEE'],
-  where: { role: { $contains: 'Engineer' }, DEPARTMENT: { COMPANY: { name: 'Acme' } } },
+  where: {
+    role: { $contains: 'Engineer' },
+    DEPARTMENT: { COMPANY: { name: 'Acme' } }
+  },
   orderBy: { name: 'asc' }
 })
-console.log(engineers.data.map((employee) => employee.data.name)) // [ 'Ada', 'Linus' ]
+console.log(engineers.data.map((employee) => employee.data.name))
+// [ 'Ada', 'Linus' ]
 
 // Analytics: headcount and average salary per department
 const perDepartment = await db.records.find({
   labels: ['EMPLOYEE'],
   where: { DEPARTMENT: { $alias: '$department' } },
-  select: { people: { $count: '*' }, avgSalary: { $avg: '$record.salary' } },
+  select: {
+    people: { $count: '*' },
+    avgSalary: { $avg: '$record.salary' }
+  },
   groupBy: ['$department.name']
 })
 console.log(perDepartment.data.map((row) => row.data))
-// [ { name: 'Engineering', people: 2, avgSalary: 160000 }, { name: 'Sales', people: 1, avgSalary: 120000 } ]
+// [ { name: 'Engineering', people: 2, avgSalary: 160000 },
+//   { name: 'Sales', people: 1, avgSalary: 120000 } ]
 
 // The live schema an agent reads before it writes a query
 console.log((await db.ai.getSchemaMarkdown()).data)
@@ -136,7 +182,8 @@ console.log((await db.ai.getSchemaMarkdown()).data)
 已经熟悉 SQL？标签就是表：
 
 ```bash
-PGPASSWORD=local-token psql "host=127.0.0.1 port=5432 user=rushdb dbname=rushdb sslmode=disable" \
+PGPASSWORD=local-token psql \
+  "host=127.0.0.1 port=5432 user=rushdb dbname=rushdb sslmode=disable" \
   -c "SELECT name, role, salary FROM employee ORDER BY salary DESC"
 ```
 
@@ -145,12 +192,10 @@ PGPASSWORD=local-token psql "host=127.0.0.1 port=5432 user=rushdb dbname=rushdb 
 
 ## 你可以构建什么
 
-| | |
-|---|---|
-| **智能体记忆** | 记忆以带关系的记录存储，按作用域过滤，并按你存入的向量排序。提供现成的 OpenClaw 和 Hermes 记忆提供程序。 |
-| **搜索应用数据** | 对应用已经写入的记录做全文、向量和混合搜索，并在同一个查询里使用图过滤。 |
-| **对关联数据提问** | 智能体先读取 schema，再写出一个你可以检查的查询：JSON 查询语言、SQL 或 Cypher。 |
-| **无需导出的报表** | 通过 SDK 或任意 PostgreSQL 客户端，对应用写入的记录进行分组和聚合。 |
+- **智能体记忆。** 记忆以带关系的记录存储，按作用域过滤，并按你存入的向量排序。提供现成的 OpenClaw 和 Hermes 记忆提供程序。
+- **搜索应用数据。** 对应用已经写入的记录做全文、向量和混合搜索，并在同一个查询里使用图过滤。
+- **对关联数据提问。** 智能体先读取 schema，再写出一个你可以检查的查询：JSON 查询语言、SQL 或 Cypher。
+- **无需导出的报表。** 通过 SDK 或任意 PostgreSQL 客户端，对应用写入的记录进行分组和聚合。
 
 ## 功能
 
@@ -179,7 +224,8 @@ RushDB，把 [rushdb.com/agent-setup](https://rushdb.com/agent-setup) 交给它�
 ## 随处运行
 
 ```bash
-docker run -p 127.0.0.1:3000:3000 -v rushdb:/data -e RUSHDB_TOKEN=change-me rushdb/rushdb:3
+docker run -p 127.0.0.1:3000:3000 -v rushdb:/data \
+  -e RUSHDB_TOKEN=change-me rushdb/rushdb:3
 ```
 
 Docker Compose、Kubernetes（Helm）、cloud-init、systemd、Fly.io、Render、
@@ -188,9 +234,24 @@ Coolify 和 Dokploy：参见 [部署](https://docs.rushdb.com/deploy/)。在把�
 
 ## 自托管与 RushDB Cloud
 
-- **自托管：** 即本仓库。以上所有功能都运行在你安装的引擎中。
-- **[RushDB Cloud](https://app.rushdb.com)：** 同一个引擎的托管版本，另外提供
-  控制台、托管的嵌入生成、自然语言搜索以及面向 SaaS 工具的连接器。SDK 和 MCP 服务器两者都支持。
+本仓库就是引擎本身，你可以完整地自托管。[RushDB Cloud](https://app.rushdb.com) 为你运行同一个引擎，并增加下表中标出的功能。SDK 和 MCP 服务器两者都支持；在自托管引擎上，仅限 Cloud 的调用会在发送任何内容之前以 `CloudOnlyError` 失败。
+
+| 功能 | 自托管引擎 | RushDB Cloud |
+|---|---|---|
+| 引擎与 API：记录、图查询、搜索、聚合、实时 schema | ✓ | ✓ |
+| SDK 与 MCP 服务器 | ✓ 直连模式，MCP 走 stdio | ✓ 另有带 OAuth 的托管 MCP |
+| 导入 JSON 和 CSV | ✓ | ✓ |
+| [控制台](https://docs.rushdb.com/rushdb-cloud/)：记录、图视图和查询构建器 | 使用 SDK 或任意 PostgreSQL 客户端 | ✓ |
+| [托管嵌入](https://docs.rushdb.com/rushdb-cloud/capabilities/) | 使用你自己模型生成的向量 | ✓ 按月额度 |
+| [自然语言搜索](https://docs.rushdb.com/learn/search-query/smart-search/) | 自己编写查询，或交给智能体 | ✓ 按月额度 |
+| [关系建议](https://docs.rushdb.com/learn/relationships/suggested-patterns/) | 自己创建关系 | ✓ |
+| 指标与过滤条件的[定义](https://docs.rushdb.com/learn/search-query/definitions/) | 把规则写在你自己的提示词和 SQL 里 | ✓ |
+| 连接 SaaS 工具的[连接](https://docs.rushdb.com/learn/data-sources/connections/)，以及用于本地数据库的 RushDB Sync | 你自己的同步代码，或 Debezium sink | ✓ |
+| 项目与 API 密钥 | 租户和令牌由你自己管理 | ✓ |
+| 团队访问 | — | 付费套餐 |
+| 备份 | 由你负责：备份、时间点恢复、副本 | 付费套餐 |
+
+RushDB Cloud 列中的 ✓ 表示 Free 套餐已包含。套餐与额度见 [rushdb.com/pricing](https://rushdb.com/pricing)。
 
 ## 常见问题
 

@@ -37,8 +37,9 @@ PostgreSQL apa pun. Satu binary Rust, Apache-2.0.
 ## Mulai cepat
 
 ```bash
-curl -fsSL https://rushdb.com/install.sh | sh    # or: brew install rush-db/tap/rushdb
-export PATH="$HOME/.rushdb/bin:$PATH"             # or open a new shell
+# or: brew install rush-db/tap/rushdb
+curl -fsSL https://rushdb.com/install.sh | sh
+export PATH="$HOME/.rushdb/bin:$PATH"   # or open a new shell
 mkdir my-app && cd my-app && rushdb up
 ```
 
@@ -51,16 +52,33 @@ from rushdb import RushDB
 db = RushDB("local-token", direct=True, engine_url="http://127.0.0.1:3000")
 
 # Nested JSON becomes linked records: COMPANY -> DEPARTMENT -> EMPLOYEE
-db.records.import_json(label="COMPANY", data={"name": "Acme", "DEPARTMENT": [
-    {"name": "Engineering", "EMPLOYEE": [
-        {"name": "Ada", "role": "Staff Engineer", "salary": 180000},
-        {"name": "Linus", "role": "Engineer", "salary": 140000}]},
-    {"name": "Sales", "EMPLOYEE": [{"name": "Grace", "role": "Account Executive", "salary": 120000}]}]})
+db.records.import_json(label="COMPANY", data={
+    "name": "Acme",
+    "DEPARTMENT": [
+        {
+            "name": "Engineering",
+            "EMPLOYEE": [
+                {"name": "Ada", "role": "Staff Engineer", "salary": 180000},
+                {"name": "Linus", "role": "Engineer", "salary": 140000},
+            ],
+        },
+        {
+            "name": "Sales",
+            "EMPLOYEE": [
+                {"name": "Grace", "role": "Account Executive",
+                 "salary": 120000},
+            ],
+        },
+    ],
+})
 
 # Graph: filter across relationships by naming the related labels
 engineers = db.records.find({
     "labels": ["EMPLOYEE"],
-    "where": {"role": {"$contains": "Engineer"}, "DEPARTMENT": {"COMPANY": {"name": "Acme"}}},
+    "where": {
+        "role": {"$contains": "Engineer"},
+        "DEPARTMENT": {"COMPANY": {"name": "Acme"}},
+    },
     "orderBy": {"name": "asc"},
 })
 print([employee.data["name"] for employee in engineers])  # ['Ada', 'Linus']
@@ -69,11 +87,15 @@ print([employee.data["name"] for employee in engineers])  # ['Ada', 'Linus']
 per_department = db.records.find({
     "labels": ["EMPLOYEE"],
     "where": {"DEPARTMENT": {"$alias": "$department"}},
-    "select": {"people": {"$count": "*"}, "avgSalary": {"$avg": "$record.salary"}},
+    "select": {
+        "people": {"$count": "*"},
+        "avgSalary": {"$avg": "$record.salary"},
+    },
     "groupBy": ["$department.name"],
 })
 print([row.data for row in per_department])
-# [{'name': 'Engineering', 'people': 2, 'avgSalary': 160000.0}, {'name': 'Sales', 'people': 1, 'avgSalary': 120000.0}]
+# [{'name': 'Engineering', 'people': 2, 'avgSalary': 160000.0},
+#  {'name': 'Sales', 'people': 1, 'avgSalary': 120000.0}]
 
 # The live schema an agent reads before it writes a query
 print(db.ai.get_schema_markdown().data)
@@ -99,35 +121,59 @@ Skema ini berasal dari katalog, bukan dari pemindaian record:
 ```typescript
 import RushDB from '@rushdb/javascript-sdk'
 
-const db = new RushDB('local-token', { direct: true, engineUrl: 'http://127.0.0.1:3000' })
+const db = new RushDB('local-token', {
+  direct: true,
+  engineUrl: 'http://127.0.0.1:3000'
+})
 
 // Nested JSON becomes linked records: COMPANY -> DEPARTMENT -> EMPLOYEE
 await db.records.importJson({
   label: 'COMPANY',
-  data: { name: 'Acme', DEPARTMENT: [
-    { name: 'Engineering', EMPLOYEE: [
-      { name: 'Ada', role: 'Staff Engineer', salary: 180000 },
-      { name: 'Linus', role: 'Engineer', salary: 140000 } ] },
-    { name: 'Sales', EMPLOYEE: [{ name: 'Grace', role: 'Account Executive', salary: 120000 }] } ] }
+  data: {
+    name: 'Acme',
+    DEPARTMENT: [
+      {
+        name: 'Engineering',
+        EMPLOYEE: [
+          { name: 'Ada', role: 'Staff Engineer', salary: 180000 },
+          { name: 'Linus', role: 'Engineer', salary: 140000 }
+        ]
+      },
+      {
+        name: 'Sales',
+        EMPLOYEE: [
+          { name: 'Grace', role: 'Account Executive', salary: 120000 }
+        ]
+      }
+    ]
+  }
 })
 
 // Graph: filter across relationships by naming the related labels
 const engineers = await db.records.find({
   labels: ['EMPLOYEE'],
-  where: { role: { $contains: 'Engineer' }, DEPARTMENT: { COMPANY: { name: 'Acme' } } },
+  where: {
+    role: { $contains: 'Engineer' },
+    DEPARTMENT: { COMPANY: { name: 'Acme' } }
+  },
   orderBy: { name: 'asc' }
 })
-console.log(engineers.data.map((employee) => employee.data.name)) // [ 'Ada', 'Linus' ]
+console.log(engineers.data.map((employee) => employee.data.name))
+// [ 'Ada', 'Linus' ]
 
 // Analytics: headcount and average salary per department
 const perDepartment = await db.records.find({
   labels: ['EMPLOYEE'],
   where: { DEPARTMENT: { $alias: '$department' } },
-  select: { people: { $count: '*' }, avgSalary: { $avg: '$record.salary' } },
+  select: {
+    people: { $count: '*' },
+    avgSalary: { $avg: '$record.salary' }
+  },
   groupBy: ['$department.name']
 })
 console.log(perDepartment.data.map((row) => row.data))
-// [ { name: 'Engineering', people: 2, avgSalary: 160000 }, { name: 'Sales', people: 1, avgSalary: 120000 } ]
+// [ { name: 'Engineering', people: 2, avgSalary: 160000 },
+//   { name: 'Sales', people: 1, avgSalary: 120000 } ]
 
 // The live schema an agent reads before it writes a query
 console.log((await db.ai.getSchemaMarkdown()).data)
@@ -138,7 +184,8 @@ console.log((await db.ai.getSchemaMarkdown()).data)
 Sudah terbiasa dengan SQL? Label adalah tabel:
 
 ```bash
-PGPASSWORD=local-token psql "host=127.0.0.1 port=5432 user=rushdb dbname=rushdb sslmode=disable" \
+PGPASSWORD=local-token psql \
+  "host=127.0.0.1 port=5432 user=rushdb dbname=rushdb sslmode=disable" \
   -c "SELECT name, role, salary FROM employee ORDER BY salary DESC"
 ```
 
@@ -147,12 +194,10 @@ Selanjutnya: [panduan mulai cepat lengkap](https://docs.rushdb.com/engine/gettin
 
 ## Apa yang bisa Anda bangun
 
-| | |
-|---|---|
-| **Memori agen** | Memori sebagai record dengan relasi, difilter berdasarkan cakupan dan diurutkan menurut vektor yang Anda simpan. Provider siap pakai untuk OpenClaw dan Hermes. |
-| **Pencarian atas data aplikasi Anda** | Pencarian teks lengkap, vektor, dan hibrida atas record yang sudah ditulis aplikasi Anda, dengan filter graf dalam kueri yang sama. |
-| **Pertanyaan atas data yang saling terhubung** | Agen membaca skema, lalu menulis kueri yang bisa Anda periksa: dalam bahasa kueri JSON, SQL, atau Cypher. |
-| **Laporan tanpa ekspor** | Kelompokkan dan agregasikan record yang ditulis aplikasi Anda, dari SDK atau klien PostgreSQL apa pun. |
+- **Memori agen.** Memori sebagai record dengan relasi, difilter berdasarkan cakupan dan diurutkan menurut vektor yang Anda simpan. Provider siap pakai untuk OpenClaw dan Hermes.
+- **Pencarian atas data aplikasi Anda.** Pencarian teks lengkap, vektor, dan hibrida atas record yang sudah ditulis aplikasi Anda, dengan filter graf dalam kueri yang sama.
+- **Pertanyaan atas data yang saling terhubung.** Agen membaca skema, lalu menulis kueri yang bisa Anda periksa: dalam bahasa kueri JSON, SQL, atau Cypher.
+- **Laporan tanpa ekspor.** Kelompokkan dan agregasikan record yang ditulis aplikasi Anda, dari SDK atau klien PostgreSQL apa pun.
 
 ## Fitur
 
@@ -181,7 +226,8 @@ menyiapkan RushDB, berikan [rushdb.com/agent-setup](https://rushdb.com/agent-set
 ## Jalankan di mana saja
 
 ```bash
-docker run -p 127.0.0.1:3000:3000 -v rushdb:/data -e RUSHDB_TOKEN=change-me rushdb/rushdb:3
+docker run -p 127.0.0.1:3000:3000 -v rushdb:/data \
+  -e RUSHDB_TOKEN=change-me rushdb/rushdb:3
 ```
 
 Docker Compose, Kubernetes (Helm), cloud-init, systemd, Fly.io, Render,
@@ -191,10 +237,24 @@ membuka node ke luar loopback.
 
 ## Self-hosted dan RushDB Cloud
 
-- **Self-hosted:** repositori ini. Semua hal di atas berjalan di engine yang Anda instal.
-- **[RushDB Cloud](https://app.rushdb.com):** engine yang sama dalam versi terkelola, ditambah
-  dashboard, embedding terkelola, pencarian bahasa alami, dan konektor untuk
-  tool SaaS. SDK dan server MCP bekerja dengan keduanya.
+Repositori ini adalah mesinnya, dan semuanya bisa Anda host sendiri. [RushDB Cloud](https://app.rushdb.com) menjalankan mesin yang sama untuk Anda dan menambahkan fitur yang ditandai di bawah. SDK dan server MCP bekerja dengan keduanya; pada mesin yang di-host sendiri, panggilan khusus Cloud gagal dengan `CloudOnlyError` sebelum apa pun dikirim.
+
+| Fitur | Mesin yang di-host sendiri | RushDB Cloud |
+|---|---|---|
+| Mesin dan API: record, kueri graf, pencarian, agregasi, skema langsung | ✓ | ✓ |
+| SDK dan server MCP | ✓ mode langsung, MCP lewat stdio | ✓ plus MCP ter-host dengan OAuth |
+| Impor JSON dan CSV | ✓ | ✓ |
+| [Dasbor](https://docs.rushdb.com/rushdb-cloud/) dengan record, tampilan graf, dan pembuat kueri | Gunakan SDK atau klien PostgreSQL apa pun | ✓ |
+| [Embedding terkelola](https://docs.rushdb.com/rushdb-cloud/capabilities/) | Bawa vektor dari model Anda sendiri | ✓ kuota bulanan |
+| [Pencarian bahasa alami](https://docs.rushdb.com/learn/search-query/smart-search/) | Susun kueri sendiri atau dengan agen | ✓ kuota bulanan |
+| [Saran relasi](https://docs.rushdb.com/learn/relationships/suggested-patterns/) | Buat relasi sendiri | ✓ |
+| [Definisi](https://docs.rushdb.com/learn/search-query/definitions/) untuk metrik dan filter | Simpan aturannya di prompt dan SQL Anda sendiri | ✓ |
+| [Koneksi](https://docs.rushdb.com/learn/data-sources/connections/) ke alat SaaS, dan RushDB Sync untuk database on-prem | Kode sinkronisasi Anda sendiri, atau sink Debezium | ✓ |
+| Proyek dan kunci API | Tenant dan token yang Anda kelola | ✓ |
+| Akses tim | — | Paket berbayar |
+| Cadangan | Anda yang menjalankan: cadangan, pemulihan titik waktu, replika | Paket berbayar |
+
+Tanda ✓ di bawah RushDB Cloud berarti paket Free sudah mencakupnya. Paket dan kuota ada di [rushdb.com/pricing](https://rushdb.com/pricing).
 
 ## FAQ
 

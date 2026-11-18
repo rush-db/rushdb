@@ -36,8 +36,9 @@ label, ฟิลด์, ชนิดข้อมูล และค่าที�
 ## เริ่มต้นใช้งานอย่างรวดเร็ว
 
 ```bash
-curl -fsSL https://rushdb.com/install.sh | sh    # or: brew install rush-db/tap/rushdb
-export PATH="$HOME/.rushdb/bin:$PATH"             # or open a new shell
+# or: brew install rush-db/tap/rushdb
+curl -fsSL https://rushdb.com/install.sh | sh
+export PATH="$HOME/.rushdb/bin:$PATH"   # or open a new shell
 mkdir my-app && cd my-app && rushdb up
 ```
 
@@ -50,16 +51,33 @@ from rushdb import RushDB
 db = RushDB("local-token", direct=True, engine_url="http://127.0.0.1:3000")
 
 # Nested JSON becomes linked records: COMPANY -> DEPARTMENT -> EMPLOYEE
-db.records.import_json(label="COMPANY", data={"name": "Acme", "DEPARTMENT": [
-    {"name": "Engineering", "EMPLOYEE": [
-        {"name": "Ada", "role": "Staff Engineer", "salary": 180000},
-        {"name": "Linus", "role": "Engineer", "salary": 140000}]},
-    {"name": "Sales", "EMPLOYEE": [{"name": "Grace", "role": "Account Executive", "salary": 120000}]}]})
+db.records.import_json(label="COMPANY", data={
+    "name": "Acme",
+    "DEPARTMENT": [
+        {
+            "name": "Engineering",
+            "EMPLOYEE": [
+                {"name": "Ada", "role": "Staff Engineer", "salary": 180000},
+                {"name": "Linus", "role": "Engineer", "salary": 140000},
+            ],
+        },
+        {
+            "name": "Sales",
+            "EMPLOYEE": [
+                {"name": "Grace", "role": "Account Executive",
+                 "salary": 120000},
+            ],
+        },
+    ],
+})
 
 # Graph: filter across relationships by naming the related labels
 engineers = db.records.find({
     "labels": ["EMPLOYEE"],
-    "where": {"role": {"$contains": "Engineer"}, "DEPARTMENT": {"COMPANY": {"name": "Acme"}}},
+    "where": {
+        "role": {"$contains": "Engineer"},
+        "DEPARTMENT": {"COMPANY": {"name": "Acme"}},
+    },
     "orderBy": {"name": "asc"},
 })
 print([employee.data["name"] for employee in engineers])  # ['Ada', 'Linus']
@@ -68,11 +86,15 @@ print([employee.data["name"] for employee in engineers])  # ['Ada', 'Linus']
 per_department = db.records.find({
     "labels": ["EMPLOYEE"],
     "where": {"DEPARTMENT": {"$alias": "$department"}},
-    "select": {"people": {"$count": "*"}, "avgSalary": {"$avg": "$record.salary"}},
+    "select": {
+        "people": {"$count": "*"},
+        "avgSalary": {"$avg": "$record.salary"},
+    },
     "groupBy": ["$department.name"],
 })
 print([row.data for row in per_department])
-# [{'name': 'Engineering', 'people': 2, 'avgSalary': 160000.0}, {'name': 'Sales', 'people': 1, 'avgSalary': 120000.0}]
+# [{'name': 'Engineering', 'people': 2, 'avgSalary': 160000.0},
+#  {'name': 'Sales', 'people': 1, 'avgSalary': 120000.0}]
 
 # The live schema an agent reads before it writes a query
 print(db.ai.get_schema_markdown().data)
@@ -98,35 +120,59 @@ print(db.ai.get_schema_markdown().data)
 ```typescript
 import RushDB from '@rushdb/javascript-sdk'
 
-const db = new RushDB('local-token', { direct: true, engineUrl: 'http://127.0.0.1:3000' })
+const db = new RushDB('local-token', {
+  direct: true,
+  engineUrl: 'http://127.0.0.1:3000'
+})
 
 // Nested JSON becomes linked records: COMPANY -> DEPARTMENT -> EMPLOYEE
 await db.records.importJson({
   label: 'COMPANY',
-  data: { name: 'Acme', DEPARTMENT: [
-    { name: 'Engineering', EMPLOYEE: [
-      { name: 'Ada', role: 'Staff Engineer', salary: 180000 },
-      { name: 'Linus', role: 'Engineer', salary: 140000 } ] },
-    { name: 'Sales', EMPLOYEE: [{ name: 'Grace', role: 'Account Executive', salary: 120000 }] } ] }
+  data: {
+    name: 'Acme',
+    DEPARTMENT: [
+      {
+        name: 'Engineering',
+        EMPLOYEE: [
+          { name: 'Ada', role: 'Staff Engineer', salary: 180000 },
+          { name: 'Linus', role: 'Engineer', salary: 140000 }
+        ]
+      },
+      {
+        name: 'Sales',
+        EMPLOYEE: [
+          { name: 'Grace', role: 'Account Executive', salary: 120000 }
+        ]
+      }
+    ]
+  }
 })
 
 // Graph: filter across relationships by naming the related labels
 const engineers = await db.records.find({
   labels: ['EMPLOYEE'],
-  where: { role: { $contains: 'Engineer' }, DEPARTMENT: { COMPANY: { name: 'Acme' } } },
+  where: {
+    role: { $contains: 'Engineer' },
+    DEPARTMENT: { COMPANY: { name: 'Acme' } }
+  },
   orderBy: { name: 'asc' }
 })
-console.log(engineers.data.map((employee) => employee.data.name)) // [ 'Ada', 'Linus' ]
+console.log(engineers.data.map((employee) => employee.data.name))
+// [ 'Ada', 'Linus' ]
 
 // Analytics: headcount and average salary per department
 const perDepartment = await db.records.find({
   labels: ['EMPLOYEE'],
   where: { DEPARTMENT: { $alias: '$department' } },
-  select: { people: { $count: '*' }, avgSalary: { $avg: '$record.salary' } },
+  select: {
+    people: { $count: '*' },
+    avgSalary: { $avg: '$record.salary' }
+  },
   groupBy: ['$department.name']
 })
 console.log(perDepartment.data.map((row) => row.data))
-// [ { name: 'Engineering', people: 2, avgSalary: 160000 }, { name: 'Sales', people: 1, avgSalary: 120000 } ]
+// [ { name: 'Engineering', people: 2, avgSalary: 160000 },
+//   { name: 'Sales', people: 1, avgSalary: 120000 } ]
 
 // The live schema an agent reads before it writes a query
 console.log((await db.ai.getSchemaMarkdown()).data)
@@ -137,7 +183,8 @@ console.log((await db.ai.getSchemaMarkdown()).data)
 ใช้ SQL เป็นอยู่แล้วใช่ไหม? label ก็คือตาราง:
 
 ```bash
-PGPASSWORD=local-token psql "host=127.0.0.1 port=5432 user=rushdb dbname=rushdb sslmode=disable" \
+PGPASSWORD=local-token psql \
+  "host=127.0.0.1 port=5432 user=rushdb dbname=rushdb sslmode=disable" \
   -c "SELECT name, role, salary FROM employee ORDER BY salary DESC"
 ```
 
@@ -146,22 +193,20 @@ PGPASSWORD=local-token psql "host=127.0.0.1 port=5432 user=rushdb dbname=rushdb 
 
 ## สิ่งที่คุณสร้างได้
 
-| | |
-|---|---|
-| **หน่วยความจำของเอเจนต์** | เก็บความจำเป็นเรคคอร์ดที่มีความสัมพันธ์ กรองตามขอบเขต และจัดอันดับด้วยเวกเตอร์ที่คุณจัดเก็บ มี provider สำเร็จรูปสำหรับ OpenClaw และ Hermes |
-| **การค้นหาข้อมูลในแอปของคุณ** | การค้นหาแบบฟูลเท็กซ์ เวกเตอร์ และไฮบริด บนเรคคอร์ดที่แอปของคุณเขียนอยู่แล้ว พร้อมตัวกรองกราฟในคิวรีเดียวกัน |
-| **ตอบคำถามจากข้อมูลที่เชื่อมโยงกัน** | เอเจนต์อ่านสคีมา แล้วเขียนคิวรีที่คุณตรวจสอบได้ ทั้งในภาษาคิวรี JSON, SQL หรือ Cypher |
-| **รายงานโดยไม่ต้องส่งออกข้อมูล** | จัดกลุ่มและรวมข้อมูลจากเรคคอร์ดที่แอปของคุณเขียน ผ่าน SDK หรือไคลเอนต์ PostgreSQL ใดก็ได้ |
+- **หน่วยความจำของเอเจนต์**: เก็บความจำเป็นเรคคอร์ดที่มีความสัมพันธ์ กรองตามขอบเขต และจัดอันดับด้วยเวกเตอร์ที่คุณจัดเก็บ มี provider สำเร็จรูปสำหรับ OpenClaw และ Hermes
+- **การค้นหาข้อมูลในแอปของคุณ**: การค้นหาแบบฟูลเท็กซ์ เวกเตอร์ และไฮบริด บนเรคคอร์ดที่แอปของคุณเขียนอยู่แล้ว พร้อมตัวกรองกราฟในคิวรีเดียวกัน
+- **ตอบคำถามจากข้อมูลที่เชื่อมโยงกัน**: เอเจนต์อ่านสคีมา แล้วเขียนคิวรีที่คุณตรวจสอบได้ ทั้งในภาษาคิวรี JSON, SQL หรือ Cypher
+- **รายงานโดยไม่ต้องส่งออกข้อมูล**: จัดกลุ่มและรวมข้อมูลจากเรคคอร์ดที่แอปของคุณเขียน ผ่าน SDK หรือไคลเอนต์ PostgreSQL ใดก็ได้
 
 ## ฟีเจอร์
 
-- **สคีมาที่เกิดขึ้นเอง** อนุมานชนิดข้อมูลทีละค่า อ็อบเจกต์ที่ซ้อนกันกลายเป็นเรคคอร์ดที่เชื่อมโยงกัน และแคตตาล็อกเก็บจำนวนที่แม่นยำพร้อมรายการค่า [แคตตาล็อกสคีมา](https://docs.rushdb.com/engine/data-model/schema-catalog/)
-- **คิวรีกราฟ** กรองข้ามความสัมพันธ์ด้วย label จำกัดตามชนิดและทิศทาง และผูกเรคคอร์ดที่เกี่ยวข้องเพื่อใช้ในการ projection และการรวมข้อมูล [ความสัมพันธ์และการท่องกราฟ](https://docs.rushdb.com/engine/query/relationships-and-traversal/)
-- **การค้นหาในตัว** ดัชนีเวกเตอร์บนเวกเตอร์ที่คุณส่งเข้ามา ฟูลเท็กซ์ BM25 และการค้นหาแบบไฮบริดที่รวมทั้งสองแบบเข้าด้วยกัน [ดัชนีและการค้นหา](https://docs.rushdb.com/engine/indexes-and-search/)
-- **การรวมข้อมูล** `select` และ `groupBy` พร้อมการนับ ผลรวม ค่าเฉลี่ย การแบ่งช่วงเวลา และคอลเลกชันแบบซ้อน [การรวมข้อมูล](https://docs.rushdb.com/engine/query/aggregations/)
-- **รองรับสิ่งที่คุณใช้อยู่** SQL ผ่านโปรโตคอล wire ของ PostgreSQL, Gremlin, SQL/PGQ, เอกสารสไตล์ Mongo รวมถึง openCypher และ ISO GQL ในสถานะ release candidate [ภาษาคิวรี](https://docs.rushdb.com/engine/languages/)
-- **ทนทาน** มี write-ahead log, ทรานแซกชัน, การสำรองข้อมูลพร้อมกู้คืนไปยังจุดเวลาที่ต้องการ และ read replica [การดูแลระบบ](https://docs.rushdb.com/engine/operations/)
-- **ไบนารีเดียว** HTTP, PostgreSQL wire, gRPC และ Bolt จากโปรเซสเดียว พร้อม tenant แยกกันแบบเลือกใช้ได้ [การเชื่อมต่อ](https://docs.rushdb.com/engine/connectivity/)
+- **สคีมาที่เกิดขึ้นเอง**: อนุมานชนิดข้อมูลทีละค่า อ็อบเจกต์ที่ซ้อนกันกลายเป็นเรคคอร์ดที่เชื่อมโยงกัน และแคตตาล็อกเก็บจำนวนที่แม่นยำพร้อมรายการค่า [แคตตาล็อกสคีมา](https://docs.rushdb.com/engine/data-model/schema-catalog/)
+- **คิวรีกราฟ**: กรองข้ามความสัมพันธ์ด้วย label จำกัดตามชนิดและทิศทาง และผูกเรคคอร์ดที่เกี่ยวข้องเพื่อใช้ในการ projection และการรวมข้อมูล [ความสัมพันธ์และการท่องกราฟ](https://docs.rushdb.com/engine/query/relationships-and-traversal/)
+- **การค้นหาในตัว**: ดัชนีเวกเตอร์บนเวกเตอร์ที่คุณส่งเข้ามา ฟูลเท็กซ์ BM25 และการค้นหาแบบไฮบริดที่รวมทั้งสองแบบเข้าด้วยกัน [ดัชนีและการค้นหา](https://docs.rushdb.com/engine/indexes-and-search/)
+- **การรวมข้อมูล**: `select` และ `groupBy` พร้อมการนับ ผลรวม ค่าเฉลี่ย การแบ่งช่วงเวลา และคอลเลกชันแบบซ้อน [การรวมข้อมูล](https://docs.rushdb.com/engine/query/aggregations/)
+- **รองรับสิ่งที่คุณใช้อยู่**: SQL ผ่านโปรโตคอล wire ของ PostgreSQL, Gremlin, SQL/PGQ, เอกสารสไตล์ Mongo รวมถึง openCypher และ ISO GQL ในสถานะ release candidate [ภาษาคิวรี](https://docs.rushdb.com/engine/languages/)
+- **ทนทาน**: มี write-ahead log, ทรานแซกชัน, การสำรองข้อมูลพร้อมกู้คืนไปยังจุดเวลาที่ต้องการ และ read replica [การดูแลระบบ](https://docs.rushdb.com/engine/operations/)
+- **ไบนารีเดียว**: HTTP, PostgreSQL wire, gRPC และ Bolt จากโปรเซสเดียว พร้อม tenant แยกกันแบบเลือกใช้ได้ [การเชื่อมต่อ](https://docs.rushdb.com/engine/connectivity/)
 
 ## อีโคซิสเต็ม
 
@@ -180,7 +225,8 @@ RushDB ให้ ส่ง [rushdb.com/agent-setup](https://rushdb.com/agent-set
 ## รันได้ทุกที่
 
 ```bash
-docker run -p 127.0.0.1:3000:3000 -v rushdb:/data -e RUSHDB_TOKEN=change-me rushdb/rushdb:3
+docker run -p 127.0.0.1:3000:3000 -v rushdb:/data \
+  -e RUSHDB_TOKEN=change-me rushdb/rushdb:3
 ```
 
 Docker Compose, Kubernetes (Helm), cloud-init, systemd, Fly.io, Render,
@@ -190,10 +236,24 @@ Coolify และ Dokploy: ดู [Deploy](https://docs.rushdb.com/deploy/) อ�
 
 ## โฮสต์เองและ RushDB Cloud
 
-- **โฮสต์เอง:** รีโพสิทอรีนี้ ทุกอย่างข้างต้นทำงานในเอนจินที่คุณติดตั้งเอง
-- **[RushDB Cloud](https://app.rushdb.com):** เอนจินตัวเดียวกันแบบมีผู้ดูแลให้ พร้อม
-  แดชบอร์ด, embedding ที่จัดการให้, การค้นหาด้วยภาษาธรรมชาติ และคอนเนกเตอร์สำหรับ
-  เครื่องมือ SaaS ทั้ง SDK และเซิร์ฟเวอร์ MCP ใช้งานได้กับทั้งสองแบบ
+รีโพนี้คือตัวเอนจิน และคุณโฮสต์เองได้ทั้งหมด [RushDB Cloud](https://app.rushdb.com) รันเอนจินเดียวกันให้คุณและเพิ่มฟีเจอร์ที่ระบุไว้ด้านล่าง SDK และเซิร์ฟเวอร์ MCP ใช้ได้กับทั้งสองแบบ บนเอนจินที่โฮสต์เอง การเรียกที่มีเฉพาะใน Cloud จะล้มเหลวด้วย `CloudOnlyError` ก่อนส่งข้อมูลใดๆ ออกไป
+
+| ฟีเจอร์ | เอนจินที่โฮสต์เอง | RushDB Cloud |
+|---|---|---|
+| เอนจินและ API: เรคคอร์ด คิวรีกราฟ การค้นหา การรวมข้อมูล สคีมาแบบสด | ✓ | ✓ |
+| SDK และเซิร์ฟเวอร์ MCP | ✓ โหมด direct, MCP ผ่าน stdio | ✓ พร้อม MCP แบบโฮสต์ที่ใช้ OAuth |
+| นำเข้า JSON และ CSV | ✓ | ✓ |
+| [แดชบอร์ด](https://docs.rushdb.com/rushdb-cloud/) พร้อมเรคคอร์ด มุมมองกราฟ และตัวสร้างคิวรี | ใช้ SDK หรือไคลเอนต์ PostgreSQL ใดก็ได้ | ✓ |
+| [Embedding แบบจัดการให้](https://docs.rushdb.com/rushdb-cloud/capabilities/) | นำเวกเตอร์จากโมเดลของคุณเองมาใช้ | ✓ โควตารายเดือน |
+| [การค้นหาด้วยภาษาธรรมชาติ](https://docs.rushdb.com/learn/search-query/smart-search/) | สร้างคิวรีเองหรือให้เอเจนต์สร้าง | ✓ โควตารายเดือน |
+| [คำแนะนำความสัมพันธ์](https://docs.rushdb.com/learn/relationships/suggested-patterns/) | สร้างความสัมพันธ์เอง | ✓ |
+| [นิยาม](https://docs.rushdb.com/learn/search-query/definitions/) สำหรับเมตริกและตัวกรอง | เก็บกฎไว้ในพรอมต์และ SQL ของคุณเอง | ✓ |
+| [การเชื่อมต่อ](https://docs.rushdb.com/learn/data-sources/connections/) กับเครื่องมือ SaaS และ RushDB Sync สำหรับฐานข้อมูลในองค์กร | โค้ดซิงก์ของคุณเอง หรือ Debezium sink | ✓ |
+| โปรเจกต์และคีย์ API | tenant และโทเคนที่คุณจัดการเอง | ✓ |
+| การเข้าถึงแบบทีม | — | แพ็กเกจแบบชำระเงิน |
+| การสำรองข้อมูล | คุณดูแลเอง: สำรองข้อมูล กู้คืนแบบ point-in-time และสำเนา | แพ็กเกจแบบชำระเงิน |
+
+เครื่องหมาย ✓ ใต้ RushDB Cloud หมายถึงแพ็กเกจ Free มีฟีเจอร์นั้น แพ็กเกจและโควตาดูได้ที่ [rushdb.com/pricing](https://rushdb.com/pricing)
 
 ## คำถามที่พบบ่อย
 
