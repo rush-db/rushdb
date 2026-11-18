@@ -15,17 +15,20 @@
 
 [Dokumentasi](https://docs.rushdb.com) • [Mulai cepat](https://docs.rushdb.com/engine/getting-started/quickstart/) • [Diskusi](https://github.com/orgs/rush-db/discussions) • [X](https://x.com/RushDatabase) • [RushDB Cloud](https://app.rushdb.com)
 
+[English](https://github.com/rush-db/rushdb/blob/main/README.md) • [中文](https://github.com/rush-db/rushdb/blob/main/README_ZH.md) • [日本語](https://github.com/rush-db/rushdb/blob/main/README_JA.md) • [한국어](https://github.com/rush-db/rushdb/blob/main/README_KO.md) • [Deutsch](https://github.com/rush-db/rushdb/blob/main/README_DE.md) • [Français](https://github.com/rush-db/rushdb/blob/main/README_FR.md) • [Português](https://github.com/rush-db/rushdb/blob/main/README_PT.md) • [Español](https://github.com/rush-db/rushdb/blob/main/README_ES.md) • [हिन्दी](https://github.com/rush-db/rushdb/blob/main/README_HI.md) • [العربية](https://github.com/rush-db/rushdb/blob/main/README_AR.md) • **Bahasa Indonesia** • [ไทย](https://github.com/rush-db/rushdb/blob/main/README_TH.md)
+
 </div>
 
 ---
 
-Tulis JSON dari aplikasi Anda. RushDB menyimpannya sebagai record bertipe yang
-saling terhubung dalam graf, dan record yang sama menjawab kueri relasi,
-pencarian vektor dan teks lengkap, serta agregasi, sehingga tidak ada
-penyimpanan kedua yang harus disinkronkan. Setiap penulisan juga memperbarui
-katalog label, field, tipe, dan nilai yang ada: agen melihat apa yang tersedia,
-lalu menulis kueri yang sesuai dengannya.
-Gunakan SDK, SQL, atau Cypher. Satu binary Rust, Apache-2.0.
+Masukkan data dalam bentuk yang Anda punya: JSON bersarang, CSV, `INSERT` SQL, penulisan
+Cypher atau bergaya Mongo, atau change stream dari database Anda. RushDB menyimpannya
+sebagai record bertipe yang saling terhubung dalam graf, dan record yang sama menjawab
+kueri relasi, pencarian vektor dan teks lengkap, serta agregasi, sehingga tidak ada
+penyimpanan kedua yang harus disinkronkan. Setiap penulisan juga memperbarui katalog
+label, field, tipe, dan nilai yang ada, sehingga agen mengkueri field yang benar-benar ada.
+Hubungkan lewat HTTP, protokol wire PostgreSQL, Bolt, gRPC, atau MCP, dari SDK atau klien
+PostgreSQL apa pun. Satu binary Rust, Apache-2.0.
 
 | Graf | Pencarian vektor dan teks lengkap | Analitik |
 |---|---|---|
@@ -40,7 +43,58 @@ mkdir my-app && cd my-app && rushdb up
 ```
 
 `rushdb up` melayani `http://127.0.0.1:3000` dengan data di `./.rushdb` dan
-token `local-token`. Di terminal lain, `npm install @rushdb/javascript-sdk`:
+token `local-token`. Di terminal lain, `pip install rushdb`:
+
+```python
+from rushdb import RushDB
+
+db = RushDB("local-token", direct=True, engine_url="http://127.0.0.1:3000")
+
+# Nested JSON becomes linked records: COMPANY -> DEPARTMENT -> EMPLOYEE
+db.records.import_json(label="COMPANY", data={"name": "Acme", "DEPARTMENT": [
+    {"name": "Engineering", "EMPLOYEE": [
+        {"name": "Ada", "role": "Staff Engineer", "salary": 180000},
+        {"name": "Linus", "role": "Engineer", "salary": 140000}]},
+    {"name": "Sales", "EMPLOYEE": [{"name": "Grace", "role": "Account Executive", "salary": 120000}]}]})
+
+# Graph: filter across relationships by naming the related labels
+engineers = db.records.find({
+    "labels": ["EMPLOYEE"],
+    "where": {"role": {"$contains": "Engineer"}, "DEPARTMENT": {"COMPANY": {"name": "Acme"}}},
+    "orderBy": {"name": "asc"},
+})
+print([employee.data["name"] for employee in engineers])  # ['Ada', 'Linus']
+
+# Analytics: headcount and average salary per department
+per_department = db.records.find({
+    "labels": ["EMPLOYEE"],
+    "where": {"DEPARTMENT": {"$alias": "$department"}},
+    "select": {"people": {"$count": "*"}, "avgSalary": {"$avg": "$record.salary"}},
+    "groupBy": ["$department.name"],
+})
+print([row.data for row in per_department])
+# [{'name': 'Engineering', 'people': 2, 'avgSalary': 160000.0}, {'name': 'Sales', 'people': 1, 'avgSalary': 120000.0}]
+
+# The live schema an agent reads before it writes a query
+print(db.ai.get_schema_markdown().data)
+```
+
+Skema ini berasal dari katalog, bukan dari pemindaian record:
+
+```text
+## `EMPLOYEE` (3 records)
+
+| Property | Type | Values / Range | Semantic Search |
+|----------|------|----------------|-----------------|
+| `name` | string | `Ada`, `Linus`, `Grace` | — |
+| `role` | string | `Staff Engineer`, `Engineer`, `Account Executive` | — |
+| `salary` | number | `120000`..`180000` | — |
+```
+
+<details>
+<summary>Hal yang sama dengan TypeScript</summary>
+
+`npm install @rushdb/javascript-sdk`:
 
 ```typescript
 import RushDB from '@rushdb/javascript-sdk'
@@ -77,52 +131,6 @@ console.log(perDepartment.data.map((row) => row.data))
 
 // The live schema an agent reads before it writes a query
 console.log((await db.ai.getSchemaMarkdown()).data)
-```
-
-Skema ini berasal dari katalog, bukan dari pemindaian record:
-
-```text
-## `EMPLOYEE` (3 records)
-
-| Property | Type | Values / Range | Semantic Search |
-|----------|------|----------------|-----------------|
-| `name` | string | `Ada`, `Linus`, `Grace` | — |
-| `role` | string | `Staff Engineer`, `Engineer`, `Account Executive` | — |
-| `salary` | number | `120000`..`180000` | — |
-```
-
-<details>
-<summary>Hal yang sama dengan Python</summary>
-
-`pip install rushdb`:
-
-```python
-from rushdb import RushDB
-
-db = RushDB("local-token", direct=True, engine_url="http://127.0.0.1:3000")
-
-db.records.import_json(label="COMPANY", data={"name": "Acme", "DEPARTMENT": [
-    {"name": "Engineering", "EMPLOYEE": [
-        {"name": "Ada", "role": "Staff Engineer", "salary": 180000},
-        {"name": "Linus", "role": "Engineer", "salary": 140000}]},
-    {"name": "Sales", "EMPLOYEE": [{"name": "Grace", "role": "Account Executive", "salary": 120000}]}]})
-
-engineers = db.records.find({
-    "labels": ["EMPLOYEE"],
-    "where": {"role": {"$contains": "Engineer"}, "DEPARTMENT": {"COMPANY": {"name": "Acme"}}},
-    "orderBy": {"name": "asc"},
-})
-print([employee.data["name"] for employee in engineers])  # ['Ada', 'Linus']
-
-per_department = db.records.find({
-    "labels": ["EMPLOYEE"],
-    "where": {"DEPARTMENT": {"$alias": "$department"}},
-    "select": {"people": {"$count": "*"}, "avgSalary": {"$avg": "$record.salary"}},
-    "groupBy": ["$department.name"],
-})
-print([row.data for row in per_department])
-
-print(db.ai.get_schema_markdown().data)
 ```
 
 </details>
@@ -218,5 +226,3 @@ mengembalikannya, sehingga agen dan tool tidak perlu menebak nama field.
 RushDB 2.x (legacy, berbasis Neo4j) ada di
 [branch `2.x`](https://github.com/rush-db/rushdb/tree/2.x) dengan perbaikan keamanan
 hingga 2027-10-28. [Upgrade dari 2.x](https://docs.rushdb.com/engine/operations/upgrading-from-2x/)
-
-[English](https://github.com/rush-db/rushdb/blob/main/README.md) • [中文](https://github.com/rush-db/rushdb/blob/main/README_ZH.md) • [日本語](https://github.com/rush-db/rushdb/blob/main/README_JA.md) • [한국어](https://github.com/rush-db/rushdb/blob/main/README_KO.md) • [Deutsch](https://github.com/rush-db/rushdb/blob/main/README_DE.md) • [Français](https://github.com/rush-db/rushdb/blob/main/README_FR.md) • [Português](https://github.com/rush-db/rushdb/blob/main/README_PT.md) • [Español](https://github.com/rush-db/rushdb/blob/main/README_ES.md) • [हिन्दी](https://github.com/rush-db/rushdb/blob/main/README_HI.md) • [العربية](https://github.com/rush-db/rushdb/blob/main/README_AR.md) • **Bahasa Indonesia** • [ไทย](https://github.com/rush-db/rushdb/blob/main/README_TH.md)

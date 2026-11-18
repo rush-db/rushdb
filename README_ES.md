@@ -15,16 +15,20 @@
 
 [Documentación](https://docs.rushdb.com) • [Inicio rápido](https://docs.rushdb.com/engine/getting-started/quickstart/) • [Discusiones](https://github.com/orgs/rush-db/discussions) • [X](https://x.com/RushDatabase) • [RushDB Cloud](https://app.rushdb.com)
 
+[English](https://github.com/rush-db/rushdb/blob/main/README.md) • [中文](https://github.com/rush-db/rushdb/blob/main/README_ZH.md) • [日本語](https://github.com/rush-db/rushdb/blob/main/README_JA.md) • [한국어](https://github.com/rush-db/rushdb/blob/main/README_KO.md) • [Deutsch](https://github.com/rush-db/rushdb/blob/main/README_DE.md) • [Français](https://github.com/rush-db/rushdb/blob/main/README_FR.md) • [Português](https://github.com/rush-db/rushdb/blob/main/README_PT.md) • **Español** • [हिन्दी](https://github.com/rush-db/rushdb/blob/main/README_HI.md) • [العربية](https://github.com/rush-db/rushdb/blob/main/README_AR.md) • [Bahasa Indonesia](https://github.com/rush-db/rushdb/blob/main/README_ID.md) • [ไทย](https://github.com/rush-db/rushdb/blob/main/README_TH.md)
+
 </div>
 
 ---
 
-Escribe JSON desde tu aplicación. RushDB lo guarda como registros tipados enlazados en un
-grafo, y esos mismos registros responden a consultas de relaciones, búsqueda vectorial y
-de texto completo, y agregaciones, así que no hay un segundo almacén que mantener sincronizado.
-Cada escritura también actualiza un catálogo de los labels, campos, tipos y valores que
-existen: un agente consulta lo que hay y luego escribe una consulta que encaja con ello.
-Usa los SDK, SQL o Cypher. Un solo binario de Rust, Apache-2.0.
+Trae los datos tal como los tienes: JSON anidado, CSV, `INSERT` de SQL, escrituras en
+Cypher o al estilo Mongo, o flujos de cambios desde tus bases de datos. RushDB los guarda
+como registros tipados enlazados en un grafo, y esos mismos registros responden a consultas
+de relaciones, búsqueda vectorial y de texto completo, y agregaciones, así que no hay un
+segundo almacén que mantener sincronizado. Cada escritura también actualiza un catálogo de
+los labels, campos, tipos y valores que existen, así que un agente consulta campos reales.
+Conéctate por HTTP, el protocolo de red de PostgreSQL, Bolt, gRPC o MCP, desde los SDK o
+desde cualquier cliente de PostgreSQL. Un solo binario de Rust, Apache-2.0.
 
 | Grafo | Búsqueda vectorial y de texto completo | Analítica |
 |---|---|---|
@@ -39,7 +43,58 @@ mkdir my-app && cd my-app && rushdb up
 ```
 
 `rushdb up` sirve en `http://127.0.0.1:3000`, con sus datos en `./.rushdb` y el
-token `local-token`. En otra terminal, ejecuta `npm install @rushdb/javascript-sdk`:
+token `local-token`. En otra terminal, ejecuta `pip install rushdb`:
+
+```python
+from rushdb import RushDB
+
+db = RushDB("local-token", direct=True, engine_url="http://127.0.0.1:3000")
+
+# Nested JSON becomes linked records: COMPANY -> DEPARTMENT -> EMPLOYEE
+db.records.import_json(label="COMPANY", data={"name": "Acme", "DEPARTMENT": [
+    {"name": "Engineering", "EMPLOYEE": [
+        {"name": "Ada", "role": "Staff Engineer", "salary": 180000},
+        {"name": "Linus", "role": "Engineer", "salary": 140000}]},
+    {"name": "Sales", "EMPLOYEE": [{"name": "Grace", "role": "Account Executive", "salary": 120000}]}]})
+
+# Graph: filter across relationships by naming the related labels
+engineers = db.records.find({
+    "labels": ["EMPLOYEE"],
+    "where": {"role": {"$contains": "Engineer"}, "DEPARTMENT": {"COMPANY": {"name": "Acme"}}},
+    "orderBy": {"name": "asc"},
+})
+print([employee.data["name"] for employee in engineers])  # ['Ada', 'Linus']
+
+# Analytics: headcount and average salary per department
+per_department = db.records.find({
+    "labels": ["EMPLOYEE"],
+    "where": {"DEPARTMENT": {"$alias": "$department"}},
+    "select": {"people": {"$count": "*"}, "avgSalary": {"$avg": "$record.salary"}},
+    "groupBy": ["$department.name"],
+})
+print([row.data for row in per_department])
+# [{'name': 'Engineering', 'people': 2, 'avgSalary': 160000.0}, {'name': 'Sales', 'people': 1, 'avgSalary': 120000.0}]
+
+# The live schema an agent reads before it writes a query
+print(db.ai.get_schema_markdown().data)
+```
+
+El esquema sale del catálogo, no de recorrer los registros:
+
+```text
+## `EMPLOYEE` (3 records)
+
+| Property | Type | Values / Range | Semantic Search |
+|----------|------|----------------|-----------------|
+| `name` | string | `Ada`, `Linus`, `Grace` | — |
+| `role` | string | `Staff Engineer`, `Engineer`, `Account Executive` | — |
+| `salary` | number | `120000`..`180000` | — |
+```
+
+<details>
+<summary>Lo mismo en TypeScript</summary>
+
+`npm install @rushdb/javascript-sdk`:
 
 ```typescript
 import RushDB from '@rushdb/javascript-sdk'
@@ -76,52 +131,6 @@ console.log(perDepartment.data.map((row) => row.data))
 
 // The live schema an agent reads before it writes a query
 console.log((await db.ai.getSchemaMarkdown()).data)
-```
-
-El esquema sale del catálogo, no de recorrer los registros:
-
-```text
-## `EMPLOYEE` (3 records)
-
-| Property | Type | Values / Range | Semantic Search |
-|----------|------|----------------|-----------------|
-| `name` | string | `Ada`, `Linus`, `Grace` | — |
-| `role` | string | `Staff Engineer`, `Engineer`, `Account Executive` | — |
-| `salary` | number | `120000`..`180000` | — |
-```
-
-<details>
-<summary>Lo mismo en Python</summary>
-
-`pip install rushdb`:
-
-```python
-from rushdb import RushDB
-
-db = RushDB("local-token", direct=True, engine_url="http://127.0.0.1:3000")
-
-db.records.import_json(label="COMPANY", data={"name": "Acme", "DEPARTMENT": [
-    {"name": "Engineering", "EMPLOYEE": [
-        {"name": "Ada", "role": "Staff Engineer", "salary": 180000},
-        {"name": "Linus", "role": "Engineer", "salary": 140000}]},
-    {"name": "Sales", "EMPLOYEE": [{"name": "Grace", "role": "Account Executive", "salary": 120000}]}]})
-
-engineers = db.records.find({
-    "labels": ["EMPLOYEE"],
-    "where": {"role": {"$contains": "Engineer"}, "DEPARTMENT": {"COMPANY": {"name": "Acme"}}},
-    "orderBy": {"name": "asc"},
-})
-print([employee.data["name"] for employee in engineers])  # ['Ada', 'Linus']
-
-per_department = db.records.find({
-    "labels": ["EMPLOYEE"],
-    "where": {"DEPARTMENT": {"$alias": "$department"}},
-    "select": {"people": {"$count": "*"}, "avgSalary": {"$avg": "$record.salary"}},
-    "groupBy": ["$department.name"],
-})
-print([row.data for row in per_department])
-
-print(db.ai.get_schema_markdown().data)
 ```
 
 </details>
@@ -217,5 +226,3 @@ lo devuelve, así que los agentes y las herramientas no adivinan nombres de camp
 RushDB 2.x (legado, basado en Neo4j) vive en la
 [rama `2.x`](https://github.com/rush-db/rushdb/tree/2.x) con correcciones de seguridad
 hasta el 28/10/2027. [Actualizar desde 2.x](https://docs.rushdb.com/engine/operations/upgrading-from-2x/)
-
-[English](https://github.com/rush-db/rushdb/blob/main/README.md) • [中文](https://github.com/rush-db/rushdb/blob/main/README_ZH.md) • [日本語](https://github.com/rush-db/rushdb/blob/main/README_JA.md) • [한국어](https://github.com/rush-db/rushdb/blob/main/README_KO.md) • [Deutsch](https://github.com/rush-db/rushdb/blob/main/README_DE.md) • [Français](https://github.com/rush-db/rushdb/blob/main/README_FR.md) • [Português](https://github.com/rush-db/rushdb/blob/main/README_PT.md) • **Español** • [हिन्दी](https://github.com/rush-db/rushdb/blob/main/README_HI.md) • [العربية](https://github.com/rush-db/rushdb/blob/main/README_AR.md) • [Bahasa Indonesia](https://github.com/rush-db/rushdb/blob/main/README_ID.md) • [ไทย](https://github.com/rush-db/rushdb/blob/main/README_TH.md)

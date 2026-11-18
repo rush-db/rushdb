@@ -15,16 +15,19 @@
 
 [เอกสาร](https://docs.rushdb.com) • [เริ่มต้นใช้งานอย่างรวดเร็ว](https://docs.rushdb.com/engine/getting-started/quickstart/) • [การสนทนา](https://github.com/orgs/rush-db/discussions) • [X](https://x.com/RushDatabase) • [RushDB Cloud](https://app.rushdb.com)
 
+[English](https://github.com/rush-db/rushdb/blob/main/README.md) • [中文](https://github.com/rush-db/rushdb/blob/main/README_ZH.md) • [日本語](https://github.com/rush-db/rushdb/blob/main/README_JA.md) • [한국어](https://github.com/rush-db/rushdb/blob/main/README_KO.md) • [Deutsch](https://github.com/rush-db/rushdb/blob/main/README_DE.md) • [Français](https://github.com/rush-db/rushdb/blob/main/README_FR.md) • [Português](https://github.com/rush-db/rushdb/blob/main/README_PT.md) • [Español](https://github.com/rush-db/rushdb/blob/main/README_ES.md) • [हिन्दी](https://github.com/rush-db/rushdb/blob/main/README_HI.md) • [العربية](https://github.com/rush-db/rushdb/blob/main/README_AR.md) • [Bahasa Indonesia](https://github.com/rush-db/rushdb/blob/main/README_ID.md) • **ไทย**
+
 </div>
 
 ---
 
-เขียน JSON จากแอปของคุณ RushDB จะเก็บเป็นเรคคอร์ดที่มีชนิดข้อมูลและเชื่อมโยงกันเป็นกราฟ
+นำข้อมูลเข้ามาในรูปแบบที่คุณมีอยู่ได้เลย ทั้ง JSON แบบซ้อน, CSV, SQL `INSERT`, การเขียนแบบ Cypher
+หรือสไตล์ Mongo หรือ change stream จากฐานข้อมูลของคุณ RushDB จะเก็บเป็นเรคคอร์ดที่มีชนิดข้อมูลและเชื่อมโยงกันเป็นกราฟ
 เรคคอร์ดชุดเดียวกันนี้ตอบได้ทั้งคิวรีความสัมพันธ์ การค้นหาแบบเวกเตอร์และฟูลเท็กซ์
 และการรวมข้อมูล จึงไม่มีที่เก็บข้อมูลชุดที่สองที่ต้องคอยซิงก์ ทุกการเขียนยังอัปเดตแคตตาล็อกของ
-label, ฟิลด์, ชนิดข้อมูล และค่าที่มีอยู่จริงด้วย เอเจนต์ดูว่ามีอะไรอยู่บ้าง
-แล้วจึงเขียนคิวรีที่ตรงกับข้อมูลนั้น
-ใช้งานผ่าน SDK, SQL หรือ Cypher ได้ ไบนารี Rust ตัวเดียว ภายใต้ Apache-2.0
+label, ฟิลด์, ชนิดข้อมูล และค่าที่มีอยู่จริงด้วย เอเจนต์จึงคิวรีฟิลด์ที่มีอยู่จริง
+เชื่อมต่อผ่าน HTTP, โปรโตคอล wire ของ PostgreSQL, Bolt, gRPC หรือ MCP จาก SDK หรือไคลเอนต์ PostgreSQL ใดก็ได้
+ไบนารี Rust ตัวเดียว ภายใต้ Apache-2.0
 
 | กราฟ | การค้นหาแบบเวกเตอร์และฟูลเท็กซ์ | การวิเคราะห์ข้อมูล |
 |---|---|---|
@@ -39,7 +42,58 @@ mkdir my-app && cd my-app && rushdb up
 ```
 
 `rushdb up` ให้บริการที่ `http://127.0.0.1:3000` โดยเก็บข้อมูลไว้ใน `./.rushdb` และใช้
-โทเค็น `local-token` จากนั้นในเทอร์มินัลอื่น รัน `npm install @rushdb/javascript-sdk`:
+โทเค็น `local-token` จากนั้นในเทอร์มินัลอื่น รัน `pip install rushdb`:
+
+```python
+from rushdb import RushDB
+
+db = RushDB("local-token", direct=True, engine_url="http://127.0.0.1:3000")
+
+# Nested JSON becomes linked records: COMPANY -> DEPARTMENT -> EMPLOYEE
+db.records.import_json(label="COMPANY", data={"name": "Acme", "DEPARTMENT": [
+    {"name": "Engineering", "EMPLOYEE": [
+        {"name": "Ada", "role": "Staff Engineer", "salary": 180000},
+        {"name": "Linus", "role": "Engineer", "salary": 140000}]},
+    {"name": "Sales", "EMPLOYEE": [{"name": "Grace", "role": "Account Executive", "salary": 120000}]}]})
+
+# Graph: filter across relationships by naming the related labels
+engineers = db.records.find({
+    "labels": ["EMPLOYEE"],
+    "where": {"role": {"$contains": "Engineer"}, "DEPARTMENT": {"COMPANY": {"name": "Acme"}}},
+    "orderBy": {"name": "asc"},
+})
+print([employee.data["name"] for employee in engineers])  # ['Ada', 'Linus']
+
+# Analytics: headcount and average salary per department
+per_department = db.records.find({
+    "labels": ["EMPLOYEE"],
+    "where": {"DEPARTMENT": {"$alias": "$department"}},
+    "select": {"people": {"$count": "*"}, "avgSalary": {"$avg": "$record.salary"}},
+    "groupBy": ["$department.name"],
+})
+print([row.data for row in per_department])
+# [{'name': 'Engineering', 'people': 2, 'avgSalary': 160000.0}, {'name': 'Sales', 'people': 1, 'avgSalary': 120000.0}]
+
+# The live schema an agent reads before it writes a query
+print(db.ai.get_schema_markdown().data)
+```
+
+สคีมานี้มาจากแคตตาล็อก ไม่ได้มาจากการสแกนเรคคอร์ด:
+
+```text
+## `EMPLOYEE` (3 records)
+
+| Property | Type | Values / Range | Semantic Search |
+|----------|------|----------------|-----------------|
+| `name` | string | `Ada`, `Linus`, `Grace` | — |
+| `role` | string | `Staff Engineer`, `Engineer`, `Account Executive` | — |
+| `salary` | number | `120000`..`180000` | — |
+```
+
+<details>
+<summary>ตัวอย่างเดียวกันใน TypeScript</summary>
+
+`npm install @rushdb/javascript-sdk`:
 
 ```typescript
 import RushDB from '@rushdb/javascript-sdk'
@@ -76,52 +130,6 @@ console.log(perDepartment.data.map((row) => row.data))
 
 // The live schema an agent reads before it writes a query
 console.log((await db.ai.getSchemaMarkdown()).data)
-```
-
-สคีมานี้มาจากแคตตาล็อก ไม่ได้มาจากการสแกนเรคคอร์ด:
-
-```text
-## `EMPLOYEE` (3 records)
-
-| Property | Type | Values / Range | Semantic Search |
-|----------|------|----------------|-----------------|
-| `name` | string | `Ada`, `Linus`, `Grace` | — |
-| `role` | string | `Staff Engineer`, `Engineer`, `Account Executive` | — |
-| `salary` | number | `120000`..`180000` | — |
-```
-
-<details>
-<summary>ตัวอย่างเดียวกันใน Python</summary>
-
-`pip install rushdb`:
-
-```python
-from rushdb import RushDB
-
-db = RushDB("local-token", direct=True, engine_url="http://127.0.0.1:3000")
-
-db.records.import_json(label="COMPANY", data={"name": "Acme", "DEPARTMENT": [
-    {"name": "Engineering", "EMPLOYEE": [
-        {"name": "Ada", "role": "Staff Engineer", "salary": 180000},
-        {"name": "Linus", "role": "Engineer", "salary": 140000}]},
-    {"name": "Sales", "EMPLOYEE": [{"name": "Grace", "role": "Account Executive", "salary": 120000}]}]})
-
-engineers = db.records.find({
-    "labels": ["EMPLOYEE"],
-    "where": {"role": {"$contains": "Engineer"}, "DEPARTMENT": {"COMPANY": {"name": "Acme"}}},
-    "orderBy": {"name": "asc"},
-})
-print([employee.data["name"] for employee in engineers])  # ['Ada', 'Linus']
-
-per_department = db.records.find({
-    "labels": ["EMPLOYEE"],
-    "where": {"DEPARTMENT": {"$alias": "$department"}},
-    "select": {"people": {"$count": "*"}, "avgSalary": {"$avg": "$record.salary"}},
-    "groupBy": ["$department.name"],
-})
-print([row.data for row in per_department])
-
-print(db.ai.get_schema_markdown().data)
 ```
 
 </details>
@@ -217,5 +225,3 @@ Cloud สร้างเวกเตอร์ให้คุณได้
 RushDB 2.x (เวอร์ชันเดิม ที่สร้างบน Neo4j) อยู่ใน
 [branch `2.x`](https://github.com/rush-db/rushdb/tree/2.x) และได้รับการแก้ไขด้านความปลอดภัย
 จนถึง 2027-10-28 [การอัปเกรดจาก 2.x](https://docs.rushdb.com/engine/operations/upgrading-from-2x/)
-
-[English](https://github.com/rush-db/rushdb/blob/main/README.md) • [中文](https://github.com/rush-db/rushdb/blob/main/README_ZH.md) • [日本語](https://github.com/rush-db/rushdb/blob/main/README_JA.md) • [한국어](https://github.com/rush-db/rushdb/blob/main/README_KO.md) • [Deutsch](https://github.com/rush-db/rushdb/blob/main/README_DE.md) • [Français](https://github.com/rush-db/rushdb/blob/main/README_FR.md) • [Português](https://github.com/rush-db/rushdb/blob/main/README_PT.md) • [Español](https://github.com/rush-db/rushdb/blob/main/README_ES.md) • [हिन्दी](https://github.com/rush-db/rushdb/blob/main/README_HI.md) • [العربية](https://github.com/rush-db/rushdb/blob/main/README_AR.md) • [Bahasa Indonesia](https://github.com/rush-db/rushdb/blob/main/README_ID.md) • **ไทย**

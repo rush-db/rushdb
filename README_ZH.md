@@ -15,15 +15,18 @@
 
 [文档](https://docs.rushdb.com) • [快速开始](https://docs.rushdb.com/engine/getting-started/quickstart/) • [讨论区](https://github.com/orgs/rush-db/discussions) • [X](https://x.com/RushDatabase) • [RushDB Cloud](https://app.rushdb.com)
 
+[English](https://github.com/rush-db/rushdb/blob/main/README.md) • **中文** • [日本語](https://github.com/rush-db/rushdb/blob/main/README_JA.md) • [한국어](https://github.com/rush-db/rushdb/blob/main/README_KO.md) • [Deutsch](https://github.com/rush-db/rushdb/blob/main/README_DE.md) • [Français](https://github.com/rush-db/rushdb/blob/main/README_FR.md) • [Português](https://github.com/rush-db/rushdb/blob/main/README_PT.md) • [Español](https://github.com/rush-db/rushdb/blob/main/README_ES.md) • [हिन्दी](https://github.com/rush-db/rushdb/blob/main/README_HI.md) • [العربية](https://github.com/rush-db/rushdb/blob/main/README_AR.md) • [Bahasa Indonesia](https://github.com/rush-db/rushdb/blob/main/README_ID.md) • [ไทย](https://github.com/rush-db/rushdb/blob/main/README_TH.md)
+
 </div>
 
 ---
 
-从你的应用写入 JSON。RushDB 把它存储为带类型的记录，并连接成一张图；
+数据是什么样，就按什么样导入：嵌套 JSON、CSV、SQL `INSERT`、Cypher 或 Mongo 风格的写入，
+或者来自你的数据库的变更流。RushDB 把它存储为带类型的记录，并连接成一张图；
 同一批记录既能回答关系查询，也能用于向量搜索、全文搜索和聚合，因此不需要
 再维护一个需要同步的第二存储。每次写入还会更新一份目录，记录当前存在的标签、
-字段、类型和值：智能体先查看有哪些数据，再写出与之匹配的查询。
-可以使用 SDK、SQL 或 Cypher。一个 Rust 二进制文件，Apache-2.0 许可。
+字段、类型和值，因此智能体查询的是真实存在的字段。可以通过 HTTP、PostgreSQL 线协议、
+Bolt、gRPC 或 MCP 连接，使用 SDK 或任意 PostgreSQL 客户端均可。一个 Rust 二进制文件，Apache-2.0 许可。
 
 | 图 | 向量与全文搜索 | 分析 |
 |---|---|---|
@@ -38,7 +41,58 @@ mkdir my-app && cd my-app && rushdb up
 ```
 
 `rushdb up` 在 `http://127.0.0.1:3000` 提供服务，数据保存在 `./.rushdb`，
-令牌为 `local-token`。在另一个终端中执行 `npm install @rushdb/javascript-sdk`：
+令牌为 `local-token`。在另一个终端中执行 `pip install rushdb`：
+
+```python
+from rushdb import RushDB
+
+db = RushDB("local-token", direct=True, engine_url="http://127.0.0.1:3000")
+
+# Nested JSON becomes linked records: COMPANY -> DEPARTMENT -> EMPLOYEE
+db.records.import_json(label="COMPANY", data={"name": "Acme", "DEPARTMENT": [
+    {"name": "Engineering", "EMPLOYEE": [
+        {"name": "Ada", "role": "Staff Engineer", "salary": 180000},
+        {"name": "Linus", "role": "Engineer", "salary": 140000}]},
+    {"name": "Sales", "EMPLOYEE": [{"name": "Grace", "role": "Account Executive", "salary": 120000}]}]})
+
+# Graph: filter across relationships by naming the related labels
+engineers = db.records.find({
+    "labels": ["EMPLOYEE"],
+    "where": {"role": {"$contains": "Engineer"}, "DEPARTMENT": {"COMPANY": {"name": "Acme"}}},
+    "orderBy": {"name": "asc"},
+})
+print([employee.data["name"] for employee in engineers])  # ['Ada', 'Linus']
+
+# Analytics: headcount and average salary per department
+per_department = db.records.find({
+    "labels": ["EMPLOYEE"],
+    "where": {"DEPARTMENT": {"$alias": "$department"}},
+    "select": {"people": {"$count": "*"}, "avgSalary": {"$avg": "$record.salary"}},
+    "groupBy": ["$department.name"],
+})
+print([row.data for row in per_department])
+# [{'name': 'Engineering', 'people': 2, 'avgSalary': 160000.0}, {'name': 'Sales', 'people': 1, 'avgSalary': 120000.0}]
+
+# The live schema an agent reads before it writes a query
+print(db.ai.get_schema_markdown().data)
+```
+
+schema 来自目录，而不是扫描记录得到的：
+
+```text
+## `EMPLOYEE` (3 records)
+
+| Property | Type | Values / Range | Semantic Search |
+|----------|------|----------------|-----------------|
+| `name` | string | `Ada`, `Linus`, `Grace` | — |
+| `role` | string | `Staff Engineer`, `Engineer`, `Account Executive` | — |
+| `salary` | number | `120000`..`180000` | — |
+```
+
+<details>
+<summary>TypeScript 版本</summary>
+
+`npm install @rushdb/javascript-sdk`：
 
 ```typescript
 import RushDB from '@rushdb/javascript-sdk'
@@ -75,52 +129,6 @@ console.log(perDepartment.data.map((row) => row.data))
 
 // The live schema an agent reads before it writes a query
 console.log((await db.ai.getSchemaMarkdown()).data)
-```
-
-schema 来自目录，而不是扫描记录得到的：
-
-```text
-## `EMPLOYEE` (3 records)
-
-| Property | Type | Values / Range | Semantic Search |
-|----------|------|----------------|-----------------|
-| `name` | string | `Ada`, `Linus`, `Grace` | — |
-| `role` | string | `Staff Engineer`, `Engineer`, `Account Executive` | — |
-| `salary` | number | `120000`..`180000` | — |
-```
-
-<details>
-<summary>Python 版本</summary>
-
-`pip install rushdb`：
-
-```python
-from rushdb import RushDB
-
-db = RushDB("local-token", direct=True, engine_url="http://127.0.0.1:3000")
-
-db.records.import_json(label="COMPANY", data={"name": "Acme", "DEPARTMENT": [
-    {"name": "Engineering", "EMPLOYEE": [
-        {"name": "Ada", "role": "Staff Engineer", "salary": 180000},
-        {"name": "Linus", "role": "Engineer", "salary": 140000}]},
-    {"name": "Sales", "EMPLOYEE": [{"name": "Grace", "role": "Account Executive", "salary": 120000}]}]})
-
-engineers = db.records.find({
-    "labels": ["EMPLOYEE"],
-    "where": {"role": {"$contains": "Engineer"}, "DEPARTMENT": {"COMPANY": {"name": "Acme"}}},
-    "orderBy": {"name": "asc"},
-})
-print([employee.data["name"] for employee in engineers])  # ['Ada', 'Linus']
-
-per_department = db.records.find({
-    "labels": ["EMPLOYEE"],
-    "where": {"DEPARTMENT": {"$alias": "$department"}},
-    "select": {"people": {"$count": "*"}, "avgSalary": {"$avg": "$record.salary"}},
-    "groupBy": ["$department.name"],
-})
-print([row.data for row in per_department])
-
-print(db.ai.get_schema_markdown().data)
 ```
 
 </details>
@@ -212,5 +220,3 @@ Cloud 可以替你生成向量。
 RushDB 2.x（旧版，基于 Neo4j）位于
 [`2.x` 分支](https://github.com/rush-db/rushdb/tree/2.x)，安全修复将持续
 到 2027-10-28。[从 2.x 升级](https://docs.rushdb.com/engine/operations/upgrading-from-2x/)
-
-[English](https://github.com/rush-db/rushdb/blob/main/README.md) • **中文** • [日本語](https://github.com/rush-db/rushdb/blob/main/README_JA.md) • [한국어](https://github.com/rush-db/rushdb/blob/main/README_KO.md) • [Deutsch](https://github.com/rush-db/rushdb/blob/main/README_DE.md) • [Français](https://github.com/rush-db/rushdb/blob/main/README_FR.md) • [Português](https://github.com/rush-db/rushdb/blob/main/README_PT.md) • [Español](https://github.com/rush-db/rushdb/blob/main/README_ES.md) • [हिन्दी](https://github.com/rush-db/rushdb/blob/main/README_HI.md) • [العربية](https://github.com/rush-db/rushdb/blob/main/README_AR.md) • [Bahasa Indonesia](https://github.com/rush-db/rushdb/blob/main/README_ID.md) • [ไทย](https://github.com/rush-db/rushdb/blob/main/README_TH.md)

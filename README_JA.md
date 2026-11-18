@@ -15,16 +15,20 @@
 
 [ドキュメント](https://docs.rushdb.com) • [クイックスタート](https://docs.rushdb.com/engine/getting-started/quickstart/) • [ディスカッション](https://github.com/orgs/rush-db/discussions) • [X](https://x.com/RushDatabase) • [RushDB Cloud](https://app.rushdb.com)
 
+[English](https://github.com/rush-db/rushdb/blob/main/README.md) • [中文](https://github.com/rush-db/rushdb/blob/main/README_ZH.md) • **日本語** • [한국어](https://github.com/rush-db/rushdb/blob/main/README_KO.md) • [Deutsch](https://github.com/rush-db/rushdb/blob/main/README_DE.md) • [Français](https://github.com/rush-db/rushdb/blob/main/README_FR.md) • [Português](https://github.com/rush-db/rushdb/blob/main/README_PT.md) • [Español](https://github.com/rush-db/rushdb/blob/main/README_ES.md) • [हिन्दी](https://github.com/rush-db/rushdb/blob/main/README_HI.md) • [العربية](https://github.com/rush-db/rushdb/blob/main/README_AR.md) • [Bahasa Indonesia](https://github.com/rush-db/rushdb/blob/main/README_ID.md) • [ไทย](https://github.com/rush-db/rushdb/blob/main/README_TH.md)
+
 </div>
 
 ---
 
-アプリから JSON を書き込みます。RushDB はそれを型付きのレコードとして保存し、
-グラフとしてつなぎます。同じレコードがリレーションのクエリ、ベクトル検索と全文検索、
-集計に答えるので、同期を保たなければならない 2 つ目のストアは必要ありません。
-書き込みのたびに、存在するラベル、フィールド、型、値のカタログも更新されます。
-エージェントはまず何があるかを調べ、それに合ったクエリを書きます。
-SDK、SQL、Cypher が使えます。Rust のバイナリひとつ、Apache-2.0。
+データは手元にある形のまま取り込めます。ネストした JSON、CSV、SQL の `INSERT`、
+Cypher や Mongo 形式の書き込み、あるいはお使いのデータベースからの変更ストリーム。
+RushDB はそれを型付きのレコードとして保存し、グラフとしてつなぎます。同じレコードが
+リレーションのクエリ、ベクトル検索と全文検索、集計に答えるので、同期を保たなければ
+ならない 2 つ目のストアは必要ありません。書き込みのたびに、存在するラベル、フィールド、
+型、値のカタログも更新されるので、エージェントは実在するフィールドをクエリします。
+HTTP、PostgreSQL ワイヤプロトコル、Bolt、gRPC、MCP で接続でき、SDK からでも任意の
+PostgreSQL クライアントからでも使えます。Rust のバイナリひとつ、Apache-2.0。
 
 | グラフ | ベクトル検索と全文検索 | 分析 |
 |---|---|---|
@@ -39,7 +43,58 @@ mkdir my-app && cd my-app && rushdb up
 ```
 
 `rushdb up` は `http://127.0.0.1:3000` で待ち受け、データを `./.rushdb` に保存し、
-トークンは `local-token` です。別のターミナルで `npm install @rushdb/javascript-sdk` を実行します：
+トークンは `local-token` です。別のターミナルで `pip install rushdb` を実行します：
+
+```python
+from rushdb import RushDB
+
+db = RushDB("local-token", direct=True, engine_url="http://127.0.0.1:3000")
+
+# Nested JSON becomes linked records: COMPANY -> DEPARTMENT -> EMPLOYEE
+db.records.import_json(label="COMPANY", data={"name": "Acme", "DEPARTMENT": [
+    {"name": "Engineering", "EMPLOYEE": [
+        {"name": "Ada", "role": "Staff Engineer", "salary": 180000},
+        {"name": "Linus", "role": "Engineer", "salary": 140000}]},
+    {"name": "Sales", "EMPLOYEE": [{"name": "Grace", "role": "Account Executive", "salary": 120000}]}]})
+
+# Graph: filter across relationships by naming the related labels
+engineers = db.records.find({
+    "labels": ["EMPLOYEE"],
+    "where": {"role": {"$contains": "Engineer"}, "DEPARTMENT": {"COMPANY": {"name": "Acme"}}},
+    "orderBy": {"name": "asc"},
+})
+print([employee.data["name"] for employee in engineers])  # ['Ada', 'Linus']
+
+# Analytics: headcount and average salary per department
+per_department = db.records.find({
+    "labels": ["EMPLOYEE"],
+    "where": {"DEPARTMENT": {"$alias": "$department"}},
+    "select": {"people": {"$count": "*"}, "avgSalary": {"$avg": "$record.salary"}},
+    "groupBy": ["$department.name"],
+})
+print([row.data for row in per_department])
+# [{'name': 'Engineering', 'people': 2, 'avgSalary': 160000.0}, {'name': 'Sales', 'people': 1, 'avgSalary': 120000.0}]
+
+# The live schema an agent reads before it writes a query
+print(db.ai.get_schema_markdown().data)
+```
+
+スキーマはレコードを走査して作るのではなく、カタログから得られます：
+
+```text
+## `EMPLOYEE` (3 records)
+
+| Property | Type | Values / Range | Semantic Search |
+|----------|------|----------------|-----------------|
+| `name` | string | `Ada`, `Linus`, `Grace` | — |
+| `role` | string | `Staff Engineer`, `Engineer`, `Account Executive` | — |
+| `salary` | number | `120000`..`180000` | — |
+```
+
+<details>
+<summary>同じ内容を TypeScript で</summary>
+
+`npm install @rushdb/javascript-sdk`：
 
 ```typescript
 import RushDB from '@rushdb/javascript-sdk'
@@ -76,52 +131,6 @@ console.log(perDepartment.data.map((row) => row.data))
 
 // The live schema an agent reads before it writes a query
 console.log((await db.ai.getSchemaMarkdown()).data)
-```
-
-スキーマはレコードを走査して作るのではなく、カタログから得られます：
-
-```text
-## `EMPLOYEE` (3 records)
-
-| Property | Type | Values / Range | Semantic Search |
-|----------|------|----------------|-----------------|
-| `name` | string | `Ada`, `Linus`, `Grace` | — |
-| `role` | string | `Staff Engineer`, `Engineer`, `Account Executive` | — |
-| `salary` | number | `120000`..`180000` | — |
-```
-
-<details>
-<summary>同じ内容を Python で</summary>
-
-`pip install rushdb`：
-
-```python
-from rushdb import RushDB
-
-db = RushDB("local-token", direct=True, engine_url="http://127.0.0.1:3000")
-
-db.records.import_json(label="COMPANY", data={"name": "Acme", "DEPARTMENT": [
-    {"name": "Engineering", "EMPLOYEE": [
-        {"name": "Ada", "role": "Staff Engineer", "salary": 180000},
-        {"name": "Linus", "role": "Engineer", "salary": 140000}]},
-    {"name": "Sales", "EMPLOYEE": [{"name": "Grace", "role": "Account Executive", "salary": 120000}]}]})
-
-engineers = db.records.find({
-    "labels": ["EMPLOYEE"],
-    "where": {"role": {"$contains": "Engineer"}, "DEPARTMENT": {"COMPANY": {"name": "Acme"}}},
-    "orderBy": {"name": "asc"},
-})
-print([employee.data["name"] for employee in engineers])  # ['Ada', 'Linus']
-
-per_department = db.records.find({
-    "labels": ["EMPLOYEE"],
-    "where": {"DEPARTMENT": {"$alias": "$department"}},
-    "select": {"people": {"$count": "*"}, "avgSalary": {"$avg": "$record.salary"}},
-    "groupBy": ["$department.name"],
-})
-print([row.data for row in per_department])
-
-print(db.ai.get_schema_markdown().data)
 ```
 
 </details>
@@ -215,5 +224,3 @@ Cloud ではベクトルを生成させることもできます。
 RushDB 2.x（レガシー、Neo4j ベース）は
 [`2.x` ブランチ](https://github.com/rush-db/rushdb/tree/2.x) にあり、
 2027-10-28 までセキュリティ修正が提供されます。[2.x からのアップグレード](https://docs.rushdb.com/engine/operations/upgrading-from-2x/)
-
-[English](https://github.com/rush-db/rushdb/blob/main/README.md) • [中文](https://github.com/rush-db/rushdb/blob/main/README_ZH.md) • **日本語** • [한국어](https://github.com/rush-db/rushdb/blob/main/README_KO.md) • [Deutsch](https://github.com/rush-db/rushdb/blob/main/README_DE.md) • [Français](https://github.com/rush-db/rushdb/blob/main/README_FR.md) • [Português](https://github.com/rush-db/rushdb/blob/main/README_PT.md) • [Español](https://github.com/rush-db/rushdb/blob/main/README_ES.md) • [हिन्दी](https://github.com/rush-db/rushdb/blob/main/README_HI.md) • [العربية](https://github.com/rush-db/rushdb/blob/main/README_AR.md) • [Bahasa Indonesia](https://github.com/rush-db/rushdb/blob/main/README_ID.md) • [ไทย](https://github.com/rush-db/rushdb/blob/main/README_TH.md)
