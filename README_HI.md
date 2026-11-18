@@ -288,10 +288,12 @@ print(db.properties.values(role, query="eng")["data"])
 
 ## आप क्या बना सकते हैं
 
-- **Agent memory.** Memories relationships वाले records के रूप में, scope से filter की हुई और आपके store किए vectors से rank की हुई। OpenClaw और Hermes के लिए तैयार providers।
-- **आपके app के data पर search.** उन records पर full-text, vector और hybrid search जिन्हें आपका app पहले से लिखता है, और उसी query में graph filters।
-- **जुड़े हुए data पर सवाल.** Agent schema पढ़ता है, फिर ऐसी query लिखता है जिसे आप जाँच सकते हैं: JSON query language, SQL या Cypher।
-- **Export के बिना reports.** आपके app के लिखे records को group और aggregate कीजिए, SDKs से या किसी भी PostgreSQL client से।
+- **एजेंट मेमोरी.** मेमोरी ऐसे रिकॉर्ड हैं जो user, agent या session के हिसाब से अलग रहते हैं और उस बातचीत के turn से जुड़े होते हैं जिसने उन्हें बनाया, इसलिए recall बताता है कि कोई मेमोरी कहाँ से आई। OpenClaw और Hermes के लिए तैयार providers।
+- **कंपनी ब्रेन और RAG.** Docs, CRM, support और billing का डेटा अपने-अपने रूप में आता है और उन keys से जुड़ता है जो उनमें पहले से साझा हैं, जैसे email या account ID। Retrieval पहले सही account या version पर filter करता है, फिर vector और BM25 को साथ मिलाकर rank करता है, और हर तथ्य अपने पीछे के रिकॉर्ड का हवाला देता है।
+- **Faceted search.** Filter sidebars जिनकी गिनतियाँ catalog से आती हैं, मौजूदा filter तक सीमित और सटीक, और उसी filter के तहत hybrid search ranking। अलग search index को sync रखने की ज़रूरत नहीं।
+- **आपके ऐप में AI search और assistants.** Text और vector indexes डेटाबेस में ही रहते हैं और ऐप के लिखते ही अपडेट रहते हैं; SDK, MCP सर्वर और SQL clients वही रिकॉर्ड पढ़ते हैं।
+- **एजेंट-आधारित डेटा एनालिटिक्स.** एजेंट पढ़ता है कि कौन-से labels और fields मौजूद हैं और हर value कैसे लिखी गई है, फिर उन पर SQL, Cypher या aggregation लिखता है। हर जवाब के साथ एक query आती है जिसे कोई भी दोबारा चला सकता है।
+- **ऐसे ऐप जिनका schema चलते-चलते बदलता है.** कोई भी JSON भेजें: types infer होते हैं, nested objects जुड़े हुए रिकॉर्ड बनते हैं, और नए fields उन्हें जोड़ने वाले write के साथ ही catalog में दिखते हैं। कोई migration नहीं।
 
 ## Features
 

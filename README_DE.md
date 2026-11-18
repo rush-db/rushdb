@@ -289,10 +289,12 @@ print(db.properties.values(role, query="eng")["data"])
 
 ## Was du damit bauen kannst
 
-- **Agent-Gedächtnis.** Erinnerungen als Datensätze mit Beziehungen, nach Scope gefiltert und nach den Vektoren gerankt, die du speicherst. Fertige Provider für OpenClaw und Hermes.
-- **Suche über die Daten deiner App.** Volltext-, Vektor- und hybride Suche über die Datensätze, die deine App ohnehin schreibt, mit Graph-Filtern in derselben Abfrage.
-- **Fragen über verknüpfte Daten.** Ein Agent liest das Schema und schreibt dann eine Abfrage, die du prüfen kannst: in der JSON-Abfragesprache, in SQL oder in Cypher.
-- **Berichte ohne Export.** Gruppiere und aggregiere die Datensätze, die deine App schreibt, aus den SDKs oder mit jedem PostgreSQL-Client.
+- **Agent-Gedächtnis.** Erinnerungen sind Datensätze, nach Nutzer, Agent oder Sitzung abgegrenzt und mit dem Gesprächszug verknüpft, aus dem sie stammen, sodass der Abruf zeigt, woher eine Erinnerung kommt. Fertige Provider für OpenClaw und Hermes.
+- **Company Brain und RAG.** Dokumente, CRM-, Support- und Abrechnungsdaten kommen in ihrer eigenen Form an und werden über Schlüssel verknüpft, die sie schon teilen, etwa eine E-Mail oder eine Konto-ID. Die Suche filtert zuerst auf das richtige Konto oder die richtige Version und rankt dann nach Vektor und BM25 zusammen; jede Aussage verweist auf den Datensatz dahinter.
+- **Facettensuche.** Filterleisten, deren Zählungen aus dem Katalog kommen, auf den aktuellen Filter bezogen und exakt, mit hybrider Suche unter demselben Filter. Kein separater Suchindex, der synchron gehalten werden muss.
+- **KI-Suche und Assistenten in deiner App.** Text- und Vektorindizes liegen in der Datenbank und bleiben aktuell, während deine App schreibt; die SDKs, der MCP-Server und SQL-Clients lesen dieselben Datensätze.
+- **Agentische Datenanalyse.** Der Agent liest, welche Labels und Felder es gibt und wie jeder Wert geschrieben ist, und schreibt dann SQL, Cypher oder eine Aggregation dagegen. Jede Antwort kommt mit einer Abfrage, die jeder erneut ausführen kann.
+- **Apps, deren Schema sich unterwegs ändert.** Schreib beliebiges JSON: Typen werden abgeleitet, verschachtelte Objekte werden zu verknüpften Datensätzen, und neue Felder erscheinen mit dem Schreibvorgang, der sie hinzufügt, im Katalog. Keine Migrationen.
 
 ## Funktionen
 

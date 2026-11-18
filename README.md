@@ -293,10 +293,25 @@ and the values of small fields. The MCP server offers each read as a tool:
 
 ## What you can build
 
-- **Agent memory.** Memories as records with relationships, filtered by scope and ranked by the vectors you store. Ready-made providers for OpenClaw and Hermes.
-- **Search over your app's data.** Full-text, vector and hybrid search over the records your app already writes, with graph filters in the same query.
-- **Questions over connected data.** An agent reads the schema, then writes a query you can inspect: the JSON query language, SQL or Cypher.
-- **Reports without an export.** Group and aggregate the records your app writes, from the SDKs or any PostgreSQL client.
+- **Agent memory.** Memories are records scoped by user, agent or session and
+  linked to the turn that produced them, so recall returns where a memory came
+  from. Ready-made providers for OpenClaw and Hermes.
+- **Company brain and RAG.** Docs, CRM, support and billing data land in their
+  own shapes and link on keys they already share, like an email or an account
+  ID. Retrieval filters to the right account or version first, then ranks by
+  vector and BM25 together, and every fact cites the record behind it.
+- **Faceted search.** Filter sidebars whose counts come from the catalog,
+  scoped to the current filter and exact, with hybrid search ranked under the
+  same filter. No separate search index to keep in sync.
+- **AI search and assistants in your app.** Text and vector indexes live in the
+  database and stay current as your app writes; the SDKs, the MCP server and
+  SQL clients read the same records.
+- **Agentic data analytics.** The agent reads which labels and fields exist and
+  how each value is spelled, then writes SQL, Cypher or an aggregation against
+  them. Every answer ships with a query anyone can rerun.
+- **Apps whose schema evolves on the go.** Push any JSON: types are inferred,
+  nested objects become linked records, and new fields appear in the catalog
+  with the write that adds them. No migrations.
 
 ## Features
 

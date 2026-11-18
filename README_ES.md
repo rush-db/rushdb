@@ -288,10 +288,12 @@ print(db.properties.values(role, query="eng")["data"])
 
 ## Qué puedes construir
 
-- **Memoria para agentes.** Recuerdos como registros con relaciones, filtrados por ámbito y ordenados según los vectores que guardas. Proveedores listos para usar con OpenClaw y Hermes.
-- **Búsqueda sobre los datos de tu aplicación.** Búsqueda de texto completo, vectorial e híbrida sobre los registros que tu aplicación ya escribe, con filtros de grafo en la misma consulta.
-- **Preguntas sobre datos conectados.** Un agente lee el esquema y luego escribe una consulta que puedes revisar: en el lenguaje de consultas JSON, en SQL o en Cypher.
-- **Informes sin exportar.** Agrupa y agrega los registros que escribe tu aplicación, desde los SDK o desde cualquier cliente de PostgreSQL.
+- **Memoria de agentes.** Los recuerdos son registros acotados por usuario, agente o sesión y enlazados al turno que los produjo, así que la recuperación muestra de dónde viene cada recuerdo. Proveedores listos para OpenClaw y Hermes.
+- **Cerebro de empresa y RAG.** Documentos, CRM, soporte y facturación llegan con su propia forma y se enlazan por claves que ya comparten, como un correo o un ID de cuenta. La recuperación filtra primero por la cuenta o versión correcta y luego ordena por vector y BM25 a la vez, y cada dato cita el registro que lo respalda.
+- **Búsqueda facetada.** Barras de filtros cuyos recuentos salen del catálogo, acotados al filtro actual y exactos, con búsqueda híbrida ordenada bajo el mismo filtro. Sin un índice de búsqueda aparte que sincronizar.
+- **Búsqueda con IA y asistentes en tu app.** Los índices de texto y vectoriales viven en la base de datos y se mantienen al día mientras tu app escribe; los SDK, el servidor MCP y los clientes SQL leen los mismos registros.
+- **Análisis de datos con agentes.** El agente lee qué etiquetas y campos existen y cómo se escribe cada valor, y luego escribe SQL, Cypher o una agregación sobre ellos. Cada respuesta incluye una consulta que cualquiera puede volver a ejecutar.
+- **Apps cuyo esquema evoluciona sobre la marcha.** Envía cualquier JSON: los tipos se infieren, los objetos anidados se convierten en registros enlazados y los campos nuevos aparecen en el catálogo con la escritura que los añade. Sin migraciones.
 
 ## Características
 

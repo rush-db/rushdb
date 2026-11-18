@@ -289,10 +289,12 @@ print(db.properties.values(role, query="eng")["data"])
 
 ## Ce que vous pouvez construire
 
-- **Mémoire d'agent.** Des souvenirs stockés comme enregistrements avec leurs relations, filtrés par portée et classés selon les vecteurs que vous stockez. Fournisseurs prêts à l'emploi pour OpenClaw et Hermes.
-- **Recherche dans les données de votre application.** Recherche plein texte, vectorielle et hybride sur les enregistrements que votre application écrit déjà, avec des filtres de graphe dans la même requête.
-- **Questions sur des données connectées.** Un agent lit le schéma, puis écrit une requête que vous pouvez inspecter : dans le langage de requête JSON, en SQL ou en Cypher.
-- **Des rapports sans export.** Regroupez et agrégez les enregistrements écrits par votre application, depuis les SDK ou n'importe quel client PostgreSQL.
+- **Mémoire d’agent.** Les souvenirs sont des enregistrements délimités par utilisateur, agent ou session et liés au tour qui les a produits, si bien que le rappel indique d’où vient un souvenir. Des fournisseurs prêts à l’emploi pour OpenClaw et Hermes.
+- **Cerveau d’entreprise et RAG.** Docs, CRM, support et facturation arrivent sous leur propre forme et sont liés par les clés qu’ils partagent déjà, comme un e-mail ou un identifiant de compte. La recherche filtre d’abord sur le bon compte ou la bonne version, puis classe par vecteur et BM25 ensemble, et chaque fait cite l’enregistrement qui le fonde.
+- **Recherche à facettes.** Des barres de filtres dont les comptes viennent du catalogue, limités au filtre courant et exacts, avec une recherche hybride classée sous le même filtre. Aucun index de recherche séparé à synchroniser.
+- **Recherche IA et assistants dans votre app.** Les index texte et vectoriels vivent dans la base et restent à jour au fil des écritures de votre app ; les SDK, le serveur MCP et les clients SQL lisent les mêmes enregistrements.
+- **Analyse de données agentique.** L’agent lit quels labels et champs existent et comment chaque valeur s’écrit, puis écrit du SQL, du Cypher ou une agrégation sur ces champs. Chaque réponse est livrée avec une requête que chacun peut relancer.
+- **Apps dont le schéma évolue en route.** Envoyez n’importe quel JSON : les types sont déduits, les objets imbriqués deviennent des enregistrements liés, et les nouveaux champs apparaissent dans le catalogue avec l’écriture qui les ajoute. Aucune migration.
 
 ## Fonctionnalités
 

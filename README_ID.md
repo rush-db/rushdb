@@ -288,10 +288,12 @@ print(db.properties.values(role, query="eng")["data"])
 
 ## Apa yang bisa Anda bangun
 
-- **Memori agen.** Memori sebagai record dengan relasi, difilter berdasarkan cakupan dan diurutkan menurut vektor yang Anda simpan. Provider siap pakai untuk OpenClaw dan Hermes.
-- **Pencarian atas data aplikasi Anda.** Pencarian teks lengkap, vektor, dan hibrida atas record yang sudah ditulis aplikasi Anda, dengan filter graf dalam kueri yang sama.
-- **Pertanyaan atas data yang saling terhubung.** Agen membaca skema, lalu menulis kueri yang bisa Anda periksa: dalam bahasa kueri JSON, SQL, atau Cypher.
-- **Laporan tanpa ekspor.** Kelompokkan dan agregasikan record yang ditulis aplikasi Anda, dari SDK atau klien PostgreSQL apa pun.
+- **Memori agen.** Memori adalah record yang dibatasi per pengguna, agen, atau sesi dan ditautkan ke giliran yang menghasilkannya, sehingga recall menunjukkan asal sebuah memori. Provider siap pakai untuk OpenClaw dan Hermes.
+- **Otak perusahaan dan RAG.** Data dokumen, CRM, dukungan, dan penagihan masuk dalam bentuknya sendiri dan ditautkan lewat kunci yang sudah sama, seperti email atau ID akun. Pengambilan data memfilter ke akun atau versi yang tepat lebih dulu, lalu memberi peringkat dengan vektor dan BM25 sekaligus, dan setiap fakta merujuk record di baliknya.
+- **Pencarian berfaset.** Panel filter yang hitungannya berasal dari katalog, terbatas pada filter saat ini dan persis, dengan pencarian hibrida yang diperingkat di bawah filter yang sama. Tanpa indeks pencarian terpisah yang harus disinkronkan.
+- **Pencarian AI dan asisten di aplikasi Anda.** Indeks teks dan vektor ada di dalam database dan selalu mutakhir saat aplikasi Anda menulis; SDK, server MCP, dan klien SQL membaca record yang sama.
+- **Analitik data berbasis agen.** Agen membaca label dan field apa saja yang ada dan bagaimana setiap nilai dieja, lalu menulis SQL, Cypher, atau agregasi terhadapnya. Setiap jawaban disertai kueri yang bisa dijalankan ulang siapa pun.
+- **Aplikasi yang skemanya berubah seiring jalan.** Kirim JSON apa pun: tipe disimpulkan, objek bersarang menjadi record yang tertaut, dan field baru muncul di katalog bersama penulisan yang menambahkannya. Tanpa migrasi.
 
 ## Fitur
 

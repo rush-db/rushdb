@@ -288,10 +288,12 @@ print(db.properties.values(role, query="eng")["data"])
 
 ## O que você pode construir
 
-- **Memória para agentes.** Memórias como registros com relações, filtradas por escopo e ordenadas pelos vetores que você armazena. Provedores prontos para OpenClaw e Hermes.
-- **Busca nos dados do seu app.** Busca de texto completo, vetorial e híbrida sobre os registros que seu app já escreve, com filtros de grafo na mesma consulta.
-- **Perguntas sobre dados conectados.** Um agente lê o schema e então escreve uma consulta que você pode inspecionar: na linguagem de consulta JSON, em SQL ou em Cypher.
-- **Relatórios sem exportação.** Agrupe e agregue os registros que seu app escreve, pelos SDKs ou por qualquer cliente PostgreSQL.
+- **Memória de agentes.** Memórias são registros delimitados por usuário, agente ou sessão e ligados ao turno que as produziu, então a recuperação mostra de onde veio cada memória. Provedores prontos para OpenClaw e Hermes.
+- **Cérebro da empresa e RAG.** Docs, CRM, suporte e cobrança chegam no próprio formato e são ligados por chaves que já compartilham, como um e-mail ou um ID de conta. A recuperação filtra primeiro pela conta ou versão certa e depois ranqueia por vetor e BM25 juntos, e cada fato cita o registro por trás dele.
+- **Busca facetada.** Barras de filtro cujas contagens vêm do catálogo, restritas ao filtro atual e exatas, com busca híbrida ranqueada sob o mesmo filtro. Sem um índice de busca separado para manter em sincronia.
+- **Busca com IA e assistentes no seu app.** Índices de texto e vetoriais ficam no banco e se mantêm atualizados conforme seu app escreve; os SDKs, o servidor MCP e clientes SQL leem os mesmos registros.
+- **Análise de dados com agentes.** O agente lê quais labels e campos existem e como cada valor está escrito, e então escreve SQL, Cypher ou uma agregação sobre eles. Toda resposta vem com uma consulta que qualquer pessoa pode rodar de novo.
+- **Apps cujo esquema evolui no caminho.** Envie qualquer JSON: os tipos são inferidos, objetos aninhados viram registros ligados e campos novos aparecem no catálogo com a escrita que os adiciona. Sem migrações.
 
 ## Recursos
 
