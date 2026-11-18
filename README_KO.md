@@ -69,7 +69,7 @@ db.records.import_json(label="COMPANY", data={
             ],
         },
     ],
-})
+}, options={"relationshipType": "HAS"})
 
 # Graph: filter across relationships by naming the related labels
 engineers = db.records.find({
@@ -98,18 +98,6 @@ print([row.data for row in per_department])
 
 # The live schema an agent reads before it writes a query
 print(db.ai.get_schema_markdown().data)
-```
-
-스키마는 레코드를 스캔해서 얻는 것이 아니라 카탈로그에서 나옵니다:
-
-```text
-## `EMPLOYEE` (3 records)
-
-| Property | Type | Values / Range | Semantic Search |
-|----------|------|----------------|-----------------|
-| `name` | string | `Ada`, `Linus`, `Grace` | — |
-| `role` | string | `Staff Engineer`, `Engineer`, `Account Executive` | — |
-| `salary` | number | `120000`..`180000` | — |
 ```
 
 <details>
@@ -145,7 +133,8 @@ await db.records.importJson({
         ]
       }
     ]
-  }
+  },
+  options: { relationshipType: 'HAS' }
 })
 
 // Graph: filter across relationships by naming the related labels
@@ -190,6 +179,111 @@ PGPASSWORD=local-token psql \
 
 다음: [전체 빠른 시작](https://docs.rushdb.com/engine/getting-started/quickstart/) ·
 [Docker 및 기타 설치 방법](https://docs.rushdb.com/engine/getting-started/installation/)
+
+## 에이전트가 쿼리하기 전에 보는 것
+
+빠른 시작의 마지막 줄은 에이전트가 가장 먼저 읽는 스키마를 출력합니다. 이 스키마는 레코드를 스캔한 결과가 아니라, 쓰기마다 갱신되는 카탈로그에서 나옵니다:
+
+```text
+# Graph Schema
+
+## Labels
+
+| Label | Count |
+|-------|------:|
+| `EMPLOYEE` | 3 |
+| `DEPARTMENT` | 2 |
+| `COMPANY` | 1 |
+
+---
+
+## `EMPLOYEE` (3 records)
+
+### Properties
+
+| Property | Type | Values / Range | Semantic Search |
+|----------|------|----------------|-----------------|
+| `name` | string | `Ada`, `Linus`, `Grace` | — |
+| `role` | string | `Staff Engineer`, `Engineer`, `Account Executive` | — |
+| `salary` | number | `120000`..`180000` | — |
+
+### Relationships
+
+| Traversal | Count | Edge Properties |
+|-----------|------:|-----------------|
+| `(EMPLOYEE)<-[:HAS]-(DEPARTMENT)` | 3 | — |
+
+---
+
+## `DEPARTMENT` (2 records)
+
+### Properties
+
+| Property | Type | Values / Range | Semantic Search |
+|----------|------|----------------|-----------------|
+| `name` | string | `Engineering`, `Sales` | — |
+
+### Relationships
+
+| Traversal | Count | Edge Properties |
+|-----------|------:|-----------------|
+| `(DEPARTMENT)<-[:HAS]-(COMPANY)` | 2 | — |
+| `(DEPARTMENT)-[:HAS]->(EMPLOYEE)` | 3 | — |
+
+---
+
+## `COMPANY` (1 record)
+
+### Properties
+
+| Property | Type | Values / Range | Semantic Search |
+|----------|------|----------------|-----------------|
+| `name` | string | `Acme` | — |
+
+### Relationships
+
+| Traversal | Count | Edge Properties |
+|-----------|------:|-----------------|
+| `(COMPANY)-[:HAS]->(DEPARTMENT)` | 2 | — |
+```
+
+크고 다양한 저장소에서 에이전트는 이것을 전부 불러오지 않습니다. 개요에서 정확한 값까지, 작은 읽기를 한 번씩 하며 범위를 좁힙니다(위와 같은 실행):
+
+```python
+# 1. Labels and their record counts: a cheap first read on any store
+print(db.labels.find({})["data"])
+# {'COMPANY': 1, 'DEPARTMENT': 2, 'EMPLOYEE': 3}
+
+# 2. The real names behind the words in a question
+print(db.ai.resolve_names("employees.salaries").data)
+# [{'label': 'EMPLOYEE', 'property': 'salary', 'score': 1.0}]
+
+# 3. The schema of only the labels the question needs
+print(db.ai.get_schema_markdown({"labels": ["EMPLOYEE"]}).data)
+# the EMPLOYEE part of the schema above; the other labels are left out
+
+# 4. The fields of the records a filter keeps, with counts
+props = db.properties.find({
+    "labels": ["EMPLOYEE"],
+    "where": {"DEPARTMENT": {"name": "Sales"}},
+})["data"]
+print([(p["name"], p["recordsCount"]) for p in props])
+# [('name', 1), ('role', 1), ('salary', 1)]
+
+# 5. Where a value from the question is stored, even misspelled
+matches = db.ai.search_values("enginer", match="similar").data["matches"]
+print([(m["label"], m["property"], m["value"]) for m in matches])
+# [('EMPLOYEE', 'role', 'Engineer'), ('EMPLOYEE', 'role', 'Staff Engineer'),
+#  ('DEPARTMENT', 'name', 'Engineering')]
+
+# 6. The exact stored spellings of one field, with counts
+role = next(p["id"] for p in props if p["name"] == "role")
+print(db.properties.values(role, query="eng")["data"])
+# {'values': ['Engineer', 'Staff Engineer'], 'counts': [1, 1],
+#  'distinctCount': 2}
+```
+
+`get_schema_summary`는 같은 카탈로그를 JSON으로 반환하며, 고유 값 개수와 값이 적은 필드의 값을 포함합니다. MCP 서버는 각 읽기를 도구로 제공합니다: `findLabels`, `resolveNames`, `getSchemaMarkdown`, `findProperties`, `searchValues`, `propertyValues`, `getSchemaSummary`.
 
 ## 무엇을 만들 수 있나
 

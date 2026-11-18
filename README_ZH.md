@@ -68,7 +68,7 @@ db.records.import_json(label="COMPANY", data={
             ],
         },
     ],
-})
+}, options={"relationshipType": "HAS"})
 
 # Graph: filter across relationships by naming the related labels
 engineers = db.records.find({
@@ -97,18 +97,6 @@ print([row.data for row in per_department])
 
 # The live schema an agent reads before it writes a query
 print(db.ai.get_schema_markdown().data)
-```
-
-schema 来自目录，而不是扫描记录得到的：
-
-```text
-## `EMPLOYEE` (3 records)
-
-| Property | Type | Values / Range | Semantic Search |
-|----------|------|----------------|-----------------|
-| `name` | string | `Ada`, `Linus`, `Grace` | — |
-| `role` | string | `Staff Engineer`, `Engineer`, `Account Executive` | — |
-| `salary` | number | `120000`..`180000` | — |
 ```
 
 <details>
@@ -144,7 +132,8 @@ await db.records.importJson({
         ]
       }
     ]
-  }
+  },
+  options: { relationshipType: 'HAS' }
 })
 
 // Graph: filter across relationships by naming the related labels
@@ -189,6 +178,111 @@ PGPASSWORD=local-token psql \
 
 下一步：[完整的快速开始](https://docs.rushdb.com/engine/getting-started/quickstart/) ·
 [Docker 及其他安装方式](https://docs.rushdb.com/engine/getting-started/installation/)
+
+## 智能体查询前看到的内容
+
+快速入门的最后一行打印出智能体最先读取的 schema。它来自每次写入都会更新的目录，而不是对记录的扫描：
+
+```text
+# Graph Schema
+
+## Labels
+
+| Label | Count |
+|-------|------:|
+| `EMPLOYEE` | 3 |
+| `DEPARTMENT` | 2 |
+| `COMPANY` | 1 |
+
+---
+
+## `EMPLOYEE` (3 records)
+
+### Properties
+
+| Property | Type | Values / Range | Semantic Search |
+|----------|------|----------------|-----------------|
+| `name` | string | `Ada`, `Linus`, `Grace` | — |
+| `role` | string | `Staff Engineer`, `Engineer`, `Account Executive` | — |
+| `salary` | number | `120000`..`180000` | — |
+
+### Relationships
+
+| Traversal | Count | Edge Properties |
+|-----------|------:|-----------------|
+| `(EMPLOYEE)<-[:HAS]-(DEPARTMENT)` | 3 | — |
+
+---
+
+## `DEPARTMENT` (2 records)
+
+### Properties
+
+| Property | Type | Values / Range | Semantic Search |
+|----------|------|----------------|-----------------|
+| `name` | string | `Engineering`, `Sales` | — |
+
+### Relationships
+
+| Traversal | Count | Edge Properties |
+|-----------|------:|-----------------|
+| `(DEPARTMENT)<-[:HAS]-(COMPANY)` | 2 | — |
+| `(DEPARTMENT)-[:HAS]->(EMPLOYEE)` | 3 | — |
+
+---
+
+## `COMPANY` (1 record)
+
+### Properties
+
+| Property | Type | Values / Range | Semantic Search |
+|----------|------|----------------|-----------------|
+| `name` | string | `Acme` | — |
+
+### Relationships
+
+| Traversal | Count | Edge Properties |
+|-----------|------:|-----------------|
+| `(COMPANY)-[:HAS]->(DEPARTMENT)` | 2 | — |
+```
+
+在规模大、类型多的存储上，智能体不会一次加载全部内容。它从概览逐步收窄到精确的值，每次只做一次小的读取（与上面是同一次运行）：
+
+```python
+# 1. Labels and their record counts: a cheap first read on any store
+print(db.labels.find({})["data"])
+# {'COMPANY': 1, 'DEPARTMENT': 2, 'EMPLOYEE': 3}
+
+# 2. The real names behind the words in a question
+print(db.ai.resolve_names("employees.salaries").data)
+# [{'label': 'EMPLOYEE', 'property': 'salary', 'score': 1.0}]
+
+# 3. The schema of only the labels the question needs
+print(db.ai.get_schema_markdown({"labels": ["EMPLOYEE"]}).data)
+# the EMPLOYEE part of the schema above; the other labels are left out
+
+# 4. The fields of the records a filter keeps, with counts
+props = db.properties.find({
+    "labels": ["EMPLOYEE"],
+    "where": {"DEPARTMENT": {"name": "Sales"}},
+})["data"]
+print([(p["name"], p["recordsCount"]) for p in props])
+# [('name', 1), ('role', 1), ('salary', 1)]
+
+# 5. Where a value from the question is stored, even misspelled
+matches = db.ai.search_values("enginer", match="similar").data["matches"]
+print([(m["label"], m["property"], m["value"]) for m in matches])
+# [('EMPLOYEE', 'role', 'Engineer'), ('EMPLOYEE', 'role', 'Staff Engineer'),
+#  ('DEPARTMENT', 'name', 'Engineering')]
+
+# 6. The exact stored spellings of one field, with counts
+role = next(p["id"] for p in props if p["name"] == "role")
+print(db.properties.values(role, query="eng")["data"])
+# {'values': ['Engineer', 'Staff Engineer'], 'counts': [1, 1],
+#  'distinctCount': 2}
+```
+
+`get_schema_summary` 以 JSON 返回同一份目录，包含去重计数和小字段的取值。MCP 服务器把每种读取都提供为工具：`findLabels`, `resolveNames`, `getSchemaMarkdown`, `findProperties`, `searchValues`, `propertyValues` 和 `getSchemaSummary`。
 
 ## 你可以构建什么
 

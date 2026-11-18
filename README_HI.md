@@ -70,7 +70,7 @@ db.records.import_json(label="COMPANY", data={
             ],
         },
     ],
-})
+}, options={"relationshipType": "HAS"})
 
 # Graph: filter across relationships by naming the related labels
 engineers = db.records.find({
@@ -99,18 +99,6 @@ print([row.data for row in per_department])
 
 # The live schema an agent reads before it writes a query
 print(db.ai.get_schema_markdown().data)
-```
-
-Schema catalog से आता है, records को scan करके नहीं:
-
-```text
-## `EMPLOYEE` (3 records)
-
-| Property | Type | Values / Range | Semantic Search |
-|----------|------|----------------|-----------------|
-| `name` | string | `Ada`, `Linus`, `Grace` | — |
-| `role` | string | `Staff Engineer`, `Engineer`, `Account Executive` | — |
-| `salary` | number | `120000`..`180000` | — |
 ```
 
 <details>
@@ -146,7 +134,8 @@ await db.records.importJson({
         ]
       }
     ]
-  }
+  },
+  options: { relationshipType: 'HAS' }
 })
 
 // Graph: filter across relationships by naming the related labels
@@ -191,6 +180,111 @@ PGPASSWORD=local-token psql \
 
 आगे: [पूरा quickstart](https://docs.rushdb.com/engine/getting-started/quickstart/) ·
 [Docker और install के दूसरे तरीके](https://docs.rushdb.com/engine/getting-started/installation/)
+
+## क्वेरी से पहले एजेंट क्या देखते हैं
+
+क्विकस्टार्ट की आखिरी पंक्ति वह स्कीमा प्रिंट करती है जिसे एजेंट सबसे पहले पढ़ता है। यह रिकॉर्ड के स्कैन से नहीं, बल्कि उस कैटलॉग से आता है जिसे हर write अपडेट करता है:
+
+```text
+# Graph Schema
+
+## Labels
+
+| Label | Count |
+|-------|------:|
+| `EMPLOYEE` | 3 |
+| `DEPARTMENT` | 2 |
+| `COMPANY` | 1 |
+
+---
+
+## `EMPLOYEE` (3 records)
+
+### Properties
+
+| Property | Type | Values / Range | Semantic Search |
+|----------|------|----------------|-----------------|
+| `name` | string | `Ada`, `Linus`, `Grace` | — |
+| `role` | string | `Staff Engineer`, `Engineer`, `Account Executive` | — |
+| `salary` | number | `120000`..`180000` | — |
+
+### Relationships
+
+| Traversal | Count | Edge Properties |
+|-----------|------:|-----------------|
+| `(EMPLOYEE)<-[:HAS]-(DEPARTMENT)` | 3 | — |
+
+---
+
+## `DEPARTMENT` (2 records)
+
+### Properties
+
+| Property | Type | Values / Range | Semantic Search |
+|----------|------|----------------|-----------------|
+| `name` | string | `Engineering`, `Sales` | — |
+
+### Relationships
+
+| Traversal | Count | Edge Properties |
+|-----------|------:|-----------------|
+| `(DEPARTMENT)<-[:HAS]-(COMPANY)` | 2 | — |
+| `(DEPARTMENT)-[:HAS]->(EMPLOYEE)` | 3 | — |
+
+---
+
+## `COMPANY` (1 record)
+
+### Properties
+
+| Property | Type | Values / Range | Semantic Search |
+|----------|------|----------------|-----------------|
+| `name` | string | `Acme` | — |
+
+### Relationships
+
+| Traversal | Count | Edge Properties |
+|-----------|------:|-----------------|
+| `(COMPANY)-[:HAS]->(DEPARTMENT)` | 2 | — |
+```
+
+बड़े और विविध स्टोर पर एजेंट यह सब एक साथ लोड नहीं करता। वह ओवरव्यू से सटीक values तक, हर बार एक छोटी read करके दायरा घटाता है (ऊपर वाला ही रन):
+
+```python
+# 1. Labels and their record counts: a cheap first read on any store
+print(db.labels.find({})["data"])
+# {'COMPANY': 1, 'DEPARTMENT': 2, 'EMPLOYEE': 3}
+
+# 2. The real names behind the words in a question
+print(db.ai.resolve_names("employees.salaries").data)
+# [{'label': 'EMPLOYEE', 'property': 'salary', 'score': 1.0}]
+
+# 3. The schema of only the labels the question needs
+print(db.ai.get_schema_markdown({"labels": ["EMPLOYEE"]}).data)
+# the EMPLOYEE part of the schema above; the other labels are left out
+
+# 4. The fields of the records a filter keeps, with counts
+props = db.properties.find({
+    "labels": ["EMPLOYEE"],
+    "where": {"DEPARTMENT": {"name": "Sales"}},
+})["data"]
+print([(p["name"], p["recordsCount"]) for p in props])
+# [('name', 1), ('role', 1), ('salary', 1)]
+
+# 5. Where a value from the question is stored, even misspelled
+matches = db.ai.search_values("enginer", match="similar").data["matches"]
+print([(m["label"], m["property"], m["value"]) for m in matches])
+# [('EMPLOYEE', 'role', 'Engineer'), ('EMPLOYEE', 'role', 'Staff Engineer'),
+#  ('DEPARTMENT', 'name', 'Engineering')]
+
+# 6. The exact stored spellings of one field, with counts
+role = next(p["id"] for p in props if p["name"] == "role")
+print(db.properties.values(role, query="eng")["data"])
+# {'values': ['Engineer', 'Staff Engineer'], 'counts': [1, 1],
+#  'distinctCount': 2}
+```
+
+`get_schema_summary` वही कैटलॉग JSON में लौटाता है, distinct गिनती और छोटे fields की values के साथ। MCP सर्वर हर read को एक टूल के रूप में देता है: `findLabels`, `resolveNames`, `getSchemaMarkdown`, `findProperties`, `searchValues`, `propertyValues` और `getSchemaSummary`।
 
 ## आप क्या बना सकते हैं
 

@@ -69,7 +69,7 @@ db.records.import_json(label="COMPANY", data={
             ],
         },
     ],
-})
+}, options={"relationshipType": "HAS"})
 
 # Graph: filter across relationships by naming the related labels
 engineers = db.records.find({
@@ -98,18 +98,6 @@ print([row.data for row in per_department])
 
 # The live schema an agent reads before it writes a query
 print(db.ai.get_schema_markdown().data)
-```
-
-สคีมานี้มาจากแคตตาล็อก ไม่ได้มาจากการสแกนเรคคอร์ด:
-
-```text
-## `EMPLOYEE` (3 records)
-
-| Property | Type | Values / Range | Semantic Search |
-|----------|------|----------------|-----------------|
-| `name` | string | `Ada`, `Linus`, `Grace` | — |
-| `role` | string | `Staff Engineer`, `Engineer`, `Account Executive` | — |
-| `salary` | number | `120000`..`180000` | — |
 ```
 
 <details>
@@ -145,7 +133,8 @@ await db.records.importJson({
         ]
       }
     ]
-  }
+  },
+  options: { relationshipType: 'HAS' }
 })
 
 // Graph: filter across relationships by naming the related labels
@@ -190,6 +179,111 @@ PGPASSWORD=local-token psql \
 
 ขั้นต่อไป: [คู่มือเริ่มต้นใช้งานฉบับเต็ม](https://docs.rushdb.com/engine/getting-started/quickstart/) ·
 [Docker และวิธีติดตั้งอื่น ๆ](https://docs.rushdb.com/engine/getting-started/installation/)
+
+## สิ่งที่เอเจนต์เห็นก่อนคิวรี
+
+บรรทัดสุดท้ายของ quickstart พิมพ์สคีมาที่เอเจนต์อ่านเป็นอย่างแรก สคีมานี้มาจากแคตตาล็อกที่อัปเดตทุกครั้งที่เขียน ไม่ได้มาจากการสแกนเรคคอร์ด:
+
+```text
+# Graph Schema
+
+## Labels
+
+| Label | Count |
+|-------|------:|
+| `EMPLOYEE` | 3 |
+| `DEPARTMENT` | 2 |
+| `COMPANY` | 1 |
+
+---
+
+## `EMPLOYEE` (3 records)
+
+### Properties
+
+| Property | Type | Values / Range | Semantic Search |
+|----------|------|----------------|-----------------|
+| `name` | string | `Ada`, `Linus`, `Grace` | — |
+| `role` | string | `Staff Engineer`, `Engineer`, `Account Executive` | — |
+| `salary` | number | `120000`..`180000` | — |
+
+### Relationships
+
+| Traversal | Count | Edge Properties |
+|-----------|------:|-----------------|
+| `(EMPLOYEE)<-[:HAS]-(DEPARTMENT)` | 3 | — |
+
+---
+
+## `DEPARTMENT` (2 records)
+
+### Properties
+
+| Property | Type | Values / Range | Semantic Search |
+|----------|------|----------------|-----------------|
+| `name` | string | `Engineering`, `Sales` | — |
+
+### Relationships
+
+| Traversal | Count | Edge Properties |
+|-----------|------:|-----------------|
+| `(DEPARTMENT)<-[:HAS]-(COMPANY)` | 2 | — |
+| `(DEPARTMENT)-[:HAS]->(EMPLOYEE)` | 3 | — |
+
+---
+
+## `COMPANY` (1 record)
+
+### Properties
+
+| Property | Type | Values / Range | Semantic Search |
+|----------|------|----------------|-----------------|
+| `name` | string | `Acme` | — |
+
+### Relationships
+
+| Traversal | Count | Edge Properties |
+|-----------|------:|-----------------|
+| `(COMPANY)-[:HAS]->(DEPARTMENT)` | 2 | — |
+```
+
+บนสโตร์ที่ใหญ่และหลากหลาย เอเจนต์ไม่โหลดทั้งหมดนี้ แต่จะค่อยๆ แคบลงจากภาพรวมไปจนถึงค่าที่แน่นอน ด้วยการอ่านเล็กๆ ทีละครั้ง (จากการรันเดียวกับด้านบน):
+
+```python
+# 1. Labels and their record counts: a cheap first read on any store
+print(db.labels.find({})["data"])
+# {'COMPANY': 1, 'DEPARTMENT': 2, 'EMPLOYEE': 3}
+
+# 2. The real names behind the words in a question
+print(db.ai.resolve_names("employees.salaries").data)
+# [{'label': 'EMPLOYEE', 'property': 'salary', 'score': 1.0}]
+
+# 3. The schema of only the labels the question needs
+print(db.ai.get_schema_markdown({"labels": ["EMPLOYEE"]}).data)
+# the EMPLOYEE part of the schema above; the other labels are left out
+
+# 4. The fields of the records a filter keeps, with counts
+props = db.properties.find({
+    "labels": ["EMPLOYEE"],
+    "where": {"DEPARTMENT": {"name": "Sales"}},
+})["data"]
+print([(p["name"], p["recordsCount"]) for p in props])
+# [('name', 1), ('role', 1), ('salary', 1)]
+
+# 5. Where a value from the question is stored, even misspelled
+matches = db.ai.search_values("enginer", match="similar").data["matches"]
+print([(m["label"], m["property"], m["value"]) for m in matches])
+# [('EMPLOYEE', 'role', 'Engineer'), ('EMPLOYEE', 'role', 'Staff Engineer'),
+#  ('DEPARTMENT', 'name', 'Engineering')]
+
+# 6. The exact stored spellings of one field, with counts
+role = next(p["id"] for p in props if p["name"] == "role")
+print(db.properties.values(role, query="eng")["data"])
+# {'values': ['Engineer', 'Staff Engineer'], 'counts': [1, 1],
+#  'distinctCount': 2}
+```
+
+`get_schema_summary` คืนแคตตาล็อกเดียวกันในรูป JSON พร้อมจำนวนค่าที่ไม่ซ้ำและค่าของฟิลด์ที่มีค่าน้อย เซิร์ฟเวอร์ MCP มีการอ่านแต่ละแบบเป็นเครื่องมือ: `findLabels`, `resolveNames`, `getSchemaMarkdown`, `findProperties`, `searchValues`, `propertyValues` และ `getSchemaSummary`
 
 ## สิ่งที่คุณสร้างได้
 
