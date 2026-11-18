@@ -13,7 +13,9 @@
 //! publisher adds and the materializer trims. A commit that writes many
 //! keys (a bulk import's) goes in as one sorted run instead: inserting its
 //! keys one by one cost the publisher more than the redb apply the gap
-//! takes off its path, and the materializer drops a run whole. A reader snapshots the gap
+//! takes off its path, and the materializer drops a run whole. Each run
+//! keeps a Bloom filter of its key prefixes, so a lookup the run holds
+//! nothing for skips its search. A reader snapshots the gap
 //! before it opens the redb transaction, so everything the snapshot lacks
 //! is already in that transaction; versions the transaction also holds are
 //! skipped.
@@ -25,6 +27,7 @@
 //! rules ([`crate::usage::commit_rows`]) and caches them on each commit.
 
 use std::borrow::Cow;
+use std::cell::OnceCell;
 use std::collections::{BTreeMap, VecDeque};
 use std::ops::Bound;
 use std::sync::OnceLock;
@@ -68,9 +71,24 @@ struct GapIndex {
 struct Run {
     ci: u64,
     entries: Box<[(GapKey, Version)]>,
+    filter: PrefixFilter,
 }
 
 impl Run {
+    fn new(ci: u64, entries: Box<[(GapKey, Version)]>) -> Self {
+        let filter = PrefixFilter::from_sorted_keys(entries.iter().map(|(key, _)| key.bytes()));
+        Self {
+            ci,
+            entries,
+            filter,
+        }
+    }
+
+    /// Whether a key starting with `prefix` may be in the run.
+    fn may_start_with(&self, prefix: &[u8]) -> bool {
+        self.filter.may_start_with(prefix)
+    }
+
     fn get(&self, probe: &GapKey) -> Option<&Version> {
         self.entries
             .binary_search_by(|(key, _)| key.cmp(probe))
@@ -96,6 +114,115 @@ impl Run {
     }
 }
 
+/// Key prefixes a run's filter holds: every distinct prefix of its keys up
+/// to this many bytes. Tests use a short depth so their keys outgrow it.
+const FILTER_DEPTH: usize = if cfg!(test) { 7 } else { 16 };
+
+/// Bits a filter probes per prefix.
+const FILTER_PROBES: u64 = 3;
+
+/// A Bloom filter over the distinct key prefixes of one run, up to
+/// [`FILTER_DEPTH`] bytes, at 10 to 20 bits a prefix. Every key in a range
+/// starts with the bytes its bounds share, so a prefix the filter lacks
+/// rules the run out without a search: most of a merge import's index
+/// lookups find nothing in the gap, and binary searches of every run cost
+/// them as much as the apply the gap takes off their path.
+struct PrefixFilter {
+    bits: Box<[u64]>,
+    /// Bit count minus one (a power of two).
+    mask: u64,
+}
+
+/// FNV-1a over each prefix of `key` up to [`FILTER_DEPTH`] bytes: the
+/// `d`-th item hashes `key[..d + 1]`.
+fn prefix_hashes(key: &[u8]) -> impl Iterator<Item = u64> + '_ {
+    key.iter()
+        .take(FILTER_DEPTH)
+        .scan(0xCBF2_9CE4_8422_2325_u64, |hash, &byte| {
+            *hash = (*hash ^ u64::from(byte)).wrapping_mul(0x0100_0000_01B3);
+            Some(*hash)
+        })
+}
+
+/// The hash a filter checks for keys starting with `prefix` (that of its
+/// first [`FILTER_DEPTH`] bytes; `None` for an empty prefix).
+fn prefix_hash(prefix: &[u8]) -> Option<u64> {
+    prefix_hashes(prefix).last()
+}
+
+/// The bit positions of one prefix hash: double hashing over a
+/// splitmix64-finalized hash.
+fn filter_bits(hash: u64, mask: u64) -> impl Iterator<Item = u64> {
+    let mut mixed = hash;
+    mixed = (mixed ^ (mixed >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+    mixed = (mixed ^ (mixed >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+    mixed ^= mixed >> 31;
+    let step = (mixed >> 32) | 1;
+    (0..FILTER_PROBES).map(move |i| mixed.wrapping_add(i.wrapping_mul(step)) & mask)
+}
+
+/// How many leading bytes `a` and `b` share.
+fn shared_len(a: &[u8], b: &[u8]) -> usize {
+    a.iter().zip(b).take_while(|(x, y)| x == y).count()
+}
+
+impl PrefixFilter {
+    /// The filter of `keys`, in ascending order: a key's prefixes longer
+    /// than what it shares with the key before it are the new ones.
+    fn from_sorted_keys<'k>(mut keys: impl Iterator<Item = &'k [u8]> + Clone) -> Self {
+        let new_prefixes = |keys: &mut dyn Iterator<Item = &'k [u8]>,
+                            visit: &mut dyn FnMut(&'k [u8], usize)| {
+            let mut before: &[u8] = &[];
+            for key in keys {
+                visit(key, shared_len(before, key).min(FILTER_DEPTH));
+                before = key;
+            }
+        };
+        let mut count = 0usize;
+        new_prefixes(&mut keys.clone(), &mut |key, shared| {
+            count += key.len().min(FILTER_DEPTH) - shared;
+        });
+        let bit_count = (count.max(1) * 10).next_power_of_two().max(64);
+        let mut bits = vec![0u64; bit_count / 64].into_boxed_slice();
+        let mask = bit_count as u64 - 1;
+        new_prefixes(&mut keys, &mut |key, shared| {
+            for hash in prefix_hashes(key).skip(shared) {
+                for bit in filter_bits(hash, mask) {
+                    bits[(bit / 64) as usize] |= 1 << (bit % 64);
+                }
+            }
+        });
+        Self { bits, mask }
+    }
+
+    /// Whether a key starting with `prefix` may be in the filter's run
+    /// (always for an empty prefix). Only the first [`FILTER_DEPTH`] bytes
+    /// of `prefix` are checked.
+    fn may_start_with(&self, prefix: &[u8]) -> bool {
+        self.admits(prefix_hash(prefix))
+    }
+
+    /// [`Self::may_start_with`] for a [`prefix_hash`].
+    fn admits(&self, hash: Option<u64>) -> bool {
+        hash.is_none_or(|hash| {
+            filter_bits(hash, self.mask)
+                .all(|bit| self.bits[(bit / 64) as usize] & (1 << (bit % 64)) != 0)
+        })
+    }
+}
+
+/// The bytes every key in `(lower, upper)` starts with: the bounds' shared
+/// prefix (none when either is unbounded).
+fn range_prefix<'a>(lower: Bound<&'a [u8]>, upper: Bound<&[u8]>) -> &'a [u8] {
+    match (lower, upper) {
+        (
+            Bound::Included(start) | Bound::Excluded(start),
+            Bound::Included(end) | Bound::Excluded(end),
+        ) => &start[..shared_len(start, end)],
+        _ => &[],
+    }
+}
+
 impl GapIndex {
     /// The runs of commits newer than `base_ci`, oldest first.
     fn runs_after(&self, base_ci: u64) -> impl DoubleEndedIterator<Item = &Run> {
@@ -105,14 +232,27 @@ impl GapIndex {
             .filter(move |run| run.ci > base_ci)
     }
 
+    /// The map's versions of `key` (none without a descent when the map is
+    /// empty, as it mostly is during a bulk load).
+    fn in_map(&self, probe: &OnceCell<GapKey>, key: &[u8]) -> Option<&Arc<[Version]>> {
+        if self.map.is_empty() {
+            return None;
+        }
+        self.map.get(probe.get_or_init(|| GapKey::probe(key)))
+    }
+
     /// `key`'s versions newer than `base_ci`, oldest first.
     fn versions(&self, key: &[u8], base_ci: u64) -> Vec<&Version> {
-        let probe = GapKey::probe(key);
-        let mut out: Vec<&Version> = self.map.get(&probe).map_or_else(Vec::new, |versions| {
+        let probe = OnceCell::new();
+        let mut out: Vec<&Version> = self.in_map(&probe, key).map_or_else(Vec::new, |versions| {
             versions.iter().filter(|v| v.ci > base_ci).collect()
         });
         let from_map = out.len();
-        out.extend(self.runs_after(base_ci).filter_map(|run| run.get(&probe)));
+        out.extend(
+            self.runs_after(base_ci)
+                .filter(|run| run.may_start_with(key))
+                .filter_map(|run| run.get(probe.get_or_init(|| GapKey::probe(key)))),
+        );
         if from_map > 0 && out.len() > from_map {
             out.sort_by_key(|v| v.ci);
         }
@@ -121,10 +261,9 @@ impl GapIndex {
 
     /// `key`'s newest version newer than `base_ci`.
     fn newest(&self, key: &[u8], base_ci: u64) -> Option<&Version> {
-        let probe = GapKey::probe(key);
+        let probe = OnceCell::new();
         let in_map = self
-            .map
-            .get(&probe)
+            .in_map(&probe, key)
             .and_then(|versions| versions.last())
             .filter(|v| v.ci > base_ci);
         let floor = in_map.map_or(base_ci, |v| v.ci);
@@ -132,7 +271,8 @@ impl GapIndex {
             .iter()
             .rev()
             .take_while(|run| run.ci > floor)
-            .find_map(|run| run.get(&probe))
+            .filter(|run| run.may_start_with(key))
+            .find_map(|run| run.get(probe.get_or_init(|| GapKey::probe(key))))
             .or(in_map)
     }
 }
@@ -441,7 +581,7 @@ impl Gap {
                     )
                 })
                 .collect();
-            let run = Arc::new(Run { ci, entries });
+            let run = Arc::new(Run::new(ci, entries));
             let mut state = self.lock();
             debug_assert!(ci > state.top, "gap commits arrive in commit order");
             state.readers.index.runs.push_back(run);
@@ -742,17 +882,32 @@ impl GapView {
     /// runs before every overlaid scan: one descent of the index, no
     /// allocation. `im`'s `get_next` can miss a parent's key when a child
     /// holds only smaller ones (a false `None`, never a wrong key), so a
-    /// `None` is confirmed with a range.
+    /// `None` is confirmed with a range. A run is searched only when its
+    /// filter holds the range's prefix.
     fn may_hold(&self, lower: Bound<&[u8]>, upper: Bound<&[u8]>) -> bool {
         self.map_may_hold(lower, upper)
             || self
-                .index
-                .runs_after(self.base_ci)
+                .runs_within(lower, upper)
                 .any(|run| !run.range(lower, upper).is_empty())
+    }
+
+    /// The runs after the base whose filters admit keys in `(lower, upper)`.
+    fn runs_within(
+        &self,
+        lower: Bound<&[u8]>,
+        upper: Bound<&[u8]>,
+    ) -> impl DoubleEndedIterator<Item = &Run> {
+        let hash = prefix_hash(range_prefix(lower, upper));
+        self.index
+            .runs_after(self.base_ci)
+            .filter(move |run| run.filter.admits(hash))
     }
 
     fn map_may_hold(&self, lower: Bound<&[u8]>, upper: Bound<&[u8]>) -> bool {
         let map = &self.index.map;
+        if map.is_empty() {
+            return false;
+        }
         let found = match lower {
             Bound::Unbounded => map.get_min().map(|(key, _)| key),
             Bound::Included(start) | Bound::Excluded(start) => {
@@ -972,7 +1127,7 @@ impl StorageReadView for GapView {
             ScanDirection::Reverse => range.next_back(),
         }
         .map(|(key, _)| key.bytes());
-        let in_runs = self.index.runs_after(self.base_ci).filter_map(|run| {
+        let in_runs = self.runs_within(lower, upper).filter_map(|run| {
             let entries = run.range(lower, upper);
             match direction {
                 ScanDirection::Forward => entries.first(),
@@ -1076,7 +1231,7 @@ impl GapView {
                 });
         let mut sources: Vec<Source<'a>> =
             vec![(Box::new(in_map) as Box<dyn Iterator<Item = _> + 'a>).peekable()];
-        for run in self.index.runs_after(base_ci) {
+        for run in self.runs_within(lower, upper) {
             let entries = run.range(lower, upper);
             if !entries.is_empty() {
                 let entries = entries.iter().map(|(key, version)| (key.bytes(), version));
@@ -1124,7 +1279,76 @@ impl<'a> Iterator for NewestOf<'a> {
 
 #[cfg(test)]
 mod tests {
-    use super::GapKey;
+    use super::{range_prefix, GapKey, PrefixFilter, FILTER_DEPTH};
+    use std::ops::Bound;
+
+    fn xorshift(state: &mut u64) -> u64 {
+        *state ^= *state << 13;
+        *state ^= *state >> 7;
+        *state ^= *state << 17;
+        *state
+    }
+
+    fn within(key: &[u8], lower: Bound<&[u8]>, upper: Bound<&[u8]>) -> bool {
+        let above = match lower {
+            Bound::Included(start) => key >= start,
+            Bound::Excluded(start) => key > start,
+            Bound::Unbounded => true,
+        };
+        let below = match upper {
+            Bound::Included(end) => key <= end,
+            Bound::Excluded(end) => key < end,
+            Bound::Unbounded => true,
+        };
+        above && below
+    }
+
+    #[test]
+    fn a_run_filter_never_rules_out_a_range_that_holds_a_key() {
+        let mut state = 0x2545_F491_4F6C_DD1D_u64;
+        let key = |state: &mut u64, max: u64| -> Vec<u8> {
+            let len = usize::try_from(xorshift(state) % max).unwrap();
+            (0..len)
+                .map(|_| u8::try_from(xorshift(state) % 4).unwrap())
+                .collect()
+        };
+        // Keys up to twice the filter's depth over a tiny alphabet: many
+        // shared prefixes, some keys prefixes of others.
+        let depth = u64::try_from(FILTER_DEPTH).unwrap();
+        let mut keys: Vec<Vec<u8>> = (0..300).map(|_| key(&mut state, 2 * depth)).collect();
+        keys.sort();
+        keys.dedup();
+        let filter = PrefixFilter::from_sorted_keys(keys.iter().map(Vec::as_slice));
+        let (mut misses, mut ruled_out) = (0, 0);
+        for _ in 0..20_000 {
+            // Bounds that share a random part of their prefix.
+            let a = key(&mut state, 2 * depth + 2);
+            let shared = usize::try_from(xorshift(&mut state)).unwrap() % (a.len() + 1);
+            let mut b = a[..shared].to_vec();
+            b.extend(key(&mut state, depth));
+            let bounds = [
+                (Bound::Included(&a[..]), Bound::Included(&b[..])),
+                (Bound::Excluded(&a[..]), Bound::Excluded(&b[..])),
+                (Bound::Included(&a[..]), Bound::Excluded(&b[..])),
+            ];
+            for (lower, upper) in bounds {
+                let holds = keys.iter().any(|key| within(key, lower, upper));
+                let admitted = filter.may_start_with(range_prefix(lower, upper));
+                assert!(admitted || !holds, "{lower:?}..{upper:?} holds a key");
+                if !holds {
+                    misses += 1;
+                    ruled_out += usize::from(!admitted);
+                }
+            }
+            assert!(
+                filter.may_start_with(&a) || !keys.contains(&a),
+                "{a:?} is a key"
+            );
+        }
+        // Most narrow misses are ruled out; wide ranges share short
+        // prefixes every key has, so they never are.
+        assert!(ruled_out * 10 > misses, "{ruled_out} of {misses} ruled out");
+    }
 
     #[test]
     fn gap_keys_order_as_their_bytes() {

@@ -45,22 +45,20 @@ in [`docs/manual/operations/upgrading-from-2x.md`](docs/manual/operations/upgrad
   bounded at a quarter of the managed budget, at most 256 MiB; at the bound
   commits wait for it. 50 light tenants writing single records beside a
   200,000-record merge import, same host, before → after: requests of
-  5,000 documents: light p99 491–500 → 188–287 ms, import 3,663–3,664 →
-  3,226–3,496 records/s (one further run measured 2,527 records/s while
-  every commit phase on the host was slow alike); requests of 1,000
-  documents: light p99 383–407 → 183–184 ms, import 3,011–3,146 →
-  3,402–3,460 records/s. The same import alone: 44.9 → 49.1–49.4 s (about
-  9% slower: the import's index lookups also check the not yet written
-  commits). A commit of 16,384 keys or more, such as a large import
-  request, enters that backlog as one sorted run instead of key by key, so
-  bulk loads are not slowed by it; against 3.0.12: a 1,000,000-row CSV
-  import 22.9–23.0k → 24.2k rows/s, nested JSON documents in requests of
-  5,000 4.5–4.6k → 4.7–5.4k documents/s and of 500 3.6k → 4.8k
-  documents/s. The advice to send merge imports of about 1,000
-  records on shared hosts is withdrawn. Metrics: the writer-hold label
-  `publish` is now `materialize`; new `rushdb_storage_unmaterialized_bytes`
-  and commit phase `gap_push`; `backend_apply` now times the background
-  writes.
+  5,000 documents: light p99 387–475 → 275–283 ms, import 3,619–3,729 →
+  3,022–3,630 records/s; requests of 1,000 documents: light p99 397–405 →
+  169–192 ms, import 3,027–3,279 → 3,490–3,503 records/s. The same import
+  alone: 45.7–46.1 → 44.5–44.9 s. A commit of 16,384 keys or more, such as
+  a large import request, enters that backlog as one sorted run instead of
+  key by key, with a filter of its key prefixes, so an index lookup that
+  finds nothing in the run skips it without a search. Against 3.0.12: a
+  1,000,000-row CSV import 22.0–22.9k → 23.0–23.6k rows/s, nested JSON
+  documents in requests of 5,000 4.4–4.6k → 5.5k documents/s and of 500
+  3.5–3.6k → 4.9–5.0k documents/s. The advice to send merge imports of
+  about 1,000 records on shared hosts is withdrawn. Metrics: the
+  writer-hold label `publish` is now `materialize`; new
+  `rushdb_storage_unmaterialized_bytes` and commit phase `gap_push`;
+  `backend_apply` now times the background writes.
 - **Faster unfiltered ANN vector search.** The label-membership check of an
   unfiltered `query.vector` (and the vector leg of `query.hybrid`) now runs
   on the reranked hits in rank order until `limit + offset` pass, instead
