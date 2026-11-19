@@ -25,14 +25,17 @@ curl -fsSL https://raw.githubusercontent.com/rush-db/rushdb/main/install.sh | sh
 
 The script picks the archive for your platform, verifies its SHA-256
 checksum, installs `rushdb` into `~/.rushdb/bin`, and adds that
-directory to `PATH` in your shell's startup file. When `cosign` is installed it
-also verifies the archive's Sigstore signature.
+directory to `PATH` in your shell's startup file. So that `rushdb` also works
+in the shell that ran the script, it links `rushdb` into the first of
+`~/.local/bin`, `~/bin`, `/opt/homebrew/bin` and `/usr/local/bin` that is
+already on `PATH` and writable by you, if there is one (it never uses `sudo`).
+When `cosign` is installed it also verifies the archive's Sigstore signature.
 
 | Option | Environment variable | Default | Meaning |
 |---|---|---|---|
 | `--version <tag>` | `RUSHDB_VERSION` | latest release | Install a specific release, e.g. `v3.0.0` |
 | `--dir <path>` | `RUSHDB_INSTALL_DIR` | `~/.rushdb/bin` | Install directory |
-| `--no-modify-path` | `RUSHDB_NO_MODIFY_PATH=1` | off | Leave shell startup files alone |
+| `--no-modify-path` | `RUSHDB_NO_MODIFY_PATH=1` | off | Leave shell startup files alone and link nothing |
 | `--verify-signature` | `RUSHDB_VERIFY_SIGNATURE=1` | off | Fail unless `cosign` verifies the signature |
 
 Pass options after `sh -s --`:
@@ -52,8 +55,8 @@ Alpine and other musl-based systems, and Windows, have no prebuilt binary; use
 the Docker image (on Windows, through WSL 2 or Docker Desktop).
 
 To upgrade, run the script again; it replaces the binary. To uninstall,
-delete `~/.rushdb/bin` and the line ending in `# rushdb` from your shell's
-startup file.
+delete `~/.rushdb/bin`, the `rushdb` link the script reported, and the line
+ending in `# rushdb` from your shell's startup file.
 
 ## Homebrew
 

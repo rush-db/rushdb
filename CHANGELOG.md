@@ -102,6 +102,15 @@ in [`docs/manual/operations/upgrading-from-2x.md`](docs/manual/operations/upgrad
 
 ### Fixed
 
+- **`rushdb` works right after the one-line installer, in the same shell.**
+  `curl -fsSL .../install.sh | sh && rushdb up` failed with `command not
+  found`: the binary goes to `~/.rushdb/bin`, and the `PATH` line added to
+  the shell startup file only reaches new shells. The installer now also
+  links `rushdb` into the first of `~/.local/bin`, `~/bin`,
+  `/opt/homebrew/bin` and `/usr/local/bin` that is already on `PATH` and
+  writable by the user (never with `sudo`), and says so. It replaces only its
+  own link there, never another `rushdb`. `--no-modify-path` links nothing;
+  `--dir` / `RUSHDB_INSTALL_DIR` is the link's target.
 - **`rushdb up` no longer keeps its data beside the installed binary.**
   `install.sh` installs into `~/.rushdb/bin`, and `rushdb up` defaults to
   `./.rushdb`, so started from the home directory it put the store in
