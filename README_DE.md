@@ -340,7 +340,7 @@ Loopback hinaus erreichbar machst.
 - **Company Brain und RAG.** Dokumente, CRM-, Support- und Abrechnungsdaten kommen in ihrer eigenen Form an und werden über Schlüssel verknüpft, die sie schon teilen, etwa eine E-Mail oder eine Konto-ID. Die Suche filtert zuerst auf das richtige Konto oder die richtige Version und rankt dann nach Vektor und BM25 zusammen; jede Aussage verweist auf den Datensatz dahinter.
 - **Facettensuche.** Filterleisten, deren Zählungen aus dem Katalog kommen, auf den aktuellen Filter bezogen und exakt, mit hybrider Suche unter demselben Filter. Kein separater Suchindex, der synchron gehalten werden muss.
 - **KI-Suche und Assistenten in deiner App.** Text- und Vektorindizes liegen in der Datenbank und bleiben aktuell, während deine App schreibt; die SDKs, der MCP-Server und SQL-Clients lesen dieselben Datensätze.
-- **Agentische Datenanalyse.** Der Agent liest, welche Labels und Felder es gibt und wie jeder Wert geschrieben ist, und schreibt dann SQL, Cypher oder eine Aggregation dagegen. Jede Antwort kommt mit einer Abfrage, die jeder erneut ausführen kann.
+- **Agentische Datenanalyse.** Der Agent liest, welche Labels und Felder es gibt und wie jeder Wert geschrieben ist, und schreibt dann SQL, Cypher oder eine Aggregation dagegen. Jede Antwort kommt mit einer Abfrage, die jeder erneut ausführen kann. Mit einem [Read-only-Token](https://docs.rushdb.com/engine/connectivity/authentication/#capability-tokens) lehnt die Engine jeden Schreibversuch des Agenten ab.
 - **Apps, deren Schema sich unterwegs ändert.** Schreib beliebiges JSON: Typen werden abgeleitet, verschachtelte Objekte werden zu verknüpften Datensätzen, und neue Felder erscheinen mit dem Schreibvorgang, der sie hinzufügt, im Katalog. Keine Migrationen.
 
 ## Funktionen
@@ -386,7 +386,7 @@ einrichten soll, gib ihm [rushdb.com/agent-setup](https://rushdb.com/agent-setup
 
 ## Selbst gehostet und RushDB Cloud
 
-Dieses Repository ist die Engine, und du kannst sie vollständig selbst hosten. [RushDB Cloud](https://app.rushdb.com) betreibt dieselbe Engine für dich und ergänzt die unten markierten Funktionen. Die SDKs und der MCP-Server funktionieren mit beiden; auf einer selbst gehosteten Engine schlägt ein Cloud-only-Aufruf mit `CloudOnlyError` fehl, bevor etwas gesendet wird.
+Dieses Repository ist die Engine, und du kannst sie vollständig selbst hosten. [RushDB Cloud](https://app.rushdb.com) betreibt dieselbe Engine für dich und ergänzt die unten markierten Funktionen. Die SDKs und der MCP-Server funktionieren mit beiden; auf einer selbst gehosteten Engine lehnen die SDKs einen Cloud-only-Aufruf mit `CloudOnlyError` ab, bevor etwas gesendet wird, und der MCP-Server bietet diese Tools gar nicht an.
 
 ![RushDB-Dashboard mit synthetischen Beispieldaten: die Datensatztabelle, dann die Graph-Ansicht mit Firmen und ihren Abteilungs-Clustern, Zoom auf eine Abteilung, deren Mitarbeitende im Datensatz-Panel aufgelistet sind](https://raw.githubusercontent.com/rush-db/rushdb/main/assets/dashboard.gif)
 

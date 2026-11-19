@@ -22,7 +22,7 @@
 ---
 
 Masukkan data dalam bentuk yang Anda punya: JSON bersarang, CSV, `INSERT` SQL, penulisan
-Cypher atau bergaya Mongo, atau change stream dari database Anda. RushDB menyimpannya
+Cypher atau bergaya Mongo, atau change streams dari database Anda. RushDB menyimpannya
 sebagai record bertipe yang saling terhubung dalam graf, dan record yang sama menjawab
 kueri relasi, pencarian vektor dan teks lengkap, serta agregasi, sehingga tidak ada
 penyimpanan kedua yang harus disinkronkan. Setiap penulisan juga memperbarui katalog
@@ -339,7 +339,7 @@ loopback.
 - **Otak perusahaan dan RAG.** Data dokumen, CRM, dukungan, dan penagihan masuk dalam bentuknya sendiri dan ditautkan lewat kunci yang sudah sama, seperti email atau ID akun. Pengambilan data memfilter ke akun atau versi yang tepat lebih dulu, lalu memberi peringkat dengan vektor dan BM25 sekaligus, dan setiap fakta merujuk record di baliknya.
 - **Pencarian berfaset.** Panel filter yang hitungannya berasal dari katalog, terbatas pada filter saat ini dan persis, dengan pencarian hibrida yang diperingkat di bawah filter yang sama. Tanpa indeks pencarian terpisah yang harus disinkronkan.
 - **Pencarian AI dan asisten di aplikasi Anda.** Indeks teks dan vektor ada di dalam database dan selalu mutakhir saat aplikasi Anda menulis; SDK, server MCP, dan klien SQL membaca record yang sama.
-- **Analitik data berbasis agen.** Agen membaca label dan field apa saja yang ada dan bagaimana setiap nilai dieja, lalu menulis SQL, Cypher, atau agregasi terhadapnya. Setiap jawaban disertai kueri yang bisa dijalankan ulang siapa pun.
+- **Analitik data berbasis agen.** Agen membaca label dan field apa saja yang ada dan bagaimana setiap nilai dieja, lalu menulis SQL, Cypher, atau agregasi terhadapnya. Setiap jawaban disertai kueri yang bisa dijalankan ulang siapa pun. Dengan [token baca-saja](https://docs.rushdb.com/engine/connectivity/authentication/#capability-tokens), mesin menolak setiap penulisan dari agen.
 - **Aplikasi yang skemanya berubah seiring jalan.** Kirim JSON apa pun: tipe disimpulkan, objek bersarang menjadi record yang tertaut, dan field baru muncul di katalog bersama penulisan yang menambahkannya. Tanpa migrasi.
 
 ## Fitur
@@ -385,7 +385,7 @@ menyiapkan RushDB, berikan [rushdb.com/agent-setup](https://rushdb.com/agent-set
 
 ## Self-hosted dan RushDB Cloud
 
-Repositori ini adalah mesinnya, dan semuanya bisa Anda host sendiri. [RushDB Cloud](https://app.rushdb.com) menjalankan mesin yang sama untuk Anda dan menambahkan fitur yang ditandai di bawah. SDK dan server MCP bekerja dengan keduanya; pada mesin yang di-host sendiri, panggilan khusus Cloud gagal dengan `CloudOnlyError` sebelum apa pun dikirim.
+Repositori ini adalah mesinnya, dan semuanya bisa Anda host sendiri. [RushDB Cloud](https://app.rushdb.com) menjalankan mesin yang sama untuk Anda dan menambahkan fitur yang ditandai di bawah. SDK dan server MCP bekerja dengan keduanya; pada mesin yang di-host sendiri, SDK menolak panggilan khusus Cloud dengan `CloudOnlyError` sebelum apa pun dikirim, dan server MCP tidak menawarkan tool tersebut.
 
 ![Dasbor RushDB dengan data contoh sintetis: tabel record, lalu tampilan graf perusahaan dan kelompok departemennya, diperbesar ke satu departemen yang karyawannya tercantum di panel record](https://raw.githubusercontent.com/rush-db/rushdb/main/assets/dashboard.gif)
 

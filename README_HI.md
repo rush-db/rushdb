@@ -339,7 +339,7 @@ loopback से बाहर expose करने से पहले [Security](
 - **कंपनी ब्रेन और RAG.** Docs, CRM, support और billing का डेटा अपने-अपने रूप में आता है और उन keys से जुड़ता है जो उनमें पहले से साझा हैं, जैसे email या account ID। Retrieval पहले सही account या version पर filter करता है, फिर vector और BM25 को साथ मिलाकर rank करता है, और हर तथ्य अपने पीछे के रिकॉर्ड का हवाला देता है।
 - **Faceted search.** Filter sidebars जिनकी गिनतियाँ catalog से आती हैं, मौजूदा filter तक सीमित और सटीक, और उसी filter के तहत hybrid search ranking। अलग search index को sync रखने की ज़रूरत नहीं।
 - **आपके ऐप में AI search और assistants.** Text और vector indexes डेटाबेस में ही रहते हैं और ऐप के लिखते ही अपडेट रहते हैं; SDK, MCP सर्वर और SQL clients वही रिकॉर्ड पढ़ते हैं।
-- **एजेंट-आधारित डेटा एनालिटिक्स.** एजेंट पढ़ता है कि कौन-से labels और fields मौजूद हैं और हर value कैसे लिखी गई है, फिर उन पर SQL, Cypher या aggregation लिखता है। हर जवाब के साथ एक query आती है जिसे कोई भी दोबारा चला सकता है।
+- **एजेंट-आधारित डेटा एनालिटिक्स.** एजेंट पढ़ता है कि कौन-से labels और fields मौजूद हैं और हर value कैसे लिखी गई है, फिर उन पर SQL, Cypher या aggregation लिखता है। हर जवाब के साथ एक query आती है जिसे कोई भी दोबारा चला सकता है। [Read-only token](https://docs.rushdb.com/engine/connectivity/authentication/#capability-tokens) देने पर इंजन agent का हर write मना कर देता है।
 - **ऐसे ऐप जिनका schema चलते-चलते बदलता है.** कोई भी JSON भेजें: types infer होते हैं, nested objects जुड़े हुए रिकॉर्ड बनते हैं, और नए fields उन्हें जोड़ने वाले write के साथ ही catalog में दिखते हैं। कोई migration नहीं।
 
 ## Features
@@ -384,7 +384,7 @@ certificate (`--tls-cert`, `--tls-key`) share करते हैं। ज़�
 
 ## Self-hosted और RushDB Cloud
 
-यह रिपॉज़िटरी इंजन है, और इसे पूरा का पूरा आप खुद होस्ट कर सकते हैं। [RushDB Cloud](https://app.rushdb.com) यही इंजन आपके लिए चलाता है और नीचे चिह्नित सुविधाएँ जोड़ता है। SDK और MCP सर्वर दोनों के साथ काम करते हैं; self-hosted इंजन पर, केवल Cloud वाली कॉल कुछ भी भेजे जाने से पहले `CloudOnlyError` के साथ विफल होती है।
+यह रिपॉज़िटरी इंजन है, और इसे पूरा का पूरा आप खुद होस्ट कर सकते हैं। [RushDB Cloud](https://app.rushdb.com) यही इंजन आपके लिए चलाता है और नीचे चिह्नित सुविधाएँ जोड़ता है। SDK और MCP सर्वर दोनों के साथ काम करते हैं; self-hosted इंजन पर, SDK केवल Cloud वाली कॉल को कुछ भी भेजे जाने से पहले `CloudOnlyError` के साथ मना कर देते हैं, और MCP सर्वर वे tools दिखाता ही नहीं।
 
 ![synthetic sample data के साथ RushDB डैशबोर्ड: records की तालिका, फिर कंपनियों और उनके विभाग समूहों का ग्राफ़ व्यू, और एक विभाग पर ज़ूम, जिसके कर्मचारी record पैनल में सूचीबद्ध हैं](https://raw.githubusercontent.com/rush-db/rushdb/main/assets/dashboard.gif)
 

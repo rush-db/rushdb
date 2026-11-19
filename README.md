@@ -355,7 +355,9 @@ loopback.
   SQL clients read the same records.
 - **Agentic data analytics.** The agent reads which labels and fields exist and
   how each value is spelled, then writes SQL, Cypher or an aggregation against
-  them. Every answer ships with a query anyone can rerun.
+  them. Every answer ships with a query anyone can rerun. Give the agent a
+  [read-only token](https://docs.rushdb.com/engine/connectivity/authentication/#capability-tokens)
+  and the engine refuses its writes.
 - **Apps whose schema evolves on the go.** Push any JSON: types are inferred,
   nested objects become linked records, and new fields appear in the catalog
   with the write that adds them. No migrations.
@@ -405,9 +407,9 @@ RushDB up, hand it [rushdb.com/agent-setup](https://rushdb.com/agent-setup).
 
 This repository is the engine, and all of it is yours to self-host.
 [RushDB Cloud](https://app.rushdb.com) runs the same engine for you and adds
-the features marked below. The SDKs and the MCP server work with both; on a
-self-hosted engine, a Cloud-only call fails with `CloudOnlyError` before
-anything is sent.
+the features marked below. The SDKs and the MCP server work with both. On a
+self-hosted engine, the SDKs refuse a Cloud-only call with `CloudOnlyError`
+before anything is sent, and the MCP server leaves those tools out.
 
 ![RushDB dashboard with synthetic sample data: the records table, then the graph view of companies and their department clusters, zooming into one department with its employees listed in the record panel](https://raw.githubusercontent.com/rush-db/rushdb/main/assets/dashboard.gif)
 

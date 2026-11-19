@@ -339,7 +339,7 @@ loopback.
 - **Cérebro da empresa e RAG.** Docs, CRM, suporte e cobrança chegam no próprio formato e são ligados por chaves que já compartilham, como um e-mail ou um ID de conta. A recuperação filtra primeiro pela conta ou versão certa e depois ranqueia por vetor e BM25 juntos, e cada fato cita o registro por trás dele.
 - **Busca facetada.** Barras de filtro cujas contagens vêm do catálogo, restritas ao filtro atual e exatas, com busca híbrida ranqueada sob o mesmo filtro. Sem um índice de busca separado para manter em sincronia.
 - **Busca com IA e assistentes no seu app.** Índices de texto e vetoriais ficam no banco e se mantêm atualizados conforme seu app escreve; os SDKs, o servidor MCP e clientes SQL leem os mesmos registros.
-- **Análise de dados com agentes.** O agente lê quais labels e campos existem e como cada valor está escrito, e então escreve SQL, Cypher ou uma agregação sobre eles. Toda resposta vem com uma consulta que qualquer pessoa pode rodar de novo.
+- **Análise de dados com agentes.** O agente lê quais labels e campos existem e como cada valor está escrito, e então escreve SQL, Cypher ou uma agregação sobre eles. Toda resposta vem com uma consulta que qualquer pessoa pode rodar de novo. Com um [token somente leitura](https://docs.rushdb.com/engine/connectivity/authentication/#capability-tokens), o motor recusa qualquer escrita do agente.
 - **Apps cujo esquema evolui no caminho.** Envie qualquer JSON: os tipos são inferidos, objetos aninhados viram registros ligados e campos novos aparecem no catálogo com a escrita que os adiciona. Sem migrações.
 
 ## Recursos
@@ -385,7 +385,7 @@ configure o RushDB, passe a ele [rushdb.com/agent-setup](https://rushdb.com/agen
 
 ## Auto-hospedado e RushDB Cloud
 
-Este repositório é o motor, e você pode hospedá-lo por completo. O [RushDB Cloud](https://app.rushdb.com) roda o mesmo motor para você e acrescenta os recursos marcados abaixo. Os SDKs e o servidor MCP funcionam com os dois; em um motor auto-hospedado, uma chamada exclusiva do Cloud falha com `CloudOnlyError` antes de enviar qualquer coisa.
+Este repositório é o motor, e você pode hospedá-lo por completo. O [RushDB Cloud](https://app.rushdb.com) roda o mesmo motor para você e acrescenta os recursos marcados abaixo. Os SDKs e o servidor MCP funcionam com os dois; em um motor auto-hospedado, os SDKs recusam uma chamada exclusiva do Cloud com `CloudOnlyError` antes de enviar qualquer coisa, e o servidor MCP não oferece essas ferramentas.
 
 ![Painel do RushDB com dados de exemplo sintéticos: a tabela de registros, depois a visão de grafo das empresas e seus grupos de departamentos, com zoom em um departamento cujos funcionários aparecem no painel do registro](https://raw.githubusercontent.com/rush-db/rushdb/main/assets/dashboard.gif)
 

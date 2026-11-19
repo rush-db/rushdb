@@ -22,7 +22,7 @@
 ---
 
 数据是什么样，就按什么样导入：嵌套 JSON、CSV、SQL `INSERT`、Cypher 或 Mongo 风格的写入，
-或者来自你的数据库的变更流。RushDB 把它存储为带类型的记录，并连接成一张图；
+或者来自你的数据库的 change streams。RushDB 把它存储为带类型的记录，并连接成一张图；
 同一批记录既能回答关系查询，也能用于向量搜索、全文搜索和聚合，因此不需要
 再维护一个需要同步的第二存储。每次写入还会更新一份目录，记录当前存在的标签、
 字段、类型和值，因此智能体查询的是真实存在的字段。可以通过 HTTP、PostgreSQL 线协议、
@@ -336,7 +336,7 @@ print(db.properties.values(role, query="eng")["data"])
 - **企业大脑与 RAG。** 文档、CRM、客服和账单数据以各自的形态写入，并通过它们本就共有的键相连，例如邮箱或账户 ID。检索先过滤到正确的账户或版本，再用向量和 BM25 一起排序，每条事实都引用其背后的记录。
 - **分面搜索。** 筛选栏的计数来自目录，按当前筛选条件计算且精确，混合搜索也在同一筛选条件下排序。无需另外同步一个搜索索引。
 - **应用内的 AI 搜索与助手。** 文本索引和向量索引就在数据库里，随应用写入保持最新；SDK、MCP 服务器和 SQL 客户端读取的是同一批记录。
-- **智能体驱动的数据分析。** 智能体先读取有哪些标签和字段、每个值是如何拼写的，再据此写 SQL、Cypher 或聚合查询。每个答案都附带任何人都能重跑的查询。
+- **智能体驱动的数据分析。** 智能体先读取有哪些标签和字段、每个值是如何拼写的，再据此写 SQL、Cypher 或聚合查询。每个答案都附带任何人都能重跑的查询。给智能体一个[只读令牌](https://docs.rushdb.com/engine/connectivity/authentication/#capability-tokens)，引擎就会拒绝它的所有写入。
 - **schema 随时演进的应用。** 写入任意 JSON：类型自动推断，嵌套对象变成相互连接的记录，新字段随添加它的那次写入出现在目录中。无需迁移。
 
 ## 功能
@@ -381,7 +381,7 @@ RushDB，把 [rushdb.com/agent-setup](https://rushdb.com/agent-setup) 交给它�
 
 ## 自托管与 RushDB Cloud
 
-本仓库就是引擎本身，你可以完整地自托管。[RushDB Cloud](https://app.rushdb.com) 为你运行同一个引擎，并增加下表中标出的功能。SDK 和 MCP 服务器两者都支持；在自托管引擎上，仅限 Cloud 的调用会在发送任何内容之前以 `CloudOnlyError` 失败。
+本仓库就是引擎本身，你可以完整地自托管。[RushDB Cloud](https://app.rushdb.com) 为你运行同一个引擎，并增加下表中标出的功能。SDK 和 MCP 服务器两者都支持；在自托管引擎上，SDK 会在发送任何内容之前以 `CloudOnlyError` 拒绝仅限 Cloud 的调用，MCP 服务器则不提供这些工具。
 
 ![使用合成示例数据的 RushDB 控制台：先是记录表格，然后是公司及其部门集群的图视图，再放大到一个部门，记录面板中列出该部门的员工](https://raw.githubusercontent.com/rush-db/rushdb/main/assets/dashboard.gif)
 

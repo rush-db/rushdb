@@ -22,7 +22,7 @@
 ---
 
 Trae los datos tal como los tienes: JSON anidado, CSV, `INSERT` de SQL, escrituras en
-Cypher o al estilo Mongo, o flujos de cambios desde tus bases de datos. RushDB los guarda
+Cypher o al estilo Mongo, o change streams desde tus bases de datos. RushDB los guarda
 como registros tipados enlazados en un grafo, y esos mismos registros responden a consultas
 de relaciones, búsqueda vectorial y de texto completo, y agregaciones, así que no hay un
 segundo almacén que mantener sincronizado. Cada escritura también actualiza un catálogo de
@@ -339,7 +339,7 @@ de loopback.
 - **Cerebro de empresa y RAG.** Documentos, CRM, soporte y facturación llegan con su propia forma y se enlazan por claves que ya comparten, como un correo o un ID de cuenta. La recuperación filtra primero por la cuenta o versión correcta y luego ordena por vector y BM25 a la vez, y cada dato cita el registro que lo respalda.
 - **Búsqueda facetada.** Barras de filtros cuyos recuentos salen del catálogo, acotados al filtro actual y exactos, con búsqueda híbrida ordenada bajo el mismo filtro. Sin un índice de búsqueda aparte que sincronizar.
 - **Búsqueda con IA y asistentes en tu app.** Los índices de texto y vectoriales viven en la base de datos y se mantienen al día mientras tu app escribe; los SDK, el servidor MCP y los clientes SQL leen los mismos registros.
-- **Análisis de datos con agentes.** El agente lee qué etiquetas y campos existen y cómo se escribe cada valor, y luego escribe SQL, Cypher o una agregación sobre ellos. Cada respuesta incluye una consulta que cualquiera puede volver a ejecutar.
+- **Análisis de datos con agentes.** El agente lee qué etiquetas y campos existen y cómo se escribe cada valor, y luego escribe SQL, Cypher o una agregación sobre ellos. Cada respuesta incluye una consulta que cualquiera puede volver a ejecutar. Con un [token de solo lectura](https://docs.rushdb.com/engine/connectivity/authentication/#capability-tokens), el motor rechaza cualquier escritura del agente.
 - **Apps cuyo esquema evoluciona sobre la marcha.** Envía cualquier JSON: los tipos se infieren, los objetos anidados se convierten en registros enlazados y los campos nuevos aparecen en el catálogo con la escritura que los añade. Sin migraciones.
 
 ## Características
@@ -385,7 +385,7 @@ RushDB, pásale [rushdb.com/agent-setup](https://rushdb.com/agent-setup).
 
 ## Autoalojado y RushDB Cloud
 
-Este repositorio es el motor, y puedes alojarlo tú mismo por completo. [RushDB Cloud](https://app.rushdb.com) ejecuta el mismo motor por ti y añade las funciones marcadas abajo. Los SDK y el servidor MCP funcionan con ambos; en un motor autoalojado, una llamada exclusiva de Cloud falla con `CloudOnlyError` antes de enviar nada.
+Este repositorio es el motor, y puedes alojarlo tú mismo por completo. [RushDB Cloud](https://app.rushdb.com) ejecuta el mismo motor por ti y añade las funciones marcadas abajo. Los SDK y el servidor MCP funcionan con ambos; en un motor autoalojado, los SDK rechazan una llamada exclusiva de Cloud con `CloudOnlyError` antes de enviar nada, y el servidor MCP no ofrece esas herramientas.
 
 ![Panel de RushDB con datos de ejemplo sintéticos: la tabla de registros, luego la vista de grafo de las empresas y sus grupos de departamentos, con zoom en un departamento cuyos empleados aparecen en el panel del registro](https://raw.githubusercontent.com/rush-db/rushdb/main/assets/dashboard.gif)
 
