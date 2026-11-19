@@ -286,6 +286,35 @@ print(db.properties.values(role, query="eng")["data"])
 
 `get_schema_summary` 以 JSON 返回同一份目录，包含去重计数和小字段的取值。MCP 服务器把每种读取都提供为工具：`findLabels`, `resolveNames`, `getSchemaMarkdown`, `findProperties`, `searchValues`, `propertyValues` 和 `getSchemaSummary`。
 
+## 部署
+
+| 位置 | 方式 |
+|---|---|
+| Docker | `docker run -p 127.0.0.1:3000:3000 -v rushdb:/data -e RUSHDB_TOKEN=change-me rushdb/rushdb:3` |
+| Docker Compose | [`deploy/templates/docker-compose`](https://github.com/rush-db/rushdb/tree/main/deploy/templates/docker-compose)，另有经 Caddy 提供 HTTPS 的版本 |
+| Kubernetes | [Helm chart](https://github.com/rush-db/rushdb/tree/main/charts/rushdb): `helm install rushdb oci://ghcr.io/rush-db/charts/rushdb --set auth.token="$(openssl rand -hex 32)"` |
+| Linux 虚拟机 | [cloud-init](https://github.com/rush-db/rushdb/tree/main/deploy/templates/cloud-init) 适用于 DigitalOcean、Hetzner、AWS、Google Cloud 和 Azure; [systemd 单元](https://github.com/rush-db/rushdb/tree/main/deploy/templates/systemd) |
+| 平台 | [Fly.io](https://github.com/rush-db/rushdb/tree/main/deploy/templates/fly), [Render](https://github.com/rush-db/rushdb/tree/main/deploy/templates/render), [Coolify](https://github.com/rush-db/rushdb/tree/main/deploy/templates/coolify), [Dokploy](https://github.com/rush-db/rushdb/tree/main/deploy/templates/dokploy) |
+
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/rush-db/rushdb)
+
+端口、探针、容量规划以及作为服务运行：参见 [部署运维](https://docs.rushdb.com/engine/operations/deployment/)。所有方式汇总在一页：
+[docs.rushdb.com/deploy](https://docs.rushdb.com/deploy/)。
+
+### 其他安装方式
+
+| 方式 | 命令 | 说明 |
+|---|---|---|
+| 安装脚本 | `curl -fsSL https://rushdb.com/install.sh \| sh` | Linux（glibc 2.28+）和 macOS 11+，x86-64 与 arm64。`sh -s -- --version v3.0.0` 可固定版本。 |
+| Homebrew | `brew install rush-db/tap/rushdb` | macOS 和 Linux。`brew services start rushdb` 让它在后台运行。 |
+| Docker | `rushdb/rushdb:3` | `linux/amd64` 和 `linux/arm64`，也可用 `ghcr.io/rush-db/rushdb`。标签有 `3`、`3.0` 和具体版本号。 |
+| Cargo | `cargo binstall rushdb-server` · `cargo install rushdb-server --locked` | `binstall` 下载发布的二进制文件；`install` 从源码编译，需要 C/C++ 编译器。 |
+| 发布压缩包 | [GitHub releases](https://github.com/rush-db/rushdb/releases) | 附带 SHA-256 校验和、SPDX SBOM 和 Sigstore 签名。 |
+| 源码 | `cargo build --release -p rushdb-server --bin rushdb` | 工具链固定在 `rust-toolchain.toml` 中。参见 [安装](https://docs.rushdb.com/engine/getting-started/installation/)。 |
+
+不原生支持 Windows，请使用 WSL 2 或 Docker。在把节点暴露到回环地址之外之前，
+请先阅读 [安全](https://docs.rushdb.com/engine/operations/security/)。
+
 ## 你可以构建什么
 
 - **智能体记忆。** 记忆是按用户、智能体或会话划分的记录，并与产生它的那一轮对话相连，因此召回时能看到记忆的来源。提供现成的 OpenClaw 和 Hermes 记忆提供程序。
@@ -305,6 +334,20 @@ print(db.properties.values(role, query="eng")["data"])
 - **持久可靠。** 预写日志、事务、支持时间点恢复的备份，以及只读副本。[运维](https://docs.rushdb.com/engine/operations/)
 - **一个二进制文件。** 由同一个进程提供 HTTP、PostgreSQL 线协议、gRPC 和 Bolt，可选隔离的租户。[连接方式](https://docs.rushdb.com/engine/connectivity/)
 
+## 连接
+
+| 接口 | 默认 | 启用方式 |
+|---|---|---|
+| [HTTP 原生协议](https://docs.rushdb.com/engine/connectivity/http-api/) | `127.0.0.1:3000`, `POST /protocol/v1/execute` | 始终开启；用 `--port` 改端口 |
+| [PostgreSQL 线协议](https://docs.rushdb.com/engine/connectivity/postgresql-wire/) | `127.0.0.1:5432` | 启用 `sql` 时开启（默认启用）；`--pgwire-port 0` 关闭它 |
+| [gRPC](https://docs.rushdb.com/engine/connectivity/grpc/) (`rushdb.v1.Database/Execute`) | 关闭 | `--grpc-port <port>` |
+| [Bolt 5.0](https://docs.rushdb.com/engine/connectivity/bolt/) | 关闭 | `--bolt-port <port>`，并在 `--languages` 中加入 `cypher` |
+
+所有监听器都绑定 `--listen` 地址（默认 `127.0.0.1`），共用一张 TLS 证书
+（`--tls-cert`、`--tls-key`）。详见 [连接方式](https://docs.rushdb.com/engine/connectivity/)、[认证](https://docs.rushdb.com/engine/connectivity/authentication/) 和
+[SQL 与 Cypher 客户端](https://docs.rushdb.com/connect/sql-and-cypher/)。SDK、MCP 服务器以及下表中的集成都以直连模式
+连接自托管引擎：参见 [Connect](https://docs.rushdb.com/connect/)。
+
 ## 生态
 
 | 项目 | 适用于 |
@@ -318,17 +361,6 @@ print(db.properties.values(role, query="eng")["data"])
 
 以上项目都可以配合自托管引擎使用。想让编程智能体帮你配置
 RushDB，把 [rushdb.com/agent-setup](https://rushdb.com/agent-setup) 交给它即可。
-
-## 随处运行
-
-```bash
-docker run -p 127.0.0.1:3000:3000 -v rushdb:/data \
-  -e RUSHDB_TOKEN=change-me rushdb/rushdb:3
-```
-
-Docker Compose、Kubernetes（Helm）、cloud-init、systemd、Fly.io、Render、
-Coolify 和 Dokploy：参见 [部署](https://docs.rushdb.com/deploy/)。在把节点暴露到
-回环地址之外之前，请先阅读 [安全](https://docs.rushdb.com/engine/operations/security/)。
 
 ## 自托管与 RushDB Cloud
 

@@ -288,6 +288,35 @@ print(db.properties.values(role, query="eng")["data"])
 
 `get_schema_summary` は同じカタログを JSON で返し、異なる値の数と、値の少ないフィールドの値を含みます。MCP サーバーはそれぞれの読み取りをツールとして提供します：`findLabels`, `resolveNames`, `getSchemaMarkdown`, `findProperties`, `searchValues`, `propertyValues`、`getSchemaSummary`。
 
+## デプロイ
+
+| 環境 | 方法 |
+|---|---|
+| Docker | `docker run -p 127.0.0.1:3000:3000 -v rushdb:/data -e RUSHDB_TOKEN=change-me rushdb/rushdb:3` |
+| Docker Compose | [`deploy/templates/docker-compose`](https://github.com/rush-db/rushdb/tree/main/deploy/templates/docker-compose)（Caddy による HTTPS 版あり） |
+| Kubernetes | [Helm チャート](https://github.com/rush-db/rushdb/tree/main/charts/rushdb): `helm install rushdb oci://ghcr.io/rush-db/charts/rushdb --set auth.token="$(openssl rand -hex 32)"` |
+| Linux VM | [cloud-init](https://github.com/rush-db/rushdb/tree/main/deploy/templates/cloud-init) （DigitalOcean、Hetzner、AWS、Google Cloud、Azure 向け）; [systemd ユニット](https://github.com/rush-db/rushdb/tree/main/deploy/templates/systemd) |
+| プラットフォーム | [Fly.io](https://github.com/rush-db/rushdb/tree/main/deploy/templates/fly), [Render](https://github.com/rush-db/rushdb/tree/main/deploy/templates/render), [Coolify](https://github.com/rush-db/rushdb/tree/main/deploy/templates/coolify), [Dokploy](https://github.com/rush-db/rushdb/tree/main/deploy/templates/dokploy) |
+
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/rush-db/rushdb)
+
+ポート、プローブ、サイジング、サービスとしての実行は [Deployment](https://docs.rushdb.com/engine/operations/deployment/) を参照してください。すべての方法は
+[docs.rushdb.com/deploy](https://docs.rushdb.com/deploy/) にまとまっています。
+
+### その他のインストール方法
+
+| 方法 | コマンド | 補足 |
+|---|---|---|
+| インストールスクリプト | `curl -fsSL https://rushdb.com/install.sh \| sh` | Linux（glibc 2.28 以上）と macOS 11 以上、x86-64 と arm64。`sh -s -- --version v3.0.0` でリリースを固定できます。 |
+| Homebrew | `brew install rush-db/tap/rushdb` | macOS と Linux。`brew services start rushdb` でバックグラウンド実行します。 |
+| Docker | `rushdb/rushdb:3` | `linux/amd64` と `linux/arm64`。`ghcr.io/rush-db/rushdb` でも配布。タグは `3`、`3.0`、各バージョン。 |
+| Cargo | `cargo binstall rushdb-server` · `cargo install rushdb-server --locked` | `binstall` はリリースバイナリを取得、`install` はソースからビルド（C/C++ コンパイラが必要）。 |
+| リリースアーカイブ | [GitHub releases](https://github.com/rush-db/rushdb/releases) | SHA-256 チェックサム、SPDX 形式の SBOM、Sigstore 署名付き。 |
+| ソース | `cargo build --release -p rushdb-server --bin rushdb` | ツールチェーンは `rust-toolchain.toml` で固定。[インストール](https://docs.rushdb.com/engine/getting-started/installation/) を参照。 |
+
+Windows はネイティブではサポートしていません。WSL 2 か Docker を使ってください。
+ノードをループバックの外に公開する前に、[セキュリティ](https://docs.rushdb.com/engine/operations/security/) を読んでください。
+
 ## 作れるもの
 
 - **エージェントのメモリ。** メモリはユーザー、エージェント、セッションごとに区切られたレコードで、それを生んだ会話のターンとつながっているため、想起のときにメモリの出どころが分かります。OpenClaw と Hermes 向けのプロバイダーをすぐに使えます。
@@ -307,6 +336,20 @@ print(db.properties.values(role, query="eng")["data"])
 - **耐久性。** ログ先行書き込み、トランザクション、ポイントインタイムリストア対応のバックアップ、リードレプリカ。[運用](https://docs.rushdb.com/engine/operations/)
 - **バイナリひとつ。** HTTP、PostgreSQL ワイヤ、gRPC、Bolt をひとつのプロセスから提供し、分離されたテナントもオプションで使えます。[接続](https://docs.rushdb.com/engine/connectivity/)
 
+## 接続
+
+| インターフェース | 既定値 | 有効化 |
+|---|---|---|
+| [HTTP ネイティブプロトコル](https://docs.rushdb.com/engine/connectivity/http-api/) | `127.0.0.1:3000`, `POST /protocol/v1/execute` | 常に有効。`--port` で変更 |
+| [PostgreSQL ワイヤプロトコル](https://docs.rushdb.com/engine/connectivity/postgresql-wire/) | `127.0.0.1:5432` | `sql` が有効な間はオン（既定で有効）。`--pgwire-port 0` でオフ |
+| [gRPC](https://docs.rushdb.com/engine/connectivity/grpc/) (`rushdb.v1.Database/Execute`) | オフ | `--grpc-port <port>` |
+| [Bolt 5.0](https://docs.rushdb.com/engine/connectivity/bolt/) | オフ | `--bolt-port <port>`、かつ `--languages` に `cypher` を含める |
+
+すべてのリスナーは `--listen` のアドレス（既定は `127.0.0.1`）にバインドし、1 つの TLS 証明書
+（`--tls-cert`、`--tls-key`）を共有します。詳しくは [接続](https://docs.rushdb.com/engine/connectivity/)、[認証](https://docs.rushdb.com/engine/connectivity/authentication/)、
+[SQL と Cypher のクライアント](https://docs.rushdb.com/connect/sql-and-cypher/) を参照してください。SDK、MCP サーバー、下の表の
+連携はダイレクトモードでセルフホストのエンジンに接続します。[Connect](https://docs.rushdb.com/connect/) を参照してください。
+
 ## エコシステム
 
 | プロジェクト | 用途 |
@@ -320,17 +363,6 @@ print(db.properties.values(role, query="eng")["data"])
 
 どれもセルフホストのエンジンで動きます。コーディングエージェントに
 RushDB をセットアップさせるなら、[rushdb.com/agent-setup](https://rushdb.com/agent-setup) を渡してください。
-
-## どこでも動かせる
-
-```bash
-docker run -p 127.0.0.1:3000:3000 -v rushdb:/data \
-  -e RUSHDB_TOKEN=change-me rushdb/rushdb:3
-```
-
-Docker Compose、Kubernetes（Helm）、cloud-init、systemd、Fly.io、Render、
-Coolify、Dokploy については [デプロイ](https://docs.rushdb.com/deploy/) を参照してください。
-ノードをループバックの外に公開する前に、[セキュリティ](https://docs.rushdb.com/engine/operations/security/) を読んでください。
 
 ## セルフホストと RushDB Cloud
 

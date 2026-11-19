@@ -293,6 +293,36 @@ and the values of small fields. The MCP server offers each read as a tool:
 `findLabels`, `resolveNames`, `getSchemaMarkdown`, `findProperties`,
 `searchValues`, `propertyValues` and `getSchemaSummary`.
 
+## Deploy
+
+| Where | How |
+|---|---|
+| Docker | `docker run -p 127.0.0.1:3000:3000 -v rushdb:/data -e RUSHDB_TOKEN=change-me rushdb/rushdb:3` |
+| Docker Compose | [`deploy/templates/docker-compose`](https://github.com/rush-db/rushdb/tree/main/deploy/templates/docker-compose), with an HTTPS variant behind Caddy |
+| Kubernetes | [Helm chart](https://github.com/rush-db/rushdb/tree/main/charts/rushdb): `helm install rushdb oci://ghcr.io/rush-db/charts/rushdb --set auth.token="$(openssl rand -hex 32)"` |
+| Linux VM | [cloud-init](https://github.com/rush-db/rushdb/tree/main/deploy/templates/cloud-init) for DigitalOcean, Hetzner, AWS, Google Cloud and Azure; [systemd unit](https://github.com/rush-db/rushdb/tree/main/deploy/templates/systemd) |
+| Platforms | [Fly.io](https://github.com/rush-db/rushdb/tree/main/deploy/templates/fly), [Render](https://github.com/rush-db/rushdb/tree/main/deploy/templates/render), [Coolify](https://github.com/rush-db/rushdb/tree/main/deploy/templates/coolify), [Dokploy](https://github.com/rush-db/rushdb/tree/main/deploy/templates/dokploy) |
+
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/rush-db/rushdb)
+
+Ports, probes, sizing and running as a service: [Deployment](https://docs.rushdb.com/engine/operations/deployment/). Every option on one page:
+[docs.rushdb.com/deploy](https://docs.rushdb.com/deploy/).
+
+### Other ways to install
+
+| Method | Command | Notes |
+|---|---|---|
+| Install script | `curl -fsSL https://rushdb.com/install.sh \| sh` | Linux (glibc 2.28+) and macOS 11+, x86-64 and arm64. `sh -s -- --version v3.0.0` pins a release. |
+| Homebrew | `brew install rush-db/tap/rushdb` | macOS and Linux. `brew services start rushdb` runs it in the background. |
+| Docker | `rushdb/rushdb:3` | `linux/amd64` and `linux/arm64`, also `ghcr.io/rush-db/rushdb`. Tags `3`, `3.0` and exact versions. |
+| Cargo | `cargo binstall rushdb-server` · `cargo install rushdb-server --locked` | `binstall` fetches the release binary; `install` compiles it and needs a C/C++ compiler. |
+| Release archive | [GitHub releases](https://github.com/rush-db/rushdb/releases) | Archives with SHA-256 checksums, an SPDX SBOM and Sigstore signatures. |
+| Source | `cargo build --release -p rushdb-server --bin rushdb` | Toolchain pinned in `rust-toolchain.toml`. See [Installation](https://docs.rushdb.com/engine/getting-started/installation/). |
+
+Windows is not supported natively; use WSL 2 or Docker. Read
+[Security](https://docs.rushdb.com/engine/operations/security/) before you expose a node beyond
+loopback.
+
 ## What you can build
 
 - **Agent memory.** Memories are records scoped by user, agent or session and
@@ -325,6 +355,21 @@ and the values of small fields. The MCP server offers each read as a tool:
 - **Durable.** A write-ahead log, transactions, backups with point-in-time restore, and read replicas. [Operations](https://docs.rushdb.com/engine/operations/)
 - **One binary.** HTTP, PostgreSQL wire, gRPC and Bolt from one process, with optional isolated tenants. [Connectivity](https://docs.rushdb.com/engine/connectivity/)
 
+## Connect
+
+| Surface | Default | Enable |
+|---|---|---|
+| [HTTP native protocol](https://docs.rushdb.com/engine/connectivity/http-api/) | `127.0.0.1:3000`, `POST /protocol/v1/execute` | Always on; `--port` moves it |
+| [PostgreSQL wire](https://docs.rushdb.com/engine/connectivity/postgresql-wire/) | `127.0.0.1:5432` | On while `sql` is enabled (the default); `--pgwire-port 0` turns it off |
+| [gRPC](https://docs.rushdb.com/engine/connectivity/grpc/) (`rushdb.v1.Database/Execute`) | Off | `--grpc-port <port>` |
+| [Bolt 5.0](https://docs.rushdb.com/engine/connectivity/bolt/) | Off | `--bolt-port <port>` with `cypher` in `--languages` |
+
+All listeners bind `--listen` (default `127.0.0.1`) and share one TLS
+certificate (`--tls-cert`, `--tls-key`). More in [Connectivity](https://docs.rushdb.com/engine/connectivity/),
+[Authentication](https://docs.rushdb.com/engine/connectivity/authentication/) and [SQL and Cypher clients](https://docs.rushdb.com/connect/sql-and-cypher/). The SDKs,
+the MCP server and the integrations below reach a self-hosted engine in direct
+mode: see [Connect](https://docs.rushdb.com/connect/).
+
 ## Ecosystem
 
 | Project | For |
@@ -338,18 +383,6 @@ and the values of small fields. The MCP server offers each read as a tool:
 
 All of them work with a self-hosted engine. To let your coding agent set
 RushDB up, hand it [rushdb.com/agent-setup](https://rushdb.com/agent-setup).
-
-## Run it anywhere
-
-```bash
-docker run -p 127.0.0.1:3000:3000 -v rushdb:/data \
-  -e RUSHDB_TOKEN=change-me rushdb/rushdb:3
-```
-
-Docker Compose, Kubernetes (Helm), cloud-init, systemd, Fly.io, Render,
-Coolify and Dokploy: see [Deploy](https://docs.rushdb.com/deploy/). Read
-[Security](https://docs.rushdb.com/engine/operations/security/) before you
-expose a node beyond loopback.
 
 ## Self-hosted and RushDB Cloud
 

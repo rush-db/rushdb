@@ -289,6 +289,36 @@ print(db.properties.values(role, query="eng")["data"])
 
 `get_schema_summary` liefert denselben Katalog als JSON, mit Distinct-Zählungen und den Werten kleiner Felder. Der MCP-Server bietet jeden dieser Lesezugriffe als Tool an: `findLabels`, `resolveNames`, `getSchemaMarkdown`, `findProperties`, `searchValues`, `propertyValues` und `getSchemaSummary`.
 
+## Deployment
+
+| Wo | Wie |
+|---|---|
+| Docker | `docker run -p 127.0.0.1:3000:3000 -v rushdb:/data -e RUSHDB_TOKEN=change-me rushdb/rushdb:3` |
+| Docker Compose | [`deploy/templates/docker-compose`](https://github.com/rush-db/rushdb/tree/main/deploy/templates/docker-compose), mit einer HTTPS-Variante hinter Caddy |
+| Kubernetes | [Helm-Chart](https://github.com/rush-db/rushdb/tree/main/charts/rushdb): `helm install rushdb oci://ghcr.io/rush-db/charts/rushdb --set auth.token="$(openssl rand -hex 32)"` |
+| Linux-VM | [cloud-init](https://github.com/rush-db/rushdb/tree/main/deploy/templates/cloud-init) für DigitalOcean, Hetzner, AWS, Google Cloud und Azure; [systemd-Unit](https://github.com/rush-db/rushdb/tree/main/deploy/templates/systemd) |
+| Plattformen | [Fly.io](https://github.com/rush-db/rushdb/tree/main/deploy/templates/fly), [Render](https://github.com/rush-db/rushdb/tree/main/deploy/templates/render), [Coolify](https://github.com/rush-db/rushdb/tree/main/deploy/templates/coolify), [Dokploy](https://github.com/rush-db/rushdb/tree/main/deploy/templates/dokploy) |
+
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/rush-db/rushdb)
+
+Ports, Probes, Dimensionierung und Betrieb als Dienst: [Deployment](https://docs.rushdb.com/engine/operations/deployment/). Alle Wege auf einer Seite:
+[docs.rushdb.com/deploy](https://docs.rushdb.com/deploy/).
+
+### Weitere Installationswege
+
+| Weg | Befehl | Hinweise |
+|---|---|---|
+| Installationsskript | `curl -fsSL https://rushdb.com/install.sh \| sh` | Linux (glibc 2.28+) und macOS 11+, x86-64 und arm64. `sh -s -- --version v3.0.0` legt ein Release fest. |
+| Homebrew | `brew install rush-db/tap/rushdb` | macOS und Linux. `brew services start rushdb` startet es im Hintergrund. |
+| Docker | `rushdb/rushdb:3` | `linux/amd64` und `linux/arm64`, auch als `ghcr.io/rush-db/rushdb`. Tags `3`, `3.0` und exakte Versionen. |
+| Cargo | `cargo binstall rushdb-server` · `cargo install rushdb-server --locked` | `binstall` lädt das Release-Binary; `install` kompiliert und braucht einen C/C++-Compiler. |
+| Release-Archiv | [GitHub Releases](https://github.com/rush-db/rushdb/releases) | Archive mit SHA-256-Prüfsummen, einer SPDX-SBOM und Sigstore-Signaturen. |
+| Quellcode | `cargo build --release -p rushdb-server --bin rushdb` | Toolchain festgelegt in `rust-toolchain.toml`. Siehe [Installation](https://docs.rushdb.com/engine/getting-started/installation/). |
+
+Windows wird nicht nativ unterstützt; nutze WSL 2 oder Docker. Lies
+[Sicherheit](https://docs.rushdb.com/engine/operations/security/), bevor du einen Knoten über
+Loopback hinaus erreichbar machst.
+
 ## Was du damit bauen kannst
 
 - **Agent-Gedächtnis.** Erinnerungen sind Datensätze, nach Nutzer, Agent oder Sitzung abgegrenzt und mit dem Gesprächszug verknüpft, aus dem sie stammen, sodass der Abruf zeigt, woher eine Erinnerung kommt. Fertige Provider für OpenClaw und Hermes.
@@ -308,6 +338,21 @@ print(db.properties.values(role, query="eng")["data"])
 - **Dauerhaft.** Ein Write-Ahead-Log, Transaktionen, Backups mit Point-in-Time-Wiederherstellung und Read-Replicas. [Betrieb](https://docs.rushdb.com/engine/operations/)
 - **Ein Binary.** HTTP, PostgreSQL-Wire, gRPC und Bolt aus einem Prozess, optional mit isolierten Mandanten. [Konnektivität](https://docs.rushdb.com/engine/connectivity/)
 
+## Verbinden
+
+| Schnittstelle | Standard | Aktivieren |
+|---|---|---|
+| [Natives HTTP-Protokoll](https://docs.rushdb.com/engine/connectivity/http-api/) | `127.0.0.1:3000`, `POST /protocol/v1/execute` | Immer an; `--port` verlegt es |
+| [PostgreSQL-Wire-Protokoll](https://docs.rushdb.com/engine/connectivity/postgresql-wire/) | `127.0.0.1:5432` | An, solange `sql` aktiv ist (Standard); `--pgwire-port 0` schaltet es ab |
+| [gRPC](https://docs.rushdb.com/engine/connectivity/grpc/) (`rushdb.v1.Database/Execute`) | Aus | `--grpc-port <port>` |
+| [Bolt 5.0](https://docs.rushdb.com/engine/connectivity/bolt/) | Aus | `--bolt-port <port>` und `cypher` in `--languages` |
+
+Alle Listener binden an `--listen` (Standard `127.0.0.1`) und teilen sich ein
+TLS-Zertifikat (`--tls-cert`, `--tls-key`). Mehr unter [Konnektivität](https://docs.rushdb.com/engine/connectivity/),
+[Authentifizierung](https://docs.rushdb.com/engine/connectivity/authentication/) und [SQL- und Cypher-Clients](https://docs.rushdb.com/connect/sql-and-cypher/). Die SDKs,
+der MCP-Server und die Integrationen unten erreichen eine selbst gehostete Engine
+im Direktmodus: siehe [Connect](https://docs.rushdb.com/connect/).
+
 ## Ökosystem
 
 | Projekt | Für |
@@ -321,18 +366,6 @@ print(db.properties.values(role, query="eng")["data"])
 
 Alle funktionieren mit einer selbst gehosteten Engine. Wenn dein Coding-Agent RushDB
 einrichten soll, gib ihm [rushdb.com/agent-setup](https://rushdb.com/agent-setup).
-
-## Überall lauffähig
-
-```bash
-docker run -p 127.0.0.1:3000:3000 -v rushdb:/data \
-  -e RUSHDB_TOKEN=change-me rushdb/rushdb:3
-```
-
-Docker Compose, Kubernetes (Helm), cloud-init, systemd, Fly.io, Render,
-Coolify und Dokploy: siehe [Deploy](https://docs.rushdb.com/deploy/). Lies
-[Sicherheit](https://docs.rushdb.com/engine/operations/security/), bevor du
-einen Knoten über Loopback hinaus erreichbar machst.
 
 ## Selbst gehostet und RushDB Cloud
 

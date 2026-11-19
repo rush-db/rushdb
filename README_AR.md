@@ -313,6 +313,36 @@ print(db.properties.values(role, query="eng")["data"])
 
 تعيد `get_schema_summary` الفهرس نفسه بصيغة JSON، مع أعداد القيم المميزة وقيم الحقول الصغيرة. ويقدّم خادم MCP كل قراءة كأداة: `findLabels`, `resolveNames`, `getSchemaMarkdown`, `findProperties`, `searchValues`, `propertyValues` و`getSchemaSummary`.
 
+## النشر
+
+| أين | كيف |
+|---|---|
+| Docker | `docker run -p 127.0.0.1:3000:3000 -v rushdb:/data -e RUSHDB_TOKEN=change-me rushdb/rushdb:3` |
+| Docker Compose | [`deploy/templates/docker-compose`](https://github.com/rush-db/rushdb/tree/main/deploy/templates/docker-compose)، مع نسخة HTTPS خلف Caddy |
+| Kubernetes | [مخطط Helm](https://github.com/rush-db/rushdb/tree/main/charts/rushdb): `helm install rushdb oci://ghcr.io/rush-db/charts/rushdb --set auth.token="$(openssl rand -hex 32)"` |
+| آلة Linux افتراضية | [cloud-init](https://github.com/rush-db/rushdb/tree/main/deploy/templates/cloud-init) لـ DigitalOcean وHetzner وAWS وGoogle Cloud وAzure; [وحدة systemd](https://github.com/rush-db/rushdb/tree/main/deploy/templates/systemd) |
+| المنصات | [Fly.io](https://github.com/rush-db/rushdb/tree/main/deploy/templates/fly), [Render](https://github.com/rush-db/rushdb/tree/main/deploy/templates/render), [Coolify](https://github.com/rush-db/rushdb/tree/main/deploy/templates/coolify), [Dokploy](https://github.com/rush-db/rushdb/tree/main/deploy/templates/dokploy) |
+
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/rush-db/rushdb)
+
+المنافذ وفحوص الجاهزية وتقدير الموارد والتشغيل كخدمة: [Deployment](https://docs.rushdb.com/engine/operations/deployment/). كل الخيارات في صفحة واحدة:
+[docs.rushdb.com/deploy](https://docs.rushdb.com/deploy/).
+
+### طرق أخرى للتثبيت
+
+| الطريقة | الأمر | ملاحظات |
+|---|---|---|
+| سكربت التثبيت | `curl -fsSL https://rushdb.com/install.sh \| sh` | Linux (glibc 2.28+) وmacOS 11+، بمعماريتي x86-64 وarm64. الأمر `sh -s -- --version v3.0.0` يثبّت إصدارًا محددًا. |
+| Homebrew | `brew install rush-db/tap/rushdb` | macOS وLinux. الأمر `brew services start rushdb` يشغّله في الخلفية. |
+| Docker | `rushdb/rushdb:3` | `linux/amd64` و`linux/arm64`، ومتاح أيضًا باسم `ghcr.io/rush-db/rushdb`. الوسوم `3` و`3.0` والإصدارات الدقيقة. |
+| Cargo | `cargo binstall rushdb-server` · `cargo install rushdb-server --locked` | `binstall` ينزّل الملف التنفيذي للإصدار؛ و`install` يبنيه من المصدر ويحتاج إلى مترجم C/C++. |
+| أرشيف الإصدار | [إصدارات GitHub](https://github.com/rush-db/rushdb/releases) | أرشيفات مع مجاميع SHA-256 وقائمة SBOM بصيغة SPDX وتواقيع Sigstore. |
+| المصدر | `cargo build --release -p rushdb-server --bin rushdb` | سلسلة الأدوات مثبّتة في `rust-toolchain.toml`. راجع [التثبيت](https://docs.rushdb.com/engine/getting-started/installation/). |
+
+لا يُدعم Windows دعمًا أصليًا؛ استخدم WSL 2 أو Docker. اقرأ
+[الأمان](https://docs.rushdb.com/engine/operations/security/) قبل أن تكشف عقدة
+خارج واجهة loopback.
+
 ## ما الذي يمكنك بناؤه
 
 - **ذاكرة الوكلاء.** الذكريات سجلاتٌ مقيّدة بالمستخدم أو الوكيل أو الجلسة ومرتبطة بالدور الذي أنتجها، فيُظهر الاسترجاع مصدر كل ذكرى. مزوّدات جاهزة لـ OpenClaw وHermes.
@@ -332,6 +362,20 @@ print(db.properties.values(role, query="eng")["data"])
 - **متين.** سجل كتابة مسبق، ومعاملات، ونسخ احتياطية مع الاستعادة إلى نقطة زمنية، ونسخ متماثلة للقراءة. [التشغيل](https://docs.rushdb.com/engine/operations/)
 - **ملف تنفيذي واحد.** HTTP وبروتوكول PostgreSQL وgRPC وBolt من عملية واحدة، مع مستأجرين معزولين اختياريًا. [الاتصال](https://docs.rushdb.com/engine/connectivity/)
 
+## الاتصال
+
+| الواجهة | الافتراضي | التفعيل |
+|---|---|---|
+| [بروتوكول HTTP الأصلي](https://docs.rushdb.com/engine/connectivity/http-api/) | `127.0.0.1:3000`, `POST /protocol/v1/execute` | يعمل دائمًا؛ `--port` يغيّر المنفذ |
+| [بروتوكول PostgreSQL](https://docs.rushdb.com/engine/connectivity/postgresql-wire/) | `127.0.0.1:5432` | يعمل ما دامت `sql` مفعّلة (افتراضيًا)؛ `--pgwire-port 0` يوقفه |
+| [gRPC](https://docs.rushdb.com/engine/connectivity/grpc/) (`rushdb.v1.Database/Execute`) | متوقف | `--grpc-port <port>` |
+| [Bolt 5.0](https://docs.rushdb.com/engine/connectivity/bolt/) | متوقف | `--bolt-port <port>` مع `cypher` ضمن `--languages` |
+
+تستمع كل الواجهات على عنوان `--listen` (الافتراضي `127.0.0.1`) وتتشارك شهادة TLS واحدة
+(`--tls-cert` و`--tls-key`). المزيد في [الاتصال](https://docs.rushdb.com/engine/connectivity/) و[المصادقة](https://docs.rushdb.com/engine/connectivity/authentication/)
+و[عملاء SQL وCypher](https://docs.rushdb.com/connect/sql-and-cypher/). تتصل حزم SDK وخادم MCP والتكاملات في الجدول أدناه
+بمحرّك مستضاف ذاتيًا في الوضع المباشر: راجع [Connect](https://docs.rushdb.com/connect/).
+
 ## المنظومة
 
 | المشروع | لمن |
@@ -345,22 +389,6 @@ print(db.properties.values(role, query="eng")["data"])
 
 تعمل جميعها مع محرّك مستضاف ذاتيًا. لتدع وكيل البرمجة لديك يُعدّ RushDB، أعطه
 [rushdb.com/agent-setup](https://rushdb.com/agent-setup).
-
-## شغّله في أي مكان
-
-</div>
-
-```bash
-docker run -p 127.0.0.1:3000:3000 -v rushdb:/data \
-  -e RUSHDB_TOKEN=change-me rushdb/rushdb:3
-```
-
-<div dir="rtl">
-
-Docker Compose وKubernetes (Helm) وcloud-init وsystemd وFly.io وRender
-وCoolify وDokploy: راجع [النشر](https://docs.rushdb.com/deploy/). اقرأ
-[الأمان](https://docs.rushdb.com/engine/operations/security/) قبل أن تكشف عقدة
-خارج واجهة loopback.
 
 ## الاستضافة الذاتية وRushDB Cloud
 

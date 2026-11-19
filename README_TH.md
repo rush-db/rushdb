@@ -287,6 +287,36 @@ print(db.properties.values(role, query="eng")["data"])
 
 `get_schema_summary` คืนแคตตาล็อกเดียวกันในรูป JSON พร้อมจำนวนค่าที่ไม่ซ้ำและค่าของฟิลด์ที่มีค่าน้อย เซิร์ฟเวอร์ MCP มีการอ่านแต่ละแบบเป็นเครื่องมือ: `findLabels`, `resolveNames`, `getSchemaMarkdown`, `findProperties`, `searchValues`, `propertyValues` และ `getSchemaSummary`
 
+## การ Deploy
+
+| ที่ไหน | อย่างไร |
+|---|---|
+| Docker | `docker run -p 127.0.0.1:3000:3000 -v rushdb:/data -e RUSHDB_TOKEN=change-me rushdb/rushdb:3` |
+| Docker Compose | [`deploy/templates/docker-compose`](https://github.com/rush-db/rushdb/tree/main/deploy/templates/docker-compose) มีแบบ HTTPS ผ่าน Caddy ด้วย |
+| Kubernetes | [Helm chart](https://github.com/rush-db/rushdb/tree/main/charts/rushdb): `helm install rushdb oci://ghcr.io/rush-db/charts/rushdb --set auth.token="$(openssl rand -hex 32)"` |
+| Linux VM | [cloud-init](https://github.com/rush-db/rushdb/tree/main/deploy/templates/cloud-init) สำหรับ DigitalOcean, Hetzner, AWS, Google Cloud และ Azure; [systemd unit](https://github.com/rush-db/rushdb/tree/main/deploy/templates/systemd) |
+| แพลตฟอร์ม | [Fly.io](https://github.com/rush-db/rushdb/tree/main/deploy/templates/fly), [Render](https://github.com/rush-db/rushdb/tree/main/deploy/templates/render), [Coolify](https://github.com/rush-db/rushdb/tree/main/deploy/templates/coolify), [Dokploy](https://github.com/rush-db/rushdb/tree/main/deploy/templates/dokploy) |
+
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/rush-db/rushdb)
+
+พอร์ต probe การกำหนดขนาด และการรันเป็นบริการ: ดู [Deployment](https://docs.rushdb.com/engine/operations/deployment/) ทุกวิธีอยู่ในหน้าเดียว:
+[docs.rushdb.com/deploy](https://docs.rushdb.com/deploy/)
+
+### วิธีติดตั้งอื่น ๆ
+
+| วิธี | คำสั่ง | หมายเหตุ |
+|---|---|---|
+| สคริปต์ติดตั้ง | `curl -fsSL https://rushdb.com/install.sh \| sh` | Linux (glibc 2.28+) และ macOS 11+ บน x86-64 และ arm64 ใช้ `sh -s -- --version v3.0.0` เพื่อล็อกรีลีส |
+| Homebrew | `brew install rush-db/tap/rushdb` | macOS และ Linux ใช้ `brew services start rushdb` เพื่อรันเบื้องหลัง |
+| Docker | `rushdb/rushdb:3` | `linux/amd64` และ `linux/arm64` มีที่ `ghcr.io/rush-db/rushdb` ด้วย แท็ก `3`, `3.0` และเวอร์ชันเต็ม |
+| Cargo | `cargo binstall rushdb-server` · `cargo install rushdb-server --locked` | `binstall` ดาวน์โหลดไบนารีของรีลีส ส่วน `install` คอมไพล์เองและต้องมีคอมไพเลอร์ C/C++ |
+| ไฟล์รีลีส | [GitHub releases](https://github.com/rush-db/rushdb/releases) | มี checksum SHA-256, SBOM แบบ SPDX และลายเซ็น Sigstore |
+| ซอร์สโค้ด | `cargo build --release -p rushdb-server --bin rushdb` | toolchain ล็อกไว้ใน `rust-toolchain.toml` ดู [การติดตั้ง](https://docs.rushdb.com/engine/getting-started/installation/) |
+
+ไม่รองรับ Windows โดยตรง ให้ใช้ WSL 2 หรือ Docker อ่าน
+[ความปลอดภัย](https://docs.rushdb.com/engine/operations/security/) ก่อน
+เปิดโหนดให้เข้าถึงได้นอกเหนือจาก loopback
+
 ## สิ่งที่คุณสร้างได้
 
 - **หน่วยความจำของเอเจนต์**: ความจำคือเรคคอร์ดที่แยกตามผู้ใช้ เอเจนต์ หรือเซสชัน และเชื่อมกับเทิร์นที่สร้างมัน การเรียกคืนจึงบอกได้ว่าความจำนั้นมาจากไหน มีผู้ให้บริการสำเร็จรูปสำหรับ OpenClaw และ Hermes
@@ -306,6 +336,20 @@ print(db.properties.values(role, query="eng")["data"])
 - **ทนทาน**: มี write-ahead log, ทรานแซกชัน, การสำรองข้อมูลพร้อมกู้คืนไปยังจุดเวลาที่ต้องการ และ read replica [การดูแลระบบ](https://docs.rushdb.com/engine/operations/)
 - **ไบนารีเดียว**: HTTP, PostgreSQL wire, gRPC และ Bolt จากโปรเซสเดียว พร้อม tenant แยกกันแบบเลือกใช้ได้ [การเชื่อมต่อ](https://docs.rushdb.com/engine/connectivity/)
 
+## การเชื่อมต่อ
+
+| ช่องทาง | ค่าเริ่มต้น | วิธีเปิดใช้ |
+|---|---|---|
+| [โปรโตคอล HTTP ดั้งเดิม](https://docs.rushdb.com/engine/connectivity/http-api/) | `127.0.0.1:3000`, `POST /protocol/v1/execute` | เปิดเสมอ ใช้ `--port` เพื่อย้ายพอร์ต |
+| [PostgreSQL wire](https://docs.rushdb.com/engine/connectivity/postgresql-wire/) | `127.0.0.1:5432` | เปิดเมื่อเปิดใช้ `sql` (ค่าเริ่มต้น) ใช้ `--pgwire-port 0` เพื่อปิด |
+| [gRPC](https://docs.rushdb.com/engine/connectivity/grpc/) (`rushdb.v1.Database/Execute`) | ปิด | `--grpc-port <port>` |
+| [Bolt 5.0](https://docs.rushdb.com/engine/connectivity/bolt/) | ปิด | `--bolt-port <port>` และมี `cypher` ใน `--languages` |
+
+ทุก listener ผูกกับที่อยู่ `--listen` (ค่าเริ่มต้น `127.0.0.1`) และใช้ใบรับรอง TLS ชุดเดียวกัน
+(`--tls-cert`, `--tls-key`) ดูเพิ่มเติมที่ [การเชื่อมต่อ](https://docs.rushdb.com/engine/connectivity/), [การยืนยันตัวตน](https://docs.rushdb.com/engine/connectivity/authentication/)
+และ [ไคลเอนต์ SQL และ Cypher](https://docs.rushdb.com/connect/sql-and-cypher/) SDK, MCP server และการเชื่อมต่อในตารางด้านล่าง
+เชื่อมกับเอนจินที่โฮสต์เองในโหมด direct: ดู [Connect](https://docs.rushdb.com/connect/)
+
 ## อีโคซิสเต็ม
 
 | โปรเจกต์ | สำหรับ |
@@ -319,18 +363,6 @@ print(db.properties.values(role, query="eng")["data"])
 
 ทั้งหมดใช้งานได้กับเอนจินที่โฮสต์เอง หากต้องการให้เอเจนต์เขียนโค้ดของคุณติดตั้ง
 RushDB ให้ ส่ง [rushdb.com/agent-setup](https://rushdb.com/agent-setup) ให้เอเจนต์
-
-## รันได้ทุกที่
-
-```bash
-docker run -p 127.0.0.1:3000:3000 -v rushdb:/data \
-  -e RUSHDB_TOKEN=change-me rushdb/rushdb:3
-```
-
-Docker Compose, Kubernetes (Helm), cloud-init, systemd, Fly.io, Render,
-Coolify และ Dokploy: ดู [Deploy](https://docs.rushdb.com/deploy/) อ่าน
-[ความปลอดภัย](https://docs.rushdb.com/engine/operations/security/) ก่อน
-เปิดโหนดให้เข้าถึงได้นอกเหนือจาก loopback
 
 ## โฮสต์เองและ RushDB Cloud
 

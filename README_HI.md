@@ -288,6 +288,36 @@ print(db.properties.values(role, query="eng")["data"])
 
 `get_schema_summary` वही कैटलॉग JSON में लौटाता है, distinct गिनती और छोटे fields की values के साथ। MCP सर्वर हर read को एक टूल के रूप में देता है: `findLabels`, `resolveNames`, `getSchemaMarkdown`, `findProperties`, `searchValues`, `propertyValues` और `getSchemaSummary`।
 
+## Deploy
+
+| कहाँ | कैसे |
+|---|---|
+| Docker | `docker run -p 127.0.0.1:3000:3000 -v rushdb:/data -e RUSHDB_TOKEN=change-me rushdb/rushdb:3` |
+| Docker Compose | [`deploy/templates/docker-compose`](https://github.com/rush-db/rushdb/tree/main/deploy/templates/docker-compose), Caddy के पीछे HTTPS वाले variant के साथ |
+| Kubernetes | [Helm chart](https://github.com/rush-db/rushdb/tree/main/charts/rushdb): `helm install rushdb oci://ghcr.io/rush-db/charts/rushdb --set auth.token="$(openssl rand -hex 32)"` |
+| Linux VM | [cloud-init](https://github.com/rush-db/rushdb/tree/main/deploy/templates/cloud-init) DigitalOcean, Hetzner, AWS, Google Cloud और Azure के लिए; [systemd unit](https://github.com/rush-db/rushdb/tree/main/deploy/templates/systemd) |
+| Platforms | [Fly.io](https://github.com/rush-db/rushdb/tree/main/deploy/templates/fly), [Render](https://github.com/rush-db/rushdb/tree/main/deploy/templates/render), [Coolify](https://github.com/rush-db/rushdb/tree/main/deploy/templates/coolify), [Dokploy](https://github.com/rush-db/rushdb/tree/main/deploy/templates/dokploy) |
+
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/rush-db/rushdb)
+
+Ports, probes, sizing और service की तरह चलाना: [Deployment](https://docs.rushdb.com/engine/operations/deployment/) देखिए। सारे तरीके एक पेज पर:
+[docs.rushdb.com/deploy](https://docs.rushdb.com/deploy/)।
+
+### इंस्टॉल करने के दूसरे तरीके
+
+| तरीका | Command | नोट्स |
+|---|---|---|
+| Install script | `curl -fsSL https://rushdb.com/install.sh \| sh` | Linux (glibc 2.28+) और macOS 11+, x86-64 और arm64। `sh -s -- --version v3.0.0` किसी release को pin करता है। |
+| Homebrew | `brew install rush-db/tap/rushdb` | macOS और Linux। `brew services start rushdb` इसे background में चलाता है। |
+| Docker | `rushdb/rushdb:3` | `linux/amd64` और `linux/arm64`, `ghcr.io/rush-db/rushdb` पर भी। Tags `3`, `3.0` और exact versions। |
+| Cargo | `cargo binstall rushdb-server` · `cargo install rushdb-server --locked` | `binstall` release binary डाउनलोड करता है; `install` compile करता है और उसे C/C++ compiler चाहिए। |
+| Release archive | [GitHub releases](https://github.com/rush-db/rushdb/releases) | SHA-256 checksums, SPDX SBOM और Sigstore signatures के साथ archives। |
+| Source | `cargo build --release -p rushdb-server --bin rushdb` | Toolchain `rust-toolchain.toml` में pinned है। [Installation](https://docs.rushdb.com/engine/getting-started/installation/) देखिए। |
+
+Windows native रूप से supported नहीं है; WSL 2 या Docker इस्तेमाल कीजिए। किसी node को
+loopback से बाहर expose करने से पहले [Security](https://docs.rushdb.com/engine/operations/security/)
+पढ़िए।
+
 ## आप क्या बना सकते हैं
 
 - **एजेंट मेमोरी.** मेमोरी ऐसे रिकॉर्ड हैं जो user, agent या session के हिसाब से अलग रहते हैं और उस बातचीत के turn से जुड़े होते हैं जिसने उन्हें बनाया, इसलिए recall बताता है कि कोई मेमोरी कहाँ से आई। OpenClaw और Hermes के लिए तैयार providers।
@@ -307,6 +337,20 @@ print(db.properties.values(role, query="eng")["data"])
 - **Durable.** Write-ahead log, transactions, point-in-time restore वाले backups, और read replicas। [Operations](https://docs.rushdb.com/engine/operations/)
 - **एक binary.** एक ही process से HTTP, PostgreSQL wire, gRPC और Bolt, साथ में optional isolated tenants। [Connectivity](https://docs.rushdb.com/engine/connectivity/)
 
+## Connect
+
+| Surface | Default | कैसे चालू करें |
+|---|---|---|
+| [HTTP native protocol](https://docs.rushdb.com/engine/connectivity/http-api/) | `127.0.0.1:3000`, `POST /protocol/v1/execute` | हमेशा चालू; `--port` से port बदलें |
+| [PostgreSQL wire](https://docs.rushdb.com/engine/connectivity/postgresql-wire/) | `127.0.0.1:5432` | `sql` चालू रहने तक चालू (default); `--pgwire-port 0` इसे बंद करता है |
+| [gRPC](https://docs.rushdb.com/engine/connectivity/grpc/) (`rushdb.v1.Database/Execute`) | बंद | `--grpc-port <port>` |
+| [Bolt 5.0](https://docs.rushdb.com/engine/connectivity/bolt/) | बंद | `--bolt-port <port>`, और `--languages` में `cypher` |
+
+सभी listeners `--listen` address (default `127.0.0.1`) पर bind होते हैं और एक ही TLS
+certificate (`--tls-cert`, `--tls-key`) share करते हैं। ज़्यादा जानकारी: [Connectivity](https://docs.rushdb.com/engine/connectivity/),
+[Authentication](https://docs.rushdb.com/engine/connectivity/authentication/) और [SQL और Cypher clients](https://docs.rushdb.com/connect/sql-and-cypher/)। SDKs, MCP server और
+नीचे के integrations direct mode में self-hosted engine से जुड़ते हैं: [Connect](https://docs.rushdb.com/connect/) देखिए।
+
 ## Ecosystem
 
 | Project | किसके लिए |
@@ -320,18 +364,6 @@ print(db.properties.values(role, query="eng")["data"])
 
 ये सभी self-hosted engine के साथ काम करते हैं। RushDB का setup अपने coding agent से
 करवाने के लिए उसे [rushdb.com/agent-setup](https://rushdb.com/agent-setup) दीजिए।
-
-## कहीं भी चलाइए
-
-```bash
-docker run -p 127.0.0.1:3000:3000 -v rushdb:/data \
-  -e RUSHDB_TOKEN=change-me rushdb/rushdb:3
-```
-
-Docker Compose, Kubernetes (Helm), cloud-init, systemd, Fly.io, Render,
-Coolify और Dokploy: [Deploy](https://docs.rushdb.com/deploy/) देखिए। किसी node को
-loopback से बाहर expose करने से पहले [Security](https://docs.rushdb.com/engine/operations/security/)
-पढ़िए।
 
 ## Self-hosted और RushDB Cloud
 

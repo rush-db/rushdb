@@ -287,6 +287,35 @@ print(db.properties.values(role, query="eng")["data"])
 
 `get_schema_summary`는 같은 카탈로그를 JSON으로 반환하며, 고유 값 개수와 값이 적은 필드의 값을 포함합니다. MCP 서버는 각 읽기를 도구로 제공합니다: `findLabels`, `resolveNames`, `getSchemaMarkdown`, `findProperties`, `searchValues`, `propertyValues`, `getSchemaSummary`.
 
+## 배포
+
+| 환경 | 방법 |
+|---|---|
+| Docker | `docker run -p 127.0.0.1:3000:3000 -v rushdb:/data -e RUSHDB_TOKEN=change-me rushdb/rushdb:3` |
+| Docker Compose | [`deploy/templates/docker-compose`](https://github.com/rush-db/rushdb/tree/main/deploy/templates/docker-compose), Caddy 뒤에서 HTTPS로 동작하는 버전 포함 |
+| Kubernetes | [Helm 차트](https://github.com/rush-db/rushdb/tree/main/charts/rushdb): `helm install rushdb oci://ghcr.io/rush-db/charts/rushdb --set auth.token="$(openssl rand -hex 32)"` |
+| Linux VM | [cloud-init](https://github.com/rush-db/rushdb/tree/main/deploy/templates/cloud-init) (DigitalOcean, Hetzner, AWS, Google Cloud, Azure용); [systemd 유닛](https://github.com/rush-db/rushdb/tree/main/deploy/templates/systemd) |
+| 플랫폼 | [Fly.io](https://github.com/rush-db/rushdb/tree/main/deploy/templates/fly), [Render](https://github.com/rush-db/rushdb/tree/main/deploy/templates/render), [Coolify](https://github.com/rush-db/rushdb/tree/main/deploy/templates/coolify), [Dokploy](https://github.com/rush-db/rushdb/tree/main/deploy/templates/dokploy) |
+
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/rush-db/rushdb)
+
+포트, 프로브, 용량 산정, 서비스로 실행하기: [Deployment](https://docs.rushdb.com/engine/operations/deployment/). 모든 방법을 한 페이지에서:
+[docs.rushdb.com/deploy](https://docs.rushdb.com/deploy/).
+
+### 다른 설치 방법
+
+| 방법 | 명령 | 참고 |
+|---|---|---|
+| 설치 스크립트 | `curl -fsSL https://rushdb.com/install.sh \| sh` | Linux(glibc 2.28 이상)와 macOS 11 이상, x86-64와 arm64. `sh -s -- --version v3.0.0`으로 릴리스를 고정합니다. |
+| Homebrew | `brew install rush-db/tap/rushdb` | macOS와 Linux. `brew services start rushdb`로 백그라운드에서 실행합니다. |
+| Docker | `rushdb/rushdb:3` | `linux/amd64`와 `linux/arm64`, `ghcr.io/rush-db/rushdb`로도 배포. 태그는 `3`, `3.0`, 정확한 버전. |
+| Cargo | `cargo binstall rushdb-server` · `cargo install rushdb-server --locked` | `binstall`은 릴리스 바이너리를 받고, `install`은 소스에서 컴파일합니다(C/C++ 컴파일러 필요). |
+| 릴리스 아카이브 | [GitHub releases](https://github.com/rush-db/rushdb/releases) | SHA-256 체크섬, SPDX SBOM, Sigstore 서명 포함. |
+| 소스 | `cargo build --release -p rushdb-server --bin rushdb` | 툴체인은 `rust-toolchain.toml`에 고정. [설치](https://docs.rushdb.com/engine/getting-started/installation/) 참고. |
+
+Windows는 네이티브로 지원하지 않습니다. WSL 2나 Docker를 사용하세요. 노드를
+루프백 밖으로 노출하기 전에 [보안](https://docs.rushdb.com/engine/operations/security/) 문서를 읽어 주세요.
+
 ## 무엇을 만들 수 있나
 
 - **에이전트 메모리.** 메모리는 사용자, 에이전트, 세션 단위로 구분된 레코드이며 그것을 만든 대화 턴과 연결되어 있어, 불러올 때 메모리의 출처가 함께 나옵니다. OpenClaw와 Hermes용 프로바이더를 바로 쓸 수 있습니다.
@@ -306,6 +335,20 @@ print(db.properties.values(role, query="eng")["data"])
 - **내구성.** 선행 기록 로그(WAL), 트랜잭션, 특정 시점 복구를 지원하는 백업, 읽기 복제본. [운영](https://docs.rushdb.com/engine/operations/)
 - **바이너리 하나.** 하나의 프로세스에서 HTTP, PostgreSQL 와이어, gRPC, Bolt를 제공하며, 격리된 테넌트를 선택적으로 쓸 수 있습니다. [연결](https://docs.rushdb.com/engine/connectivity/)
 
+## 연결
+
+| 인터페이스 | 기본값 | 활성화 |
+|---|---|---|
+| [HTTP 네이티브 프로토콜](https://docs.rushdb.com/engine/connectivity/http-api/) | `127.0.0.1:3000`, `POST /protocol/v1/execute` | 항상 켜짐. `--port`로 변경 |
+| [PostgreSQL 와이어 프로토콜](https://docs.rushdb.com/engine/connectivity/postgresql-wire/) | `127.0.0.1:5432` | `sql`이 켜져 있으면 켜짐(기본값). `--pgwire-port 0`으로 끔 |
+| [gRPC](https://docs.rushdb.com/engine/connectivity/grpc/) (`rushdb.v1.Database/Execute`) | 꺼짐 | `--grpc-port <port>` |
+| [Bolt 5.0](https://docs.rushdb.com/engine/connectivity/bolt/) | 꺼짐 | `--bolt-port <port>`, 그리고 `--languages`에 `cypher` 포함 |
+
+모든 리스너는 `--listen` 주소(기본값 `127.0.0.1`)에 바인딩하고 하나의 TLS 인증서
+(`--tls-cert`, `--tls-key`)를 공유합니다. 자세한 내용은 [연결](https://docs.rushdb.com/engine/connectivity/), [인증](https://docs.rushdb.com/engine/connectivity/authentication/),
+[SQL과 Cypher 클라이언트](https://docs.rushdb.com/connect/sql-and-cypher/)를 참고하세요. SDK, MCP 서버, 아래 표의 통합은
+다이렉트 모드로 셀프 호스팅 엔진에 연결합니다. [Connect](https://docs.rushdb.com/connect/)를 참고하세요.
+
 ## 생태계
 
 | 프로젝트 | 용도 |
@@ -319,18 +362,6 @@ print(db.properties.values(role, query="eng")["data"])
 
 모두 셀프 호스팅 엔진과 함께 동작합니다. 코딩 에이전트에게 RushDB 설정을
 맡기려면 [rushdb.com/agent-setup](https://rushdb.com/agent-setup)을 건네주세요.
-
-## 어디서나 실행
-
-```bash
-docker run -p 127.0.0.1:3000:3000 -v rushdb:/data \
-  -e RUSHDB_TOKEN=change-me rushdb/rushdb:3
-```
-
-Docker Compose, Kubernetes(Helm), cloud-init, systemd, Fly.io, Render,
-Coolify, Dokploy: [배포](https://docs.rushdb.com/deploy/)를 참고하세요. 노드를
-루프백 밖으로 노출하기 전에 [보안](https://docs.rushdb.com/engine/operations/security/) 문서를
-읽어 주세요.
 
 ## 셀프 호스팅과 RushDB Cloud
 

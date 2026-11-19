@@ -288,6 +288,36 @@ print(db.properties.values(role, query="eng")["data"])
 
 `get_schema_summary` mengembalikan katalog yang sama sebagai JSON, dengan jumlah nilai unik dan nilai dari field kecil. Server MCP menyediakan setiap pembacaan sebagai tool: `findLabels`, `resolveNames`, `getSchemaMarkdown`, `findProperties`, `searchValues`, `propertyValues`, dan `getSchemaSummary`.
 
+## Deploy
+
+| Di mana | Caranya |
+|---|---|
+| Docker | `docker run -p 127.0.0.1:3000:3000 -v rushdb:/data -e RUSHDB_TOKEN=change-me rushdb/rushdb:3` |
+| Docker Compose | [`deploy/templates/docker-compose`](https://github.com/rush-db/rushdb/tree/main/deploy/templates/docker-compose), dengan varian HTTPS di belakang Caddy |
+| Kubernetes | [Helm chart](https://github.com/rush-db/rushdb/tree/main/charts/rushdb): `helm install rushdb oci://ghcr.io/rush-db/charts/rushdb --set auth.token="$(openssl rand -hex 32)"` |
+| VM Linux | [cloud-init](https://github.com/rush-db/rushdb/tree/main/deploy/templates/cloud-init) untuk DigitalOcean, Hetzner, AWS, Google Cloud, dan Azure; [unit systemd](https://github.com/rush-db/rushdb/tree/main/deploy/templates/systemd) |
+| Platform | [Fly.io](https://github.com/rush-db/rushdb/tree/main/deploy/templates/fly), [Render](https://github.com/rush-db/rushdb/tree/main/deploy/templates/render), [Coolify](https://github.com/rush-db/rushdb/tree/main/deploy/templates/coolify), [Dokploy](https://github.com/rush-db/rushdb/tree/main/deploy/templates/dokploy) |
+
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/rush-db/rushdb)
+
+Port, probe, sizing, dan menjalankannya sebagai layanan: [Deployment](https://docs.rushdb.com/engine/operations/deployment/). Semua opsi dalam satu halaman:
+[docs.rushdb.com/deploy](https://docs.rushdb.com/deploy/).
+
+### Cara lain untuk memasang
+
+| Cara | Perintah | Catatan |
+|---|---|---|
+| Skrip instalasi | `curl -fsSL https://rushdb.com/install.sh \| sh` | Linux (glibc 2.28+) dan macOS 11+, x86-64 dan arm64. `sh -s -- --version v3.0.0` mengunci rilis tertentu. |
+| Homebrew | `brew install rush-db/tap/rushdb` | macOS dan Linux. `brew services start rushdb` menjalankannya di latar belakang. |
+| Docker | `rushdb/rushdb:3` | `linux/amd64` dan `linux/arm64`, juga `ghcr.io/rush-db/rushdb`. Tag `3`, `3.0`, dan versi persis. |
+| Cargo | `cargo binstall rushdb-server` · `cargo install rushdb-server --locked` | `binstall` mengunduh biner rilis; `install` mengompilasinya dan butuh kompiler C/C++. |
+| Arsip rilis | [GitHub releases](https://github.com/rush-db/rushdb/releases) | Arsip dengan checksum SHA-256, SBOM SPDX, dan tanda tangan Sigstore. |
+| Kode sumber | `cargo build --release -p rushdb-server --bin rushdb` | Toolchain dikunci di `rust-toolchain.toml`. Lihat [Instalasi](https://docs.rushdb.com/engine/getting-started/installation/). |
+
+Windows tidak didukung secara native; gunakan WSL 2 atau Docker. Baca
+[Keamanan](https://docs.rushdb.com/engine/operations/security/) sebelum Anda membuka node ke luar
+loopback.
+
 ## Apa yang bisa Anda bangun
 
 - **Memori agen.** Memori adalah record yang dibatasi per pengguna, agen, atau sesi dan ditautkan ke giliran yang menghasilkannya, sehingga recall menunjukkan asal sebuah memori. Provider siap pakai untuk OpenClaw dan Hermes.
@@ -307,6 +337,21 @@ print(db.properties.values(role, query="eng")["data"])
 - **Tahan lama.** Write-ahead log, transaksi, backup dengan pemulihan ke titik waktu tertentu, dan replika baca. [Operasional](https://docs.rushdb.com/engine/operations/)
 - **Satu binary.** HTTP, wire PostgreSQL, gRPC, dan Bolt dari satu proses, dengan tenant terisolasi opsional. [Konektivitas](https://docs.rushdb.com/engine/connectivity/)
 
+## Koneksi
+
+| Antarmuka | Bawaan | Cara mengaktifkan |
+|---|---|---|
+| [Protokol HTTP native](https://docs.rushdb.com/engine/connectivity/http-api/) | `127.0.0.1:3000`, `POST /protocol/v1/execute` | Selalu aktif; `--port` memindahkannya |
+| [Protokol PostgreSQL](https://docs.rushdb.com/engine/connectivity/postgresql-wire/) | `127.0.0.1:5432` | Aktif selama `sql` diaktifkan (bawaan); `--pgwire-port 0` mematikannya |
+| [gRPC](https://docs.rushdb.com/engine/connectivity/grpc/) (`rushdb.v1.Database/Execute`) | Mati | `--grpc-port <port>` |
+| [Bolt 5.0](https://docs.rushdb.com/engine/connectivity/bolt/) | Mati | `--bolt-port <port>` dengan `cypher` di `--languages` |
+
+Semua listener memakai alamat `--listen` (bawaan `127.0.0.1`) dan berbagi satu sertifikat
+TLS (`--tls-cert`, `--tls-key`). Selengkapnya di [Konektivitas](https://docs.rushdb.com/engine/connectivity/),
+[Autentikasi](https://docs.rushdb.com/engine/connectivity/authentication/), dan [Klien SQL dan Cypher](https://docs.rushdb.com/connect/sql-and-cypher/). SDK, server MCP, dan
+integrasi di bawah terhubung ke engine self-hosted dalam mode langsung: lihat
+[Connect](https://docs.rushdb.com/connect/).
+
 ## Ekosistem
 
 | Proyek | Untuk |
@@ -320,18 +365,6 @@ print(db.properties.values(role, query="eng")["data"])
 
 Semuanya bekerja dengan engine self-hosted. Agar agen coding Anda bisa
 menyiapkan RushDB, berikan [rushdb.com/agent-setup](https://rushdb.com/agent-setup) kepadanya.
-
-## Jalankan di mana saja
-
-```bash
-docker run -p 127.0.0.1:3000:3000 -v rushdb:/data \
-  -e RUSHDB_TOKEN=change-me rushdb/rushdb:3
-```
-
-Docker Compose, Kubernetes (Helm), cloud-init, systemd, Fly.io, Render,
-Coolify, dan Dokploy: lihat [Deploy](https://docs.rushdb.com/deploy/). Baca
-[Keamanan](https://docs.rushdb.com/engine/operations/security/) sebelum Anda
-membuka node ke luar loopback.
 
 ## Self-hosted dan RushDB Cloud
 
