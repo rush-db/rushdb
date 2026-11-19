@@ -36,7 +36,7 @@ desde cualquier cliente de PostgreSQL. Un solo binario de Rust, Apache-2.0.
 
 ## Inicio rápido
 
-![Grabación de terminal: instalar RushDB, iniciarlo con rushdb up y, desde Python, importar JSON anidado, filtrar empleados por departamento, contar personas y calcular el salario medio por departamento, e imprimir el esquema vivo](assets/quickstart.gif)
+![Grabación de terminal: instalar RushDB, iniciarlo con rushdb up y, desde Python, importar JSON anidado, filtrar empleados por departamento, contar personas y calcular el salario medio por departamento, e imprimir el esquema vivo](https://raw.githubusercontent.com/rush-db/rushdb/main/assets/quickstart.gif)
 
 ```bash
 # or: brew install rush-db/tap/rushdb
@@ -337,7 +337,7 @@ exponer un nodo más allá de loopback.
 
 Este repositorio es el motor, y puedes alojarlo tú mismo por completo. [RushDB Cloud](https://app.rushdb.com) ejecuta el mismo motor por ti y añade las funciones marcadas abajo. Los SDK y el servidor MCP funcionan con ambos; en un motor autoalojado, una llamada exclusiva de Cloud falla con `CloudOnlyError` antes de enviar nada.
 
-![Panel de RushDB con datos de ejemplo sintéticos: la tabla de registros, luego la vista de grafo de las empresas y sus grupos de departamentos, con zoom en un departamento cuyos empleados aparecen en el panel del registro](assets/dashboard.gif)
+![Panel de RushDB con datos de ejemplo sintéticos: la tabla de registros, luego la vista de grafo de las empresas y sus grupos de departamentos, con zoom en un departamento cuyos empleados aparecen en el panel del registro](https://raw.githubusercontent.com/rush-db/rushdb/main/assets/dashboard.gif)
 
 | Función | Motor autoalojado | RushDB Cloud |
 |---|---|---|

@@ -36,7 +36,7 @@ PostgreSQL apa pun. Satu binary Rust, Apache-2.0.
 
 ## Mulai cepat
 
-![Rekaman terminal: memasang RushDB, menjalankannya dengan rushdb up, lalu dari Python mengimpor JSON bersarang, memfilter karyawan menurut departemen, menghitung jumlah orang dan rata-rata gaji per departemen, dan mencetak skema hidup](assets/quickstart.gif)
+![Rekaman terminal: memasang RushDB, menjalankannya dengan rushdb up, lalu dari Python mengimpor JSON bersarang, memfilter karyawan menurut departemen, menghitung jumlah orang dan rata-rata gaji per departemen, dan mencetak skema hidup](https://raw.githubusercontent.com/rush-db/rushdb/main/assets/quickstart.gif)
 
 ```bash
 # or: brew install rush-db/tap/rushdb
@@ -337,7 +337,7 @@ membuka node ke luar loopback.
 
 Repositori ini adalah mesinnya, dan semuanya bisa Anda host sendiri. [RushDB Cloud](https://app.rushdb.com) menjalankan mesin yang sama untuk Anda dan menambahkan fitur yang ditandai di bawah. SDK dan server MCP bekerja dengan keduanya; pada mesin yang di-host sendiri, panggilan khusus Cloud gagal dengan `CloudOnlyError` sebelum apa pun dikirim.
 
-![Dasbor RushDB dengan data contoh sintetis: tabel record, lalu tampilan graf perusahaan dan kelompok departemennya, diperbesar ke satu departemen yang karyawannya tercantum di panel record](assets/dashboard.gif)
+![Dasbor RushDB dengan data contoh sintetis: tabel record, lalu tampilan graf perusahaan dan kelompok departemennya, diperbesar ke satu departemen yang karyawannya tercantum di panel record](https://raw.githubusercontent.com/rush-db/rushdb/main/assets/dashboard.gif)
 
 | Fitur | Mesin yang di-host sendiri | RushDB Cloud |
 |---|---|---|

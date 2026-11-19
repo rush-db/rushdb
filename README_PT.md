@@ -36,7 +36,7 @@ gRPC ou MCP, pelos SDKs ou por qualquer cliente PostgreSQL. Um binário Rust, Ap
 
 ## Início rápido
 
-![Gravação do terminal: instalar o RushDB, iniciá-lo com rushdb up e, a partir do Python, importar JSON aninhado, filtrar funcionários por departamento, contar pessoas e calcular o salário médio por departamento e imprimir o schema vivo](assets/quickstart.gif)
+![Gravação do terminal: instalar o RushDB, iniciá-lo com rushdb up e, a partir do Python, importar JSON aninhado, filtrar funcionários por departamento, contar pessoas e calcular o salário médio por departamento e imprimir o schema vivo](https://raw.githubusercontent.com/rush-db/rushdb/main/assets/quickstart.gif)
 
 ```bash
 # or: brew install rush-db/tap/rushdb
@@ -337,7 +337,7 @@ expor um nó além do loopback.
 
 Este repositório é o motor, e você pode hospedá-lo por completo. O [RushDB Cloud](https://app.rushdb.com) roda o mesmo motor para você e acrescenta os recursos marcados abaixo. Os SDKs e o servidor MCP funcionam com os dois; em um motor auto-hospedado, uma chamada exclusiva do Cloud falha com `CloudOnlyError` antes de enviar qualquer coisa.
 
-![Painel do RushDB com dados de exemplo sintéticos: a tabela de registros, depois a visão de grafo das empresas e seus grupos de departamentos, com zoom em um departamento cujos funcionários aparecem no painel do registro](assets/dashboard.gif)
+![Painel do RushDB com dados de exemplo sintéticos: a tabela de registros, depois a visão de grafo das empresas e seus grupos de departamentos, com zoom em um departamento cujos funcionários aparecem no painel do registro](https://raw.githubusercontent.com/rush-db/rushdb/main/assets/dashboard.gif)
 
 | Recurso | Motor auto-hospedado | RushDB Cloud |
 |---|---|---|

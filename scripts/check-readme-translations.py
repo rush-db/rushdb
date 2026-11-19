@@ -4,7 +4,8 @@ the same links, and the language list, so commands, paths and URLs cannot
 drift between translations. Prose is reviewed by people.
 
 Links are absolute because crates.io renders README.md too; a link into this
-repository's main branch must name a file that exists."""
+repository's main branch must name a file that exists. Images from this
+repository must be raw.githubusercontent.com URLs on main."""
 import pathlib
 import re
 import sys
@@ -17,6 +18,11 @@ language = re.compile(r'https://github\.com/rush-db/rushdb/blob/main/(README(?:_
 
 def all_links(text):
     return [a or b for a, b in re.findall(r'\]\(([^)\s]+)\)|src="([^"]+)"', text)]
+
+def images(text):
+    return [a or b for a, b in re.findall(r'!\[[^\]]*\]\(([^)\s]+)\)|<img[^>]*\ssrc="([^"]+)"', text)]
+
+raw_main = re.compile(r'https://raw\.githubusercontent\.com/rush-db/rushdb/main/[^)#\s"]+')
 
 def links(text):
     """Every link target except the language list (each file leaves itself out)."""
@@ -41,6 +47,12 @@ for path in translations:
     if language_list(text) != sorted({'README.md', *names} - {path.name}):
         failures.append(f'{path.name}: language list does not name README.md and every other translation')
 for path in [root / 'README.md', *translations]:
+    # crates.io resolves relative paths against the crate's directory, so an
+    # image is only safe as a raw URL on main; the loop below checks the file.
+    for image in images(path.read_text()):
+        external = re.match(r'https://(?!(?:github\.com|raw\.githubusercontent\.com)/)', image)
+        if not raw_main.fullmatch(image) and not external:
+            failures.append(f'{path.name}: image {image} is not a raw.githubusercontent.com/rush-db/rushdb/main URL')
     for link in all_links(path.read_text()):
         if link.startswith(('http:', 'https:', 'mailto:', '#')):
             match = repo_file.match(link)

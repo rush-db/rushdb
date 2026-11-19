@@ -34,7 +34,7 @@ Bolt、gRPC 或 MCP 连接，使用 SDK 或任意 PostgreSQL 客户端均可。�
 
 ## 快速开始
 
-![终端录屏：安装 RushDB，用 rushdb up 启动，然后在 Python 中导入嵌套 JSON，按部门筛选员工，统计每个部门的人数和平均薪资，并打印实时 schema](assets/quickstart.gif)
+![终端录屏：安装 RushDB，用 rushdb up 启动，然后在 Python 中导入嵌套 JSON，按部门筛选员工，统计每个部门的人数和平均薪资，并打印实时 schema](https://raw.githubusercontent.com/rush-db/rushdb/main/assets/quickstart.gif)
 
 ```bash
 # or: brew install rush-db/tap/rushdb
@@ -334,7 +334,7 @@ Coolify 和 Dokploy：参见 [部署](https://docs.rushdb.com/deploy/)。在把�
 
 本仓库就是引擎本身，你可以完整地自托管。[RushDB Cloud](https://app.rushdb.com) 为你运行同一个引擎，并增加下表中标出的功能。SDK 和 MCP 服务器两者都支持；在自托管引擎上，仅限 Cloud 的调用会在发送任何内容之前以 `CloudOnlyError` 失败。
 
-![使用合成示例数据的 RushDB 控制台：先是记录表格，然后是公司及其部门集群的图视图，再放大到一个部门，记录面板中列出该部门的员工](assets/dashboard.gif)
+![使用合成示例数据的 RushDB 控制台：先是记录表格，然后是公司及其部门集群的图视图，再放大到一个部门，记录面板中列出该部门的员工](https://raw.githubusercontent.com/rush-db/rushdb/main/assets/dashboard.gif)
 
 | 功能 | 自托管引擎 | RushDB Cloud |
 |---|---|---|

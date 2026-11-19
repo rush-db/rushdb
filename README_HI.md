@@ -36,7 +36,7 @@ wire protocol, Bolt, gRPC या MCP से connect कीजिए, SDKs से
 
 ## Quickstart
 
-![टर्मिनल रिकॉर्डिंग: RushDB इंस्टॉल करना, rushdb up से चालू करना, फिर Python से nested JSON इम्पोर्ट करना, विभाग के हिसाब से कर्मचारियों को फ़िल्टर करना, हर विभाग के लोग और औसत वेतन गिनना, और live schema प्रिंट करना](assets/quickstart.gif)
+![टर्मिनल रिकॉर्डिंग: RushDB इंस्टॉल करना, rushdb up से चालू करना, फिर Python से nested JSON इम्पोर्ट करना, विभाग के हिसाब से कर्मचारियों को फ़िल्टर करना, हर विभाग के लोग और औसत वेतन गिनना, और live schema प्रिंट करना](https://raw.githubusercontent.com/rush-db/rushdb/main/assets/quickstart.gif)
 
 ```bash
 # or: brew install rush-db/tap/rushdb
@@ -337,7 +337,7 @@ loopback से बाहर expose करने से पहले [Security](
 
 यह रिपॉज़िटरी इंजन है, और इसे पूरा का पूरा आप खुद होस्ट कर सकते हैं। [RushDB Cloud](https://app.rushdb.com) यही इंजन आपके लिए चलाता है और नीचे चिह्नित सुविधाएँ जोड़ता है। SDK और MCP सर्वर दोनों के साथ काम करते हैं; self-hosted इंजन पर, केवल Cloud वाली कॉल कुछ भी भेजे जाने से पहले `CloudOnlyError` के साथ विफल होती है।
 
-![synthetic sample data के साथ RushDB डैशबोर्ड: records की तालिका, फिर कंपनियों और उनके विभाग समूहों का ग्राफ़ व्यू, और एक विभाग पर ज़ूम, जिसके कर्मचारी record पैनल में सूचीबद्ध हैं](assets/dashboard.gif)
+![synthetic sample data के साथ RushDB डैशबोर्ड: records की तालिका, फिर कंपनियों और उनके विभाग समूहों का ग्राफ़ व्यू, और एक विभाग पर ज़ूम, जिसके कर्मचारी record पैनल में सूचीबद्ध हैं](https://raw.githubusercontent.com/rush-db/rushdb/main/assets/dashboard.gif)
 
 | सुविधा | Self-hosted इंजन | RushDB Cloud |
 |---|---|---|

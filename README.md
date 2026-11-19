@@ -36,7 +36,7 @@ any PostgreSQL client. One Rust binary, Apache-2.0.
 
 ## Quickstart
 
-![Terminal recording: install RushDB, start it with rushdb up, then from Python import nested JSON, filter employees by department, count people and average salary per department, and print the live schema](assets/quickstart.gif)
+![Terminal recording: install RushDB, start it with rushdb up, then from Python import nested JSON, filter employees by department, count people and average salary per department, and print the live schema](https://raw.githubusercontent.com/rush-db/rushdb/main/assets/quickstart.gif)
 
 ```bash
 # or: brew install rush-db/tap/rushdb
@@ -359,7 +359,7 @@ the features marked below. The SDKs and the MCP server work with both; on a
 self-hosted engine, a Cloud-only call fails with `CloudOnlyError` before
 anything is sent.
 
-![RushDB dashboard with synthetic sample data: the records table, then the graph view of companies and their department clusters, zooming into one department with its employees listed in the record panel](assets/dashboard.gif)
+![RushDB dashboard with synthetic sample data: the records table, then the graph view of companies and their department clusters, zooming into one department with its employees listed in the record panel](https://raw.githubusercontent.com/rush-db/rushdb/main/assets/dashboard.gif)
 
 | Feature | Self-hosted engine | RushDB Cloud |
 |---|---|---|
