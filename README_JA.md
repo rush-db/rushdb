@@ -36,6 +36,8 @@ PostgreSQL クライアントからでも使えます。Rust のバイナリひ�
 
 ## クイックスタート
 
+![ターミナルの録画：RushDB をインストールして rushdb up で起動し、Python からネストした JSON をインポート、部署で社員を絞り込み、部署ごとの人数と平均給与を集計して、ライブスキーマを表示する](assets/quickstart.gif)
+
 ```bash
 # or: brew install rush-db/tap/rushdb
 curl -fsSL https://rushdb.com/install.sh | sh
@@ -333,6 +335,8 @@ Coolify、Dokploy については [デプロイ](https://docs.rushdb.com/deploy/
 ## セルフホストと RushDB Cloud
 
 このリポジトリはエンジンそのもので、すべてをセルフホストできます。[RushDB Cloud](https://app.rushdb.com) は同じエンジンを代わりに運用し、下の表で示す機能を追加します。SDK と MCP サーバーはどちらでも使えます。セルフホストのエンジンでは、Cloud 専用の呼び出しは何も送信する前に `CloudOnlyError` で失敗します。
+
+![合成サンプルデータを使った RushDB ダッシュボード：レコードの表、続いて会社と部署クラスターのグラフビュー、最後に 1 つの部署にズームし、その社員がレコードパネルに一覧表示される](assets/dashboard.gif)
 
 | 機能 | セルフホストのエンジン | RushDB Cloud |
 |---|---|---|

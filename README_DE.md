@@ -37,6 +37,8 @@ PostgreSQL-Client. Ein Rust-Binary, Apache-2.0.
 
 ## Schnellstart
 
+![Terminalaufnahme: RushDB installieren, mit rushdb up starten, dann aus Python verschachteltes JSON importieren, Mitarbeitende nach Abteilung filtern, Personen und Durchschnittsgehalt je Abteilung zählen und das Live-Schema ausgeben](assets/quickstart.gif)
+
 ```bash
 # or: brew install rush-db/tap/rushdb
 curl -fsSL https://rushdb.com/install.sh | sh
@@ -335,6 +337,8 @@ einen Knoten über Loopback hinaus erreichbar machst.
 ## Selbst gehostet und RushDB Cloud
 
 Dieses Repository ist die Engine, und du kannst sie vollständig selbst hosten. [RushDB Cloud](https://app.rushdb.com) betreibt dieselbe Engine für dich und ergänzt die unten markierten Funktionen. Die SDKs und der MCP-Server funktionieren mit beiden; auf einer selbst gehosteten Engine schlägt ein Cloud-only-Aufruf mit `CloudOnlyError` fehl, bevor etwas gesendet wird.
+
+![RushDB-Dashboard mit synthetischen Beispieldaten: die Datensatztabelle, dann die Graph-Ansicht mit Firmen und ihren Abteilungs-Clustern, Zoom auf eine Abteilung, deren Mitarbeitende im Datensatz-Panel aufgelistet sind](assets/dashboard.gif)
 
 | Funktion | Selbst gehostete Engine | RushDB Cloud |
 |---|---|---|

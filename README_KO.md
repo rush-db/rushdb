@@ -35,6 +35,8 @@ Mongo 스타일 쓰기, 또는 사용 중인 데이터베이스의 변경 스트
 
 ## 빠른 시작
 
+![터미널 녹화: RushDB를 설치하고 rushdb up으로 시작한 뒤, Python에서 중첩 JSON을 가져오고, 부서로 직원을 필터링하고, 부서별 인원과 평균 급여를 집계하고, 라이브 스키마를 출력하는 과정](assets/quickstart.gif)
+
 ```bash
 # or: brew install rush-db/tap/rushdb
 curl -fsSL https://rushdb.com/install.sh | sh
@@ -333,6 +335,8 @@ Coolify, Dokploy: [배포](https://docs.rushdb.com/deploy/)를 참고하세요. 
 ## 셀프 호스팅과 RushDB Cloud
 
 이 저장소가 엔진이며, 전부 직접 호스팅할 수 있습니다. [RushDB Cloud](https://app.rushdb.com)는 같은 엔진을 대신 운영하고 아래 표시된 기능을 더합니다. SDK와 MCP 서버는 둘 다에서 동작합니다. 셀프 호스팅 엔진에서는 Cloud 전용 호출이 아무것도 보내기 전에 `CloudOnlyError`로 실패합니다.
+
+![합성 샘플 데이터를 사용한 RushDB 대시보드: 레코드 표, 이어서 회사와 부서 클러스터의 그래프 뷰, 마지막으로 한 부서를 확대하고 레코드 패널에 그 부서의 직원이 나열되는 장면](assets/dashboard.gif)
 
 | 기능 | 셀프 호스팅 엔진 | RushDB Cloud |
 |---|---|---|

@@ -37,6 +37,8 @@ binaire Rust, Apache-2.0.
 
 ## Démarrage rapide
 
+![Enregistrement du terminal : installer RushDB, le démarrer avec rushdb up, puis depuis Python importer du JSON imbriqué, filtrer les employés par département, compter les personnes et calculer le salaire moyen par département, et afficher le schéma vivant](assets/quickstart.gif)
+
 ```bash
 # or: brew install rush-db/tap/rushdb
 curl -fsSL https://rushdb.com/install.sh | sh
@@ -335,6 +337,8 @@ d'exposer un nœud au-delà de la boucle locale.
 ## Auto-hébergé et RushDB Cloud
 
 Ce dépôt est le moteur, et vous pouvez l’auto-héberger en entier. [RushDB Cloud](https://app.rushdb.com) fait tourner le même moteur pour vous et ajoute les fonctionnalités indiquées ci-dessous. Les SDK et le serveur MCP fonctionnent avec les deux ; sur un moteur auto-hébergé, un appel réservé au Cloud échoue avec `CloudOnlyError` avant tout envoi.
+
+![Tableau de bord RushDB avec des données d’exemple synthétiques : le tableau des enregistrements, puis la vue graphe des entreprises et de leurs groupes de départements, avec un zoom sur un département dont les employés sont listés dans le panneau d’enregistrement](assets/dashboard.gif)
 
 | Fonctionnalité | Moteur auto-hébergé | RushDB Cloud |
 |---|---|---|
