@@ -408,8 +408,6 @@ et forme de relation, mis à jour à chaque commit, avec des comptes exacts. Un 
 le renvoie, donc les agents et les outils ne devinent pas les noms de champs.
 [Catalogue de schéma](https://docs.rushdb.com/engine/data-model/schema-catalog/)
 
-**Windows ?** Utilisez WSL 2 ou Docker.
-
 ---
 
 [Contribuer](https://github.com/rush-db/rushdb/blob/main/CONTRIBUTING.md) •

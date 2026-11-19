@@ -406,8 +406,6 @@ catalog, जो हर commit पर सटीक counts के साथ update
 है, इसलिए agents और tools को field names का अनुमान नहीं लगाना पड़ता।
 [Schema catalog](https://docs.rushdb.com/engine/data-model/schema-catalog/)
 
-**Windows?** WSL 2 या Docker इस्तेमाल कीजिए।
-
 ---
 
 [योगदान](https://github.com/rush-db/rushdb/blob/main/CONTRIBUTING.md) •

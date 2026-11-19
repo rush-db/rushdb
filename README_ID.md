@@ -407,8 +407,6 @@ dan bentuk relasi, diperbarui pada setiap commit, dengan jumlah yang tepat. Satu
 mengembalikannya, sehingga agen dan tool tidak perlu menebak nama field.
 [Katalog skema](https://docs.rushdb.com/engine/data-model/schema-catalog/)
 
-**Windows?** Gunakan WSL 2 atau Docker.
-
 ---
 
 [Berkontribusi](https://github.com/rush-db/rushdb/blob/main/CONTRIBUTING.md) •

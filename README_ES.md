@@ -407,8 +407,6 @@ y forma de relación, actualizado en cada commit, con conteos exactos. Una sola 
 lo devuelve, así que los agentes y las herramientas no adivinan nombres de campos.
 [Catálogo de esquema](https://docs.rushdb.com/engine/data-model/schema-catalog/)
 
-**¿Windows?** Usa WSL 2 o Docker.
-
 ---
 
 [Contribuir](https://github.com/rush-db/rushdb/blob/main/CONTRIBUTING.md) •

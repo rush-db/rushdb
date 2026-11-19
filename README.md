@@ -430,8 +430,6 @@ and relationship shape, updated on every commit, with exact counts. One call
 returns it, so agents and tools don't guess field names.
 [Schema catalog](https://docs.rushdb.com/engine/data-model/schema-catalog/)
 
-**Windows?** Use WSL 2 or Docker.
-
 ---
 
 [Contributing](https://github.com/rush-db/rushdb/blob/main/CONTRIBUTING.md) •

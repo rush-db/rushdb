@@ -405,8 +405,6 @@ Cloud ではベクトルを生成させることもできます。
 エージェントやツールがフィールド名を推測する必要はありません。
 [スキーマカタログ](https://docs.rushdb.com/engine/data-model/schema-catalog/)
 
-**Windows は？** WSL 2 か Docker を使ってください。
-
 ---
 
 [コントリビュート](https://github.com/rush-db/rushdb/blob/main/CONTRIBUTING.md) •

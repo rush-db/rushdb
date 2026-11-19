@@ -401,8 +401,6 @@ Cloud 可以替你生成向量。
 每次提交都会更新，并带有精确计数。一次调用即可返回，因此智能体和工具不必猜测字段名。
 [Schema 目录](https://docs.rushdb.com/engine/data-model/schema-catalog/)
 
-**Windows？** 请使用 WSL 2 或 Docker。
-
 ---
 
 [贡献](https://github.com/rush-db/rushdb/blob/main/CONTRIBUTING.md) •

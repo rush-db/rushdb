@@ -404,8 +404,6 @@ Cloud는 벡터를 대신 생성해 줄 수 있습니다.
 에이전트와 도구가 필드 이름을 추측할 필요가 없습니다.
 [스키마 카탈로그](https://docs.rushdb.com/engine/data-model/schema-catalog/)
 
-**Windows는요?** WSL 2나 Docker를 사용하세요.
-
 ---
 
 [기여하기](https://github.com/rush-db/rushdb/blob/main/CONTRIBUTING.md) •

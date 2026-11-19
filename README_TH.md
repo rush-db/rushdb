@@ -405,8 +405,6 @@ Cloud สร้างเวกเตอร์ให้คุณได้
 ก็ได้ทั้งหมด เอเจนต์และเครื่องมือต่าง ๆ จึงไม่ต้องเดาชื่อฟิลด์
 [แคตตาล็อกสคีมา](https://docs.rushdb.com/engine/data-model/schema-catalog/)
 
-**Windows?** ใช้ WSL 2 หรือ Docker
-
 ---
 
 [การมีส่วนร่วม](https://github.com/rush-db/rushdb/blob/main/CONTRIBUTING.md) •

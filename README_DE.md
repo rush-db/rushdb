@@ -408,8 +408,6 @@ und Beziehungsformen, bei jedem Commit aktualisiert, mit exakten Zählungen. Ein
 liefert ihn, sodass Agents und Tools keine Feldnamen raten müssen.
 [Schema-Katalog](https://docs.rushdb.com/engine/data-model/schema-catalog/)
 
-**Windows?** Nutze WSL 2 oder Docker.
-
 ---
 
 [Mitwirken](https://github.com/rush-db/rushdb/blob/main/CONTRIBUTING.md) •

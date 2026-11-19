@@ -429,8 +429,6 @@ Mongo مستقرة. أما openCypher وISO GQL وBolt فهي مرشّحة لل�
 إيداع، بأعداد دقيقة. يعيده استدعاء واحد، فلا يخمّن الوكلاء والأدوات أسماء الحقول.
 [فهرس المخطط](https://docs.rushdb.com/engine/data-model/schema-catalog/)
 
-**Windows؟** استخدم WSL 2 أو Docker.
-
 ---
 
 [المساهمة](https://github.com/rush-db/rushdb/blob/main/CONTRIBUTING.md) •
