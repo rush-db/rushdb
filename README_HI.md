@@ -38,6 +38,21 @@ wire protocol, Bolt, gRPC या MCP से connect कीजिए, SDKs से
 
 ![टर्मिनल रिकॉर्डिंग: RushDB इंस्टॉल करना, rushdb up से चालू करना, फिर Python से nested JSON इम्पोर्ट करना, विभाग के हिसाब से कर्मचारियों को फ़िल्टर करना, हर विभाग के लोग और औसत वेतन गिनना, और live schema प्रिंट करना](https://raw.githubusercontent.com/rush-db/rushdb/main/assets/quickstart.gif)
 
+**अपने कोडिंग एजेंट से इसे सेट अप कराएँ।** उसमें यह प्रॉम्प्ट पेस्ट करें ([rushdb.com/agent-setup](https://rushdb.com/agent-setup)):
+
+```text
+Set up RushDB as this project's database.
+
+1. Install the RushDB MCP server (@rushdb/mcp-server) and the RushDB agent skills (github.com/rush-db/skills).
+2. Use RushDB Cloud with an API key from app.rushdb.com, or a local engine:
+   curl -fsSL https://rushdb.com/install.sh | sh && rushdb up
+   (direct mode: engine URL http://127.0.0.1:3000, token local-token)
+3. Before writing any query, read the schema catalog (labels, properties, types, relationship shapes) and use only fields that exist.
+4. Docs: https://docs.rushdb.com/
+```
+
+या इसे हाथ से सेट अप करें:
+
 ```bash
 # or: brew install rush-db/tap/rushdb
 curl -fsSL https://rushdb.com/install.sh | sh
@@ -345,6 +360,8 @@ loopback से बाहर expose करने से पहले [Security](
 | [PostgreSQL wire](https://docs.rushdb.com/engine/connectivity/postgresql-wire/) | `127.0.0.1:5432` | `sql` चालू रहने तक चालू (default); `--pgwire-port 0` इसे बंद करता है |
 | [gRPC](https://docs.rushdb.com/engine/connectivity/grpc/) (`rushdb.v1.Database/Execute`) | बंद | `--grpc-port <port>` |
 | [Bolt 5.0](https://docs.rushdb.com/engine/connectivity/bolt/) | बंद | `--bolt-port <port>`, और `--languages` में `cypher` |
+| [लोकल MCP](https://docs.rushdb.com/connect/mcp/) (`@rushdb/mcp-server`, [tools](https://docs.rushdb.com/learn/reference/mcp/tools/)) | stdio: `npx -y @rushdb/mcp-server` | सेल्फ़-होस्टेड इंजन से डायरेक्ट मोड: `RUSHDB_MODE=direct`, `RUSHDB_ENGINE_URL`, `RUSHDB_ENGINE_TOKEN` |
+| [होस्टेड MCP](https://docs.rushdb.com/connect/mcp/) | `https://mcp.rushdb.com/mcp`, ChatGPT, Claude.ai और अन्य वेब क्लाइंट के लिए OAuth | RushDB Cloud की सुविधा; कुछ इंस्टॉल नहीं करना |
 
 सभी listeners `--listen` address (default `127.0.0.1`) पर bind होते हैं और एक ही TLS
 certificate (`--tls-cert`, `--tls-key`) share करते हैं। ज़्यादा जानकारी: [Connectivity](https://docs.rushdb.com/engine/connectivity/),

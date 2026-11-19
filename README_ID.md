@@ -38,6 +38,21 @@ PostgreSQL apa pun. Satu binary Rust, Apache-2.0.
 
 ![Rekaman terminal: memasang RushDB, menjalankannya dengan rushdb up, lalu dari Python mengimpor JSON bersarang, memfilter karyawan menurut departemen, menghitung jumlah orang dan rata-rata gaji per departemen, dan mencetak skema hidup](https://raw.githubusercontent.com/rush-db/rushdb/main/assets/quickstart.gif)
 
+**Biarkan agen coding Anda yang menyiapkannya.** Tempelkan prompt ini ke agen tersebut ([rushdb.com/agent-setup](https://rushdb.com/agent-setup)):
+
+```text
+Set up RushDB as this project's database.
+
+1. Install the RushDB MCP server (@rushdb/mcp-server) and the RushDB agent skills (github.com/rush-db/skills).
+2. Use RushDB Cloud with an API key from app.rushdb.com, or a local engine:
+   curl -fsSL https://rushdb.com/install.sh | sh && rushdb up
+   (direct mode: engine URL http://127.0.0.1:3000, token local-token)
+3. Before writing any query, read the schema catalog (labels, properties, types, relationship shapes) and use only fields that exist.
+4. Docs: https://docs.rushdb.com/
+```
+
+Atau siapkan secara manual:
+
 ```bash
 # or: brew install rush-db/tap/rushdb
 curl -fsSL https://rushdb.com/install.sh | sh
@@ -345,6 +360,8 @@ loopback.
 | [Protokol PostgreSQL](https://docs.rushdb.com/engine/connectivity/postgresql-wire/) | `127.0.0.1:5432` | Aktif selama `sql` diaktifkan (bawaan); `--pgwire-port 0` mematikannya |
 | [gRPC](https://docs.rushdb.com/engine/connectivity/grpc/) (`rushdb.v1.Database/Execute`) | Mati | `--grpc-port <port>` |
 | [Bolt 5.0](https://docs.rushdb.com/engine/connectivity/bolt/) | Mati | `--bolt-port <port>` dengan `cypher` di `--languages` |
+| [MCP lokal](https://docs.rushdb.com/connect/mcp/) (`@rushdb/mcp-server`, [tools](https://docs.rushdb.com/learn/reference/mcp/tools/)) | stdio: `npx -y @rushdb/mcp-server` | Mode langsung ke engine yang di-host sendiri: `RUSHDB_MODE=direct`, `RUSHDB_ENGINE_URL`, `RUSHDB_ENGINE_TOKEN` |
+| [MCP ter-hosting](https://docs.rushdb.com/connect/mcp/) | `https://mcp.rushdb.com/mcp`, OAuth untuk ChatGPT, Claude.ai, dan klien web lain | Fitur RushDB Cloud; tidak perlu memasang apa pun |
 
 Semua listener memakai alamat `--listen` (bawaan `127.0.0.1`) dan berbagi satu sertifikat
 TLS (`--tls-cert`, `--tls-key`). Selengkapnya di [Konektivitas](https://docs.rushdb.com/engine/connectivity/),

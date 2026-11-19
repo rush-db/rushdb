@@ -36,6 +36,21 @@ Bolt、gRPC 或 MCP 连接，使用 SDK 或任意 PostgreSQL 客户端均可。�
 
 ![终端录屏：安装 RushDB，用 rushdb up 启动，然后在 Python 中导入嵌套 JSON，按部门筛选员工，统计每个部门的人数和平均薪资，并打印实时 schema](https://raw.githubusercontent.com/rush-db/rushdb/main/assets/quickstart.gif)
 
+**让你的编码智能体来完成设置。** 把这段提示词粘贴给它 ([rushdb.com/agent-setup](https://rushdb.com/agent-setup))：
+
+```text
+Set up RushDB as this project's database.
+
+1. Install the RushDB MCP server (@rushdb/mcp-server) and the RushDB agent skills (github.com/rush-db/skills).
+2. Use RushDB Cloud with an API key from app.rushdb.com, or a local engine:
+   curl -fsSL https://rushdb.com/install.sh | sh && rushdb up
+   (direct mode: engine URL http://127.0.0.1:3000, token local-token)
+3. Before writing any query, read the schema catalog (labels, properties, types, relationship shapes) and use only fields that exist.
+4. Docs: https://docs.rushdb.com/
+```
+
+或者手动设置：
+
 ```bash
 # or: brew install rush-db/tap/rushdb
 curl -fsSL https://rushdb.com/install.sh | sh
@@ -342,6 +357,8 @@ print(db.properties.values(role, query="eng")["data"])
 | [PostgreSQL 线协议](https://docs.rushdb.com/engine/connectivity/postgresql-wire/) | `127.0.0.1:5432` | 启用 `sql` 时开启（默认启用）；`--pgwire-port 0` 关闭它 |
 | [gRPC](https://docs.rushdb.com/engine/connectivity/grpc/) (`rushdb.v1.Database/Execute`) | 关闭 | `--grpc-port <port>` |
 | [Bolt 5.0](https://docs.rushdb.com/engine/connectivity/bolt/) | 关闭 | `--bolt-port <port>`，并在 `--languages` 中加入 `cypher` |
+| [本地 MCP](https://docs.rushdb.com/connect/mcp/) (`@rushdb/mcp-server`, [tools](https://docs.rushdb.com/learn/reference/mcp/tools/)) | stdio: `npx -y @rushdb/mcp-server` | 以直连模式连接自托管引擎： `RUSHDB_MODE=direct`, `RUSHDB_ENGINE_URL`, `RUSHDB_ENGINE_TOKEN` |
+| [托管 MCP](https://docs.rushdb.com/connect/mcp/) | `https://mcp.rushdb.com/mcp`, 面向 ChatGPT、Claude.ai 及其他 Web 客户端的 OAuth | RushDB Cloud 功能，无需安装 |
 
 所有监听器都绑定 `--listen` 地址（默认 `127.0.0.1`），共用一张 TLS 证书
 （`--tls-cert`、`--tls-key`）。详见 [连接方式](https://docs.rushdb.com/engine/connectivity/)、[认证](https://docs.rushdb.com/engine/connectivity/authentication/) 和

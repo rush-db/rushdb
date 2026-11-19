@@ -38,6 +38,21 @@ any PostgreSQL client. One Rust binary, Apache-2.0.
 
 ![Terminal recording: install RushDB, start it with rushdb up, then from Python import nested JSON, filter employees by department, count people and average salary per department, and print the live schema](https://raw.githubusercontent.com/rush-db/rushdb/main/assets/quickstart.gif)
 
+**Let your coding agent set it up.** Paste this prompt into it ([rushdb.com/agent-setup](https://rushdb.com/agent-setup)):
+
+```text
+Set up RushDB as this project's database.
+
+1. Install the RushDB MCP server (@rushdb/mcp-server) and the RushDB agent skills (github.com/rush-db/skills).
+2. Use RushDB Cloud with an API key from app.rushdb.com, or a local engine:
+   curl -fsSL https://rushdb.com/install.sh | sh && rushdb up
+   (direct mode: engine URL http://127.0.0.1:3000, token local-token)
+3. Before writing any query, read the schema catalog (labels, properties, types, relationship shapes) and use only fields that exist.
+4. Docs: https://docs.rushdb.com/
+```
+
+Or set it up by hand:
+
 ```bash
 # or: brew install rush-db/tap/rushdb
 curl -fsSL https://rushdb.com/install.sh | sh
@@ -363,6 +378,8 @@ loopback.
 | [PostgreSQL wire](https://docs.rushdb.com/engine/connectivity/postgresql-wire/) | `127.0.0.1:5432` | On while `sql` is enabled (the default); `--pgwire-port 0` turns it off |
 | [gRPC](https://docs.rushdb.com/engine/connectivity/grpc/) (`rushdb.v1.Database/Execute`) | Off | `--grpc-port <port>` |
 | [Bolt 5.0](https://docs.rushdb.com/engine/connectivity/bolt/) | Off | `--bolt-port <port>` with `cypher` in `--languages` |
+| [Local MCP](https://docs.rushdb.com/connect/mcp/) (`@rushdb/mcp-server`, [tools](https://docs.rushdb.com/learn/reference/mcp/tools/)) | stdio: `npx -y @rushdb/mcp-server` | Direct mode to a self-hosted engine: `RUSHDB_MODE=direct`, `RUSHDB_ENGINE_URL`, `RUSHDB_ENGINE_TOKEN` |
+| [Hosted MCP](https://docs.rushdb.com/connect/mcp/) | `https://mcp.rushdb.com/mcp`, OAuth for ChatGPT, Claude.ai and other web clients | A RushDB Cloud feature; nothing to install |
 
 All listeners bind `--listen` (default `127.0.0.1`) and share one TLS
 certificate (`--tls-cert`, `--tls-key`). More in [Connectivity](https://docs.rushdb.com/engine/connectivity/),

@@ -37,6 +37,21 @@ Mongo 스타일 쓰기, 또는 사용 중인 데이터베이스의 변경 스트
 
 ![터미널 녹화: RushDB를 설치하고 rushdb up으로 시작한 뒤, Python에서 중첩 JSON을 가져오고, 부서로 직원을 필터링하고, 부서별 인원과 평균 급여를 집계하고, 라이브 스키마를 출력하는 과정](https://raw.githubusercontent.com/rush-db/rushdb/main/assets/quickstart.gif)
 
+**코딩 에이전트에게 설정을 맡기세요.** 이 프롬프트를 붙여 넣으세요 ([rushdb.com/agent-setup](https://rushdb.com/agent-setup)):
+
+```text
+Set up RushDB as this project's database.
+
+1. Install the RushDB MCP server (@rushdb/mcp-server) and the RushDB agent skills (github.com/rush-db/skills).
+2. Use RushDB Cloud with an API key from app.rushdb.com, or a local engine:
+   curl -fsSL https://rushdb.com/install.sh | sh && rushdb up
+   (direct mode: engine URL http://127.0.0.1:3000, token local-token)
+3. Before writing any query, read the schema catalog (labels, properties, types, relationship shapes) and use only fields that exist.
+4. Docs: https://docs.rushdb.com/
+```
+
+직접 설정하려면:
+
 ```bash
 # or: brew install rush-db/tap/rushdb
 curl -fsSL https://rushdb.com/install.sh | sh
@@ -343,6 +358,8 @@ Windows는 네이티브로 지원하지 않습니다. WSL 2나 Docker를 사용�
 | [PostgreSQL 와이어 프로토콜](https://docs.rushdb.com/engine/connectivity/postgresql-wire/) | `127.0.0.1:5432` | `sql`이 켜져 있으면 켜짐(기본값). `--pgwire-port 0`으로 끔 |
 | [gRPC](https://docs.rushdb.com/engine/connectivity/grpc/) (`rushdb.v1.Database/Execute`) | 꺼짐 | `--grpc-port <port>` |
 | [Bolt 5.0](https://docs.rushdb.com/engine/connectivity/bolt/) | 꺼짐 | `--bolt-port <port>`, 그리고 `--languages`에 `cypher` 포함 |
+| [로컬 MCP](https://docs.rushdb.com/connect/mcp/) (`@rushdb/mcp-server`, [tools](https://docs.rushdb.com/learn/reference/mcp/tools/)) | stdio: `npx -y @rushdb/mcp-server` | 셀프 호스팅 엔진에 다이렉트 모드로 연결: `RUSHDB_MODE=direct`, `RUSHDB_ENGINE_URL`, `RUSHDB_ENGINE_TOKEN` |
+| [호스팅 MCP](https://docs.rushdb.com/connect/mcp/) | `https://mcp.rushdb.com/mcp`, ChatGPT, Claude.ai 등 웹 클라이언트용 OAuth | RushDB Cloud 기능, 설치 불필요 |
 
 모든 리스너는 `--listen` 주소(기본값 `127.0.0.1`)에 바인딩하고 하나의 TLS 인증서
 (`--tls-cert`, `--tls-key`)를 공유합니다. 자세한 내용은 [연결](https://docs.rushdb.com/engine/connectivity/), [인증](https://docs.rushdb.com/engine/connectivity/authentication/),

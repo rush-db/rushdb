@@ -39,6 +39,25 @@ HTTP أو بروتوكول PostgreSQL أو Bolt أو gRPC أو MCP، من حزم
 
 ![تسجيل للطرفية: تثبيت RushDB وتشغيله بالأمر rushdb up، ثم من Python استيراد JSON متداخل، وتصفية الموظفين حسب القسم، وحساب عدد الأشخاص ومتوسط الراتب لكل قسم، وطباعة المخطط الحي](https://raw.githubusercontent.com/rush-db/rushdb/main/assets/quickstart.gif)
 
+**دع وكيل البرمجة لديك يتولّى الإعداد.** الصق له هذا الموجّه ([rushdb.com/agent-setup](https://rushdb.com/agent-setup)):
+
+</div>
+
+```text
+Set up RushDB as this project's database.
+
+1. Install the RushDB MCP server (@rushdb/mcp-server) and the RushDB agent skills (github.com/rush-db/skills).
+2. Use RushDB Cloud with an API key from app.rushdb.com, or a local engine:
+   curl -fsSL https://rushdb.com/install.sh | sh && rushdb up
+   (direct mode: engine URL http://127.0.0.1:3000, token local-token)
+3. Before writing any query, read the schema catalog (labels, properties, types, relationship shapes) and use only fields that exist.
+4. Docs: https://docs.rushdb.com/
+```
+
+<div dir="rtl">
+
+أو أعدّه يدويًا:
+
 </div>
 
 ```bash
@@ -370,6 +389,8 @@ print(db.properties.values(role, query="eng")["data"])
 | [بروتوكول PostgreSQL](https://docs.rushdb.com/engine/connectivity/postgresql-wire/) | `127.0.0.1:5432` | يعمل ما دامت `sql` مفعّلة (افتراضيًا)؛ `--pgwire-port 0` يوقفه |
 | [gRPC](https://docs.rushdb.com/engine/connectivity/grpc/) (`rushdb.v1.Database/Execute`) | متوقف | `--grpc-port <port>` |
 | [Bolt 5.0](https://docs.rushdb.com/engine/connectivity/bolt/) | متوقف | `--bolt-port <port>` مع `cypher` ضمن `--languages` |
+| [MCP محلي](https://docs.rushdb.com/connect/mcp/) (`@rushdb/mcp-server`، [الأدوات](https://docs.rushdb.com/learn/reference/mcp/tools/)) | stdio: `npx -y @rushdb/mcp-server` | الوضع المباشر إلى محرّك مستضاف ذاتيًا: `RUSHDB_MODE=direct` و`RUSHDB_ENGINE_URL` و`RUSHDB_ENGINE_TOKEN` |
+| [MCP مستضاف](https://docs.rushdb.com/connect/mcp/) | `https://mcp.rushdb.com/mcp`، OAuth لـ ChatGPT وClaude.ai وعملاء الويب الآخرين | ميزة في RushDB Cloud؛ لا شيء للتثبيت |
 
 تستمع كل الواجهات على عنوان `--listen` (الافتراضي `127.0.0.1`) وتتشارك شهادة TLS واحدة
 (`--tls-cert` و`--tls-key`). المزيد في [الاتصال](https://docs.rushdb.com/engine/connectivity/) و[المصادقة](https://docs.rushdb.com/engine/connectivity/authentication/)

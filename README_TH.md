@@ -37,6 +37,21 @@ label, ฟิลด์, ชนิดข้อมูล และค่าที�
 
 ![บันทึกหน้าจอเทอร์มินัล: ติดตั้ง RushDB เริ่มด้วย rushdb up จากนั้นใช้ Python นำเข้า JSON แบบซ้อน กรองพนักงานตามแผนก นับจำนวนคนและเงินเดือนเฉลี่ยของแต่ละแผนก และพิมพ์สคีมาที่เป็นปัจจุบัน](https://raw.githubusercontent.com/rush-db/rushdb/main/assets/quickstart.gif)
 
+**ให้เอเจนต์เขียนโค้ดของคุณตั้งค่าให้** วางพรอมต์นี้ให้เอเจนต์ ([rushdb.com/agent-setup](https://rushdb.com/agent-setup)):
+
+```text
+Set up RushDB as this project's database.
+
+1. Install the RushDB MCP server (@rushdb/mcp-server) and the RushDB agent skills (github.com/rush-db/skills).
+2. Use RushDB Cloud with an API key from app.rushdb.com, or a local engine:
+   curl -fsSL https://rushdb.com/install.sh | sh && rushdb up
+   (direct mode: engine URL http://127.0.0.1:3000, token local-token)
+3. Before writing any query, read the schema catalog (labels, properties, types, relationship shapes) and use only fields that exist.
+4. Docs: https://docs.rushdb.com/
+```
+
+หรือตั้งค่าด้วยตัวเอง:
+
 ```bash
 # or: brew install rush-db/tap/rushdb
 curl -fsSL https://rushdb.com/install.sh | sh
@@ -344,6 +359,8 @@ print(db.properties.values(role, query="eng")["data"])
 | [PostgreSQL wire](https://docs.rushdb.com/engine/connectivity/postgresql-wire/) | `127.0.0.1:5432` | เปิดเมื่อเปิดใช้ `sql` (ค่าเริ่มต้น) ใช้ `--pgwire-port 0` เพื่อปิด |
 | [gRPC](https://docs.rushdb.com/engine/connectivity/grpc/) (`rushdb.v1.Database/Execute`) | ปิด | `--grpc-port <port>` |
 | [Bolt 5.0](https://docs.rushdb.com/engine/connectivity/bolt/) | ปิด | `--bolt-port <port>` และมี `cypher` ใน `--languages` |
+| [MCP แบบโลคัล](https://docs.rushdb.com/connect/mcp/) (`@rushdb/mcp-server`, [tools](https://docs.rushdb.com/learn/reference/mcp/tools/)) | stdio: `npx -y @rushdb/mcp-server` | โหมดตรงไปยังเอนจินที่โฮสต์เอง: `RUSHDB_MODE=direct`, `RUSHDB_ENGINE_URL`, `RUSHDB_ENGINE_TOKEN` |
+| [MCP แบบโฮสต์](https://docs.rushdb.com/connect/mcp/) | `https://mcp.rushdb.com/mcp`, OAuth สำหรับ ChatGPT, Claude.ai และเว็บไคลเอนต์อื่น | ฟีเจอร์ของ RushDB Cloud ไม่ต้องติดตั้งอะไร |
 
 ทุก listener ผูกกับที่อยู่ `--listen` (ค่าเริ่มต้น `127.0.0.1`) และใช้ใบรับรอง TLS ชุดเดียวกัน
 (`--tls-cert`, `--tls-key`) ดูเพิ่มเติมที่ [การเชื่อมต่อ](https://docs.rushdb.com/engine/connectivity/), [การยืนยันตัวตน](https://docs.rushdb.com/engine/connectivity/authentication/)

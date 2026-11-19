@@ -38,6 +38,21 @@ desde cualquier cliente de PostgreSQL. Un solo binario de Rust, Apache-2.0.
 
 ![Grabación de terminal: instalar RushDB, iniciarlo con rushdb up y, desde Python, importar JSON anidado, filtrar empleados por departamento, contar personas y calcular el salario medio por departamento, e imprimir el esquema vivo](https://raw.githubusercontent.com/rush-db/rushdb/main/assets/quickstart.gif)
 
+**Deja que tu agente de código lo configure.** Pégale este prompt ([rushdb.com/agent-setup](https://rushdb.com/agent-setup)):
+
+```text
+Set up RushDB as this project's database.
+
+1. Install the RushDB MCP server (@rushdb/mcp-server) and the RushDB agent skills (github.com/rush-db/skills).
+2. Use RushDB Cloud with an API key from app.rushdb.com, or a local engine:
+   curl -fsSL https://rushdb.com/install.sh | sh && rushdb up
+   (direct mode: engine URL http://127.0.0.1:3000, token local-token)
+3. Before writing any query, read the schema catalog (labels, properties, types, relationship shapes) and use only fields that exist.
+4. Docs: https://docs.rushdb.com/
+```
+
+O configúralo a mano:
+
 ```bash
 # or: brew install rush-db/tap/rushdb
 curl -fsSL https://rushdb.com/install.sh | sh
@@ -345,6 +360,8 @@ de loopback.
 | [Protocolo de PostgreSQL](https://docs.rushdb.com/engine/connectivity/postgresql-wire/) | `127.0.0.1:5432` | Activo mientras `sql` esté habilitado (por defecto); `--pgwire-port 0` lo apaga |
 | [gRPC](https://docs.rushdb.com/engine/connectivity/grpc/) (`rushdb.v1.Database/Execute`) | Apagado | `--grpc-port <port>` |
 | [Bolt 5.0](https://docs.rushdb.com/engine/connectivity/bolt/) | Apagado | `--bolt-port <port>` con `cypher` en `--languages` |
+| [MCP local](https://docs.rushdb.com/connect/mcp/) (`@rushdb/mcp-server`, [tools](https://docs.rushdb.com/learn/reference/mcp/tools/)) | stdio: `npx -y @rushdb/mcp-server` | Modo directo a un motor autoalojado: `RUSHDB_MODE=direct`, `RUSHDB_ENGINE_URL`, `RUSHDB_ENGINE_TOKEN` |
+| [MCP alojado](https://docs.rushdb.com/connect/mcp/) | `https://mcp.rushdb.com/mcp`, OAuth para ChatGPT, Claude.ai y otros clientes web | Una función de RushDB Cloud; nada que instalar |
 
 Todos los listeners escuchan en `--listen` (por defecto `127.0.0.1`) y comparten un
 certificado TLS (`--tls-cert`, `--tls-key`). Más en [Conectividad](https://docs.rushdb.com/engine/connectivity/),

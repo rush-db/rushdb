@@ -38,6 +38,21 @@ PostgreSQL クライアントからでも使えます。Rust のバイナリひ�
 
 ![ターミナルの録画：RushDB をインストールして rushdb up で起動し、Python からネストした JSON をインポート、部署で社員を絞り込み、部署ごとの人数と平均給与を集計して、ライブスキーマを表示する](https://raw.githubusercontent.com/rush-db/rushdb/main/assets/quickstart.gif)
 
+**コーディングエージェントにセットアップを任せる。** このプロンプトを貼り付けてください ([rushdb.com/agent-setup](https://rushdb.com/agent-setup))：
+
+```text
+Set up RushDB as this project's database.
+
+1. Install the RushDB MCP server (@rushdb/mcp-server) and the RushDB agent skills (github.com/rush-db/skills).
+2. Use RushDB Cloud with an API key from app.rushdb.com, or a local engine:
+   curl -fsSL https://rushdb.com/install.sh | sh && rushdb up
+   (direct mode: engine URL http://127.0.0.1:3000, token local-token)
+3. Before writing any query, read the schema catalog (labels, properties, types, relationship shapes) and use only fields that exist.
+4. Docs: https://docs.rushdb.com/
+```
+
+手動でセットアップする場合：
+
 ```bash
 # or: brew install rush-db/tap/rushdb
 curl -fsSL https://rushdb.com/install.sh | sh
@@ -344,6 +359,8 @@ Windows はネイティブではサポートしていません。WSL 2 か Docke
 | [PostgreSQL ワイヤプロトコル](https://docs.rushdb.com/engine/connectivity/postgresql-wire/) | `127.0.0.1:5432` | `sql` が有効な間はオン（既定で有効）。`--pgwire-port 0` でオフ |
 | [gRPC](https://docs.rushdb.com/engine/connectivity/grpc/) (`rushdb.v1.Database/Execute`) | オフ | `--grpc-port <port>` |
 | [Bolt 5.0](https://docs.rushdb.com/engine/connectivity/bolt/) | オフ | `--bolt-port <port>`、かつ `--languages` に `cypher` を含める |
+| [ローカル MCP](https://docs.rushdb.com/connect/mcp/) (`@rushdb/mcp-server`, [tools](https://docs.rushdb.com/learn/reference/mcp/tools/)) | stdio: `npx -y @rushdb/mcp-server` | セルフホストのエンジンにダイレクトモードで接続： `RUSHDB_MODE=direct`, `RUSHDB_ENGINE_URL`, `RUSHDB_ENGINE_TOKEN` |
+| [ホスト型 MCP](https://docs.rushdb.com/connect/mcp/) | `https://mcp.rushdb.com/mcp`, ChatGPT、Claude.ai などの Web クライアント向けの OAuth | RushDB Cloud の機能。インストール不要 |
 
 すべてのリスナーは `--listen` のアドレス（既定は `127.0.0.1`）にバインドし、1 つの TLS 証明書
 （`--tls-cert`、`--tls-key`）を共有します。詳しくは [接続](https://docs.rushdb.com/engine/connectivity/)、[認証](https://docs.rushdb.com/engine/connectivity/authentication/)、
