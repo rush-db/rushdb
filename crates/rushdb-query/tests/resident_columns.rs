@@ -372,3 +372,66 @@ fn tight_query_budgets_never_refuse_what_storage_answers() {
     }
     assert!(refused > 0, "some budget refuses an aggregate");
 }
+
+/// L8: a listing whose filter no declared index answers reads the matches
+/// from the resident columns of the properties it filters on, once its
+/// walks have paid for them, and lists what storage lists: the same
+/// records, total and order, page by page.
+#[test]
+fn unindexed_listing_filters_answer_from_columns_like_storage() {
+    rushdb_storage::parallel::set_threads(1);
+    let lmpg = Lmpg::new(store(256 << 20), TenantId::from_ordinal(176));
+    seed(&lmpg);
+    let filters = [
+        json!({"k": "c"}),
+        json!({"k": {"$in": ["a", "g"]}, "b": true}),
+        json!({"i": {"$gt": 1000}, "f": {"$lt": 0}}),
+        json!({"mixed": {"$gte": 10}}),
+        json!({"mixed": "s2"}),
+        json!({"n": null}),
+        json!({"n": {"$exists": true}, "k": {"$nin": ["a"]}}),
+        json!({"$or": [{"k": "b"}, {"i": {"$lt": 0}}]}),
+        json!({"k": {"$not": {"$in": ["a", "b", "c"]}}}),
+        json!({"mixed": {"$type": "string"}}),
+        json!({"k": {"$contains": "e"}}),
+        json!({"k": {"$exists": false}}),
+        json!({"d": {"$gte": "2024-01-01T00:00:00Z"}}),
+    ];
+    let documents: Vec<Value> = filters
+        .iter()
+        .flat_map(|filter| {
+            [
+                json!({"labels": ["Row"], "where": filter, "limit": 40}),
+                json!({"labels": ["Row"], "where": filter, "orderBy": {"i": "desc"},
+                    "skip": 10, "limit": 25}),
+            ]
+        })
+        .collect();
+    let list = |doc: &Value| {
+        let page = rushdb_query::find_records(&lmpg, &parse_document(doc).unwrap().search).unwrap();
+        let ids: Vec<Value> = page.records.iter().map(|r| r["__id"].clone()).collect();
+        (page.total_matched, ids)
+    };
+    let residents = lmpg.store.residents();
+    residents.set_enabled(false);
+    let expected: Vec<_> = documents.iter().map(list).collect();
+    let from_storage = reads(|| {
+        list(&documents[0]);
+    });
+    residents.set_enabled(rushdb_storage::resident::residents_enabled());
+    for _ in 0..4 {
+        for (doc, want) in documents.iter().zip(&expected) {
+            assert_eq!(&list(doc), want, "{doc}");
+        }
+        residents.wait_idle();
+    }
+    let from_columns = reads(|| {
+        assert_eq!(list(&documents[0]), expected[0]);
+    });
+    if rushdb_storage::resident::residents_enabled() {
+        assert!(
+            from_columns * 2 < from_storage,
+            "{from_columns} reads with columns, {from_storage} from storage"
+        );
+    }
+}

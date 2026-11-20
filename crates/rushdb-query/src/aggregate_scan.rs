@@ -525,7 +525,7 @@ fn choose_source(
 /// Whether `expr` reads more than the record's own stored properties
 /// (relationships or the record id): such a predicate is not answered from
 /// columns.
-fn reads_beyond_row(expr: &Expr) -> bool {
+pub(crate) fn reads_beyond_row(expr: &Expr) -> bool {
     match expr {
         Expr::And(items) | Expr::Or(items) | Expr::Nor(items) => items.iter().any(reads_beyond_row),
         Expr::Xor(a, b) => reads_beyond_row(a) || reads_beyond_row(b),

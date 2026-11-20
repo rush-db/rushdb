@@ -420,6 +420,55 @@ impl PagePlan {
 
 /// Plan the page `skip..skip + limit` of `req`: the predicate planner first,
 /// then, when `order_first` is allowed, the order planner on its numbers.
+/// L8: the matches of an unindexed filter over one label, from the
+/// resident columns of the properties it reads, instead of reading each
+/// record's occurrences: each distinct combination of the predicate's cells
+/// is evaluated once (`columns::Served::candidates`). `None` when the
+/// columns are not resident (then the walk that follows pays toward
+/// building them), when a declared ordered index on the label may answer
+/// the filter at the cost of its matches, or when the query reads beyond
+/// the record (traversals, related records).
+fn column_plan(
+    lmpg: &Lmpg,
+    snap: &QuerySnapshot,
+    req: &SearchRequest,
+    is_cancelled: &dyn Fn() -> bool,
+) -> Result<Option<planner::IndexPlan>, QueryError> {
+    let (Some(expr), [label]) = (&req.where_, req.labels.as_slice()) else {
+        return Ok(None);
+    };
+    if !req.related.is_empty() || crate::aggregate_scan::reads_beyond_row(expr) {
+        return Ok(None);
+    }
+    if rushdb_lmpg::index::definitions(snap.as_ref(), lmpg.tenant)?
+        .iter()
+        .any(|def| def.kind.ordered() && &def.label == label)
+    {
+        return Ok(None);
+    }
+    let Some(fields) = PointFields::for_predicate(snap, lmpg.tenant, &req.labels, expr)? else {
+        return Ok(None);
+    };
+    let Some(served) =
+        crate::columns::Served::lookup(snap, lmpg.tenant, (&req.labels, false), Some(&fields))
+    else {
+        return Ok(None);
+    };
+    let ctx = EvalCtx::at(lmpg, snap.clone(), Some(is_cancelled));
+    let Some(ords) = served.candidates(&ctx, expr, is_cancelled)? else {
+        // Not resident: the walk reads every holder, and pays toward the
+        // columns, so a filter run again is answered from them.
+        served.pay(
+            snap,
+            lmpg.tenant,
+            walk_total(lmpg, snap, &req.labels)?,
+            || walk_total(lmpg, snap, &req.labels),
+        )?;
+        return Ok(None);
+    };
+    Ok(Some(planner::IndexPlan::exact_owners(ords)))
+}
+
 pub(crate) fn plan_page(
     lmpg: &Lmpg,
     req: &SearchRequest,
@@ -429,8 +478,12 @@ pub(crate) fn plan_page(
     known_total: Option<u64>,
     order_first: bool,
 ) -> Result<PagePlan, QueryError> {
-    let index_plan =
-        index_candidates_with_budget(lmpg, snap, req, working_set_budget(lmpg), is_cancelled)?;
+    let index_plan = match column_plan(lmpg, snap, req, is_cancelled)? {
+        Some(plan) => Some(plan),
+        None => {
+            index_candidates_with_budget(lmpg, snap, req, working_set_budget(lmpg), is_cancelled)?
+        }
+    };
     // A suspect label's counters are untrusted (SELF-HEAL): its matches are
     // counted, and its order is not planned from them.
     let untrusted = rushdb_lmpg::heal::untrusted(snap.as_ref(), lmpg.tenant, &req.labels);

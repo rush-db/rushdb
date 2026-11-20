@@ -40,6 +40,18 @@ pub(crate) struct IndexPlan {
     pub(super) residual: Option<Expr>,
 }
 
+impl IndexPlan {
+    /// The plan of a set of owners that is the exact answer (no residual).
+    pub(crate) fn exact_owners(ords: impl IntoIterator<Item = u64>) -> Self {
+        Self {
+            ords: ords.into_iter().collect(),
+            exact: true,
+            known_total: None,
+            residual: None,
+        }
+    }
+}
+
 /// Cap on the smallest eligible leaf the planner walks occurrence by
 /// occurrence; beyond it a full scan is cheaper. A leaf a declared ordered
 /// index answers is never capped: its entries stream into a compressed
