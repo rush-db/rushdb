@@ -57,8 +57,12 @@ if [ "$expect" != "ok" ]; then
   echo "refused as expected: $out"
   exit 0
 fi
-curl -fsSL "$base/install.sh" | RUSHDB_DOWNLOAD_URL="$base" sh
+out="$(curl -fsSL "$base/install.sh" | RUSHDB_DOWNLOAD_URL="$base" sh)"
+echo "$out"
 grep -q '# rushdb' /root/.bashrc
+# Linked, so it says `rushdb` is ready here instead of asking for a new shell.
+echo "$out" | grep -q 'is ready in this shell'
+case "$out" in *'Open a new shell'*) echo "asked for a new shell after linking"; exit 1 ;; esac
 # The startup file only reaches new shells; the link into /usr/local/bin (on
 # PATH and writable for root) makes `rushdb` work in this one.
 [ "$(command -v rushdb)" = /usr/local/bin/rushdb ]
@@ -83,8 +87,11 @@ curl -fsSL "$base/install.sh" | RUSHDB_DOWNLOAD_URL="$base" sh >/dev/null
 [ "$(readlink /usr/local/bin/rushdb)" = /root/.rushdb/bin/rushdb ]
 # --no-modify-path neither edits startup files nor links the binary.
 rm /usr/local/bin/rushdb
-curl -fsSL "$base/install.sh" | RUSHDB_DOWNLOAD_URL="$base" sh -s -- --no-modify-path >/dev/null
+out="$(curl -fsSL "$base/install.sh" | RUSHDB_DOWNLOAD_URL="$base" sh -s -- --no-modify-path)"
 [ ! -e /usr/local/bin/rushdb ]
+# Not linked: the PATH line to run is printed.
+echo "$out" | grep -q 'Add RushDB to your PATH'
+case "$out" in *'is ready in this shell'*) echo "claimed a link with --no-modify-path"; exit 1 ;; esac
 echo "installed and serving"
 EOF
 
