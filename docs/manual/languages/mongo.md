@@ -173,6 +173,20 @@ in the meantime; retry it.
 
 Mongo-style commands cannot be staged inside a multi-request transaction.
 
+## Dates and typed values
+
+Documents come back with dates, times, datetimes and durations as ISO 8601
+text and points as GeoJSON, as the records API shows them. In filters and
+writes, an Extended JSON date is a datetime: `{"$date": "2024-05-01T10:30:00Z"}`,
+`{"$date": {"$numberLong": "1714559400000"}}` or `{"$date": 1714559400000}`
+(epoch milliseconds). Plain ISO 8601 strings in a filter are read as the
+type of the values they are compared with, as in
+[Filtering](../query/filtering.md#temporal-values).
+
+```json
+{"collection": "Event", "find": {"at": {"$gte": {"$date": "2024-05-01T00:00:00Z"}}}}
+```
+
 ## Index commands
 
 Send index commands with `mutate.statement`:

@@ -128,8 +128,8 @@ multiple-label sets.
       SearchQuery and relational SQL as well.
 - [ ] SearchQuery lowers to the shared IR without response regressions.
 - [ ] Cypher passes the openCypher TCK with no unexplained skips. *Every
-      scenario runs and every failure is attributed (below): 1,494 test
-      features outside the Cypher profile, 2,012 of the other 2,417 pass,
+      scenario runs and every failure is attributed (below): 1,475 test
+      features outside the Cypher profile, 2,017 of the other 2,422 pass,
       and 405 are known Grafeo defects. Cypher stays release candidate
       while defects remain.*
 - [x] GQL's supported ISO profile is advertised explicitly and passes its
@@ -197,13 +197,14 @@ join plan, while a single `MATCH` returns the same wrong rows there.
 The job fails when any scenario's outcome differs from the ledger (a
 regression, or an improvement not yet recorded with `--write-ledger`), when a
 failure matches no profile category, or when plain Grafeo passes a defect.
-Current result (2026-11-20, Grafeo 0.6.4-pre): **2,012 of 3,897 scenarios
-pass** (1,653 on Grafeo 0.5.44). 1,480 scenarios test excluded features; of
-the 2,417 in the profile, 2,012 pass (83%) and 405 fail on known defects:
+Current result (2026-11-21, Grafeo 0.6.4-pre with typed temporal values):
+**2,017 of 3,897 scenarios pass** (1,653 on Grafeo 0.5.44). 1,475 scenarios
+test excluded features; of the 2,422 in the profile, 2,017 pass (83%) and
+405 fail on known defects:
 
 | Category | Kind | Scenarios | Cause |
 | --- | --- | ---: | --- |
-| `temporal` | exclusion (`limitedTemporalTypes`) | 978 | The openCypher temporal type system beyond ISO `date`/`time`/`datetime`/`duration` |
+| `temporal` | exclusion (`limitedTemporalTypes`) | 973 | The openCypher temporal type system beyond ISO `date`/`localtime`/`localdatetime`/`datetime`/`duration`, including nanosecond precision: values are kept to the microsecond, so six scenarios with nanosecond literals that passed while Grafeo's own values were returned unconverted now fail |
 | `lmpg-single-label` | exclusion (`singlePrimaryLabelPerRecord`, `statementLabelMutationUnavailable`) | 452 | LMPG records carry exactly one label |
 | `procedures` | exclusion (`noProcedures`) | 50 | `CALL` procedures |
 | `grafeo-error-detection` | defect | 367 | Grafeo accepts statements the TCK requires to fail |
@@ -220,6 +221,10 @@ one is a statement the TCK requires to fail that plain Grafeo 0.6 now runs
 a list comprehension (`List12` [7]), `length()` of a node or relationship
 (`Path3` [2], [3]) and a pattern on the right-hand side of `SET` (`Pattern1`
 [24]). They are tracked for upstream reports with the other detection defects.
+
+Typed temporal values (3.0.14) gained 11 scenarios (local date-times, date
+ordering and duration arithmetic now round-trip as their types) and lost the
+six nanosecond scenarios above.
 
 Running the full TCK found and fixed eight adapter defects on the RushDB side:
 a long statement (the TCK's 500-clause movie graph) overflowed the worker

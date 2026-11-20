@@ -32,8 +32,9 @@ A ready ordered index answers these predicate leaves on its property:
 |---|---|---|
 | equality (`$eq` or bare value) | `{"status": "open"}` | every stored type the value can match is probed, as without an index |
 | `$in` | `{"status": {"$in": ["open", "held"]}}` | `null` members make the leaf ineligible |
-| `$gt`, `$gte`, `$lt`, `$lte` | `{"price": {"$gte": 40}}` | numeric and datetime values; ISO-8601 strings are accepted as datetime bounds |
+| `$gt`, `$gte`, `$lt`, `$lte` | `{"price": {"$gte": 40}}` | numbers, dates, times, datetimes and durations; ISO 8601 strings are read as the property's type |
 | `$startsWith` | `{"sku": {"$startsWith": "AB-"}}` | string prefix; **only** answerable through an ordered index |
+| `$within` | `{"location": {"$within": {"center": …, "meters": 500}}}` | points, read as the Hilbert-curve cell ranges covering the region (see [Spatial queries](../query/spatial.md#indexes)) |
 
 Every candidate the index produces is re-checked against the predicate, so
 results are identical with or without the index. Array-valued properties index
@@ -262,7 +263,8 @@ indexed label/property pair pay only a catalog lookup.
 Declare an ordered index when **all** of these hold:
 
 - You filter a single label on the property in a hot query, with `labels` set.
-- The filter uses equality, `$in`, a numeric/date range, or `$startsWith`.
+- The filter uses equality, `$in`, a numeric or temporal range,
+  `$startsWith`, or `$within`.
 - Many records of that label carry the property, so walking its owners is
   expensive, and the filter is selective (it keeps a small fraction).
 

@@ -19,8 +19,8 @@ Cypher database.
 
 > **Note:** Cypher is a release candidate, not full openCypher. The engine
 > reports `noFullOpenCypherTckConformance`. The full openCypher TCK runs in CI:
-> of 3,897 scenarios, 1,480 test features outside the supported profile (see
-> [Conformance](#conformance)), and 2,012 of the remaining 2,417 pass. The
+> of 3,897 scenarios, 1,475 test features outside the supported profile (see
+> [Conformance](#conformance)), and 2,017 of the remaining 2,422 pass. The
 > other 405 hit known defects of the embedded Grafeo engine, listed below.
 > Do not rely on behavior this page does not list as supported.
 
@@ -73,7 +73,16 @@ These cases are part of the tested conformance corpus:
 | Index DDL | `CREATE INDEX FOR (n:FACTION) ON (n.name)`, `DROP INDEX FACTION_name` |
 
 Multi-hop patterns and the standard functions `size`, `date`, `datetime`,
-`toString`, `toUpper`, `abs`, `round`, and `range` also execute.
+`localdatetime`, `localtime`, `duration`, `toString`, `toUpper`, `abs`,
+`round`, and `range` also execute.
+
+Temporal values and durations keep their types: `date('2024-05-01')`
+stored by `CREATE` is a `date` property, read by every other surface as a
+date, and a `date` property read by Cypher is a Cypher date (`d.year`,
+comparisons, `duration` arithmetic). A map that is exactly a GeoJSON point
+(`{type: 'Point', coordinates: [13.4, 52.5]}`) is stored as a point. Over
+HTTP and gRPC, values come back as ISO 8601 text and GeoJSON; over
+[Bolt](../connectivity/bolt.md) as Bolt's temporal and spatial structures.
 
 ## Reading
 
@@ -193,7 +202,8 @@ one in `limitations`.
 | Nodes without a label or with several (`CREATE ()`, `CREATE (:Person:Employee)`) | Fails with "exactly one label"; nothing is published. | `singlePrimaryLabelPerRecord` |
 | Changing labels (`SET n:Label`, `REMOVE n:Label`) | Fails; nothing is published. Use the native `retypeRecord` mutation. Setting the label a node already has, or removing one it lacks, succeeds with `affected: 0`. | `statementLabelMutationUnavailable` |
 | `CALL` procedures, including APOC | Fails with a typed error. | `noProcedures` |
-| The openCypher temporal type system: `localdatetime`/`localtime`, named time zones, nanosecond precision, week/ordinal/quarter constructors, `truncate`/`between`/`inSeconds` | Fails or returns a different value. `date()`, `time()`, `datetime()` and `duration()` from ISO 8601 text work and return ISO 8601 text. | `limitedTemporalTypes` |
+| The rest of the openCypher temporal type system: named time zones, a time of day with an offset (`time()` with a zone), nanosecond precision (values are kept to the microsecond), week/ordinal/quarter constructors, `truncate`/`between`/`inSeconds` | Fails or returns a different value. `date()`, `localtime()`, `localdatetime()`, `datetime()` and `duration()` from ISO 8601 text work. | `limitedTemporalTypes` |
+| Cypher spatial functions: `point()`, `point.distance`, `point.withinBBox` | Refused: `Unknown function 'point'`. Pass points as parameters (Bolt `Point2D`/`Point3D`) or as GeoJSON maps, and filter them with the native [`$within`](../query/spatial.md). | — |
 | Constraints (`CREATE CONSTRAINT ...`) | Fails with a typed error. | |
 | Standalone `collect` over a literal (`RETURN collect([1,2])`) | Fails; `collect` aggregates matched rows. | |
 | Write working set | A write holds only what it creates or changes, refused above 100,000 records or 64 MiB of them (not the tenant's size). | |

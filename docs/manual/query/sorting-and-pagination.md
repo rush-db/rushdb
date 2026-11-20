@@ -14,6 +14,7 @@ snapshot-pinned cursors. It applies to the native
 | `{ "age": "desc" }` | One property. |
 | `{ "lastName": "asc", "age": "desc" }` | Several properties; earlier keys take priority, later keys break ties. |
 | `{ "id": "asc" }` | The key `id` means the record id. |
+| `{ "location": { "$distance": <GeoJSON Point> } }` | Distance of a point property from the given point, nearest first (see [Spatial queries](spatial.md#nearest-first)). |
 
 Any direction value other than `"desc"` sorts ascending. Property names are
 normalized the same way as in predicates (see
@@ -43,7 +44,9 @@ fail:
 | Values compared | Rule |
 |---|---|
 | Numbers | Numerically; integers and floats compare as one domain. |
-| Datetimes | Chronologically (they are stored as instants). |
+| Datetimes | By instant, whatever their offsets. |
+| Dates, times of day, local date-times | Chronologically. |
+| Durations | By length, a month counted as 30 days. |
 | Strings | Byte-wise, which is case-sensitive (`"B"` sorts before `"a"`). |
 | A non-number and a number | The non-number sorts first (ascending). |
 | Other values (booleans, arrays) | By their JSON text. |

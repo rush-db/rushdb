@@ -8,6 +8,53 @@ in [`docs/manual/operations/upgrading-from-2x.md`](docs/manual/operations/upgrad
 
 ### Changed
 
+- **Breaking: dates, times, durations and points are types of their own,
+  and datetimes keep their offset and microseconds.** A property now holds
+  one of ten types: boolean, integer, float, string, `datetime`, `date`,
+  `localtime`, `localdatetime`, `duration` and `point` (see
+  [Properties and types](docs/manual/data-model/properties-and-types.md)).
+  What changes for existing clients:
+  - With type inference on (the default), `"2024-05-01"` is stored as a
+    `date` and `"2024-05-01T10:30:00"` (no zone) as a `localdatetime`; both
+    were datetimes at UTC. `"10:30:00"` becomes a `localtime` and
+    `"P1DT2H"` a `duration`; both were strings. A GeoJSON point object is
+    stored as a `point`; `putRecord` refused it and nested import made it
+    a linked record.
+  - A datetime keeps the offset it was written with and reads back at it
+    (`2024-05-01T12:30:00+02:00`, was `2024-05-01T10:30:00.000Z`), to the
+    microsecond (was the millisecond). Equality, ranges and sorting still
+    compare instants.
+  - Datetimes print with the shortest fraction (`10:30:00Z`, was
+    `10:30:00.000Z`), and a datetime at midnight UTC prints in full
+    (`2024-05-01T00:00:00Z`, was `2024-05-01`).
+  - `$min`/`$max` and `$timeBucket` return values in the property's type
+    as ISO 8601 text (`"2024-05-01T00:00:00Z"`); over datetimes they
+    returned epoch milliseconds.
+  - SQL reads datetimes as `TIMESTAMP WITH TIME ZONE`, local date-times as
+    `TIMESTAMP`, dates as `DATE` and times as `TIME` (datetimes were
+    `BIGINT` epoch milliseconds); durations and points read as ISO 8601 and
+    PostgreSQL point text. Over the PostgreSQL wire they are `timestamptz`,
+    `timestamp`, `date`, `time`, `interval` and `point`, and `timestamptz`
+    values are written at the session's `TimeZone` offset (read as
+    PostgreSQL reads it). A Metabase "UNIX timestamp (milliseconds)" cast on
+    such a field must be removed.
+  - Bolt sends and receives these values as Bolt's `Date`, `LocalTime`,
+    `LocalDateTime`, `DateTime`, `Duration`, `Point2D` and `Point3D`
+    structures; they were strings and maps. A `Time` with an offset or a
+    `DateTimeZoneId` parameter is refused with
+    `Neo.ClientError.Statement.TypeError`.
+  - Cypher values keep their types across writes and reads. The openCypher
+    TCK passes 2,017 of 3,897 scenarios (2,012 on Grafeo 0.6 alone): eleven
+    more, and six nanosecond scenarios fewer, since values are kept to the
+    microsecond.
+
+  Integers still compare with datetimes as epoch milliseconds, and `$sum`
+  and `$avg` still add datetimes as epoch milliseconds.
+- **Breaking: the store format is version 7.** At its first start, 3.0.14
+  rewrites the datetimes of a 3.0.13 or earlier store (epoch milliseconds)
+  as microsecond instants, once; a start interrupted part way finishes at
+  the next one. A store opened by 3.0.14 is refused by earlier releases:
+  back it up before upgrading if you may need to roll back.
 - **Breaking: Cypher, GQL, Gremlin and SQL/PGQ run on Grafeo 0.6** (was
   0.5.44). Until Grafeo 0.6.4 is released, RushDB builds Grafeo's
   `release/0.6.4` branch with two fixes applied that are not released yet:
@@ -38,6 +85,22 @@ in [`docs/manual/operations/upgrading-from-2x.md`](docs/manual/operations/upgrad
   the 2,417 in the supported profile, 2,012 pass (was 1,653 of 2,403).
 - **Breaking: building RushDB from source needs Rust 1.100** (was 1.91 as
   the minimum, 1.98.1 pinned), as Grafeo 0.6 does.
+
+### Added
+
+- **Spatial queries.** `$within` matches points within a radius
+  (`{"center": <GeoJSON Point>, "meters": 5000}`, haversine meters for
+  WGS-84) or a box (`{"box": [<south-west>, <north-east>]}`, across the
+  antimeridian too), and `order: {"location": {"$distance": <point>}}`
+  sorts nearest first. An ordered index on a point property answers
+  `$within` from the Hilbert-curve cell ranges covering the region. See
+  [Spatial queries](docs/manual/query/spatial.md).
+- **Typed values over the PostgreSQL wire**: `timestamptz`, `interval` and
+  `point` in both text and binary form, and binary parameters of the
+  temporal types.
+- **Mongo Extended JSON dates**: `{"$date": ...}` (ISO 8601 text,
+  `{"$numberLong": ...}` or epoch milliseconds) is a datetime in filters
+  and writes.
 
 ### Fixed
 

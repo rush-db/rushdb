@@ -76,19 +76,21 @@ envelope reference is in [HTTP API](../connectivity/http-api.md).
    `labels`, `predicate`, `select`, `groupBy`, `order`, `offset`, `limit`,
    `cursorTtlMs`, and the response shapes.
 2. [Filtering](filtering.md) — every predicate operator, logical
-   combinators, type, null, array and datetime semantics.
+   combinators, type, null, array and temporal semantics.
 3. [Relationships and traversal](relationships-and-traversal.md) — filtering
    by related records, direction, relationship type, variable-length hops,
    cycles, the relationship listing, and property-overlap joins.
 4. [Sorting and pagination](sorting-and-pagination.md) — `order`,
    `offset`/`limit`, and snapshot-pinned cursors.
-5. [Aggregations](aggregations.md) — `$count`, `$sum`, `$avg`, `$min`,
+5. [Spatial queries](spatial.md) — points within a radius or a box, and
+   nearest first.
+6. [Aggregations](aggregations.md) — `$count`, `$sum`, `$avg`, `$min`,
    `$max`, arithmetic, `$timeBucket`, `$collect`, grouping, and budgets.
-6. [Facets](facets.md) — labels, properties, property values and
+7. [Facets](facets.md) — labels, properties, property values and
    relationship shapes narrowed by the same query document.
-7. [Writing data](writing-data.md) — create, merge, replace, delete,
+8. [Writing data](writing-data.md) — create, merge, replace, delete,
    retype, link and unlink, upserts, and bulk deletes.
-8. [Transactions](transactions.md) — begin, stage, read-your-writes,
+9. [Transactions](transactions.md) — begin, stage, read-your-writes,
    commit, roll back, TTLs, conflicts, and retries.
 
 ## See also

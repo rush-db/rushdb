@@ -89,7 +89,7 @@ curl -s http://127.0.0.1:3000/protocol/v1/execute \
 
 | Option | Default | Effect |
 |---|---|---|
-| `suggestTypes` | `true` | Infer types from string values: ISO dates and timestamps become datetimes (see [Datetimes](filtering.md#datetimes)). |
+| `suggestTypes` | `true` | Infer types from string values: ISO 8601 dates, times, datetimes and durations become those types (see [Properties and types](../data-model/properties-and-types.md#temporal-values)). |
 | `convertNumericValuesToNumbers` | `false` | With `suggestTypes`, numeric strings such as `"42"` become numbers. |
 | `skipEmptyValues` | `false` | Drop empty strings, and arrays that contain only empty strings. |
 | `mergeBy` | absent | Upsert: the properties that identify an existing record. See [Upserts](#upserts). |
