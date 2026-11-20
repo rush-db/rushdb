@@ -686,6 +686,9 @@ pub struct Store {
     last_commit_ms: AtomicU64,
     /// File bytes immediately after the last compaction; growth-ratio gate.
     last_compacted_file_bytes: AtomicU64,
+    /// Whether the store opened in the previous layout format, waiting for
+    /// the data migration that rewrites it (`layout.rs`, v6 to v7).
+    format_migrating: AtomicBool,
     /// Keys erased by purges (tenant purge) since the last compaction: a
     /// purge frees pages without growing the file, so it triggers idle
     /// compaction on its own.
@@ -834,6 +837,7 @@ impl Store {
             checkpoint_wait_ms: AtomicU64::new(0),
             last_commit_ms: AtomicU64::new(0),
             last_compacted_file_bytes: AtomicU64::new(0),
+            format_migrating: AtomicBool::new(false),
             purged_since_compaction: AtomicU64::new(0),
             wal_bytes_appended: AtomicU64::new(0),
             applied_bytes: AtomicU64::new(0),
@@ -1013,10 +1017,43 @@ impl Store {
         // under the publish lock (27 min at 10M records, SCALE-1).
         self.last_compacted_file_bytes
             .store(self.storage_file_bytes().unwrap_or(0), Ordering::Relaxed);
-        if layout_info.is_none() {
-            layout::create_manifest(path, shard_count).map_err(StorageError::Durability)?;
+        match &layout_info {
+            None => {
+                layout::create_manifest(path, shard_count).map_err(StorageError::Durability)?;
+            }
+            Some(info) => self
+                .format_migrating
+                .store(info.migrating, Ordering::SeqCst),
         }
         self.start_materializers()
+    }
+
+    /// Whether the store opened in the previous layout format (written by
+    /// 3.0.13 or before): its data migration must run before it serves, then
+    /// [`Self::complete_format_upgrade`] records the current format.
+    #[must_use]
+    pub fn format_migrating(&self) -> bool {
+        self.format_migrating.load(Ordering::SeqCst)
+    }
+
+    /// Record that the data migration to the current layout format
+    /// finished: the manifest names the current format, so the next start
+    /// neither migrates nor checks. A no-op for a store without a file or
+    /// already current.
+    ///
+    /// # Errors
+    /// Returns [`StorageError::Durability`] when the manifest cannot be
+    /// rewritten; the store stays migrating and the next start migrates again.
+    pub fn complete_format_upgrade(&self) -> Result<(), StorageError> {
+        if !self.format_migrating() {
+            return Ok(());
+        }
+        let path = self.health.cleanup(self.data_path.lock()).clone();
+        if let Some(path) = path {
+            layout::complete_format_upgrade(&path).map_err(StorageError::Durability)?;
+        }
+        self.format_migrating.store(false, Ordering::SeqCst);
+        Ok(())
     }
 
     /// The durable backend for a physical shard, if this store has one.

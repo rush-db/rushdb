@@ -19,7 +19,15 @@ const MAGIC: &str = "RUSHDB_LAYOUT";
 /// v6 (2026-10-27): values too long for the value dictionary are refcounted
 /// by digest at apply time (`C_LONG_VALUE`, `C_LONG_DISTINCT`), so their
 /// distinct counts are exact without a scan; a v5 store lacks those rows.
-const FORMAT_VERSION: u32 = 6;
+/// v7 (3.0.14): a datetime is stored as microseconds and its UTC offset,
+/// no longer as epoch milliseconds. A v6 store opens (its datetimes still
+/// decode) and the server's data migration rewrites them, then records v7
+/// ([`complete_format_upgrade`]); a release before 3.0.14 refuses a v7
+/// store rather than misread its datetimes.
+const FORMAT_VERSION: u32 = 7;
+/// The format version a store may still be in, waiting for its data
+/// migration to the current one.
+const MIGRATING_FORMAT_VERSION: u32 = 6;
 /// v2: 4-byte directory ordinals replace 32-byte scope digests.
 const TENANT_ENCODING_VERSION: u32 = 2;
 const HISTORY_VERSION: u32 = 2;
@@ -29,6 +37,9 @@ const HISTORY_VERSION: u32 = 2;
 pub(crate) struct LayoutInfo {
     /// Stable database identity from the manifest.
     pub database_id: String,
+    /// Whether the store is still in the previous format, waiting for its
+    /// data migration.
+    pub migrating: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -104,7 +115,7 @@ pub(crate) fn validate_layout(
     if value.magic != MAGIC {
         return Err("unsupported storage layout manifest".into());
     }
-    if value.format_version != FORMAT_VERSION {
+    if value.format_version != FORMAT_VERSION && value.format_version != MIGRATING_FORMAT_VERSION {
         return Err(format!(
             "unsupported storage format version {}; this build uses version {FORMAT_VERSION} \
              (stores written by older builds must be recreated or restored from a logical export)",
@@ -135,6 +146,7 @@ pub(crate) fn validate_layout(
     }
     Ok(Some(LayoutInfo {
         database_id: value.database_id,
+        migrating: value.format_version == MIGRATING_FORMAT_VERSION,
     }))
 }
 
@@ -152,7 +164,33 @@ pub fn create_manifest(path: &Path, shard_count: usize) -> Result<String, String
             .map(|shard| shard_name(path, shard))
             .collect(),
     };
-    let bytes = serde_json::to_vec_pretty(&value).map_err(|error| error.to_string())?;
+    write_manifest(path, &value)?;
+    Ok(database_id)
+}
+
+/// Record that a store's data migration to the current format finished:
+/// its manifest names the current format version, everything else kept.
+/// Atomic (a temporary file renamed over the manifest): a crash leaves the
+/// previous version, and the migration runs again.
+pub(crate) fn complete_format_upgrade(path: &Path) -> Result<(), String> {
+    let manifest = manifest_path(path);
+    let raw = std::fs::read(&manifest).map_err(|error| {
+        format!(
+            "read storage layout manifest {}: {error}",
+            manifest.display()
+        )
+    })?;
+    let mut value: LayoutManifest = serde_json::from_slice(&raw)
+        .map_err(|error| format!("corrupt storage layout manifest: {error}"))?;
+    if value.format_version == FORMAT_VERSION {
+        return Ok(());
+    }
+    value.format_version = FORMAT_VERSION;
+    write_manifest(path, &value)
+}
+
+fn write_manifest(path: &Path, value: &LayoutManifest) -> Result<(), String> {
+    let bytes = serde_json::to_vec_pretty(value).map_err(|error| error.to_string())?;
     let manifest = manifest_path(path);
     let temporary = manifest.with_extension("json.tmp");
     if let Some(parent) = manifest.parent() {
@@ -165,8 +203,7 @@ pub fn create_manifest(path: &Path, shard_count: usize) -> Result<String, String
         file.sync_all().map_err(|error| error.to_string())?;
     }
     std::fs::rename(&temporary, &manifest).map_err(|error| error.to_string())?;
-    sync_parent_directory(&manifest)?;
-    Ok(database_id)
+    sync_parent_directory(&manifest)
 }
 
 fn sync_parent_directory(path: &Path) -> Result<(), String> {
@@ -217,6 +254,27 @@ mod tests {
         std::fs::write(&path, []).unwrap();
         let error = validate_layout(&path, 1).unwrap_err();
         assert!(error.contains("read storage layout manifest"));
+        std::fs::remove_dir_all(root).ok();
+    }
+
+    #[test]
+    fn a_v6_store_opens_migrating_and_its_upgrade_records_v7() {
+        let root = crate::TempPath::dir("layout");
+        let path = root.join("marked.redb");
+        std::fs::create_dir_all(&root).unwrap();
+        std::fs::write(&path, []).unwrap();
+        let id = create_manifest(&path, 1).unwrap();
+        let manifest = manifest_path(&path);
+        let mut value: serde_json::Value =
+            serde_json::from_slice(&std::fs::read(&manifest).unwrap()).unwrap();
+        value["format_version"] = serde_json::json!(6);
+        std::fs::write(&manifest, serde_json::to_vec(&value).unwrap()).unwrap();
+        let info = validate_layout(&path, 1).unwrap().unwrap();
+        assert!(info.migrating);
+        complete_format_upgrade(&path).unwrap();
+        let info = validate_layout(&path, 1).unwrap().unwrap();
+        assert!(!info.migrating);
+        assert_eq!(info.database_id, id);
         std::fs::remove_dir_all(root).ok();
     }
 
