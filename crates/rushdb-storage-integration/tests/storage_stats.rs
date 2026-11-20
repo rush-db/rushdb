@@ -283,10 +283,11 @@ fn retained_log_bytes_tracks_commits_pruning_and_reopen() {
 }
 
 #[test]
-fn a_file_over_the_cap_is_left_to_offline_compaction() {
-    // A compaction holds every request while it rewrites the file: a 1.9 GB
-    // store on a 2 GiB container blocked the node for over 20 minutes. Past
-    // `compact-max-file-bytes` the automatic path reports the skip instead.
+fn a_file_over_the_cap_is_compacted_online() {
+    // A compaction in place holds every request while it rewrites the file:
+    // a 1.9 GB store on a 2 GiB container blocked the node for over 20
+    // minutes. Past `compact-max-file-bytes` the automatic path compacts
+    // online instead (#427), never holding the store as in place.
     use std::time::Duration;
 
     let dir = path("cap");
@@ -303,10 +304,20 @@ fn a_file_over_the_cap_is_left_to_offline_compaction() {
         .compact_if_needed(Duration::ZERO, 100, Some(1))
         .unwrap();
     assert!(
-        matches!(outcome, CompactOutcome::FileTooLarge { file_bytes, max_bytes: 1 } if file_bytes == file),
+        matches!(outcome, CompactOutcome::Compacted(_)),
         "{outcome:?}"
     );
-    assert!(!store.compacting());
+    assert!(
+        !store.compacting(),
+        "an online compaction never holds the store"
+    );
+    // Every record is still there.
+    let view = store.read_view().unwrap();
+    assert_eq!(
+        rushdb_lmpg::derived::label_count(&view, TENANT, "S").unwrap(),
+        200
+    );
+    drop(view);
     // Without a cap (or under it) the same store compacts.
     let outcome = store.compact_if_needed(Duration::ZERO, 100, None).unwrap();
     assert!(
