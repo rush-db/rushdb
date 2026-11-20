@@ -437,7 +437,7 @@ fn crash_child() {
         return;
     };
     let path = std::path::PathBuf::from(path);
-    let store = Store::open(&path).unwrap();
+    let store = Arc::new(Store::open(&path).unwrap());
     configure(&store);
     let acked = path.with_extension("acked");
     // A kill can land mid-write: write a temporary file and rename it over
@@ -450,18 +450,28 @@ fn crash_child() {
         "checkpoint" => 20,
         _ => usize::MAX,
     };
+    let mut compaction = None;
     for (step, (tenant, ops)) in steps.iter().enumerate() {
         if step == paused_from {
             store.pause_materialization(true);
+        }
+        // Compact online while the rest of the commits land.
+        if scenario == "online-compact" && step == 10 {
+            let store = Arc::clone(&store);
+            compaction = Some(std::thread::spawn(move || store.compact_online()));
         }
         commit(&store, *tenant, ops);
         std::fs::write(&acked_next, (step + 1).to_string()).unwrap();
         std::fs::rename(&acked_next, &acked).unwrap();
     }
+    if let Some(compaction) = compaction {
+        compaction.join().unwrap().unwrap();
+        // Reached only when no kill point stopped it.
+        std::fs::write(path.with_extension("compacted"), "").unwrap();
+    }
     if scenario == "checkpoint" {
         // The checkpoint finds 20 commits in the gap, waits for them, and
         // is killed inside its write transaction.
-        let store = Arc::new(store);
         let release = Arc::clone(&store);
         std::thread::spawn(move || {
             std::thread::sleep(std::time::Duration::from_millis(50));
@@ -486,6 +496,16 @@ fn killed_at(scenario: &str, env: &[(&str, &str)]) -> (u64, u64) {
         .status()
         .unwrap();
     assert!(!status.success(), "{scenario}: the child must be killed");
+    // A kill point inside the online compaction must have stopped it.
+    let compacted = path.path().with_extension("compacted");
+    let finished = compacted.exists();
+    let _ = std::fs::remove_file(&compacted);
+    if env
+        .iter()
+        .any(|(name, point)| *name == "RUSHDB_TEST_KILL_AT" && point.starts_with("online-compact"))
+    {
+        assert!(!finished, "{scenario}: the kill point was never reached");
+    }
     let acked: u64 = std::fs::read_to_string(path.path().with_extension("acked"))
         .map_or(0, |count| count.trim().parse().unwrap());
     let reopened = Store::open(&path).unwrap();
@@ -709,4 +729,106 @@ fn commits_land_while_caches_fill_the_managed_budget() {
     }
     assert_eq!(store.committed_version(), 8);
     drop(held);
+}
+
+/// #427: a store killed while it compacts online, before the copy replaces
+/// the file or right after, reopens with every acknowledged commit and
+/// every snapshot as a store that never compacted.
+#[test]
+fn a_kill_during_an_online_compaction_recovers_exactly() {
+    for point in ["online-compact-before-swap", "online-compact-renamed"] {
+        let (acked, recovered) = killed_at("online-compact", &[("RUSHDB_TEST_KILL_AT", point)]);
+        assert!(recovered >= acked, "{point}");
+    }
+    // Not killed: it finishes, and the child is killed after the commits.
+    assert_eq!(killed_at("online-compact", &[]), (40, 40));
+}
+
+/// #427: an online compaction serves reads and commits while it runs,
+/// shrinks a file with free pages, and leaves every snapshot as a store
+/// that never compacted has it.
+#[test]
+fn online_compaction_serves_while_it_shrinks_the_file() {
+    let (path, store) = open("online-compact");
+    let store = Arc::new(store);
+    let big = vec![5u8; 32 << 10];
+    let mut steps: Vec<(u32, Vec<RawOp>)> = (0..200)
+        .map(|n| (1, vec![('P', key(1, n), big.clone())]))
+        .collect();
+    // Purged keys leave free pages behind.
+    steps.extend((0..150).map(|n| (1, vec![('X', key(1, n), Vec::new())])));
+    for (tenant, ops) in &steps {
+        commit(&store, *tenant, ops);
+    }
+    store.wait_materialized().unwrap();
+    store.checkpoint().unwrap();
+    let before = store.storage_file_bytes().unwrap();
+    // Commits land between the copy and the swap: the copy catches up in
+    // its loop (more than the swap's lag) and again inside the swap.
+    let during: Vec<(u32, Vec<RawOp>)> = (0..400)
+        .map(|n| (3, vec![('P', key(3, n), vec![3u8; 1 << 10])]))
+        .collect();
+    {
+        let (store, during) = (Arc::clone(&store), during.clone());
+        *crate::redb_backend::AFTER_COPY.lock().unwrap() = Some(Box::new(move || {
+            for (tenant, ops) in &during {
+                commit(&store, *tenant, ops);
+            }
+            store.wait_materialized().unwrap();
+        }));
+    }
+    // Reads go on throughout.
+    let done = Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let reader = {
+        let (store, done) = (Arc::clone(&store), Arc::clone(&done));
+        std::thread::spawn(move || {
+            let mut reads = 0u64;
+            while !done.load(std::sync::atomic::Ordering::Relaxed) {
+                let view = store.read_view().unwrap();
+                assert!(view.get(&key(1, 199)).unwrap().is_some());
+                reads += 1;
+            }
+            reads
+        })
+    };
+    let catch_ups = crate::redb_backend::CATCH_UPS.load(std::sync::atomic::Ordering::SeqCst);
+    let outcome = store.compact_online().unwrap();
+    *crate::redb_backend::AFTER_COPY.lock().unwrap() = None;
+    done.store(true, std::sync::atomic::Ordering::Relaxed);
+    let reads = reader.join().unwrap();
+    assert!(
+        crate::redb_backend::CATCH_UPS.load(std::sync::atomic::Ordering::SeqCst) > catch_ups,
+        "the copy caught up from the WAL"
+    );
+    assert!(
+        matches!(outcome, crate::OnlineCompaction::Compacted(_)),
+        "{outcome:?}"
+    );
+    assert!(reads > 0);
+    store.wait_materialized().unwrap();
+    let after = store.storage_file_bytes().unwrap();
+    assert!(after < before, "{before} bytes before, {after} after");
+    let (reference_path, reference) = open("online-compact-reference");
+    for (tenant, ops) in steps.iter().chain(&during) {
+        commit(&reference, *tenant, ops);
+    }
+    reference.wait_materialized().unwrap();
+    assert_same(
+        &every_snapshot(&store),
+        &every_snapshot(&reference),
+        "online compaction",
+    );
+    // And as reopened.
+    let store = Arc::try_unwrap(store).ok().unwrap();
+    drop(store);
+    let reopened = Store::open(&path).unwrap();
+    configure(&reopened);
+    assert_same(
+        &every_snapshot(&reopened),
+        &every_snapshot(&reference),
+        "online compaction, reopened",
+    );
+    drop((reopened, reference));
+    crate::remove_store(&path).unwrap();
+    crate::remove_store(&reference_path).unwrap();
 }

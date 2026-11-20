@@ -62,7 +62,7 @@ pub mod wal;
 mod wal_replay;
 use backend::StorageBackend;
 pub use derive::{DeriveRead, Deriver};
-pub use maintenance::CompactOutcome;
+pub use maintenance::{CompactOutcome, OnlineCompaction};
 pub use observability::{
     BackendLockTimes, CommitObserver, CommitPhase, WriteCounters, WriterHolder, WriterHolds,
     WRITER_HOLD_BOUNDS,
@@ -705,6 +705,13 @@ pub struct Store {
     /// purge frees pages without growing the file, so it triggers idle
     /// compaction on its own.
     purged_since_compaction: AtomicU64,
+    /// Writes that go to the backends without the WAL (receipt sweeps,
+    /// aborted-outcome markers): an online compaction's copy, which
+    /// catches up from the WAL, would miss one, so it is given up.
+    direct_writes: AtomicU64,
+    /// No WAL segment past this commit index is reclaimed (`u64::MAX`:
+    /// no floor): an online compaction catches its copy up from them.
+    wal_floor: AtomicU64,
     /// Bytes appended to the WAL, cumulative (see `WriteCounters`).
     wal_bytes_appended: AtomicU64,
     /// Encoded op bytes handed to the backends, cumulative.
@@ -884,6 +891,8 @@ impl Store {
             last_compacted_file_bytes: AtomicU64::new(0),
             format_migrating: AtomicBool::new(false),
             purged_since_compaction: AtomicU64::new(0),
+            direct_writes: AtomicU64::new(0),
+            wal_floor: AtomicU64::new(u64::MAX),
             wal_bytes_appended: AtomicU64::new(0),
             applied_bytes: AtomicU64::new(0),
             gaps: RwLock::new(Box::new([])),
@@ -1903,6 +1912,7 @@ impl Store {
     fn persist_ops_local(&self, ops: &[Op], commit_index: u64) -> Result<(), StorageError> {
         self.check_health()?;
         self.check_publisher()?;
+        self.direct_writes.fetch_add(1, Ordering::SeqCst);
         if let Some(backend) = self.primary_backend() {
             backend
                 .apply(ops, commit_index)

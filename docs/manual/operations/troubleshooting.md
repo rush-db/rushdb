@@ -112,14 +112,14 @@ size, batch writes, or add indexes so requests finish faster. Check
 
 ### Every request blocks, `/health` is 200, `/ready` is 503 "storage compaction"
 
-A storage compaction holds the database while it rewrites the file; reads
-and commits wait for it. Automatic compaction only runs on a quiet store up
-to `compact-max-file-bytes` (1 GiB by default) and logs `storage compaction
-started` with the file size; a larger file is skipped with `automatic
-compaction skipped` at `info` and must be compacted offline (`rushdb serve
---data-dir <dir> --compact`, server stopped). If a compaction is running,
-wait for `storage compaction complete`; to keep it from running again, lower
-`compact-max-file-bytes` or set `compact-interval-seconds: 0`. See
+A storage compaction of a file up to `compact-max-file-bytes` (1 GiB by
+default) holds the database while it rewrites the file; reads and commits
+wait for it. It only runs on a quiet store and logs `storage compaction
+started` with the file size. A larger file is compacted online, without
+holding requests (`online storage compaction started`). If an in-place
+compaction is running, wait for `storage compaction complete`; to have
+smaller files compacted online too, lower `compact-max-file-bytes`, or set
+`compact-interval-seconds: 0` to stop automatic compaction. See
 [Storage and compaction](storage-and-compaction.md#automatic-idle-compaction).
 
 ### 413 request or response too large

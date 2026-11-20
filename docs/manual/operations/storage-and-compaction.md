@@ -63,7 +63,7 @@ commit and scan costs creep up with file size.
 ### Automatic idle compaction
 
 On by default. Every `compact-interval-seconds` (300 s) the server checks
-four gates, and compacts only if all pass:
+three gates, and compacts only if all pass:
 
 1. **Quiet:** no commit in the last `compact-quiesce-seconds` (10 s).
 2. **Interval:** at least one interval since the previous check (the check
@@ -72,18 +72,25 @@ four gates, and compacts only if all pass:
    (150%) of its size after the previous compaction, **or** at least 10,000
    keys were purged since then (a tenant purge frees space without growing
    the file). The first check after startup counts as "worth it".
-4. **Small enough:** the file is at most `compact-max-file-bytes` (1 GiB).
-   A compaction holds the database while it copies the file, so every
-   request waits for it: about 90 s per GB on a small container, and far
-   longer when the file does not fit the page cache. A larger file is left
-   to [offline compaction](#offline-compaction), and the skip is logged at
-   `info` (`automatic compaction skipped`) on every check that would
-   otherwise have run.
+How the file is rewritten depends on its size:
 
-While a compaction runs, `/ready` answers 503 with
-`"reason": "storage compaction holds the database"` so an orchestrator stops
-routing traffic to the node; `/health` stays a liveness probe. The start is
-logged (`storage compaction started`, with `file_bytes`).
+- **Up to `compact-max-file-bytes` (1 GiB): in place.** The compaction
+  holds the database while it rewrites the file, so every request waits for
+  it: about 90 s per GB on a small container, longer when the file does not
+  fit the page cache. While it runs, `/ready` answers 503 with
+  `"reason": "storage compaction holds the database"` so an orchestrator
+  stops routing traffic to the node; `/health` stays a liveness probe. The
+  start is logged (`storage compaction started`, with `file_bytes`).
+- **Larger: online.** The live data is copied into a new file
+  (`<file>.compact`, beside the store file) while reads and writes go on;
+  the copy then catches up with the commits made meanwhile from the WAL and
+  replaces the file under a short hold of the database (the last few
+  commits are applied during it). `/ready` stays 200 throughout. The copy
+  needs free disk for the live data; WAL segments are kept until it is in.
+  The start is logged (`online storage compaction started`). If a write
+  that does not go through the WAL lands meanwhile (a receipt sweep, the
+  outcome of an aborted commit) the copy is given up and the next interval
+  starts over. A copy left behind by a crash is removed at the next start.
 
 If a reader holds the store, the server retries for up to 2 s, then defers
 to the next interval. Outcomes are logged: `storage compaction complete`
@@ -94,10 +101,11 @@ with `before_bytes` and `after_bytes` (info), or `compaction deferred`.
 | `compact-interval-seconds` | 300 | Check period and minimum spacing; `0` disables automatic compaction. |
 | `compact-quiesce-seconds` | 10 | Quiet time required after the last commit. |
 | `compact-growth-percent` | 150 | File growth needed to trigger. |
-| `compact-max-file-bytes` | 1 GiB | Largest file automatic compaction rewrites; `0` = no cap. |
+| `compact-max-file-bytes` | 1 GiB | Largest file compacted in place; a larger one is compacted online. `0` = no cap (always in place). |
 
-Because of the quiet gate, compaction does not run during sustained write
-load. In measurements, gated compaction at a 1 s interval left ingest speed
+Because of the quiet gate, compaction does not start during sustained write
+load; an online compaction keeps serving the writes that arrive after it
+started. In measurements, gated compaction at a 1 s interval left ingest speed
 unchanged, while ungated compaction during writes slowed ingest about 70×.
 Compaction brings the file down toward the live size but not below it:
 expect the file to remain larger than live data.
@@ -108,8 +116,8 @@ the store shrank to 0.58× at the next 300 s tick).
 
 ### Offline compaction
 
-To reclaim space deterministically, for example after a large purge or
-bulk delete, stop the server and run:
+To reclaim space at a time you choose with the node down, stop the server
+and run:
 
 ```bash
 sudo systemctl stop rushdb

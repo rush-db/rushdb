@@ -6,6 +6,12 @@ use std::sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard};
 
 use redb::{Database, ReadableDatabase, ReadableTable, ReadableTableMetadata, TableDefinition};
 
+#[path = "redb_online_compact.rs"]
+mod online_compact;
+pub(crate) use online_compact::{copy_path as compact_copy_path, CatchUp};
+#[cfg(test)]
+pub(crate) use online_compact::{AFTER_COPY, CATCH_UPS};
+
 use crate::backend::CommitOps;
 use crate::history_v2;
 use crate::{
@@ -433,7 +439,7 @@ pub(crate) struct RedbBackend {
     /// included (C1, cloud-capacity F3).
     db: RwLock<Database>,
     // Declared after db so the cache is destroyed before its charge releases.
-    _cache_reservation: crate::resources::ByteReservation,
+    cache_reservation: crate::resources::ByteReservation,
     shard_id: u32,
     /// Set at shutdown so long maintenance scans (e.g. byte accounting) stop
     /// within a batch instead of delaying a clean close.
@@ -482,7 +488,11 @@ pub(crate) struct RedbBackend {
     /// RM-8 fault injection: fail the next `compact`.
     #[cfg(test)]
     fail_next_compact: AtomicBool,
-    live_reads: Arc<LiveReads>,
+    /// Read transactions open on the current file; an online compaction
+    /// that swaps the file in starts a new count.
+    live_reads: std::sync::Mutex<Arc<LiveReads>>,
+    /// The file this backend reads and writes.
+    path: std::path::PathBuf,
 }
 
 /// Longest work one history-GC batch does while holding the writer. Keys
@@ -1317,6 +1327,14 @@ impl crate::backend::StorageBackend for RedbBackend {
         self.compact()
     }
 
+    fn compact_online(
+        &self,
+        catch_up: &mut CatchUp<'_>,
+        abandon: &dyn Fn() -> bool,
+    ) -> Result<bool, String> {
+        RedbBackend::compact_online(self, catch_up, abandon)
+    }
+
     fn while_writes_paused(&self, run: &mut dyn FnMut()) -> Result<(), String> {
         // redb runs one write transaction at a time: holding one open (and
         // aborting it) keeps every other writer out while readers continue.
@@ -1372,25 +1390,34 @@ impl RedbBackend {
     /// Open a counted read transaction (see [`LiveReads`]). The shared
     /// database lock is released on return; the transaction keeps its
     /// snapshot.
+    /// The read count of the current file.
+    fn current_reads(&self) -> Arc<LiveReads> {
+        Arc::clone(
+            &self
+                .live_reads
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner),
+        )
+    }
+
     fn begin_read(&self) -> Result<CountedRead, String> {
+        // Under the shared lock: a file swap (exclusive) cannot slip
+        // between the transaction and its count.
         let db = self.lock_db()?;
-        let live = self.live_reads.enter();
+        let live = self.current_reads().enter();
         let tx = db.begin_read().map_err(|e| e.to_string())?;
         Ok(CountedRead { tx, live })
     }
-    pub(crate) fn open(
-        path: &Path,
-        cache: crate::resources::ByteReservation,
-    ) -> Result<Self, String> {
-        if let Some(parent) = path.parent() {
-            std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
-        }
+    /// Open (or create) the redb file at `path` with a `cache_bytes` page
+    /// cache, reporting a full repair when it was not closed cleanly; also
+    /// the progress points of that repair (empty: none ran).
+    fn build_database(path: &Path, cache_bytes: usize) -> Result<(Database, Vec<f64>), String> {
         let repair = Arc::new(std::sync::Mutex::new(Vec::new()));
         let db = {
             let (repair, file) = (Arc::clone(&repair), path.display().to_string());
             let file_bytes = std::fs::metadata(path).map_or(0, |meta| meta.len());
             Database::builder()
-                .set_cache_size(cache.bytes())
+                .set_cache_size(cache_bytes)
                 .set_repair_callback(move |session| {
                     // redb also runs the callback while it creates a new
                     // file: nothing to check and nothing to report.
@@ -1425,6 +1452,29 @@ impl RedbBackend {
         if !open_repair.is_empty() {
             tracing::info!(path = %path.display(), "storage check finished");
         }
+        Ok((db, open_repair))
+    }
+
+    pub(crate) fn open(
+        path: &Path,
+        cache: crate::resources::ByteReservation,
+    ) -> Result<Self, String> {
+        Self::open_as_shard(path, cache, shard_id_from_path(path)?)
+    }
+
+    /// [`Self::open`] for a file whose name does not carry its shard (an
+    /// online compaction's copy).
+    pub(crate) fn open_as_shard(
+        path: &Path,
+        cache: crate::resources::ByteReservation,
+        shard_id: u32,
+    ) -> Result<Self, String> {
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+        }
+        let (db, open_repair) = Self::build_database(path, cache.bytes())?;
+        #[cfg(not(test))]
+        let _ = &open_repair;
         let mut tx = db.begin_write().map_err(|e| e.to_string())?;
         // Quick repair on the first durable commit of this open: until
         // the first checkpoint it is the newest commit with allocator state,
@@ -1440,8 +1490,8 @@ impl RedbBackend {
         tx.commit().map_err(|e| e.to_string())?;
         let backend = Self {
             db: RwLock::new(db),
-            _cache_reservation: cache,
-            shard_id: shard_id_from_path(path)?,
+            cache_reservation: cache,
+            shard_id,
             abort: Arc::new(AtomicBool::new(false)),
             mutex_wait_ns: AtomicU64::new(0),
             mutex_hold_ns: AtomicU64::new(0),
@@ -1462,7 +1512,8 @@ impl RedbBackend {
             fail_next_retire: AtomicBool::new(false),
             #[cfg(test)]
             fail_next_compact: AtomicBool::new(false),
-            live_reads: Arc::default(),
+            live_reads: std::sync::Mutex::default(),
+            path: path.to_path_buf(),
         };
         Ok(backend)
     }
@@ -1947,7 +1998,7 @@ impl RedbBackend {
         // publish lock, held by the caller) before it lets go, so waiting
         // would stall it (a 2.3 s ingest stall, measured). The store
         // retries with every lock released.
-        if !self.live_reads.is_drained() {
+        if !self.current_reads().is_drained() {
             return Err(crate::backend::COMPACT_BUSY.into());
         }
         // Each pass is one bounded step of redb's compaction; a shutdown

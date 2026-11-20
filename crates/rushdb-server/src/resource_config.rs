@@ -284,10 +284,11 @@ pub struct ResourceConfig {
     /// compaction (>= 100).
     #[arg(long, env = "RUSHDB_COMPACT_GROWTH_PERCENT", default_value_t = 150)]
     pub compact_growth_percent: u32,
-    /// Largest store file automatic compaction rewrites; 0 = no cap. A
-    /// compaction holds every request while it copies the file (about 90 s
-    /// per GB on a small container), so a larger file is left to the offline
-    /// `rushdb serve --compact`, and the skip is logged
+    /// Largest store file automatic compaction rewrites in place; 0 = no
+    /// cap. An in-place rewrite holds every request while it copies the file
+    /// (about 90 s per GB on a small container), so a larger file is
+    /// compacted online instead: copied while requests are served, then
+    /// swapped in
     #[arg(long, env = "RUSHDB_COMPACT_MAX_FILE_BYTES", default_value = "1GiB")]
     pub compact_max_file_bytes: ByteSize,
     /// History/GC sweep period in seconds (checkpoint interval); 0 = 5s.
