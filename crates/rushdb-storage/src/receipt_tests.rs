@@ -139,6 +139,8 @@ fn receipt_sweep_drains_a_backlog_within_its_budget() {
     // stays.
     let budget = std::time::Duration::from_secs(60);
     assert_eq!(store.sweep_expired_receipts(10, budget).unwrap(), 25);
+    // File statistics count what is materialized.
+    store.wait_materialized().unwrap();
     assert_eq!(store.storage_stats().unwrap().receipt_keys, 2);
     assert_eq!(store.sweep_expired_receipts(10, budget).unwrap(), 0);
     // A spent budget stops after one batch.
