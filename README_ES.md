@@ -56,7 +56,7 @@ O configúralo a mano:
 ```bash
 # or: brew install rush-db/tap/rushdb
 curl -fsSL https://rushdb.com/install.sh | sh
-export PATH="$HOME/.rushdb/bin:$PATH"   # or open a new shell
+export PATH="$HOME/.rushdb/bin:$PATH"   # only if rushdb is not found yet
 mkdir my-app && cd my-app && rushdb up
 ```
 
