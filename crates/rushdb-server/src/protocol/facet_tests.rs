@@ -647,7 +647,7 @@ fn value_search_filters_distinct_values() {
     );
     assert_eq!((values, counts), (vec![json!(31)], vec![2]));
     let (values, ..) = ask("born", all(), None, "2020-01", ValueMatch::Contains, false);
-    assert_eq!(values, vec![json!("2020-01-02T03:04:05.000Z")]);
+    assert_eq!(values, vec![json!("2020-01-02T03:04:05Z")]);
     // A predicate forces the match-set scan; the same filter applies.
     let (values, ..) = ask(
         "name",

@@ -1053,10 +1053,11 @@ fn build_properties(
             rushdb_types::keys::parse_occ_key(&key).ok_or("corrupt occurrence key")?;
         let occ = rushdb_types::occurrence::decode_occ_value(&raw)
             .map_err(|_| "corrupt occurrence row".to_string())?;
-        by_pid
-            .entry(pid)
-            .or_default()
-            .push((occ.array, occ.value, occ.payload.to_vec()));
+        by_pid.entry(pid).or_default().push((
+            occ.array,
+            occ.value,
+            [occ.payload, occ.suffix].concat(),
+        ));
     }
     let mut properties = serde_json::Map::new();
     for (pid, rows) in by_pid {
@@ -1080,8 +1081,11 @@ fn build_properties(
             );
         let values = rows
             .iter()
-            .map(|(_, value, payload)| {
-                rushdb_lmpg::reconstruct::decode_value(*value, payload).map_err(|e| e.to_string())
+            .map(|(_, value, stored)| {
+                // `stored` is the payload with its suffix: `decode_value`
+                // reads them as one.
+                rushdb_lmpg::reconstruct::decode_value(*value, stored, &[])
+                    .map_err(|e| e.to_string())
             })
             .collect::<Result<Vec<_>, _>>()?;
         properties.insert(

@@ -79,7 +79,14 @@ fn row(i: u64) -> Vec<(String, FieldChange)> {
     }
     fields.push((
         "d".to_owned(),
-        FieldChange::SetDatetime(1_700_000_000_000 + (i as i64) * 86_400_000),
+        FieldChange::Set(rushdb_types::types::to_doc_json(
+            &rushdb_types::value::Scalar::DateTime(
+                rushdb_types::types::temporal::Instant::from_millis(
+                    1_700_000_000_000 + (i as i64) * 86_400_000,
+                )
+                .unwrap(),
+            ),
+        )),
     ));
     if i.is_multiple_of(9) {
         fields.push(set("tags", json!(["x", "y"])));

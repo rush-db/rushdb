@@ -959,9 +959,11 @@ pub struct UpdateRelationshipsMutation {
     #[serde(default)]
     pub unset: Vec<String>,
     /// Declared types of named `set` properties. Every name must be in
-    /// `set`; a non-null value must match its type, and a `datetime` takes
-    /// an ISO 8601 date or datetime string, stored as a datetime. A `null`
-    /// stays an explicit null; an untyped value is stored as given.
+    /// `set`; a non-null value (or each element of an array) must be a value
+    /// of its type: ISO 8601 text for the temporal types and durations (a
+    /// `datetime` also takes a date or a date-time without an offset, read
+    /// in UTC), a `GeoJSON` point for `point`. A `null` stays an explicit
+    /// null; an untyped value is stored as given.
     #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
     pub types: std::collections::BTreeMap<String, PropertyType>,
 }
@@ -976,8 +978,19 @@ pub enum PropertyType {
     Number,
     /// A boolean (or an array of booleans).
     Boolean,
-    /// A scalar ISO 8601 date or datetime string, stored as a datetime.
+    /// An instant: ISO 8601 text with `Z` or an offset (a date or a
+    /// date-time without one reads in UTC).
     Datetime,
+    /// A calendar date: `2024-05-01`.
+    Date,
+    /// A time of day without an offset: `10:15:00`.
+    Localtime,
+    /// A date and time without an offset: `2024-05-01T10:15:00`.
+    Localdatetime,
+    /// An ISO 8601 duration: `P1DT2H`.
+    Duration,
+    /// A `GeoJSON` point.
+    Point,
 }
 
 impl PropertyType {
@@ -989,6 +1002,11 @@ impl PropertyType {
             Self::Number => "number",
             Self::Boolean => "boolean",
             Self::Datetime => "datetime",
+            Self::Date => "date",
+            Self::Localtime => "localtime",
+            Self::Localdatetime => "localdatetime",
+            Self::Duration => "duration",
+            Self::Point => "point",
         }
     }
 }
@@ -3113,7 +3131,7 @@ mod tests {
         assert!(
             serde_json::from_value::<UpdateRelationshipsMutation>(serde_json::json!({
                 "relationType": "PLACES", "sourceIds": [], "targetIds": [],
-                "set": {"at": 1}, "types": {"at": "date"}
+                "set": {"at": 1}, "types": {"at": "timestamp"}
             }))
             .is_err()
         );

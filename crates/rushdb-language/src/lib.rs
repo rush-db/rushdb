@@ -30,6 +30,7 @@ mod lmpg_store;
 mod mutation_budget;
 mod overlay;
 mod sql_pgq;
+mod values;
 use lmpg_store::LmpgGraphStore;
 use overlay::OverlayStore;
 
@@ -489,7 +490,7 @@ fn execute_in_view_with_budget_cancellable_on_stack(
                 .cloned()
                 .unwrap_or_else(|| format!("column_{index}"));
             let value = result_value_to_json(snapshot, tenant, column_types.get(index), value)?;
-            object.insert(name, value);
+            object.insert(name, rushdb_types::types::doc_to_public(value));
         }
         let row = Json::Object(object);
         let row_bytes = serde_json::to_vec(&row)
@@ -767,13 +768,13 @@ fn execute_mutation_in_view_with_limits_on_stack(
                     .unwrap_or_else(|| format!("column_{index}"));
                 object.insert(
                     name,
-                    mutable_result_value_to_json(
+                    rushdb_types::types::doc_to_public(mutable_result_value_to_json(
                         store.as_ref(),
                         &node_id,
                         &edge_id,
                         column_types.get(index),
                         value,
-                    ),
+                    )),
                 );
             }
             Json::Object(object)
@@ -1194,6 +1195,9 @@ fn public_ids(mut entity: Json) -> Json {
 }
 
 fn json_to_value(value: &Json) -> Value {
+    if let Some(value) = typed_value(value) {
+        return value;
+    }
     match value {
         Json::Null => Value::Null,
         Json::Bool(value) => Value::Bool(*value),
@@ -1216,6 +1220,9 @@ fn json_to_value(value: &Json) -> Value {
 }
 
 pub(crate) fn json_to_value_checked(value: &Json) -> Result<Value, ()> {
+    if let Some(value) = typed_value(value) {
+        return Ok(value);
+    }
     match value {
         Json::Null => Ok(Value::Null),
         Json::Bool(value) => Ok(Value::Bool(*value)),
@@ -1244,7 +1251,22 @@ pub(crate) fn json_to_value_checked(value: &Json) -> Result<Value, ()> {
     }
 }
 
+/// The Grafeo value of a document value in its tagged form (a point as its
+/// `GeoJSON` map); `None` for any other JSON value.
+fn typed_value(value: &Json) -> Option<Value> {
+    let scalar = rushdb_types::types::tagged_scalar(value)?;
+    values::to_grafeo(&scalar).or_else(|| {
+        // A point is its GeoJSON map.
+        Some(json_to_value(&rushdb_types::value::scalar_to_json(&scalar)))
+    })
+}
+
+/// A Grafeo value as a document value: JSON's own values, and the tagged
+/// form of `RushDB`'s typed values, so a write stores a date as a date.
 fn value_to_json(value: Value) -> Json {
+    if let Some(scalar) = values::from_grafeo(&value) {
+        return rushdb_types::types::to_doc_json(&scalar);
+    }
     match value {
         Value::Null => Json::Null,
         Value::Bool(value) => Json::Bool(value),

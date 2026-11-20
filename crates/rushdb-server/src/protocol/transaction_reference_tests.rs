@@ -226,7 +226,8 @@ fn staged_writes_type_values_like_put_record_and_replace_deletes_unnamed() {
     assert_eq!(outcome["status"], "committed", "{outcome}");
 
     let grace = record(&node, STAGED).unwrap();
-    assert_eq!(grace["propertyTypes"]["born"], "datetime", "{grace}");
+    // A date-only string is a date.
+    assert_eq!(grace["propertyTypes"]["born"], "date", "{grace}");
     let ada = record(&node, &ada).unwrap();
     assert_eq!(ada["properties"]["title"], "Countess");
     let properties = &ada["properties"];

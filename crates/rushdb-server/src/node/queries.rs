@@ -578,28 +578,47 @@ impl RequestScope<'_> {
             .remove(rushdb_types::value::LABEL_FIELD)
             .and_then(|value| value.as_str().map(str::to_string))
             .unwrap_or_default();
+        // Each value renders in its public form and is typed by itself (a
+        // name holding integers and datetimes renders each correctly); the
+        // catalog's type of the name answers only for a null or an empty
+        // array.
         let mut pt = serde_json::Map::new();
-        let keys: Vec<String> = properties.keys().cloned().collect();
-        for k in keys {
-            if let Some(tn) = proptypes.get(&rushdb_types::value::normalize_name(&k)) {
-                if tn == "datetime" {
-                    if let Some(ms) = properties.get(&k).and_then(serde_json::Value::as_i64) {
-                        properties.insert(
-                            k.clone(),
-                            serde_json::Value::String(
-                                rushdb_types::datetime::ms_to_datetime_string(ms),
-                            ),
-                        );
-                    }
+        let properties: serde_json::Map<String, serde_json::Value> = properties
+            .into_iter()
+            .map(|(k, value)| {
+                let ty = value_type_name(&value).map(str::to_owned).or_else(|| {
+                    proptypes
+                        .get(&rushdb_types::value::normalize_name(&k))
+                        .cloned()
+                });
+                if let Some(ty) = ty {
+                    pt.insert(k.clone(), serde_json::Value::String(ty));
                 }
-                pt.insert(k.clone(), serde_json::Value::String(tn.clone()));
-            }
-        }
+                (k, rushdb_types::types::doc_to_public(value))
+            })
+            .collect();
         serde_json::json!({
             "id": id,
             "label": label,
             "properties": properties,
             "propertyTypes": pt,
         })
+    }
+}
+
+/// The public type name of a document value (`number`, `string`,
+/// `datetime`, …): of its first non-null element for an array; `None` for
+/// a null, an empty array and an object.
+pub(super) fn value_type_name(value: &serde_json::Value) -> Option<&'static str> {
+    use serde_json::Value as Json;
+    if let Some(scalar) = rushdb_types::types::tagged_scalar(value) {
+        return Some(scalar.logical_type().api_name());
+    }
+    match value {
+        Json::Bool(_) => Some("boolean"),
+        Json::Number(_) => Some("number"),
+        Json::String(_) => Some("string"),
+        Json::Array(items) => items.iter().find_map(value_type_name),
+        Json::Null | Json::Object(_) => None,
     }
 }

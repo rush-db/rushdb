@@ -174,17 +174,20 @@ fn native_condition(
             if only(&[LogicalType::Int64, LogicalType::Float64]) =>
         {
             let (number, bound) = match lit {
-                ScalarValue::Int64(Some(i)) => (Json::Number((*i).into()), exact_f64(*i)),
-                ScalarValue::Float64(Some(f)) => (
-                    serde_json::Number::from_f64(*f).map(Json::Number)?,
-                    Some(*f),
+                ScalarValue::Int64(Some(i)) => (
+                    Json::Number((*i).into()),
+                    exact_f64(*i).and_then(serde_json::Number::from_f64),
                 ),
+                ScalarValue::Float64(Some(f)) => {
+                    let number = serde_json::Number::from_f64(*f)?;
+                    (Json::Number(number.clone()), Some(number))
+                }
                 _ => return None,
             };
             match op {
                 CmpOp::Eq => field(FieldPred::Eq(name, number)),
-                CmpOp::Gt | CmpOp::Gte => field(FieldPred::Gte(name, bound?)),
-                CmpOp::Lt | CmpOp::Lte => field(FieldPred::Lte(name, bound?)),
+                CmpOp::Gt | CmpOp::Gte => field(FieldPred::Gte(name, Json::Number(bound?))),
+                CmpOp::Lt | CmpOp::Lte => field(FieldPred::Lte(name, Json::Number(bound?))),
                 CmpOp::Ne => None,
             }
         }
@@ -370,9 +373,11 @@ fn label_columns(
         let sample = match definition.type_state {
             TypeState::Unresolved => Json::Null,
             TypeState::Known(LogicalType::Boolean) => Json::Bool(true),
-            TypeState::Known(LogicalType::Int64 | LogicalType::DateTime) => Json::from(0),
+            TypeState::Known(LogicalType::Int64) => Json::from(0),
             TypeState::Known(LogicalType::Float64) => Json::from(0.5),
-            TypeState::Known(LogicalType::Utf8) => Json::String(String::new()),
+            // Text columns: strings, and the SQL text of the other types
+            // (`crate::sql_values`).
+            TypeState::Known(_) => Json::String(String::new()),
         };
         let value = if array {
             Json::Array(vec![sample])
@@ -1014,7 +1019,7 @@ pub(crate) fn batch_from_rows(
 ) -> std::result::Result<RecordBatch, datafusion::common::DataFusionError> {
     let mut ndjson = Vec::new();
     for row in rows {
-        serde_json::to_writer(&mut ndjson, &row)
+        serde_json::to_writer(&mut ndjson, &crate::sql_values(row))
             .map_err(|e| datafusion::common::DataFusionError::External(Box::new(e)))?;
         ndjson.push(b'\n');
         if ndjson.len() > MAX_BATCH_JSON_BYTES {

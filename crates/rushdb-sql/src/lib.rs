@@ -1546,6 +1546,30 @@ pub(crate) fn relationship_types_for_tenant(
     )
 }
 
+/// A row's values as SQL reads them: JSON's own values as they are,
+/// temporal values and durations as ISO 8601 text, points as PostgreSQL
+/// `point` text (`(x,y)`; a 3D point as `GeoJSON` text).
+pub(crate) fn sql_values(value: Json) -> Json {
+    use rushdb_types::value::Scalar;
+    if let Some(scalar) = rushdb_types::types::tagged_scalar(&value) {
+        return Json::String(match &scalar {
+            Scalar::Point(point) if point.z.is_none() => format!("({},{})", point.x, point.y),
+            Scalar::Point(point) => rushdb_types::types::point::to_geojson(*point).to_string(),
+            other => rushdb_types::types::literal_text(other).unwrap_or_default(),
+        });
+    }
+    match value {
+        Json::Array(items) => Json::Array(items.into_iter().map(sql_values).collect()),
+        Json::Object(object) => Json::Object(
+            object
+                .into_iter()
+                .map(|(key, value)| (key, sql_values(value)))
+                .collect(),
+        ),
+        other => other,
+    }
+}
+
 pub(crate) fn externalize_record(value: Json) -> Json {
     let Json::Object(mut object) = value else {
         return value;

@@ -321,10 +321,10 @@ fn parse_one_op(field: &str, op: &str, value: &Json) -> Result<Expr, QueryDocume
     match op {
         "$eq" => Ok(Expr::Field(FieldPred::Eq(f, dt_lit(value)))),
         "$ne" => Ok(Expr::Field(FieldPred::Ne(f, dt_lit(value)))),
-        "$gt" => Ok(Expr::Field(FieldPred::Gt(f, dt_num(value)?))),
-        "$gte" => Ok(Expr::Field(FieldPred::Gte(f, dt_num(value)?))),
-        "$lt" => Ok(Expr::Field(FieldPred::Lt(f, dt_num(value)?))),
-        "$lte" => Ok(Expr::Field(FieldPred::Lte(f, dt_num(value)?))),
+        "$gt" => Ok(Expr::Field(FieldPred::Gt(f, range_lit(value)?))),
+        "$gte" => Ok(Expr::Field(FieldPred::Gte(f, range_lit(value)?))),
+        "$lt" => Ok(Expr::Field(FieldPred::Lt(f, range_lit(value)?))),
+        "$lte" => Ok(Expr::Field(FieldPred::Lte(f, range_lit(value)?))),
         "$in" => Ok(Expr::Field(FieldPred::In(f, array_of(value)?))),
         "$nin" => Ok(Expr::Field(FieldPred::Nin(f, array_of(value)?))),
         "$contains" => Ok(Expr::Field(FieldPred::Contains(f, str_of(value)?))),
@@ -631,39 +631,56 @@ fn comp_int(v: &Json) -> Result<i64, QueryDocumentError> {
         .ok_or_else(|| QueryDocumentError::Parse("expected integer".into()))
 }
 
-/// Datetime-aware literal for equality: ISO strings / component objects
-/// lower to epoch-ms numbers (matching the engine `DateTime` type).
-/// An equality literal. ISO-8601 text stays text: it equals a string holding
-/// that text and a datetime at that instant, which the index probes and the
-/// evaluator both resolve. A component object names one instant.
+/// An equality literal. ISO 8601 text stays text: it equals a string
+/// holding that text and a temporal value it names (the evaluator and the
+/// index coerce it per type). A component object names a date or a
+/// date-time.
 fn dt_lit(v: &Json) -> Json {
-    if let Some(m) = v.as_object() {
-        if m.contains_key("$year") {
-            if let Some(ms) = crate::datetime::parse_components(m) {
-                return serde_json::json!(ms);
-            }
-        }
-    }
-    lit_json(v)
+    components_literal(v).unwrap_or_else(|| lit_json(v))
 }
 
-#[expect(
-    clippy::cast_precision_loss,
-    reason = "epoch-millisecond bounds are compared as f64 throughout the evaluator, matching its numeric comparison semantics"
-)]
-fn dt_num(v: &Json) -> Result<f64, QueryDocumentError> {
-    // numeric compares accept ISO strings / component objects as epoch ms
-    if let Some(s) = v.as_str() {
-        if let Some(ms) = crate::datetime::parse_iso_8601(s) {
-            return Ok(ms as f64);
-        }
+/// A `{$year, $month, ...}` object as the ISO 8601 text it names: a date
+/// without time components, else a date-time without an offset (compared
+/// with a datetime in UTC, as before).
+fn components_literal(v: &Json) -> Option<Json> {
+    let m = v.as_object()?;
+    if !m.contains_key("$year") {
+        return None;
     }
-    if let Some(m) = v.as_object() {
-        if let Some(ms) = crate::datetime::parse_components(m) {
-            return Ok(ms as f64);
-        }
+    let micros = crate::datetime::parse_components(m)?;
+    let timed = [
+        "$hour",
+        "$minute",
+        "$second",
+        "$millisecond",
+        "$microsecond",
+    ]
+    .iter()
+    .any(|key| m.contains_key(*key));
+    let local = rushdb_types::types::temporal::format_local_datetime(micros);
+    Some(Json::String(if timed {
+        local
+    } else {
+        local.split('T').next().unwrap_or_default().to_owned()
+    }))
+}
+
+/// A range bound (`$gt` … `$lte`): a number, ISO 8601 text, a component
+/// object, or a value in its tagged form. Each property type reads it as
+/// one of its values ([`rushdb_types::types::coerce_literal`]); numbers are
+/// checked here to be exact.
+fn range_lit(v: &Json) -> Result<Json, QueryDocumentError> {
+    if let Some(literal) = components_literal(v) {
+        return Ok(literal);
     }
-    num(v)
+    match v {
+        Json::Number(_) => num(v).map(|_| v.clone()),
+        Json::String(_) => Ok(v.clone()),
+        Json::Object(_) if rushdb_types::types::tagged_scalar(v).is_some() => Ok(v.clone()),
+        _ => Err(QueryDocumentError::Parse(
+            "a range bound is a number, ISO 8601 text or a {$year, ...} object".into(),
+        )),
+    }
 }
 
 #[expect(

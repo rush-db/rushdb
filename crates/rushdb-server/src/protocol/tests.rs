@@ -3246,9 +3246,9 @@ fn schema_describes_bounded_samples_and_exact_min_max() {
     let mut cfg = config(false);
     let node = Node::bootstrap(&mut cfg).unwrap();
     for (rank, launched) in [
-        (3, "1996-01-15T00:00:00.000Z"),
-        (1, "1965-08-01T00:00:00.000Z"),
-        (2, "1979-06-30T00:00:00.000Z"),
+        (3, "1996-01-15T00:00:00Z"),
+        (1, "1965-08-01T00:00:00Z"),
+        (2, "1979-06-30T00:00:00Z"),
     ] {
         node.scope()
             .create_record(
@@ -3305,12 +3305,18 @@ fn schema_describes_bounded_samples_and_exact_min_max() {
         .find(|property| property.name == "launched")
         .expect("launched property");
     assert_eq!(launched.value_type, "datetime");
-    // (a midnight-UTC instant renders as its date).
-    assert_eq!(launched.min, Some(serde_json::json!("1965-08-01")));
-    assert_eq!(launched.max, Some(serde_json::json!("1996-01-15")));
+    // (an instant renders whole, also at midnight: a date is a date).
+    assert_eq!(
+        launched.min,
+        Some(serde_json::json!("1965-08-01T00:00:00Z"))
+    );
+    assert_eq!(
+        launched.max,
+        Some(serde_json::json!("1996-01-15T00:00:00Z"))
+    );
     assert!(launched
         .sample_values
-        .contains(&serde_json::json!("1979-06-30")));
+        .contains(&serde_json::json!("1979-06-30T00:00:00Z")));
 }
 
 #[test]

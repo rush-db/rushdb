@@ -1,11 +1,13 @@
-use serde::{Deserialize, Serialize};
 use serde_json::Value as Json;
 use std::cmp::Ordering;
 
 use crate::model::LogicalType;
+use crate::types::duration::Duration;
+use crate::types::point::Point;
+use crate::types::temporal::Instant;
 
 /// A single canonical scalar value.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Scalar {
     /// Boolean value.
     Boolean(bool),
@@ -15,8 +17,37 @@ pub enum Scalar {
     Float64(f64),
     /// UTF-8 string.
     Utf8(String),
-    /// UTC epoch milliseconds.
-    DateTime(i64),
+    /// An instant, with the offset it was written with.
+    DateTime(Instant),
+    /// Days since 1970-01-01.
+    Date(i32),
+    /// Microseconds since midnight.
+    LocalTime(i64),
+    /// Wall-clock microseconds since 1970-01-01T00:00.
+    LocalDateTime(i64),
+    /// A duration.
+    Duration(Duration),
+    /// A point.
+    Point(Point),
+}
+
+impl Scalar {
+    /// The scalar's logical type.
+    #[must_use]
+    pub const fn logical_type(&self) -> LogicalType {
+        match self {
+            Scalar::Boolean(_) => LogicalType::Boolean,
+            Scalar::Int64(_) => LogicalType::Int64,
+            Scalar::Float64(_) => LogicalType::Float64,
+            Scalar::Utf8(_) => LogicalType::Utf8,
+            Scalar::DateTime(_) => LogicalType::DateTime,
+            Scalar::Date(_) => LogicalType::Date,
+            Scalar::LocalTime(_) => LogicalType::LocalTime,
+            Scalar::LocalDateTime(_) => LogicalType::LocalDateTime,
+            Scalar::Duration(_) => LogicalType::Duration,
+            Scalar::Point(_) => LogicalType::Point,
+        }
+    }
 }
 
 /// Compare canonical scalars without widening integers through an imprecise
@@ -33,7 +64,13 @@ pub fn scalar_equal(left: &Scalar, right: &Scalar) -> bool {
     match (left, right) {
         (Scalar::Boolean(a), Scalar::Boolean(b)) => a == b,
         (Scalar::Utf8(a), Scalar::Utf8(b)) => a == b,
-        (Scalar::DateTime(a), Scalar::DateTime(b)) | (Scalar::Int64(a), Scalar::Int64(b)) => a == b,
+        (Scalar::Int64(a), Scalar::Int64(b))
+        | (Scalar::LocalTime(a), Scalar::LocalTime(b))
+        | (Scalar::LocalDateTime(a), Scalar::LocalDateTime(b)) => a == b,
+        (Scalar::DateTime(a), Scalar::DateTime(b)) => a.micros == b.micros,
+        (Scalar::Date(a), Scalar::Date(b)) => a == b,
+        (Scalar::Duration(a), Scalar::Duration(b)) => a == b,
+        (Scalar::Point(a), Scalar::Point(b)) => a == b,
         (Scalar::Float64(a), Scalar::Float64(b)) => a.is_finite() && b.is_finite() && a == b,
         (Scalar::Int64(integer), Scalar::Float64(float))
         | (Scalar::Float64(float), Scalar::Int64(integer)) => {
@@ -62,9 +99,12 @@ pub fn scalar_cmp(left: &Scalar, right: &Scalar) -> Option<Ordering> {
     match (left, right) {
         (Scalar::Boolean(a), Scalar::Boolean(b)) => Some(a.cmp(b)),
         (Scalar::Utf8(a), Scalar::Utf8(b)) => Some(a.cmp(b)),
-        (Scalar::DateTime(a), Scalar::DateTime(b)) | (Scalar::Int64(a), Scalar::Int64(b)) => {
-            Some(a.cmp(b))
-        }
+        (Scalar::Int64(a), Scalar::Int64(b))
+        | (Scalar::LocalTime(a), Scalar::LocalTime(b))
+        | (Scalar::LocalDateTime(a), Scalar::LocalDateTime(b)) => Some(a.cmp(b)),
+        (Scalar::DateTime(a), Scalar::DateTime(b)) => Some(a.micros.cmp(&b.micros)),
+        (Scalar::Date(a), Scalar::Date(b)) => Some(a.cmp(b)),
+        (Scalar::Duration(a), Scalar::Duration(b)) => Some(a.cmp(b)),
         (Scalar::Float64(a), Scalar::Float64(b)) => a.partial_cmp(b),
         (Scalar::Int64(integer), Scalar::Float64(float)) => cmp_int_float(*integer, *float),
         (Scalar::Float64(float), Scalar::Int64(integer)) => {
@@ -168,7 +208,9 @@ pub fn is_reserved_name(normalized: &str) -> bool {
     normalized.starts_with("__")
 }
 
-/// Convert a canonical scalar to its JSON representation.
+/// Convert a canonical scalar to its public JSON literal: JSON's own
+/// values for booleans, numbers and strings, ISO 8601 text for the temporal
+/// types and durations, `GeoJSON` for points.
 #[must_use]
 pub fn scalar_to_json(s: &Scalar) -> Json {
     match s {
@@ -176,7 +218,8 @@ pub fn scalar_to_json(s: &Scalar) -> Json {
         Scalar::Int64(i) => Json::Number((*i).into()),
         Scalar::Float64(f) => serde_json::Number::from_f64(*f).map_or(Json::Null, Json::Number),
         Scalar::Utf8(st) => Json::String(st.clone()),
-        Scalar::DateTime(ms) => Json::Number((*ms).into()),
+        Scalar::Point(point) => crate::types::point::to_geojson(*point),
+        other => Json::String(crate::types::literal_text(other).unwrap_or_default()),
     }
 }
 

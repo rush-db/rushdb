@@ -10,9 +10,10 @@ use rushdb_lmpg::reconstruct;
 use std::sync::Arc;
 /// Caller-owned snapshot used for query execution and result shaping.
 pub type QuerySnapshot = Arc<rushdb_storage::ReadView>;
-use equality::{any_element, is_datetime, value_equals};
+use equality::any_element;
 use rushdb_lmpg::{Lmpg, LmpgError};
 use rushdb_types::model::{LogicalType, TypeState};
+use rushdb_types::types::doc_equals_literal;
 use rushdb_types::value::{
     infer_scalar, scalar_cmp as canonical_scalar_cmp, scalar_equal, Scalar, ID_FIELD,
 };
@@ -78,14 +79,16 @@ pub enum FieldPred {
     Eq(String, Json),
     /// `$ne` inequality; the field must be present for the predicate to match.
     Ne(String, Json),
-    /// `$gt` numeric/datetime strictly-greater comparison.
-    Gt(String, f64),
-    /// `$gte` numeric/datetime greater-than-or-equal comparison.
-    Gte(String, f64),
-    /// `$lt` numeric/datetime strictly-less comparison.
-    Lt(String, f64),
-    /// `$lte` numeric/datetime less-than-or-equal comparison.
-    Lte(String, f64),
+    /// `$gt` strictly-greater comparison. The bound is a literal (a number,
+    /// ISO 8601 text, a tagged value) each property type reads as one of its
+    /// values (`rushdb_types::types::coerce_literal`).
+    Gt(String, Json),
+    /// `$gte` greater-than-or-equal comparison.
+    Gte(String, Json),
+    /// `$lt` strictly-less comparison.
+    Lt(String, Json),
+    /// `$lte` less-than-or-equal comparison.
+    Lte(String, Json),
     /// `$contains` case-insensitive substring match on a string.
     Contains(String, String),
     /// `$startsWith` case-insensitive prefix match on a string.
@@ -102,12 +105,13 @@ pub enum FieldPred {
     EndsWith(String, String),
     /// `$id` — match the record identity itself.
     Id(String),
-    /// Datetime component predicate: `{ created: { $year: 2023 } }`.
-    /// `which` = 0..6 (year/month/day/hour/minute/second/millisecond).
+    /// Temporal component predicate: `{ created: { $year: 2023 } }`, on
+    /// dates, times, date-times and datetimes (in UTC).
     DatetimeComponent {
         /// Normalized property name the component is read from.
         field: String,
-        /// Component selector: 0=year, 1=month, 2=day, 3=hour, 4=minute, 5=second, 6=millisecond.
+        /// Component selector: 0=year, 1=month, 2=day, 3=hour, 4=minute,
+        /// 5=second, 6=millisecond, 7=microsecond, 8=nanosecond.
         which: u8,
         /// Expected component value.
         value: i64,
@@ -341,6 +345,47 @@ impl TimeBucketSpec {
         }
     }
 
+    /// The bucket of a temporal value, in the value's own type: a
+    /// datetime's bucket in UTC, a local date-time's of its wall clock, a
+    /// date's as a date. `None` for other values, and past the calendar's
+    /// range.
+    pub(crate) fn floor_scalar(&self, scalar: &Scalar) -> Option<Scalar> {
+        use rushdb_types::types::temporal::{Instant, MICROS_PER_DAY};
+        let micros = match scalar {
+            Scalar::DateTime(instant) => instant.micros,
+            Scalar::LocalDateTime(micros) => *micros,
+            Scalar::Date(days) => i64::from(*days).checked_mul(MICROS_PER_DAY)?,
+            _ => return None,
+        };
+        let floored = self.floor_micros(micros)?;
+        Some(match scalar {
+            Scalar::DateTime(_) => Scalar::DateTime(Instant::utc(floored)),
+            Scalar::Date(_) => {
+                Scalar::Date(i32::try_from(floored.div_euclid(MICROS_PER_DAY)).ok()?)
+            }
+            _ => Scalar::LocalDateTime(floored),
+        })
+    }
+
+    fn floor_micros(&self, micros: i64) -> Option<i64> {
+        use rushdb_types::types::temporal::{start_of, Period};
+        match self.unit {
+            TimeUnit::Months => start_of(micros, Period::Month),
+            TimeUnit::Quarters => start_of(micros, Period::Quarter),
+            TimeUnit::Years => start_of(micros, Period::Year),
+            _ => {
+                let size = i64::try_from(self.size).unwrap_or(i64::MAX).max(1);
+                let width = self
+                    .unit
+                    .millis()
+                    .saturating_mul(1_000)
+                    .saturating_mul(size)
+                    .max(1);
+                Some(micros.div_euclid(width).saturating_mul(width))
+            }
+        }
+    }
+
     #[expect(
         clippy::cast_possible_truncation,
         reason = "epoch-ms is a bounded timestamp; the saturating float-to-int cast matches the reference calendar flooring"
@@ -350,10 +395,14 @@ impl TimeBucketSpec {
         // calendar-aware flooring for Months/Years (fixed-width would not
         // align to calendar boundaries)
 
+        let calendar = |period| {
+            rushdb_types::types::temporal::start_of(ms.saturating_mul(1_000), period)
+                .map_or(ms, |micros| micros.div_euclid(1_000))
+        };
         match self.unit {
-            TimeUnit::Months => rushdb_types::datetime::start_of_month(ms),
-            TimeUnit::Quarters => rushdb_types::datetime::start_of_quarter(ms),
-            TimeUnit::Years => rushdb_types::datetime::start_of_year(ms),
+            TimeUnit::Months => calendar(rushdb_types::types::temporal::Period::Month),
+            TimeUnit::Quarters => calendar(rushdb_types::types::temporal::Period::Quarter),
+            TimeUnit::Years => calendar(rushdb_types::types::temporal::Period::Year),
             _ => {
                 // Defensive even though the parser rejects `size == 0`: a
                 // directly constructed spec must not divide by zero or wrap.
@@ -1436,29 +1485,20 @@ pub(crate) fn eval_pred(
         }
         FieldPred::Eq(name, val) => match (raw_field(obj, name), val) {
             (Some(_), Json::Null) => matches!(raw_field(obj, name), Some(Json::Null)),
-            (Some(actual), expected) => {
-                let datetime = is_datetime(declared_type, name)?;
-                any_element(actual, |el| value_equals(el, expected, datetime))
-            }
+            (Some(actual), expected) => any_element(actual, |el| doc_equals_literal(el, expected)),
             (None, _) => false,
         },
         FieldPred::Ne(name, val) => {
             // $ne requires the field to be present (RushDB: value <> X).
             match raw_field(obj, name) {
                 None => false,
-                Some(actual) => {
-                    let datetime = is_datetime(declared_type, name)?;
-                    !any_element(actual, |el| value_equals(el, val, datetime))
-                }
+                Some(actual) => !any_element(actual, |el| doc_equals_literal(el, val)),
             }
         }
         FieldPred::In(name, vals) => match raw_field(obj, name) {
             None => false,
             Some(actual) => {
-                let datetime = is_datetime(declared_type, name)?;
-                any_element(actual, |el| {
-                    vals.iter().any(|v| value_equals(el, v, datetime))
-                })
+                any_element(actual, |el| vals.iter().any(|v| doc_equals_literal(el, v)))
             }
         },
         FieldPred::Contains(name, sub) => raw_field(obj, name).is_some_and(|j| {
@@ -1475,16 +1515,16 @@ pub(crate) fn eval_pred(
                     .is_some_and(|st| st.to_lowercase().starts_with(prefix.as_str()))
             })
         }),
-        FieldPred::Gt(name, bound) => numeric_cmp_any(raw_field(obj, name), *bound, |o| {
+        FieldPred::Gt(name, bound) => range_any(raw_field(obj, name), bound, |o| {
             o == std::cmp::Ordering::Greater
         }),
-        FieldPred::Gte(name, bound) => numeric_cmp_any(raw_field(obj, name), *bound, |o| {
+        FieldPred::Gte(name, bound) => range_any(raw_field(obj, name), bound, |o| {
             o != std::cmp::Ordering::Less
         }),
-        FieldPred::Lt(name, bound) => numeric_cmp_any(raw_field(obj, name), *bound, |o| {
+        FieldPred::Lt(name, bound) => range_any(raw_field(obj, name), bound, |o| {
             o == std::cmp::Ordering::Less
         }),
-        FieldPred::Lte(name, bound) => numeric_cmp_any(raw_field(obj, name), *bound, |o| {
+        FieldPred::Lte(name, bound) => range_any(raw_field(obj, name), bound, |o| {
             o != std::cmp::Ordering::Greater
         }),
         FieldPred::Nin(name, vals) => {
@@ -1492,10 +1532,7 @@ pub(crate) fn eval_pred(
             match raw_field(obj, name) {
                 None => false,
                 Some(actual) => {
-                    let datetime = is_datetime(declared_type, name)?;
-                    !any_element(actual, |el| {
-                        vals.iter().any(|v| value_equals(el, v, datetime))
-                    })
+                    !any_element(actual, |el| vals.iter().any(|v| doc_equals_literal(el, v)))
                 }
             }
         }
@@ -1514,12 +1551,13 @@ pub(crate) fn eval_pred(
             field,
             which,
             value,
-        } => raw_field(obj, field)
-            .and_then(serde_json::Value::as_i64)
-            .is_some_and(|ms| {
-                let actual = crate::datetime::component_of(ms, *which);
-                actual == *value
-            }),
+        } => raw_field(obj, field).is_some_and(|actual| {
+            any_element(actual, |el| {
+                rushdb_types::types::doc_scalar(el)
+                    .and_then(|scalar| crate::datetime::component_value(&scalar, *which))
+                    == Some(*value)
+            })
+        }),
         FieldPred::Type(name, expected) => {
             let want = canonical_type_alias(&expected.to_lowercase());
             let (base_want, want_array) = match want.strip_suffix("[]") {
@@ -1559,7 +1597,9 @@ pub(crate) fn eval_pred(
             }
 
             let shape_of = |v: &Json| -> &'static str {
-                if v.is_string() {
+                if let Some(scalar) = rushdb_types::types::tagged_scalar(v) {
+                    scalar.logical_type().api_name()
+                } else if v.is_string() {
                     "string"
                 } else if v.is_number() {
                     "number"
@@ -1589,32 +1629,18 @@ pub(crate) fn eval_pred(
     })
 }
 
-fn numeric_cmp(
+/// Whether `value` (or an element of it) compares with `bound` as `accept`
+/// wants ([`rushdb_types::types::doc_cmp_literal`]).
+fn range_any(
     value: Option<&Json>,
-    bound: f64,
+    bound: &Json,
     accept: impl Fn(std::cmp::Ordering) -> bool,
 ) -> bool {
-    value
-        .and_then(infer_scalar)
-        .and_then(|(_, scalar)| match scalar {
-            Scalar::Int64(_) | Scalar::Float64(_) => Some(scalar),
-            _ => None,
+    value.is_some_and(|value| {
+        any_element(value, |el| {
+            rushdb_types::types::doc_cmp_literal(el, bound).is_some_and(&accept)
         })
-        .and_then(|value| canonical_scalar_cmp(&value, &Scalar::Float64(bound)))
-        .is_some_and(accept)
-}
-
-fn numeric_cmp_any(
-    value: Option<&Json>,
-    bound: f64,
-    accept: impl Fn(std::cmp::Ordering) -> bool,
-) -> bool {
-    match value {
-        Some(v) if v.is_array() => v
-            .as_array()
-            .is_some_and(|a| a.iter().any(|el| numeric_cmp(Some(el), bound, &accept))),
-        other => numeric_cmp(other, bound, accept),
-    }
+    })
 }
 
 /// Canonical client-facing type alias: `bool` is accepted as an alias for
@@ -1633,6 +1659,29 @@ fn canonical_type_alias(t: &str) -> String {
 /// requirement), and gives mixed non-numeric types a stable string fallback so
 /// the comparator stays transitive.
 fn json_value_cmp(a: &Json, b: &Json) -> std::cmp::Ordering {
+    // Typed values sort after every number, by type, then by value (a
+    // point, which has no order, by its encoding).
+    let typed = |v: &Json| {
+        let scalar = rushdb_types::types::tagged_scalar(v)?;
+        let ty = scalar.logical_type();
+        Some((ty, scalar))
+    };
+    match (typed(a), typed(b)) {
+        (Some((ta, x)), Some((tb, y))) => {
+            return ta.tag().cmp(&tb.tag()).then_with(|| {
+                rushdb_types::value::scalar_cmp(&x, &y).unwrap_or_else(|| {
+                    let bytes = |s: &Scalar| {
+                        rushdb_types::encoding::encode_order_preserving(s.logical_type(), s)
+                            .unwrap_or_default()
+                    };
+                    bytes(&x).cmp(&bytes(&y))
+                })
+            });
+        }
+        (Some(_), None) => return std::cmp::Ordering::Greater,
+        (None, Some(_)) => return std::cmp::Ordering::Less,
+        (None, None) => {}
+    }
     let numeric = |v: &Json| {
         infer_scalar(v).and_then(|(_, scalar)| match scalar {
             Scalar::Int64(_) | Scalar::Float64(_) => Some(scalar),

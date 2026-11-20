@@ -112,7 +112,7 @@ impl PointFields {
                     if let Some(occ) = held(snap, tenant, ord, pids)? {
                         row.insert(
                             field.clone(),
-                            reconstruct::decode_value(occ.value, &occ.payload)?,
+                            reconstruct::decode_value(occ.value, &occ.payload, &occ.suffix)?,
                         );
                     }
                 }
@@ -147,7 +147,7 @@ impl PointFields {
             out.push(match source {
                 Source::Id => record_id(snap, tenant, ord)?.map(Cell::Str),
                 Source::Pids(pids) => match held(snap, tenant, ord, pids)? {
-                    Some(occ) => Some(Cell::decode(occ.value, &occ.payload)?),
+                    Some(occ) => Some(Cell::decode(occ.value, &occ.payload, &occ.suffix)?),
                     None => None,
                 },
             });

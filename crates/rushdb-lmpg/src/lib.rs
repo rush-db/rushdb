@@ -1114,7 +1114,6 @@ pub(crate) fn plan_field_write(
             plan::ValuePayload::Array(v.as_array().expect("array").clone())
         }
         FieldChange::Set(v) => plan::ValuePayload::Single(v),
-        FieldChange::SetDatetime(ms) => plan::ValuePayload::DateTime(ms),
         FieldChange::Delete => unreachable!("handled above"),
     };
     pl.stage_put_values(kind, owner_ord, &family, &def, display_name, &payload)

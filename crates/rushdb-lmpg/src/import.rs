@@ -582,6 +582,18 @@ pub struct UpsertIdMap {
     pub persisted_id: [u8; 16],
 }
 
+/// Whether a value is a `GeoJSON` point, or a non-empty array of them.
+fn is_geojson_points(value: &Json) -> bool {
+    use rushdb_types::types::point::parse_geojson;
+    match value {
+        Json::Object(_) => parse_geojson(value).is_some(),
+        Json::Array(items) => {
+            !items.is_empty() && items.iter().all(|item| parse_geojson(item).is_some())
+        }
+        _ => false,
+    }
+}
+
 fn is_primitive(v: &Json) -> bool {
     !(v.is_object() || v.is_array() && v.as_array().is_some_and(|a| a.iter().any(Json::is_object)))
 }
@@ -620,8 +632,10 @@ fn json_to_js_string(v: &Json) -> String {
 }
 
 /// Scalar coercion mirroring the product's parsePrimitive under
-/// `TImportOptions`. ISO-8601 / date-only strings become typed datetime writes
-/// (epoch ms). Borrowing form of [`coerce_value`].
+/// `TImportOptions`. With `suggest_types`, ISO 8601 text becomes the
+/// temporal or duration value its form writes ([`rushdb_types::types::infer_text`]),
+/// in arrays too when every element has one form, and a `GeoJSON` point
+/// object a point. Borrowing form of [`coerce_value`].
 #[must_use]
 pub fn coerce_change(value: &Json, options: &ImportOptions) -> Option<FieldChange> {
     coerce_value(value.clone(), options)
@@ -637,6 +651,11 @@ pub fn coerce_value(value: Json, options: &ImportOptions) -> Option<FieldChange>
         // explicit Null (document 22): a live null occurrence, never an
         // untypeable `Set(null)` that the planner would reject
         return Some(FieldChange::ExplicitNull);
+    }
+    if options.suggest_types {
+        if let Some(typed) = typed_value(&value) {
+            return Some(FieldChange::Set(typed));
+        }
     }
     if let Json::Array(items) = &value {
         if items.is_empty() {
@@ -686,9 +705,6 @@ pub fn coerce_value(value: Json, options: &ImportOptions) -> Option<FieldChange>
     }
     if options.suggest_types {
         if let Json::String(s) = &value {
-            if let Some(ms) = rushdb_types::datetime::parse_datetime(s) {
-                return Some(FieldChange::SetDatetime(ms));
-            }
             if options.convert_numeric_values_to_numbers && is_numeric_str(s) {
                 if let Ok(i) = s.parse::<i64>() {
                     return Some(FieldChange::Set(json!(i)));
@@ -713,12 +729,39 @@ pub fn coerce_value(value: Json, options: &ImportOptions) -> Option<FieldChange>
     Some(FieldChange::Set(value))
 }
 
+/// The typed (tagged) form of a value whose form names a type under
+/// `suggest_types`: ISO 8601 text, an array of text of one temporal form,
+/// a `GeoJSON` point. `None` when the value keeps its JSON type.
+fn typed_value(value: &Json) -> Option<Json> {
+    use rushdb_types::types::{infer_text, point::parse_geojson, to_doc_json};
+    use rushdb_types::value::Scalar;
+    match value {
+        Json::String(text) => infer_text(text).map(|scalar| to_doc_json(&scalar)),
+        Json::Object(_) => parse_geojson(value).map(|point| to_doc_json(&Scalar::Point(point))),
+        Json::Array(items) if !items.is_empty() => {
+            let typed: Vec<Scalar> = items
+                .iter()
+                .map(|item| match item {
+                    Json::String(text) => infer_text(text),
+                    Json::Object(_) => parse_geojson(item).map(Scalar::Point),
+                    _ => None,
+                })
+                .collect::<Option<_>>()?;
+            let ty = typed[0].logical_type();
+            typed
+                .iter()
+                .all(|scalar| scalar.logical_type() == ty)
+                .then(|| Json::Array(typed.iter().map(to_doc_json).collect()))
+        }
+        _ => None,
+    }
+}
+
 /// The JSON value of a `FieldChange` (for key matching against stored records).
 #[must_use]
 pub fn change_value(c: &FieldChange) -> Json {
     match c {
         FieldChange::Set(v) => v.clone(),
-        FieldChange::SetDatetime(ms) => json!(ms),
         FieldChange::ExplicitNull | FieldChange::Delete => Json::Null,
     }
 }
@@ -866,7 +909,13 @@ pub fn serialize_bfs_owned(data: Json, label: &str, options: &ImportOptions) -> 
         };
 
         for (key, value) in value_obj {
-            if value.is_object() {
+            if options.suggest_types && is_geojson_points(&value) {
+                // A GeoJSON point (or an array of them) is a value, not a
+                // nested record.
+                if let Some(change) = coerce_value(value, options) {
+                    record_draft.properties.push((key, change));
+                }
+            } else if value.is_object() {
                 let rel_type = Some(options.rel_type_for(&key));
                 queue.push_back(QueueItem {
                     key: if options.capitalize_labels {
@@ -1117,6 +1166,52 @@ fn index_candidates(
     }
 }
 
+/// `(definition type, encoding type, value)` probes for a merge key value:
+/// the value under every type a filter compares it with
+/// ([`rushdb_types::types::coerce_literal`]: so a date also finds a datetime
+/// stored at its midnight, as 3.0.13 stored dates), and the encodings a
+/// number may have. A stored value pairs a definition id with its own
+/// encoding, and the two can disagree: `pick_typed_definition` widens an
+/// Int64 write to an existing Float64 definition while `stage_put_values`
+/// keeps the Int64 encoding. Empty for a value no scalar can equal.
+fn key_probes(value: &Json) -> Vec<(LogicalType, LogicalType, Scalar)> {
+    use rushdb_types::types::{coerce_literal, tagged_scalar};
+    if let Some(scalar) = tagged_scalar(value) {
+        let ty = scalar.logical_type();
+        return vec![(ty, ty, scalar)];
+    }
+    let mut probes: Vec<(LogicalType, LogicalType, Scalar)> = LogicalType::ALL
+        .into_iter()
+        .filter_map(|ty| Some((ty, ty, coerce_literal(ty, value)?)))
+        .collect();
+    if let Json::String(text) = value {
+        if let Some(scalar) = rushdb_types::types::infer_text(text) {
+            let ty = scalar.logical_type();
+            probes.push((ty, ty, scalar));
+        }
+    }
+    match infer_scalar(value).map(|(_, scalar)| scalar) {
+        Some(int @ Scalar::Int64(_)) => {
+            probes.push((LogicalType::Float64, LogicalType::Int64, int));
+        }
+        Some(Scalar::Float64(f)) if f.fract() == 0.0 && f.abs() < 9.007_199_254_740_992e15 => {
+            // An integral float (`9.0`) equals a stored integer `9`, kept in
+            // its Int64 encoding under the Int64 or the widened Float64
+            // definition.
+            #[expect(
+                clippy::cast_possible_truncation,
+                reason = "integral and within the exactly representable range"
+            )]
+            let int = Scalar::Int64(f as i64);
+            probes.push((LogicalType::Int64, LogicalType::Int64, int.clone()));
+            probes.push((LogicalType::Float64, LogicalType::Int64, int));
+        }
+        _ => {}
+    }
+    probes.dedup();
+    probes
+}
+
 /// Record ordinals of `label` whose property `norm` equals `value`. An
 /// absent property family yields the empty set (no stored record can match);
 /// the value is looked up under every type that could legally have stored it.
@@ -1128,57 +1223,13 @@ fn owners_for_key_value(
     norm: &str,
     value: &Json,
 ) -> Result<Option<BTreeSet<u64>>, LmpgError> {
-    let Some((ty, scalar)) = infer_scalar(value) else {
+    let probes = key_probes(value);
+    if probes.is_empty() {
         return Ok(None);
-    };
+    }
     let Some(fid) = family_id(snap, tenant, norm)? else {
         return Ok(Some(BTreeSet::new()));
     };
-    // `(definition type, encoding type, value)` probes. A stored value pairs
-    // a definition id with the *inferred* value encoding, and the two can
-    // disagree: `pick_typed_definition` widens an Int64 write to an existing
-    // Float64 definition while `stage_put_values` still encodes the value as
-    // Int64 (`int_encode`). So probe the value's own encoding under every
-    // definition that could hold it.
-    let mut probes = vec![(ty, ty, scalar.clone())];
-    match &scalar {
-        Scalar::Int64(v) => {
-            // Widened Int64 stored under the Float64 definition.
-            probes.push((LogicalType::Float64, LogicalType::Int64, scalar.clone()));
-            // DateTime shares the `int_encode` bytes.
-            probes.push((
-                LogicalType::DateTime,
-                LogicalType::DateTime,
-                Scalar::DateTime(*v),
-            ));
-        }
-        Scalar::Utf8(s) => {
-            // A date/datetime string is coerced to `SetDatetime` on import, so
-            // probe the DateTime definition too.
-            if let Some(ms) = rushdb_types::datetime::parse_datetime(s) {
-                probes.push((
-                    LogicalType::DateTime,
-                    LogicalType::DateTime,
-                    Scalar::DateTime(ms),
-                ));
-            }
-        }
-        Scalar::Float64(f) => {
-            // An integral float (`9.0`) equals a stored integer `9`, kept in
-            // its Int64 encoding under the Int64 or the widened Float64
-            // definition.
-            if f.fract() == 0.0 && f.abs() < 9.007_199_254_740_992e15 {
-                #[expect(
-                    clippy::cast_possible_truncation,
-                    reason = "integral and within the exactly representable range"
-                )]
-                let int = Scalar::Int64(*f as i64);
-                probes.push((LogicalType::Int64, LogicalType::Int64, int.clone()));
-                probes.push((LogicalType::Float64, LogicalType::Int64, int));
-            }
-        }
-        Scalar::Boolean(_) | Scalar::DateTime(_) => {}
-    }
     let mut owners = BTreeSet::new();
     // A Ready ordered index on the key holds `(entry, owner)` for every
     // typed definition of the property under this label: one range read per

@@ -522,7 +522,14 @@ fn equality_on_iso_text_matches_datetimes_and_strings() {
             "EV",
             None,
             vec![
-                ("date".into(), FieldChange::SetDatetime(date)),
+                (
+                    "date".into(),
+                    FieldChange::Set(rushdb_types::types::to_doc_json(
+                        &rushdb_types::value::Scalar::DateTime(
+                            rushdb_types::types::temporal::Instant::from_millis(date).unwrap(),
+                        ),
+                    )),
+                ),
                 ("kind".into(), FieldChange::Set(json!(kind))),
             ],
         )

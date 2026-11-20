@@ -771,7 +771,6 @@ impl RequestScope<'_> {
         label: &str,
         pid: u64,
     ) -> Result<Option<(serde_json::Value, serde_json::Value)>, String> {
-        use rushdb_types::model::LogicalType;
         let Some(ty) = meta
             .values()
             .flatten()
@@ -804,12 +803,7 @@ impl RequestScope<'_> {
                 .ok_or_else(|| "corrupt value dictionary entry".to_string())?;
             let scalar = rushdb_types::encoding::decode_order_preserving(ty, payload)
                 .map_err(|e| e.to_string())?;
-            Ok(Some(match scalar {
-                rushdb_types::value::Scalar::DateTime(ms) if ty == LogicalType::DateTime => {
-                    serde_json::Value::String(rushdb_types::datetime::ms_to_datetime_string(ms))
-                }
-                other => rushdb_types::value::scalar_to_json(&other),
-            }))
+            Ok(Some(rushdb_types::value::scalar_to_json(&scalar)))
         };
         Ok(decode(first)?.zip(decode(last)?))
     }
@@ -1513,19 +1507,15 @@ fn merge_number_definitions(
     merged
 }
 
-/// A value-dictionary payload of type `ty` as the records response shows it
-/// (datetimes in their stored rendering), or `None` when it does not decode.
+/// A value-dictionary payload of type `ty` in its public form (a datetime
+/// in UTC: the dictionary keeps no offset), or `None` when it does not
+/// decode.
 fn dictionary_value(
     ty: rushdb_types::model::LogicalType,
     payload: &[u8],
 ) -> Option<serde_json::Value> {
     let scalar = rushdb_types::encoding::decode_order_preserving(ty, payload).ok()?;
-    Some(match scalar {
-        rushdb_types::value::Scalar::DateTime(ms) => {
-            serde_json::Value::String(rushdb_types::datetime::ms_to_datetime_string(ms))
-        }
-        scalar => rushdb_types::value::scalar_to_json(&scalar),
-    })
+    Some(rushdb_types::value::scalar_to_json(&scalar))
 }
 
 /// Every known-typed record property of `tenant` at `view`: normalized

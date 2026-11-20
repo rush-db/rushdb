@@ -1102,8 +1102,8 @@ fn merge_fields(
 }
 
 /// A relationship's properties as `(name, value, write)`, the write
-/// re-creating the value on another relationship: a scalar datetime stays a
-/// datetime (its JSON form is a number), and a null stays an explicit null.
+/// re-creating the value on another relationship: each value keeps its type
+/// (its tagged form), and a null stays an explicit null.
 fn relationship_fields(
     snap: &rushdb_storage::ReadView,
     tenant: rushdb_types::ids::TenantId,
@@ -1116,22 +1116,13 @@ fn relationship_fields(
     else {
         return Ok(Vec::new());
     };
-    let datetimes: std::collections::BTreeSet<String> =
-        super::relationship_reads::PropertyNames::default()
-            .of(snap, tenant, ordinal)?
-            .into_iter()
-            .filter(|(_, (ty, array))| *ty == rushdb_types::model::LogicalType::DateTime && !array)
-            .map(|(name, _)| name)
-            .collect();
     Ok(document
         .into_iter()
         .filter(|(name, _)| !rushdb_types::value::is_reserved_name(name))
         .map(|(name, value)| {
+            // The rebuilt document keeps each value's type (the tagged form).
             let change = match &value {
                 serde_json::Value::Null => FieldChange::ExplicitNull,
-                serde_json::Value::Number(n) if datetimes.contains(&name) => n
-                    .as_i64()
-                    .map_or_else(|| FieldChange::Set(value.clone()), FieldChange::SetDatetime),
                 _ => FieldChange::Set(value.clone()),
             };
             (name, value, change)

@@ -11,7 +11,6 @@
 
 use std::collections::{BTreeSet, HashMap};
 
-use rushdb_types::encoding::decode_order_preserving;
 use rushdb_types::occurrence::OccurrenceValue;
 
 use crate::aggregate_catalog::too_many_groups;
@@ -30,26 +29,38 @@ pub(crate) enum Cell {
     Int(i64),
     Float(f64),
     Str(String),
+    /// A value of another type (a temporal value, a duration, a point).
+    Typed(Scalar),
     /// What else a rebuilt record carries: an array, an object.
     Json(Json),
 }
 
 impl Cell {
-    /// The value of a stored occurrence, as a rebuilt record carries it
-    /// (`DateTime` as its epoch milliseconds; a non-finite float as null).
-    pub(crate) fn decode(value: OccurrenceValue, payload: &[u8]) -> Result<Self, QueryError> {
+    /// The value of a stored occurrence (its payload and suffix), as a
+    /// rebuilt record carries it (a non-finite float as null).
+    pub(crate) fn decode(
+        value: OccurrenceValue,
+        payload: &[u8],
+        suffix: &[u8],
+    ) -> Result<Self, QueryError> {
         Ok(match value {
             OccurrenceValue::ExplicitNull | OccurrenceValue::EmptyArray => Self::Null,
-            OccurrenceValue::Stored { ty } => match decode_order_preserving(ty, payload)
-                .map_err(|_| rushdb_storage::StorageError::CorruptLog)?
-            {
-                Scalar::Boolean(b) => Self::Bool(b),
-                Scalar::Int64(i) | Scalar::DateTime(i) => Self::Int(i),
-                Scalar::Float64(f) if f.is_finite() => Self::Float(f),
-                Scalar::Float64(_) => Self::Null,
-                Scalar::Utf8(s) => Self::Str(s),
-            },
+            OccurrenceValue::Stored { ty } => Self::of_scalar(
+                rushdb_types::encoding::decode_stored(ty, &[payload, suffix].concat())
+                    .map_err(|_| rushdb_storage::StorageError::CorruptLog)?,
+            ),
         })
+    }
+
+    pub(crate) fn of_scalar(scalar: Scalar) -> Self {
+        match scalar {
+            Scalar::Boolean(b) => Self::Bool(b),
+            Scalar::Int64(i) => Self::Int(i),
+            Scalar::Float64(f) if f.is_finite() => Self::Float(f),
+            Scalar::Float64(_) => Self::Null,
+            Scalar::Utf8(s) => Self::Str(s),
+            other => Self::Typed(other),
+        }
     }
 
     pub(crate) fn from_json(value: Json) -> Self {
@@ -62,7 +73,10 @@ impl Cell {
                 (None, false) => Self::Json(Json::Number(n)),
             },
             Json::String(s) => Self::Str(s),
-            other => Self::Json(other),
+            other => match rushdb_types::types::tagged_scalar(&other) {
+                Some(scalar) => Self::Typed(scalar),
+                None => Self::Json(other),
+            },
         }
     }
 
@@ -73,15 +87,19 @@ impl Cell {
             Self::Int(i) => Json::Number((*i).into()),
             Self::Float(f) => serde_json::Number::from_f64(*f).map_or(Json::Null, Json::Number),
             Self::Str(s) => Json::String(s.clone()),
+            Self::Typed(scalar) => rushdb_types::types::to_doc_json(scalar),
             Self::Json(v) => v.clone(),
         }
     }
 
-    /// The canonical number, for `$min`/`$max` (`None`: not a number).
-    fn numeric(&self) -> Option<Scalar> {
+    /// The value `$min`/`$max` compare (`None`: a value without an order):
+    /// a number, or a value of another ordered type, which compares with
+    /// its own type only.
+    fn ordered(&self) -> Option<Scalar> {
         match self {
             Self::Int(i) => Some(Scalar::Int64(*i)),
             Self::Float(f) => Some(Scalar::Float64(*f)),
+            Self::Typed(scalar) if scalar.logical_type().rangeable() => Some(scalar.clone()),
             _ => None,
         }
     }
@@ -162,6 +180,9 @@ impl Key {
             Cell::Int(i) => u64::try_from(*i).map_or(Self::Int(*i), Self::UInt),
             Cell::Float(f) => Self::Float(f.to_bits()),
             Cell::Str(s) => Self::Str(s.clone()),
+            Cell::Typed(scalar) => {
+                Self::Other(rushdb_types::types::to_doc_json(scalar).to_string())
+            }
             Cell::Json(value) => Self::Other(value.to_string()),
         }
     }
@@ -565,10 +586,10 @@ impl Extreme {
     }
 
     fn beats(next: Option<&Cell>, current: Option<&Cell>, is_min: bool) -> bool {
-        let Some(next) = next.and_then(Cell::numeric) else {
+        let Some(next) = next.and_then(Cell::ordered) else {
             return false;
         };
-        let Some(current) = current.and_then(Cell::numeric) else {
+        let Some(current) = current.and_then(Cell::ordered) else {
             return true;
         };
         let wanted = if is_min {
@@ -597,7 +618,7 @@ impl Extreme {
     )]
     pub(crate) fn render(&self) -> Option<Json> {
         let first = self.first.as_ref()?;
-        if first.numeric().is_none() {
+        if first.ordered().is_none() {
             return Some(first.to_json());
         }
         Some(match self.best.as_ref()? {
@@ -782,8 +803,19 @@ impl Partial {
                 KeySource::Plain(slot) => cell(row, *slot).map_or(Key::Absent, Key::of),
                 KeySource::TimeBucket(slot) => {
                     let tb = plan.req.time_bucket.as_ref();
-                    match (tb, cell(row, *slot).and_then(Cell::as_f64)) {
-                        (Some(tb), Some(ms)) => Key::UInt(bucket_key(tb.floor_millis(ms))),
+                    match (tb, cell(row, *slot)) {
+                        // A temporal value buckets in its own type; a number
+                        // as epoch milliseconds.
+                        (Some(tb), Some(Cell::Typed(scalar))) => {
+                            tb.floor_scalar(scalar).map_or_else(
+                                || Key::Str(MISSING_SENTINEL.into()),
+                                |bucket| Key::of(&Cell::Typed(bucket)),
+                            )
+                        }
+                        (Some(tb), Some(value)) => match value.as_f64() {
+                            Some(ms) => Key::UInt(bucket_key(tb.floor_millis(ms))),
+                            None => Key::Str(MISSING_SENTINEL.into()),
+                        },
                         _ => Key::Str(MISSING_SENTINEL.into()),
                     }
                 }

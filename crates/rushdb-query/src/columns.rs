@@ -3,8 +3,8 @@
 //!
 //! A column holds, for every member of the label at one snapshot (ascending
 //! ordinals), the cell [`PointFields`](crate::PointFields) reads for it:
-//! absent, null, a boolean, an integer (also a datetime's epoch
-//! milliseconds), a float or a string. Values are copies of the stored
+//! absent, null, a boolean, an integer, a float, a string or a value of
+//! another type (kept by its tagged form). Values are copies of the stored
 //! occurrences, decoded by [`Cell::decode`]; nothing is derived or rounded,
 //! so an aggregate that reads cells from a column folds the same values in
 //! the same order as one that reads them from storage.
@@ -78,6 +78,8 @@ const BOOL: u8 = 2;
 const INT: u8 = 3;
 const FLOAT: u8 = 4;
 const STR: u8 = 5;
+/// A temporal value, duration or point: its tagged JSON form in `dict`.
+const TYPED: u8 = 6;
 
 /// The cells of one property for every member of a label, by ordinal.
 #[derive(Debug, PartialEq)]
@@ -102,6 +104,9 @@ impl Column {
             STR => Some(Cell::Str(
                 self.dict[usize::try_from(val).unwrap_or_default()].clone(),
             )),
+            TYPED => serde_json::from_str(&self.dict[usize::try_from(val).unwrap_or_default()])
+                .ok()
+                .map(Cell::from_json),
             _ => None,
         }
     }
@@ -120,7 +125,7 @@ impl Column {
     /// (`Cell::heap_bytes`), without building it.
     pub(crate) fn heap_bytes(&self, at: usize) -> usize {
         match self.tags[at] {
-            STR => self.dict[usize::try_from(self.vals[at]).unwrap_or_default()].len(),
+            STR | TYPED => self.dict[usize::try_from(self.vals[at]).unwrap_or_default()].len(),
             _ => 0,
         }
     }
@@ -154,17 +159,24 @@ impl Column {
             Some(Cell::Bool(b)) => (BOOL, u64::from(b)),
             Some(Cell::Int(i)) => (INT, u64::from_ne_bytes(i.to_ne_bytes())),
             Some(Cell::Float(f)) => (FLOAT, f.to_bits()),
-            Some(Cell::Str(s)) => {
-                let next = self.dict.len() as u64;
-                let code = *strings.entry(s).or_insert_with_key(|s| {
-                    self.dict.push(s.clone());
-                    next
-                });
-                (STR, code)
+            Some(Cell::Str(s)) => (STR, self.intern(s, strings)),
+            Some(Cell::Typed(scalar)) => {
+                // Tagged JSON never equals a plain string's text: the dict
+                // keys stay apart.
+                let text = rushdb_types::types::to_doc_json(&scalar).to_string();
+                (TYPED, self.intern(text, strings))
             }
         };
         self.tags.push(tag);
         self.vals.push(val);
+    }
+
+    fn intern(&mut self, s: String, strings: &mut std::collections::HashMap<String, u64>) -> u64 {
+        let next = self.dict.len() as u64;
+        *strings.entry(s).or_insert_with_key(|s| {
+            self.dict.push(s.clone());
+            next
+        })
     }
 
     fn bytes(&self) -> usize {
@@ -256,7 +268,7 @@ fn build(key: &ColumnKey, view: &ReadView, cx: &BuildCx) -> Result<Option<Column
             let (_, ord) = rushdb_types::keys::parse_label_member_key(&row.key)
                 .ok_or(StorageError::CorruptLog)?;
             let cell = match crate::point_fields::held(view, key.tenant, ord, &pids)? {
-                Some(occ) => Some(Cell::decode(occ.value, &occ.payload)?),
+                Some(occ) => Some(Cell::decode(occ.value, &occ.payload, &occ.suffix)?),
                 None => None,
             };
             column.ords.push(ord);

@@ -123,9 +123,11 @@ impl ValueMatcher {
     /// Whether a value of `ty` can match: false only when no rendering of
     /// that type can contain the text, so a caller may skip the type's
     /// values without changing the result. Numbers render with digits,
-    /// `.`, `-`, `+` and `e`; booleans as `true`/`false`; datetimes as a
-    /// year-first date with an optional `T…Z` time. `similar` and a text
-    /// that reads as a date can match any type.
+    /// `.`, `-`, `+` and `e`; booleans as `true`/`false`; temporal values
+    /// as ISO 8601 (digits, `-`, `:`, `.`, `+`, `T`, `Z`); durations as
+    /// ISO 8601 (`P`, digits and unit letters); points as `GeoJSON`, which
+    /// is never searched as text. `similar` and a text that reads as a
+    /// date can match any type.
     #[must_use]
     pub fn may_match(&self, ty: crate::model::LogicalType) -> bool {
         use crate::model::LogicalType;
@@ -139,9 +141,20 @@ impl ValueMatcher {
                 only(&|c| c.is_ascii_digit() || matches!(c, '.' | '-' | '+' | 'e' | 'E'))
             }
             LogicalType::Boolean => "true".contains(&self.needle) || "false".contains(&self.needle),
-            LogicalType::DateTime => only(&|c| {
+            LogicalType::DateTime
+            | LogicalType::Date
+            | LogicalType::LocalTime
+            | LogicalType::LocalDateTime => only(&|c| {
                 c.is_ascii_digit() || matches!(c, '-' | ':' | '.' | '+' | 'T' | 'Z' | 't' | 'z')
             }),
+            LogicalType::Duration => only(&|c| {
+                c.is_ascii_digit()
+                    || matches!(
+                        c.to_ascii_uppercase(),
+                        'P' | 'Y' | 'M' | 'W' | 'D' | 'T' | 'H' | 'S' | '.' | '-'
+                    )
+            }),
+            LogicalType::Point => false,
         }
     }
 

@@ -405,7 +405,18 @@ fn dynamic_value(value: String) -> Option<Value> {
         }
     }
     match iso_datetime(&value) {
-        IsoDatetime::Instant(instant) => return Some(Value::String(instant)),
+        // A valid instant keeps its text (its offset and digits), which
+        // type inference reads; one JavaScript rolls over (a 30 February)
+        // takes the instant `Date` makes of it.
+        IsoDatetime::Instant(instant) => {
+            return Some(Value::String(
+                if rushdb_types::types::temporal::parse_instant(&value).is_some() {
+                    value
+                } else {
+                    instant
+                },
+            ))
+        }
         IsoDatetime::Invalid => return Some(Value::Null),
         IsoDatetime::NotIso => {}
     }

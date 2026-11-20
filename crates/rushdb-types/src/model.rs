@@ -12,8 +12,19 @@ pub enum LogicalType {
     Float64,
     /// UTF-8 string.
     Utf8,
-    /// UTC epoch milliseconds.
+    /// An instant: UTC epoch microseconds, with the UTC offset it was
+    /// written with.
     DateTime,
+    /// A calendar date.
+    Date,
+    /// A time of day without an offset.
+    LocalTime,
+    /// A date and time of day without an offset.
+    LocalDateTime,
+    /// A duration of months, days and microseconds.
+    Duration,
+    /// A 2D or 3D point, geographic (WGS-84) or Cartesian.
+    Point,
 }
 
 impl fmt::Display for LogicalType {

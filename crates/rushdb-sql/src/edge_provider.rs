@@ -258,10 +258,11 @@ fn edge_columns(
         let sample = match definition.type_state {
             TypeState::Unresolved => Json::Null,
             TypeState::Known(LogicalType::Boolean) => Json::Bool(true),
-            // Datetimes read back as epoch milliseconds.
-            TypeState::Known(LogicalType::Int64 | LogicalType::DateTime) => Json::from(0),
+            TypeState::Known(LogicalType::Int64) => Json::from(0),
             TypeState::Known(LogicalType::Float64) => Json::from(0.5),
-            TypeState::Known(LogicalType::Utf8) => Json::String(String::new()),
+            // Text columns: strings, and the SQL text of the other types
+            // (`crate::sql_values`).
+            TypeState::Known(_) => Json::String(String::new()),
         };
         let array =
             rushdb_lmpg::derived::array_markers(snapshot, tenant, OwnerKind::Relationship, pid)?

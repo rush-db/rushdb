@@ -302,6 +302,22 @@ fn operation_label(operation: &Operation) -> &'static str {
     }
 }
 
+/// Rows a response returns as the query produced them (statement rows,
+/// aggregate and projection rows, text hits) in their public form: a
+/// temporal value, duration or point carried in its tagged form inside the
+/// engine becomes its literal. Records and relationships are rendered so
+/// where they are built.
+fn publish_rows(response: &mut Response) {
+    if let Response::Rows { rows, .. }
+    | Response::TextHits { rows, .. }
+    | Response::StatementMutation { rows, .. } = response
+    {
+        for row in rows.iter_mut() {
+            *row = rushdb_types::types::doc_to_public(std::mem::take(row));
+        }
+    }
+}
+
 fn response_row_count(response: &Response) -> u64 {
     match response {
         Response::Records { records, .. }
@@ -856,6 +872,7 @@ impl<'a> ProtocolExecutor<'a> {
                 .check_deadline()
                 .map_err(|error| execution_failed(error.to_string()))?;
         }
+        publish_rows(&mut response);
         let mut encoded_bytes = serde_json::to_vec(&response).map_err(|error| {
             ProtocolError::new(
                 ErrorCode::ExecutionFailed,
@@ -1014,6 +1031,8 @@ mod bytecode;
 
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod typed_values_tests;
 
 #[cfg(test)]
 mod facet_tests;
