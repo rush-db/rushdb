@@ -136,11 +136,11 @@ console.log(engineers.data.map((employee) => employee.data.name)) // [ 'Ada', 'L
 | Docker Compose | [`deploy/templates/docker-compose`](deploy/templates/docker-compose/)، مع نسخة HTTPS خلف Caddy |
 | Kubernetes | [Helm chart](charts/rushdb/): `helm install rushdb oci://ghcr.io/rush-db/charts/rushdb --set auth.token=...` |
 | آلة Linux افتراضية | [cloud-init](deploy/templates/cloud-init/) لـ DigitalOcean و Hetzner و AWS و GCP و Azure؛ [وحدة systemd](deploy/templates/systemd/) |
-| المنصات | [Fly.io](deploy/templates/fly/)، [Render](deploy/templates/render/)، [Coolify](deploy/templates/coolify/)، [Dokploy](deploy/templates/dokploy/) |
+| المنصات | [Fly.io](deploy/templates/fly/)، [Render](deploy/templates/render/)، [Coolify](deploy/templates/coolify/)، [Dokploy](deploy/templates/dokploy/)، [Railway](https://railway.com/deploy/rushdb) |
 
 </div>
 
-[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/rush-db/rushdb)
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/rush-db/rushdb) [![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/rushdb)
 
 <div dir="rtl">
 

@@ -110,9 +110,9 @@ Gremlin, SQL/PGQ `GRAPH_TABLE`, Mongo 스타일 문서, ISO GQL도 같은 HTTP �
 | Docker Compose | [`deploy/templates/docker-compose`](deploy/templates/docker-compose/), Caddy를 앞에 둔 HTTPS 버전 포함 |
 | Kubernetes | [Helm 차트](charts/rushdb/): `helm install rushdb oci://ghcr.io/rush-db/charts/rushdb --set auth.token=...` |
 | Linux VM | DigitalOcean, Hetzner, AWS, GCP, Azure용 [cloud-init](deploy/templates/cloud-init/), [systemd 유닛](deploy/templates/systemd/) |
-| 플랫폼 | [Fly.io](deploy/templates/fly/), [Render](deploy/templates/render/), [Coolify](deploy/templates/coolify/), [Dokploy](deploy/templates/dokploy/) |
+| 플랫폼 | [Fly.io](deploy/templates/fly/), [Render](deploy/templates/render/), [Coolify](deploy/templates/coolify/), [Dokploy](deploy/templates/dokploy/), [Railway](https://railway.com/deploy/rushdb) |
 
-[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/rush-db/rushdb)
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/rush-db/rushdb) [![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/rushdb)
 
 ### 다른 설치 방법
 

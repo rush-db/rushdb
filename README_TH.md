@@ -110,9 +110,9 @@ Gremlin, SQL/PGQ `GRAPH_TABLE`, เอกสารแบบ Mongo และ ISO 
 | Docker Compose | [`deploy/templates/docker-compose`](deploy/templates/docker-compose/) พร้อมรุ่น HTTPS ที่อยู่หลัง Caddy |
 | Kubernetes | [Helm chart](charts/rushdb/): `helm install rushdb oci://ghcr.io/rush-db/charts/rushdb --set auth.token=...` |
 | Linux VM | [cloud-init](deploy/templates/cloud-init/) สำหรับ DigitalOcean, Hetzner, AWS, GCP, Azure; [systemd unit](deploy/templates/systemd/) |
-| แพลตฟอร์ม | [Fly.io](deploy/templates/fly/), [Render](deploy/templates/render/), [Coolify](deploy/templates/coolify/), [Dokploy](deploy/templates/dokploy/) |
+| แพลตฟอร์ม | [Fly.io](deploy/templates/fly/), [Render](deploy/templates/render/), [Coolify](deploy/templates/coolify/), [Dokploy](deploy/templates/dokploy/), [Railway](https://railway.com/deploy/rushdb) |
 
-[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/rush-db/rushdb)
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/rush-db/rushdb) [![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/rushdb)
 
 ### วิธีติดตั้งอื่น ๆ
 

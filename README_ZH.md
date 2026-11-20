@@ -110,9 +110,9 @@ Gremlin、SQL/PGQ `GRAPH_TABLE`、Mongo 风格文档和 ISO GQL 使用同一个 
 | Docker Compose | [`deploy/templates/docker-compose`](deploy/templates/docker-compose/)，另有通过 Caddy 提供 HTTPS 的版本 |
 | Kubernetes | [Helm chart](charts/rushdb/)：`helm install rushdb oci://ghcr.io/rush-db/charts/rushdb --set auth.token=...` |
 | Linux 虚拟机 | 适用于 DigitalOcean、Hetzner、AWS、GCP、Azure 的 [cloud-init](deploy/templates/cloud-init/)；[systemd 单元](deploy/templates/systemd/) |
-| 平台 | [Fly.io](deploy/templates/fly/)、[Render](deploy/templates/render/)、[Coolify](deploy/templates/coolify/)、[Dokploy](deploy/templates/dokploy/) |
+| 平台 | [Fly.io](deploy/templates/fly/)、[Render](deploy/templates/render/)、[Coolify](deploy/templates/coolify/)、[Dokploy](deploy/templates/dokploy/)、[Railway](https://railway.com/deploy/rushdb) |
 
-[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/rush-db/rushdb)
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/rush-db/rushdb) [![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/rushdb)
 
 ### 其他安装方式
 
