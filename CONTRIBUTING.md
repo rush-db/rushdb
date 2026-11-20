@@ -36,6 +36,13 @@ Build both local binaries with `cargo build -p rushdb-server --bins`, then use
 `./target/debug/rushdb up --data-dir ./.rushdb-dev`. Do not commit database
 directories, benchmark output, or credentials.
 
+The target directory grows with every rebuild: each change to a crate builds
+it and its test binaries into a new directory, and old ones stay.
+`scripts/prune-target.py` removes those not used in the last day (they are
+rebuilt if needed); with `--free-below-gb 20` it acts only when the disk is
+that full, as a guard before a build. `CARGO_PROFILE_DEV_DEBUG=0` builds
+tests without debug info, which keeps them several times smaller.
+
 Changes to `install.sh`, `Dockerfile` or the release workflows can be checked
 locally: `scripts/test-install.sh <release-dir>` runs the installer in clean
 distribution containers against archives you built, and
