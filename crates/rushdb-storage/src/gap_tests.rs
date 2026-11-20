@@ -665,3 +665,48 @@ fn a_consistent_file_copy_waits_for_the_gap_to_drain() {
     drop(store);
     crate::remove_store(&path).unwrap();
 }
+
+/// VEC-4/VEC-5: request tokens and retained caches (an ANN build's
+/// vector-cache reservation) could fill the managed budget to its last
+/// byte, and every commit then failed with `resource exhausted`, a rollback
+/// included. They now leave a headroom commits can use: commits land.
+#[test]
+fn commits_land_while_caches_fill_the_managed_budget() {
+    let path = crate::TempPath::store("gap-floor");
+    let store = Store::open_with_resources(
+        &path,
+        resources::StorageResources {
+            managed_limit_bytes: 64 << 20,
+            page_cache_bytes: 1 << 20,
+            transaction_pool_bytes: 1 << 20,
+            logical_cache_bytes: 1 << 20,
+            vector_cache_bytes: 64 << 20,
+            graph_cache_bytes: 0,
+            owner_set_cache_bytes: 0,
+            column_cache_bytes: 0,
+            phase_budget_bytes: 64 << 20,
+            ..resources::StorageResources::default()
+        },
+    )
+    .unwrap();
+    configure(&store);
+    // Request tokens and the vector cache take everything the managed
+    // budget lets them.
+    let mut held = Vec::new();
+    for budget in [
+        store.phase_budget().unwrap(),
+        store.vector_cache_budget().unwrap(),
+    ] {
+        for chunk in [1 << 20, 64 << 10, 4 << 10, 256] {
+            while let Ok(reservation) = budget.try_reserve(chunk) {
+                held.push(reservation);
+            }
+        }
+    }
+    let value = vec![7u8; 256 << 10];
+    for n in 0..8 {
+        commit(&store, 1, &[('P', key(1, n), value.clone())]);
+    }
+    assert_eq!(store.committed_version(), 8);
+    drop(held);
+}

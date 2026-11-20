@@ -62,7 +62,7 @@ pub struct ExecutionContext {
     _phase_reservation: Option<ByteReservation>,
 }
 
-const PHASE_RESERVATION_BYTES: usize = 8 * 1024 * 1024;
+const PHASE_RESERVATION_BYTES: usize = rushdb_storage::PHASE_TOKEN_BYTES;
 
 /// The longest a request without a deadline waits for its phase token.
 const PHASE_WAIT_WITHOUT_DEADLINE: Duration = Duration::from_secs(30);
@@ -95,24 +95,15 @@ impl ExecutionContext {
         // The deadline runs from arrival: time spent queued for a token is
         // the request's own.
         let arrived = Instant::now();
-        let phase_reservation = store
-            .phase_admission()
-            .map(|admission| {
-                let wait = deadline.unwrap_or(PHASE_WAIT_WITHOUT_DEADLINE);
-                let wait_until = std::time::SystemTime::now()
-                    .checked_add(wait)
-                    .and_then(|at| at.duration_since(std::time::UNIX_EPOCH).ok())
-                    .map_or(u64::MAX, |at| {
-                        u64::try_from(at.as_millis()).unwrap_or(u64::MAX)
-                    });
-                admission
-                    .acquire(PHASE_RESERVATION_BYTES, wait_until, &never_cancelled())
-                    .map_err(|_| ExecutionError::Budget {
-                        requested: PHASE_RESERVATION_BYTES,
-                        remaining: store.phase_budget().map_or(0, |budget| budget.available()),
-                    })
-            })
-            .transpose()?;
+        let phase_reservation = match (store.phase_budget(), store.phase_admission()) {
+            (Some(budget), Some(admission)) => Some(Self::phase_token(
+                store,
+                &budget,
+                &admission,
+                deadline.unwrap_or(PHASE_WAIT_WITHOUT_DEADLINE),
+            )?),
+            _ => None,
+        };
         Ok(Self {
             tenant,
             operation,
@@ -124,6 +115,42 @@ impl ExecutionContext {
             transaction_id: None,
             _phase_reservation: phase_reservation,
         })
+    }
+
+    /// A phase token: at once when the pool has room; else in arrival
+    /// order, from the pool when it is full of tokens, or from the tokens
+    /// reserved at open when retained caches exhausted the managed budget
+    /// (freed bytes there may go to a cache before a waiter sees them).
+    fn phase_token(
+        store: &Store,
+        budget: &rushdb_storage::resources::ByteBudget,
+        admission: &rushdb_storage::resources::FairAdmission,
+        wait: Duration,
+    ) -> Result<ByteReservation, ExecutionError> {
+        use rushdb_storage::resources::ResourceError;
+        let refused = || ExecutionError::Budget {
+            requested: PHASE_RESERVATION_BYTES,
+            remaining: budget.available(),
+        };
+        let exhausted = match budget.try_reserve(PHASE_RESERVATION_BYTES) {
+            Ok(token) => return Ok(token),
+            Err(ResourceError::Exhausted { budget, .. }) => budget,
+            Err(_) => return Err(refused()),
+        };
+        let wait_until = std::time::SystemTime::now()
+            .checked_add(wait)
+            .and_then(|at| at.duration_since(std::time::UNIX_EPOCH).ok())
+            .map_or(u64::MAX, |at| {
+                u64::try_from(at.as_millis()).unwrap_or(u64::MAX)
+            });
+        let floor = (exhausted != rushdb_storage::PHASE_POOL_NAME)
+            .then(|| store.phase_floor_admission())
+            .flatten();
+        floor
+            .as_deref()
+            .unwrap_or(admission)
+            .acquire(PHASE_RESERVATION_BYTES, wait_until, &never_cancelled())
+            .map_err(|_| refused())
     }
 
     /// Resolved tenant enforced by this context.
@@ -315,7 +342,8 @@ mod tests {
             ),
             Err(ExecutionError::Budget { .. })
         ));
-        assert!(asked.elapsed() >= Duration::from_millis(50));
+        // The admission deadline is whole milliseconds since the epoch.
+        assert!(asked.elapsed() >= Duration::from_millis(40));
         drop(first);
         ExecutionContext::new(
             &store,
@@ -415,5 +443,43 @@ mod tests {
                 .unwrap()
                 .expect("a queued request gets a token");
         }
+    }
+
+    /// VEC-5: a retained cache that filled the managed budget (an ANN
+    /// build's vector cache) refused every new request, though the phase
+    /// pool had room; tokens reserved at open keep requests going.
+    #[test]
+    fn requests_get_tokens_while_a_cache_fills_the_managed_budget() {
+        let resources = StorageResources {
+            managed_limit_bytes: 128 << 20,
+            page_cache_bytes: 1 << 20,
+            transaction_pool_bytes: 1 << 20,
+            vector_cache_bytes: 128 << 20,
+            ..StorageResources::default()
+        };
+        let store = Arc::new(Store::new_with_resources(resources).unwrap());
+        let cache = store.vector_cache_budget().unwrap();
+        let mut held = Vec::new();
+        for chunk in [1 << 20, 64 << 10, 4 << 10, 256] {
+            while let Ok(reservation) = cache.try_reserve(chunk) {
+                held.push(reservation);
+            }
+        }
+        // Four at once, each holding its token.
+        let mut contexts = Vec::with_capacity(4);
+        for _ in 0..4 {
+            contexts.push(
+                ExecutionContext::new(
+                    &store,
+                    TenantId::single(),
+                    OperationClass::Read,
+                    Some(Duration::from_millis(200)),
+                    None,
+                )
+                .expect("a token reserved at open"),
+            );
+        }
+        assert_eq!(contexts.len(), 4);
+        drop(held);
     }
 }

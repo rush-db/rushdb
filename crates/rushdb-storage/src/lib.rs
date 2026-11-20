@@ -46,6 +46,13 @@ mod receipt;
 mod redb_backend;
 pub mod resident;
 pub mod resources;
+
+/// The bytes a request's phase token reserves from the phase pool.
+pub const PHASE_TOKEN_BYTES: usize = 8 * 1024 * 1024;
+/// The phase pool's budget name.
+pub const PHASE_POOL_NAME: &str = "query-phases";
+/// Phase tokens reserved from the managed budget at open.
+const PHASE_FLOOR_TOKENS: usize = 4;
 mod temp_path;
 pub mod tenant_dir;
 mod usage;
@@ -577,6 +584,9 @@ pub struct Store {
     phase_resources: Option<resources::ByteBudget>,
     /// Queue for a request's phase token from `phase_resources`.
     phase_admission: Option<Arc<resources::FairAdmission>>,
+    /// A few phase tokens reserved from the managed budget at open, for
+    /// requests that find it exhausted by retained caches.
+    phase_floor: Option<(resources::ByteReservation, Arc<resources::FairAdmission>)>,
     /// Per-adapter attribution children of the two budgets above.
     adapter_budgets: adapter_budgets::AdapterBudgets,
     /// Resident layers and the version table every commit raises.
@@ -748,23 +758,52 @@ impl Store {
             .child("transaction-staging", config.transaction_pool_bytes)
             .map_err(|e| StorageError::InvalidConfiguration(e.to_string()))?;
         // A zero-sized pool is disabled; otherwise it is capped by the root.
-        let optional_child = |name: &'static str, bytes: usize| {
+        // Request tokens and retained caches leave the last of the managed
+        // budget to commits, which fail where a token waits (it falls back
+        // to the floor below) and a cache only misses.
+        let headroom = config.managed_limit_bytes / 16;
+        let phase_resources = (config.phase_budget_bytes > 0)
+            .then(|| {
+                resources.child_leaving(
+                    PHASE_POOL_NAME,
+                    config.phase_budget_bytes.min(config.managed_limit_bytes),
+                    headroom,
+                )
+            })
+            .transpose()
+            .map_err(|e| StorageError::InvalidConfiguration(e.to_string()))?;
+        // At most the tokens the phase pool itself holds.
+        let floor_tokens = PHASE_FLOOR_TOKENS.min(config.phase_budget_bytes / PHASE_TOKEN_BYTES);
+        let phase_floor = match &phase_resources {
+            Some(_) if floor_tokens > 0 => resources
+                .try_reserve(floor_tokens * PHASE_TOKEN_BYTES)
+                .ok()
+                .map(|floor| {
+                    let pool = resources::ByteBudget::new("query-phase-floor", floor.bytes())
+                        .map_err(|e| StorageError::InvalidConfiguration(e.to_string()))?;
+                    Ok::<_, StorageError>((floor, Arc::new(resources::FairAdmission::new(pool))))
+                })
+                .transpose()?,
+            _ => None,
+        };
+        let retained_child = |name: &'static str, bytes: usize| {
             (bytes > 0)
-                .then(|| resources.child(name, bytes.min(config.managed_limit_bytes)))
+                .then(|| {
+                    resources.child_leaving(name, bytes.min(config.managed_limit_bytes), headroom)
+                })
                 .transpose()
                 .map_err(|e| StorageError::InvalidConfiguration(e.to_string()))
         };
-        let phase_resources = optional_child("query-phases", config.phase_budget_bytes)?;
-        let logical_cache_resources = optional_child("logical-cache", config.logical_cache_bytes)?;
-        let vector_cache = optional_child("vector-cache", config.vector_cache_bytes)?;
+        let logical_cache_resources = retained_child("logical-cache", config.logical_cache_bytes)?;
+        let vector_cache = retained_child("vector-cache", config.vector_cache_bytes)?;
         let adapter_budgets =
             adapter_budgets::AdapterBudgets::new(vector_cache.clone(), phase_resources.as_ref())?;
         let residents = Arc::new(resident::Residents::new(
             &config,
             logical_cache_resources.clone(),
-            optional_child("graph-cache", config.graph_cache_bytes)?,
+            retained_child("graph-cache", config.graph_cache_bytes)?,
             vector_cache,
-            optional_child("column-cache", config.column_cache_bytes)?,
+            retained_child("column-cache", config.column_cache_bytes)?,
         ));
         // The in-memory store is a real `StorageBackend`. `Store` keeps
         // shared handles to the same maps for diagnostics/replay; the backend
@@ -793,6 +832,7 @@ impl Store {
             phase_admission: phase_resources
                 .clone()
                 .map(|budget| Arc::new(resources::FairAdmission::new(budget))),
+            phase_floor,
             phase_resources,
             adapter_budgets,
             residents,
@@ -1094,6 +1134,24 @@ impl Store {
     #[must_use]
     pub fn phase_admission(&self) -> Option<Arc<resources::FairAdmission>> {
         self.phase_admission.clone()
+    }
+
+    /// Bytes of the managed budget the phase tokens reserved at open hold.
+    #[must_use]
+    pub fn phase_floor_bytes(&self) -> usize {
+        self.phase_floor
+            .as_ref()
+            .map_or(0, |(floor, _)| floor.bytes())
+    }
+
+    /// FIFO admission to the few phase tokens reserved at open, for a
+    /// request that finds the managed budget (not the phase pool) exhausted
+    /// by retained caches: some requests always make progress.
+    #[must_use]
+    pub fn phase_floor_admission(&self) -> Option<Arc<resources::FairAdmission>> {
+        self.phase_floor
+            .as_ref()
+            .map(|(_, admission)| Arc::clone(admission))
     }
 
     /// All open shard backends, in shard order.
