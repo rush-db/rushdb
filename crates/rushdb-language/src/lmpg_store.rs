@@ -291,9 +291,8 @@ impl LmpgGraphStore {
     }
 
     /// The ordered indexes that answer equality on `property` for every
-    /// label holding it, or `None`. Only types whose equality the index
-    /// encodes exactly qualify (not datetimes, which Grafeo compares as
-    /// strings).
+    /// label holding it, or `None`. The candidates it gives are checked
+    /// against each record's value, so a superset is safe.
     fn equality_indexes(&self, property: &str) -> Option<Vec<IndexDef>> {
         if let Some(known) = self
             .equality_indexes
@@ -310,9 +309,6 @@ impl LmpgGraphStore {
             }
             let typed =
                 rushdb_lmpg::index::record_property_types(self.view.as_ref(), self.tenant, &norm)?;
-            if typed.iter().any(|(ty, _)| *ty == LogicalType::DateTime) {
-                return Ok(None);
-            }
             let mut labels = BTreeSet::new();
             for (_, pid) in &typed {
                 for (label, count) in
@@ -883,8 +879,10 @@ impl GraphStore for LmpgGraphStore {
 
 /// Index entry ranges `[start, end)` holding every stored value Grafeo
 /// considers equal to `value` (see [`values_equal`]), or `None` for a value
-/// the index does not encode exactly (lists, maps, temporals, numbers
-/// beyond 2^53, where integers and floats stop mapping one to one).
+/// the index does not encode exactly (lists, maps, numbers beyond 2^53,
+/// where integers and floats stop mapping one to one). A temporal value
+/// probes its own type's entry (an instant by its microseconds, whatever
+/// its offset).
 fn equality_probes(value: &Value) -> Option<Vec<(Vec<u8>, Vec<u8>)>> {
     const EXACT: f64 = 9_007_199_254_740_992.0; // 2^53
     let point = |ty: LogicalType, scalar: &Scalar| -> Option<(Vec<u8>, Vec<u8>)> {
@@ -904,6 +902,9 @@ fn equality_probes(value: &Value) -> Option<Vec<(Vec<u8>, Vec<u8>)>> {
         )?;
         Some((low, rushdb_storage::prefix_range(&high).1))
     };
+    if let Some(scalar) = crate::values::from_grafeo(value) {
+        return Some(vec![point(scalar.logical_type(), &scalar)?]);
+    }
     match value {
         Value::Bool(b) => Some(vec![point(LogicalType::Boolean, &Scalar::Boolean(*b))?]),
         Value::String(s) => Some(vec![point(

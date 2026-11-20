@@ -496,7 +496,27 @@ fn planner_statistics_come_from_the_catalog_counters() {
 /// Equality through declared ordered indexes returns exactly what a label
 /// scan returns, across integer/float coercion, signed zeros, strings,
 /// booleans and arrays, for reads and for writes.
+/// The users a temporal equality literal of
+/// [`indexed_equality_matches_the_label_scan`] finds: an instant equals
+/// itself at any offset; a duration compares by its components (a day is
+/// not 24 hours).
+fn temporal_matches(literal: &str) -> Option<Vec<Json>> {
+    Some(match literal {
+        "datetime('2024-05-01T08:00:00Z')" | "datetime('2024-05-01T10:00:00+02:00')" => {
+            vec![json!({"name": "User10"}), json!({"name": "User11"})]
+        }
+        "date('2024-05-01')" => vec![json!({"name": "User12"})],
+        "duration('P1D')" => vec![json!({"name": "User13"})],
+        "duration('PT24H')" => vec![],
+        _ => return None,
+    })
+}
+
 #[test]
+#[expect(
+    clippy::too_many_lines,
+    reason = "one table of seeded values and literals, checked scanned against indexed"
+)]
 fn indexed_equality_matches_the_label_scan() {
     let values = [
         json!(1),
@@ -509,6 +529,12 @@ fn indexed_equality_matches_the_label_scan() {
         json!([1]),
         json!(5.5),
         json!(0.999_999_999_999_999_9),
+        // Typed values: an instant written at two offsets, a date, a
+        // duration.
+        json!({"__datetime": "2024-05-01T10:00:00+02:00"}),
+        json!({"__datetime": "2024-05-01T08:00:00Z"}),
+        json!({"__date": "2024-05-01"}),
+        json!({"__duration": "P1D"}),
     ];
     let seeded = |indexed: bool| {
         let graph = Lmpg::new(Arc::new(Store::new_in_memory()), TenantId::from_ordinal(70));
@@ -557,7 +583,22 @@ fn indexed_equality_matches_the_label_scan() {
     assert!(!adapter(&scanned).has_property_index("v"));
     assert!(adapter(&indexed).has_property_index("v"));
 
-    for literal in ["1", "1.0", "2", "'1'", "-0.0", "0", "true", "5.5", "3"] {
+    for literal in [
+        "1",
+        "1.0",
+        "2",
+        "'1'",
+        "-0.0",
+        "0",
+        "true",
+        "5.5",
+        "3",
+        "datetime('2024-05-01T08:00:00Z')",
+        "datetime('2024-05-01T10:00:00+02:00')",
+        "date('2024-05-01')",
+        "duration('P1D')",
+        "duration('PT24H')",
+    ] {
         let names = |graph: &Lmpg| {
             execute(
                 graph,
@@ -571,6 +612,10 @@ fn indexed_equality_matches_the_label_scan() {
             .rows
         };
         assert_eq!(names(&scanned), names(&indexed), "n.v = {literal}");
+        let expected = temporal_matches(literal);
+        if let Some(expected) = expected {
+            assert_eq!(names(&indexed), expected, "n.v = {literal}");
+        }
     }
     let touched = |graph: &Lmpg| {
         execute_mutation(
