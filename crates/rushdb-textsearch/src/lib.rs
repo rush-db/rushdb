@@ -308,6 +308,19 @@ impl TextIndexes {
         let opened = self.open_index(tenant, def.id)?;
         let _single = opened.apply.lock().map_err(|_| "text applier poisoned")?;
         let snap = lmpg.store.read_view().map_err(err)?;
+        // Coverage is judged by the definition at this snapshot, never the
+        // caller's: a build step that commits in between marks its records
+        // pending and widens the covered range in one commit, and an older
+        // range would skip those records, then clear them as applied.
+        let Some(def) = index::definitions(&snap, tenant)
+            .map_err(err)?
+            .into_iter()
+            .find(|current| current.id == def.id)
+            .filter(|current| !matches!(current.state, IndexState::Dropping { .. }))
+        else {
+            return Ok(0);
+        };
+        let def = &def;
         let owners = pending(&snap, tenant, def.id, max_owners).map_err(err)?;
         if owners.is_empty() {
             return Ok(0);

@@ -452,6 +452,39 @@ fn building_and_dropping_text_indexes() {
 }
 
 #[test]
+fn an_applier_holding_the_definition_from_before_the_build_indexes_its_records() {
+    // The applier reads the definitions, then a snapshot. A build step
+    // committing in between marks its records pending and widens the
+    // covered range in one commit: judged by the older (building) range,
+    // those records were skipped, then cleared as applied, and the index
+    // never held them. Writes waking the applier made this the usual
+    // interleaving after "ingest, then create the index".
+    for property in ["body", "*"] {
+        let (lmpg, text) = setup();
+        article(&lmpg, "quantum world", "machines learn quantum mechanics");
+        article(&lmpg, "dragons", "magic dragon call");
+        let building = lmpg
+            .define_index(
+                "articles",
+                "Article",
+                property,
+                IndexKind::Text {
+                    consistency: TextConsistency::Eventual,
+                },
+            )
+            .unwrap();
+        while lmpg.index_step(building.id, 1_000).unwrap() != IndexStep::Finished {}
+        while text.apply(&lmpg, &building, 100).unwrap() > 0 {}
+        let (hits, pending) = search(&lmpg, &text, "articles", "quantum");
+        assert_eq!(
+            (hits.len(), pending),
+            (1, 0),
+            "{property}: the record is indexed, not cleared as applied"
+        );
+    }
+}
+
+#[test]
 fn a_search_counts_every_match_and_can_return_them_all() {
     let (lmpg, text) = setup();
     for i in 0..30 {
