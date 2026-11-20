@@ -1240,11 +1240,14 @@ fn context_in_view_visible(
     text: Option<&Arc<TextIndexes>>,
     visible: &CatalogAccess,
 ) -> Result<DataFusionContext, SqlError> {
-    let config = SessionConfig::new()
+    let mut config = SessionConfig::new()
         // `information_schema` is RushDB's own (`pg_catalog.rs`), with
         // PostgreSQL's columns.
         .with_information_schema(false)
         .with_target_partitions(1);
+    // `TIMESTAMPTZ` literals are instants in UTC, as datetime columns are;
+    // without a session zone DataFusion plans them as local timestamps.
+    config.options_mut().execution.time_zone = Some("UTC".to_owned());
     let cap = working_set_cap(lmpg);
     let (context, pool) = session_context(&lmpg.store, config, cap)?;
     // Lazy catalog: labels and edge types are materialized only when the

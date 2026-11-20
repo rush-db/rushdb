@@ -113,11 +113,15 @@ impl Cell {
     )]
     fn number(&self) -> Option<Result<f64, QueryError>> {
         let exact = |float: Option<f64>| float.ok_or_else(lossy);
+        let int = |i: i64| {
+            let float = i as f64;
+            exact(((float as i128) == i128::from(i)).then_some(float))
+        };
         match self {
-            Self::Int(i) => {
-                let float = *i as f64;
-                Some(exact(((float as i128) == i128::from(*i)).then_some(float)))
-            }
+            Self::Int(i) => Some(int(*i)),
+            // A datetime adds as its epoch milliseconds, as it did when it
+            // was stored as them (an integer filter on it means them too).
+            Self::Typed(Scalar::DateTime(instant)) => Some(int(instant.micros.div_euclid(1_000))),
             Self::Float(f) => Some(Ok(*f)),
             Self::Json(value @ Json::Number(_)) => Some(exact(exact_f64(value))),
             _ => None,
@@ -743,9 +747,11 @@ fn lossy() -> QueryError {
 fn sum_numbers(values: &[Json], start: f64) -> Result<(f64, u64), QueryError> {
     let mut sum = start;
     let mut n = 0u64;
-    for value in values.iter().filter(|v| v.is_number()) {
-        sum += exact_f64(value).ok_or_else(lossy)?;
-        n += 1;
+    for value in values {
+        if let Some(number) = Cell::from_json(value.clone()).number() {
+            sum += number?;
+            n += 1;
+        }
     }
     Ok((sum, n))
 }

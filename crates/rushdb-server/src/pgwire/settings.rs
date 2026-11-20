@@ -259,7 +259,20 @@ pub(super) fn parse(sql: &str) -> Option<Command> {
                 };
                 (setting, value)
             };
-            let value = unquote(value.trim());
+            // `SET TIME ZONE 2` is an interval, hours east; the setting's
+            // text is POSIX, hours west (`'+02'` is two hours behind UTC).
+            // PostgreSQL stores the number as the POSIX text that means it.
+            let posix;
+            let value = match (setting, value.trim()) {
+                (Setting::TimeZone, number) if is_hours_number(number) => {
+                    posix = match number.strip_prefix('-') {
+                        Some(east) => format!("UTC+{east}"),
+                        None => format!("UTC-{}", number.trim_start_matches('+')),
+                    };
+                    posix.as_str()
+                }
+                (_, value) => unquote(value),
+            };
             Some(Command::Set(
                 setting,
                 (!value.eq_ignore_ascii_case("default")).then(|| value.to_owned()),
@@ -322,10 +335,18 @@ pub(super) fn isolation(metadata: &HashMap<String, String>) -> String {
         .unwrap_or_else(|| setting.unset().to_owned())
 }
 
+/// An unquoted number of hours, as `SET TIME ZONE -7` takes it.
+fn is_hours_number(value: &str) -> bool {
+    let digits = value.strip_prefix(['+', '-']).unwrap_or(value);
+    !digits.is_empty() && digits.bytes().all(|b| b.is_ascii_digit())
+}
+
 /// The UTC offset `timestamptz` values are written at: the session's
-/// `TimeZone` when it is `UTC` or a fixed offset (`+02`, `-05:30`,
-/// `UTC+3`); a named zone (`Europe/Berlin`) has no offset without a time
-/// zone database, so its values are written in UTC.
+/// `TimeZone` when it is `UTC` or a fixed POSIX offset, which counts hours
+/// west of Greenwich as PostgreSQL does (`UTC+3` and `+3` are three hours
+/// behind UTC, `-05:30` five and a half ahead); a named zone
+/// (`Europe/Berlin`) has no offset without a time zone database, so its
+/// values are written in UTC.
 pub(super) fn time_zone_offset(metadata: &HashMap<String, String>) -> chrono::FixedOffset {
     let utc = chrono::FixedOffset::east_opt(0).expect("UTC is an offset");
     let setting = Setting::TimeZone;
@@ -351,7 +372,7 @@ pub(super) fn time_zone_offset(metadata: &HashMap<String, String>) -> chrono::Fi
     let (hours, minutes) = digits.split_once(':').unwrap_or((digits, "0"));
     match (hours.parse::<i32>(), minutes.parse::<i32>()) {
         (Ok(hours), Ok(minutes)) if hours <= 15 && minutes < 60 => {
-            chrono::FixedOffset::east_opt(sign * (hours * 3_600 + minutes * 60)).unwrap_or(utc)
+            chrono::FixedOffset::west_opt(sign * (hours * 3_600 + minutes * 60)).unwrap_or(utc)
         }
         _ => utc,
     }
@@ -735,6 +756,23 @@ mod tests {
             parse("SET TIME ZONE 'UTC'"),
             Some(Command::Set(Setting::TimeZone, Some("UTC".into())))
         );
+        // Offsets as PostgreSQL reads them: text is POSIX (hours west), a
+        // bare number an interval (hours east).
+        for (set, east_seconds) in [
+            ("SET TIME ZONE 'UTC'", 0),
+            ("SET TIME ZONE '+02'", -7_200),
+            ("SET TIME ZONE 'UTC+3'", -10_800),
+            ("SET TIME ZONE '-05:30'", 19_800),
+            ("SET TIME ZONE 2", 7_200),
+            ("SET TIME ZONE -7", -25_200),
+            ("SET TIME ZONE 'Europe/Berlin'", 0),
+        ] {
+            assert_eq!(
+                time_zone_offset(&session(&[set])).local_minus_utc(),
+                east_seconds,
+                "{set}"
+            );
+        }
         assert_eq!(
             parse("SET NAMES 'utf8'"),
             Some(Command::Set(Setting::ClientEncoding, Some("utf8".into())))

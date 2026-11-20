@@ -1245,9 +1245,11 @@ fn encode_value(
         }
         Type::TIMESTAMPTZ => {
             let raw = value.as_str().ok_or_else(mismatch)?;
-            // At the session's time zone (`SET TIME ZONE`).
-            let value = chrono::DateTime::parse_from_rfc3339(raw)
-                .map_err(|_| mismatch())?
+            // At the session's time zone (`SET TIME ZONE`). The engine's
+            // parser, not RFC 3339's: it reads signed years (`-0043`).
+            let instant = rushdb_types::types::temporal::parse_instant(raw).ok_or_else(mismatch)?;
+            let value = chrono::DateTime::from_timestamp_micros(instant.micros)
+                .ok_or_else(mismatch)?
                 .with_timezone(&zone);
             encoder.encode_field(&value)
         }

@@ -1333,14 +1333,23 @@ async fn typed_values_are_postgresql_types() {
     assert_eq!(row.get("lasts"), Some("1 day 02:00:00"));
     assert_eq!(row.get("place"), Some("(13.4,52.5)"));
     assert_eq!(row.get("at"), Some("2024-05-01 07:30:00.000000+00"));
-    // The session's time zone writes timestamptz values at its offset.
-    client.batch_execute("SET TIME ZONE '+02'").await.unwrap();
-    let messages = client.simple_query(sql).await.unwrap();
-    let at = messages.iter().find_map(|message| match message {
-        SimpleQueryMessage::Row(row) => row.get("at").map(str::to_owned),
-        _ => None,
-    });
-    assert_eq!(at.as_deref(), Some("2024-05-01 09:30:00.000000+02"));
+    // The session's time zone writes timestamptz values at its offset, read
+    // as PostgreSQL reads it: a number is hours east, text POSIX hours west.
+    for (zone, expected) in [
+        ("2", "2024-05-01 09:30:00.000000+02"),
+        ("'+02'", "2024-05-01 05:30:00.000000-02"),
+    ] {
+        client
+            .batch_execute(&format!("SET TIME ZONE {zone}"))
+            .await
+            .unwrap();
+        let messages = client.simple_query(sql).await.unwrap();
+        let at = messages.iter().find_map(|message| match message {
+            SimpleQueryMessage::Row(row) => row.get("at").map(str::to_owned),
+            _ => None,
+        });
+        assert_eq!(at.as_deref(), Some(expected), "{zone}");
+    }
     // Binary parameters of these types bind as their values.
     let day = chrono::NaiveDate::from_ymd_opt(2024, 5, 1).unwrap();
     let rows = client
@@ -1362,4 +1371,54 @@ async fn typed_values_are_postgresql_types() {
         .await
         .unwrap();
     assert_eq!(rows[0].get::<_, i64>("c"), 1);
+}
+
+/// Dates and datetimes before year 1 (signed ISO 8601 years) read over the
+/// wire as the dates they are, in both formats; a datetime one failed the
+/// whole statement.
+#[tokio::test]
+async fn signed_years_read_as_their_dates() {
+    let (http_port, port) = start_gateway(false, None, true);
+    put_record(
+        http_port,
+        None,
+        "ANCIENT",
+        &serde_json::json!({
+            "day": "-0043-03-15",
+            "local": "-0043-03-15T12:00:00",
+            "at": "-0043-03-15T12:00:00Z",
+        }),
+    );
+    let client = connect(port, "rushdb", "pgwire-token").await.unwrap();
+    let sql = "SELECT day, local, at FROM \"ANCIENT\"";
+    let row = client.query_one(sql, &[]).await.unwrap();
+    let ides = chrono::NaiveDate::from_ymd_opt(-43, 3, 15).unwrap();
+    assert_eq!(row.get::<_, chrono::NaiveDate>("day"), ides);
+    let noon = ides.and_hms_opt(12, 0, 0).unwrap();
+    assert_eq!(row.get::<_, chrono::NaiveDateTime>("local"), noon);
+    assert_eq!(
+        row.get::<_, chrono::DateTime<chrono::Utc>>("at"),
+        noon.and_utc()
+    );
+    let messages = client.simple_query(sql).await.unwrap();
+    let text = messages
+        .iter()
+        .find_map(|message| match message {
+            tokio_postgres::SimpleQueryMessage::Row(row) => Some(
+                (0..3)
+                    .map(|at| row.get(at).map(str::to_owned))
+                    .collect::<Vec<_>>(),
+            ),
+            _ => None,
+        })
+        .unwrap();
+    // Text writes the signed ISO 8601 year (PostgreSQL writes `0044 BC`).
+    assert_eq!(
+        text,
+        [
+            Some("-0043-03-15".to_owned()),
+            Some("-0043-03-15 12:00:00.000000".to_owned()),
+            Some("-0043-03-15 12:00:00.000000+00".to_owned()),
+        ]
+    );
 }

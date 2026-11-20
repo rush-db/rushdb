@@ -166,11 +166,23 @@ fn offset_of(value: &str) -> Option<(usize, i32)> {
 }
 
 /// Parse an ISO 8601 instant: a date and time with `Z` or a UTC offset
-/// (`2024-05-01T10:15:00Z`, `2024-05-01T10:15:00.5+02:00`). A zone id
-/// (`[Europe/Berlin]`) is refused: named time zones are not supported.
+/// (`2024-05-01T10:15:00Z`, `2024-05-01T10:15:00.5+02:00`). As RFC 3339
+/// allows, the separator may also be a lowercase `t` or a space, and `Z` a
+/// lowercase `z`. A zone id (`[Europe/Berlin]`) is refused: named time
+/// zones are not supported.
 #[must_use]
 pub fn parse_instant(value: &str) -> Option<Instant> {
     let value = value.trim();
+    // A date holds digits and `-` only: its first `T`, `t` or space is the
+    // separator.
+    let normalized;
+    let value = match value.find(['t', ' ']) {
+        Some(at) if value.find('T').is_none_or(|upper| at < upper) => {
+            normalized = format!("{}T{}", &value[..at], &value[at + 1..]);
+            normalized.as_str()
+        }
+        _ => value,
+    };
     let (local, offset) = if let Some(local) = value.strip_suffix(['Z', 'z']) {
         (local, 0)
     } else {
@@ -381,6 +393,24 @@ pub fn fixed_offset(seconds: i32) -> Option<FixedOffset> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn instants_take_the_separators_and_zone_letter_rfc_3339_allows() {
+        let expected = parse_instant("2024-05-01T10:30:00Z").unwrap();
+        for text in [
+            "2024-05-01t10:30:00z",
+            "2024-05-01T10:30:00z",
+            "2024-05-01 10:30:00Z",
+            "2024-05-01t12:30:00+02:00",
+        ] {
+            assert_eq!(
+                parse_instant(text).map(|instant| instant.micros),
+                Some(expected.micros),
+                "{text}"
+            );
+        }
+        assert!(parse_instant("2024-05-01T10:30:00[Europe/Berlin]").is_none());
+    }
 
     #[test]
     fn literals_parse_by_form() {

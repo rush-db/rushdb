@@ -377,3 +377,59 @@ fn spatial_filters_and_distance_order_match_a_brute_force_oracle() {
     );
     assert!(refused.is_err(), "{refused:?}");
 }
+
+/// `$sum` and `$avg` over datetimes add their epoch milliseconds, as they
+/// did when datetimes were stored as them; other typed values are not
+/// numbers and are skipped.
+#[test]
+fn sums_and_averages_read_datetimes_as_epoch_milliseconds() {
+    let node = node();
+    for (at, lasts) in [
+        ("1970-01-01T00:00:01Z", "PT1S"),
+        ("1970-01-01T02:00:03+02:00", "PT2S"),
+    ] {
+        node.scope()
+            .create_record("Tick", &json!({"at": at, "lasts": lasts}), &[], &json!({}))
+            .unwrap();
+    }
+    let rows = query(
+        &node,
+        &json!({"labels": ["Tick"], "select": {
+            "total": {"$sum": "$record.at"}, "mean": {"$avg": "$record.at"},
+            "lasting": {"$sum": "$record.lasts"},
+        }}),
+    );
+    assert_eq!(rows["rows"][0]["total"], json!(4_000.0), "{rows}");
+    assert_eq!(rows["rows"][0]["mean"], json!(2_000.0), "{rows}");
+    assert_eq!(rows["rows"][0]["lasting"], Value::Null, "{rows}");
+}
+
+/// SQL `INSERT` stores each typed literal as its type: a `TIMESTAMPTZ` is
+/// an instant (it was stored as a local date-time), a `TIMESTAMP` a local
+/// date-time, a `DATE` a date.
+#[test]
+fn sql_inserts_store_typed_literals_as_their_types() {
+    let node = node();
+    node.scope()
+        .create_record("Shift", &json!({"name": "first"}), &[], &json!({}))
+        .unwrap();
+    run(
+        &node,
+        &json!({"kind": "mutate", "mutation": {"kind": "statement", "language": "sql",
+            "statement": "INSERT INTO \"Shift\" (name, day, starts, at) VALUES ('x', DATE '2023-01-02', \
+                TIMESTAMP '2023-01-02 08:00:00', TIMESTAMPTZ '2023-01-02T03:04:05+02:00')"}}),
+    )
+    .unwrap();
+    let records = query(
+        &node,
+        &json!({"labels": ["Shift"], "predicate": {"name": "x"}}),
+    );
+    let record = &records["records"][0];
+    assert_eq!(
+        record["propertyTypes"],
+        json!({"name": "string", "day": "date", "starts": "localdatetime", "at": "datetime"}),
+        "{record}"
+    );
+    assert_eq!(record["properties"]["at"], json!("2023-01-02T01:04:05Z"));
+    assert_eq!(record["properties"]["starts"], json!("2023-01-02T08:00:00"));
+}
