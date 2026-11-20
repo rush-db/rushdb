@@ -250,6 +250,7 @@ fn edge_columns(
     }
     let mut first = serde_json::Map::new();
     let mut extra: Vec<Json> = Vec::new();
+    let mut types = crate::ColumnTypes::default();
     for pid in pids {
         let definition =
             access::definition(snapshot, tenant, pid)?.ok_or(StorageError::CorruptLog)?;
@@ -269,6 +270,7 @@ fn edge_columns(
                 .1
                 .iter()
                 .any(|marked| marked == rel_type);
+        types.add(&family.display_name, definition.type_state, array);
         let value = if array {
             Json::Array(vec![sample])
         } else {
@@ -289,7 +291,7 @@ fn edge_columns(
     let schema =
         infer_json_schema_from_iterator(std::iter::once(Json::Object(first)).chain(extra).map(Ok))
             .map_err(|error| SqlError::Engine(error.to_string()))?;
-    Ok((schema, rows))
+    Ok((crate::typed_schema(&schema, &types), rows))
 }
 
 #[async_trait::async_trait]

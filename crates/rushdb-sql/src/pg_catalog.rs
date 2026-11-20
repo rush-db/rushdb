@@ -255,7 +255,7 @@ fn info_columns(listing: &Listing) -> DFResult<RecordBatch> {
     let (mut precision, mut radix, mut scale) = (Vec::new(), Vec::new(), Vec::new());
     for listed in &listing.tables {
         for (ordinal, field) in (1..).zip(listed.columns.fields().iter()) {
-            let sql = crate::sql_type_from_arrow(field.data_type());
+            let sql = crate::sql_type_of_field(field);
             schema.push(listed.schema);
             table.push(listed.name.clone());
             column.push(field.name().clone());
@@ -423,7 +423,7 @@ fn attributes(listing: &Listing) -> DFResult<RecordBatch> {
     let mut not_null = Vec::new();
     for table in &listing.tables {
         for (position, field) in (1..).zip(table.columns.fields().iter()) {
-            let sql = crate::sql_type_from_arrow(field.data_type());
+            let sql = crate::sql_type_of_field(field);
             rel.push(table.oid);
             name.push(field.name().clone());
             type_oid.push(i64::from(sql.pg_oid()));
@@ -466,13 +466,15 @@ fn pg_length(sql: &SqlType) -> i64 {
         | SqlType::UInt64
         | SqlType::Float64
         | SqlType::Time
-        | SqlType::Timestamp => 8,
+        | SqlType::Timestamp
+        | SqlType::Timestamptz => 8,
+        SqlType::Interval | SqlType::Point => 16,
         SqlType::Utf8 | SqlType::Binary | SqlType::Json | SqlType::Unknown => -1,
     }
 }
 
 /// The types a column can have here, with their PostgreSQL names.
-const TYPES: [SqlType; 12] = [
+const TYPES: [SqlType; 15] = [
     SqlType::Boolean,
     SqlType::Int16,
     SqlType::Int32,
@@ -484,6 +486,9 @@ const TYPES: [SqlType; 12] = [
     SqlType::Date,
     SqlType::Time,
     SqlType::Timestamp,
+    SqlType::Timestamptz,
+    SqlType::Interval,
+    SqlType::Point,
     SqlType::Json,
 ];
 
@@ -522,7 +527,9 @@ fn pg_category(sql: &SqlType) -> &'static str {
         | SqlType::Float32
         | SqlType::Float64 => "N",
         SqlType::Utf8 => "S",
-        SqlType::Date | SqlType::Time | SqlType::Timestamp => "D",
+        SqlType::Date | SqlType::Time | SqlType::Timestamp | SqlType::Timestamptz => "D",
+        SqlType::Interval => "T",
+        SqlType::Point => "G",
         SqlType::Binary | SqlType::Json | SqlType::Unknown => "U",
     }
 }

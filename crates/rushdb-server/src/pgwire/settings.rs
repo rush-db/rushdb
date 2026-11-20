@@ -322,6 +322,41 @@ pub(super) fn isolation(metadata: &HashMap<String, String>) -> String {
         .unwrap_or_else(|| setting.unset().to_owned())
 }
 
+/// The UTC offset `timestamptz` values are written at: the session's
+/// `TimeZone` when it is `UTC` or a fixed offset (`+02`, `-05:30`,
+/// `UTC+3`); a named zone (`Europe/Berlin`) has no offset without a time
+/// zone database, so its values are written in UTC.
+pub(super) fn time_zone_offset(metadata: &HashMap<String, String>) -> chrono::FixedOffset {
+    let utc = chrono::FixedOffset::east_opt(0).expect("UTC is an offset");
+    let setting = Setting::TimeZone;
+    let Some(value) = metadata
+        .iter()
+        .find(|(key, _)| key.eq_ignore_ascii_case(setting.name()))
+        .map(|(_, value)| value.trim().trim_matches('\'').to_owned())
+    else {
+        return utc;
+    };
+    let offset = value
+        .strip_prefix("UTC")
+        .or_else(|| value.strip_prefix("GMT"))
+        .unwrap_or(&value);
+    if offset.is_empty() {
+        return utc;
+    }
+    let (sign, digits) = match offset.split_at_checked(1) {
+        Some(("+", rest)) => (1, rest),
+        Some(("-", rest)) => (-1, rest),
+        _ => return utc,
+    };
+    let (hours, minutes) = digits.split_once(':').unwrap_or((digits, "0"));
+    match (hours.parse::<i32>(), minutes.parse::<i32>()) {
+        (Ok(hours), Ok(minutes)) if hours <= 15 && minutes < 60 => {
+            chrono::FixedOffset::east_opt(sign * (hours * 3_600 + minutes * 60)).unwrap_or(utc)
+        }
+        _ => utc,
+    }
+}
+
 /// The isolation level `BEGIN`/`START TRANSACTION` modes ask for, if they
 /// name one; an unknown mode is refused.
 pub(super) fn block_isolation(modes: &str) -> PgWireResult<Option<String>> {

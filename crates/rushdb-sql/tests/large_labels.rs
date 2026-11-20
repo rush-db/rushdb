@@ -285,3 +285,102 @@ fn the_request_bounds_stop_a_walk_the_server_allows() {
         300
     );
 }
+
+/// Dates, times and timestamps are SQL's own types: comparisons with their
+/// literals keep the right rows, and an indexed one reads only the index's
+/// candidates.
+#[test]
+fn temporal_columns_compare_and_push_down_as_their_types() {
+    use rushdb_types::types::{temporal, to_doc_json};
+    use rushdb_types::value::Scalar;
+    let lmpg = Lmpg::new(Arc::new(Store::new_in_memory()), TenantId::single());
+    for day in 0..40i32 {
+        let at = temporal::Instant {
+            micros: i64::from(day) * temporal::MICROS_PER_DAY + 3_600_000_000,
+            offset: 7_200,
+        };
+        lmpg.create_record(
+            "Event",
+            None,
+            vec![
+                (
+                    "day".into(),
+                    FieldChange::Set(to_doc_json(&Scalar::Date(day))),
+                ),
+                (
+                    "at".into(),
+                    FieldChange::Set(to_doc_json(&Scalar::DateTime(at))),
+                ),
+                (
+                    "opens".into(),
+                    FieldChange::Set(to_doc_json(&Scalar::LocalTime(i64::from(day) * 60_000_000))),
+                ),
+            ],
+        )
+        .unwrap();
+    }
+    let def = lmpg
+        .define_index("event_at", "Event", "at", IndexKind::Ordered)
+        .unwrap();
+    while !matches!(
+        lmpg.index_step(def.id, 1_000).unwrap(),
+        IndexStep::Finished | IndexStep::Idle
+    ) {}
+    let count = |statement: &str| sql(&lmpg, statement).unwrap()[0]["c"].clone();
+    assert_eq!(
+        count("SELECT count(*) AS c FROM \"Event\" WHERE day = DATE '1970-01-11'"),
+        json!(1)
+    );
+    assert_eq!(
+        count("SELECT count(*) AS c FROM \"Event\" WHERE day >= '1970-02-01'"),
+        json!(9)
+    );
+    assert_eq!(
+        count("SELECT count(*) AS c FROM \"Event\" WHERE opens < TIME '00:05:00'"),
+        json!(5)
+    );
+    reset_work_counters();
+    assert_eq!(
+        count("SELECT count(*) AS c FROM \"Event\" WHERE at > TIMESTAMPTZ '1970-02-05T00:00:00Z'"),
+        json!(5)
+    );
+    // The index read the five instants after the bound and the bound's own
+    // day's (bounds widen to inclusive, the filter re-checks).
+    assert!(take_work_counters().candidate_rows <= 6);
+    let rows = sql(
+        &lmpg,
+        "SELECT day, at FROM \"Event\" WHERE day = DATE '1970-01-02'",
+    )
+    .unwrap();
+    assert_eq!(
+        rows,
+        vec![json!({"day": "1970-01-02", "at": "1970-01-02T01:00:00Z"})]
+    );
+
+    // Writes store each value as its type: a typed expression, and text
+    // into a typed column, as PostgreSQL casts it.
+    rushdb_sql::execute_sql_mutation(
+        &lmpg,
+        "INSERT INTO \"Event\" (day, at) VALUES (DATE '2025-01-01', '2025-01-01T10:00:00+02:00')",
+        None,
+    )
+    .unwrap();
+    rushdb_sql::execute_sql_mutation(
+        &lmpg,
+        "UPDATE \"Event\" SET day = '1999-12-31' WHERE day = DATE '1970-01-03'",
+        None,
+    )
+    .unwrap();
+    assert_eq!(
+        count("SELECT count(*) AS c FROM \"Event\" WHERE day >= DATE '2025-01-01'"),
+        json!(1)
+    );
+    assert_eq!(
+        count("SELECT count(*) AS c FROM \"Event\" WHERE at = TIMESTAMPTZ '2025-01-01T08:00:00Z'"),
+        json!(1)
+    );
+    assert_eq!(
+        count("SELECT count(*) AS c FROM \"Event\" WHERE day = DATE '1999-12-31'"),
+        json!(1)
+    );
+}

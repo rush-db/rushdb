@@ -1261,3 +1261,105 @@ async fn describing_a_statement_shows_only_what_the_policy_shows() {
         .unwrap_err();
     assert!(db_code(&error).starts_with("42501"), "{}", db_code(&error));
 }
+
+/// Typed values reach a PostgreSQL client as PostgreSQL's own types: a
+/// date as `date`, a time of day as `time`, a local date-time as
+/// `timestamp`, a datetime as `timestamptz` (in UTC), a duration as
+/// `interval` and a point as `point`, in both the text and binary formats.
+#[tokio::test]
+async fn typed_values_are_postgresql_types() {
+    let (http_port, port) = start_gateway(false, None, true);
+    put_record(
+        http_port,
+        None,
+        "EVENT",
+        &serde_json::json!({
+            "day": "2024-05-01",
+            "opens": "09:30:00.5",
+            "local": "2024-05-01T09:30:00",
+            "at": "2024-05-01T09:30:00+02:00",
+            "lasts": "P1DT2H",
+            "place": {"type": "Point", "coordinates": [13.4, 52.5]},
+        }),
+    );
+    let client = connect(port, "rushdb", "pgwire-token").await.unwrap();
+    let sql = "SELECT day, opens, local, at, lasts, place FROM \"EVENT\"";
+    let statement = client.prepare(sql).await.unwrap();
+    let types: Vec<&str> = statement
+        .columns()
+        .iter()
+        .map(|column| column.type_().name())
+        .collect();
+    assert_eq!(
+        types,
+        [
+            "date",
+            "time",
+            "timestamp",
+            "timestamptz",
+            "interval",
+            "point"
+        ]
+    );
+    // Binary: the client decodes each into its own type.
+    let row = client.query_one(&statement, &[]).await.unwrap();
+    assert_eq!(
+        row.get::<_, chrono::NaiveDate>("day"),
+        chrono::NaiveDate::from_ymd_opt(2024, 5, 1).unwrap()
+    );
+    assert_eq!(
+        row.get::<_, chrono::NaiveTime>("opens"),
+        chrono::NaiveTime::from_hms_milli_opt(9, 30, 0, 500).unwrap()
+    );
+    assert_eq!(
+        row.get::<_, chrono::NaiveDateTime>("local").to_string(),
+        "2024-05-01 09:30:00"
+    );
+    assert_eq!(
+        row.get::<_, chrono::DateTime<chrono::Utc>>("at")
+            .to_rfc3339(),
+        "2024-05-01T07:30:00+00:00"
+    );
+    // Text: PostgreSQL's own forms.
+    let messages = client.simple_query(sql).await.unwrap();
+    let row = messages
+        .iter()
+        .find_map(|message| match message {
+            SimpleQueryMessage::Row(row) => Some(row),
+            _ => None,
+        })
+        .unwrap();
+    assert_eq!(row.get("day"), Some("2024-05-01"));
+    assert_eq!(row.get("lasts"), Some("1 day 02:00:00"));
+    assert_eq!(row.get("place"), Some("(13.4,52.5)"));
+    assert_eq!(row.get("at"), Some("2024-05-01 07:30:00.000000+00"));
+    // The session's time zone writes timestamptz values at its offset.
+    client.batch_execute("SET TIME ZONE '+02'").await.unwrap();
+    let messages = client.simple_query(sql).await.unwrap();
+    let at = messages.iter().find_map(|message| match message {
+        SimpleQueryMessage::Row(row) => row.get("at").map(str::to_owned),
+        _ => None,
+    });
+    assert_eq!(at.as_deref(), Some("2024-05-01 09:30:00.000000+02"));
+    // Binary parameters of these types bind as their values.
+    let day = chrono::NaiveDate::from_ymd_opt(2024, 5, 1).unwrap();
+    let rows = client
+        .query(
+            "SELECT count(*) AS c FROM \"EVENT\" WHERE day = $1",
+            &[&day],
+        )
+        .await
+        .unwrap();
+    assert_eq!(rows[0].get::<_, i64>("c"), 1);
+    let before = chrono::DateTime::parse_from_rfc3339("2024-05-01T07:00:00Z")
+        .unwrap()
+        .with_timezone(&chrono::Utc);
+    let rows = client
+        .query(
+            "SELECT count(*) AS c FROM \"EVENT\" WHERE at > $1",
+            &[&before],
+        )
+        .await
+        .unwrap();
+    assert_eq!(rows[0].get::<_, i64>("c"), 1);
+}

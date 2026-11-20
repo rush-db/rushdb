@@ -652,7 +652,9 @@ pub fn coerce_value(value: Json, options: &ImportOptions) -> Option<FieldChange>
         // untypeable `Set(null)` that the planner would reject
         return Some(FieldChange::ExplicitNull);
     }
-    if options.suggest_types {
+    // A GeoJSON point is always a point (an object has no other form a
+    // property holds); text is typed by its form under `suggest_types`.
+    if options.suggest_types || is_geojson_points(&value) {
         if let Some(typed) = typed_value(&value) {
             return Some(FieldChange::Set(typed));
         }
@@ -909,7 +911,7 @@ pub fn serialize_bfs_owned(data: Json, label: &str, options: &ImportOptions) -> 
         };
 
         for (key, value) in value_obj {
-            if options.suggest_types && is_geojson_points(&value) {
+            if is_geojson_points(&value) {
                 // A GeoJSON point (or an array of them) is a value, not a
                 // nested record.
                 if let Some(change) = coerce_value(value, options) {

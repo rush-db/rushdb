@@ -163,7 +163,9 @@ fn typed_values_round_trip_through_every_surface() {
         );
     }
 
-    // SQL reads ISO 8601 text and PostgreSQL point text.
+    // SQL reads dates, times and timestamps as its own types (a datetime as
+    // a timestamptz, in UTC), durations as ISO 8601 text and points as
+    // PostgreSQL point text.
     let rows = statement(
         &node,
         "sql",
@@ -172,7 +174,7 @@ fn typed_values_round_trip_through_every_surface() {
     assert_eq!(
         rows[0],
         json!({"day": "2024-05-01", "opens": "09:30:00",
-            "at": "2024-05-01T09:30:00.000001+02:00", "lasts": "P1DT2H", "where": "(13.4,52.5)"}),
+            "at": "2024-05-01T07:30:00.000001Z", "lasts": "P1DT2H", "where": "(13.4,52.5)"}),
     );
 
     // Cypher reads Grafeo's typed values back in the same literal forms.

@@ -358,6 +358,11 @@ struct Writes<'a> {
     plan: &'a DmlPlan,
     label: String,
     insert_columns: Vec<String>,
+    /// The source query's column types, by column name.
+    sources: std::collections::HashMap<String, arrow::datatypes::DataType>,
+    /// The target table's typed columns (dates, times, timestamps,
+    /// durations), whose text values are read as their type.
+    targets: std::collections::HashMap<String, rushdb_types::model::LogicalType>,
     batch: BatchTx,
     seen: BTreeSet<String>,
     affected: u64,
@@ -385,6 +390,23 @@ impl Writes<'_> {
         }
     }
 
+    /// `value` of source column `source` as written to target `column`:
+    /// a typed source value (a date, time or timestamp column) stored as
+    /// its type, and text stored as the target column's type when it is
+    /// one of its values, as PostgreSQL casts a literal into a typed column.
+    fn stored(&self, value: Json, source: &str, column: &str) -> Json {
+        if let Some(data_type) = self.sources.get(source) {
+            if let Some(typed) = crate::typed_sql_value(&value, data_type) {
+                return typed;
+            }
+        }
+        match (self.targets.get(column), &value) {
+            (Some(ty), Json::String(_)) => rushdb_types::types::coerce_literal(*ty, &value)
+                .map_or(value, |scalar| rushdb_types::types::to_doc_json(&scalar)),
+            _ => value,
+        }
+    }
+
     fn row(&mut self, row: &Row, names: &[String]) -> Result<(), SqlError> {
         match self.plan.kind {
             DmlKind::Update => {
@@ -397,10 +419,13 @@ impl Writes<'_> {
                     .ok_or_else(|| SqlError::InvalidIdentity(format!("record `{id}` vanished")))?;
                 let mut fields = Vec::new();
                 for (i, column) in self.plan.columns.iter().enumerate() {
-                    let old = row.get(&format!("{OLD}{i}")).unwrap_or(&Json::Null);
-                    let new = row.get(&format!("{NEW}{i}")).unwrap_or(&Json::Null);
+                    let (old_name, new_name) = (format!("{OLD}{i}"), format!("{NEW}{i}"));
+                    let old = row.get(&old_name).cloned().unwrap_or(Json::Null);
+                    let new = row.get(&new_name).cloned().unwrap_or(Json::Null);
+                    let old = self.stored(old, &old_name, column);
+                    let new = self.stored(new, &new_name, column);
                     if old != new {
-                        fields.push((column.clone(), FieldChange::Set(new.clone())));
+                        fields.push((column.clone(), FieldChange::Set(new)));
                     }
                 }
                 if !fields.is_empty() {
@@ -434,6 +459,7 @@ impl Writes<'_> {
                 let mut fields = Vec::new();
                 for (name, column) in names.iter().zip(&self.insert_columns) {
                     let value = row.get(name).cloned().unwrap_or(Json::Null);
+                    let value = self.stored(value, name, column);
                     if column == ID_FIELD {
                         match value {
                             Json::String(value) => id = Some(canonical_uuid(&value)?),
@@ -496,20 +522,31 @@ pub(crate) async fn execute(
     let snapshot_version = snapshot.commit_index();
     let label = target_label(lmpg, &snapshot, &plan.target)?;
     let context = context_in_view(lmpg, &snapshot, text)?;
-    let insert_columns = if plan.kind == DmlKind::Insert && plan.columns.is_empty() {
-        let provider = context
-            .context
-            .table_provider(plan.target.as_str())
-            .await
-            .map_err(planning_error)?;
-        provider
-            .schema()
-            .fields()
-            .iter()
-            .map(|field| field.name().clone())
-            .collect()
-    } else {
-        plan.columns.clone()
+    // The target's schema, when the table exists (an INSERT may create the
+    // label).
+    let target = context.context.table_provider(plan.target.as_str()).await;
+    let all_columns = plan.kind == DmlKind::Insert && plan.columns.is_empty();
+    let (insert_columns, targets) = match target {
+        Ok(provider) => {
+            let schema = provider.schema();
+            let insert_columns = if all_columns {
+                schema
+                    .fields()
+                    .iter()
+                    .map(|field| field.name().clone())
+                    .collect()
+            } else {
+                plan.columns.clone()
+            };
+            let targets: std::collections::HashMap<_, _> = schema
+                .fields()
+                .iter()
+                .filter_map(|field| Some((field.name().clone(), crate::column_type(field)?)))
+                .collect();
+            (insert_columns, targets)
+        }
+        Err(error) if all_columns => return Err(planning_error(error)),
+        Err(_) => (plan.columns.clone(), std::collections::HashMap::new()),
     };
     let mut dataframe = context
         .context
@@ -524,6 +561,12 @@ pub(crate) async fn execute(
         .fields()
         .iter()
         .map(|field| field.name().clone())
+        .collect();
+    let sources = dataframe
+        .schema()
+        .fields()
+        .iter()
+        .map(|field| (field.name().clone(), field.data_type().clone()))
         .collect();
     if plan.kind == DmlKind::Insert && names.iter().collect::<BTreeSet<_>>().len() != names.len() {
         return Err(unsupported(
@@ -540,6 +583,8 @@ pub(crate) async fn execute(
         plan: &plan,
         label,
         insert_columns,
+        sources,
+        targets,
         batch: BatchTx { ops: Vec::new() },
         seen: BTreeSet::new(),
         affected: 0,

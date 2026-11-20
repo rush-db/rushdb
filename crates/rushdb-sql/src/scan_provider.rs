@@ -118,6 +118,7 @@ fn exact_conjuncts(filter: &Expr, columns: &HashMap<String, ColumnFacts>) -> Opt
         && conjuncts.iter().all(|(column, op, lit)| {
             column != ID_FIELD
                 && matches!(op, CmpOp::Eq | CmpOp::Gte | CmpOp::Lte)
+                && temporal_literal(lit).is_none()
                 && native_condition(column, *op, lit, columns).is_some()
         });
     exact.then_some(conjuncts)
@@ -133,6 +134,38 @@ const EXACT_F64_INTEGER: i64 = 1 << 53;
 )]
 fn exact_f64(i: i64) -> Option<f64> {
     (i.abs() <= EXACT_F64_INTEGER).then_some(i as f64)
+}
+
+/// A date, time or timestamp literal as the ISO 8601 text of its value and
+/// the property type that holds such values; `None` for other literals.
+fn temporal_literal(lit: &ScalarValue) -> Option<(LogicalType, String)> {
+    use rushdb_types::types::temporal::{
+        format_date, format_instant, format_local_datetime, format_local_time, Instant,
+    };
+    Some(match lit {
+        ScalarValue::Date32(Some(days)) => (LogicalType::Date, format_date(*days)),
+        ScalarValue::Time64Microsecond(Some(micros)) => {
+            (LogicalType::LocalTime, format_local_time(*micros))
+        }
+        ScalarValue::Time64Nanosecond(Some(nanos)) => {
+            (LogicalType::LocalTime, format_local_time(nanos / 1_000))
+        }
+        ScalarValue::TimestampMicrosecond(Some(micros), None) => {
+            (LogicalType::LocalDateTime, format_local_datetime(*micros))
+        }
+        ScalarValue::TimestampNanosecond(Some(nanos), None) => (
+            LogicalType::LocalDateTime,
+            format_local_datetime(nanos.div_euclid(1_000)),
+        ),
+        ScalarValue::TimestampMicrosecond(Some(micros), Some(_)) => {
+            (LogicalType::DateTime, format_instant(Instant::utc(*micros)))
+        }
+        ScalarValue::TimestampNanosecond(Some(nanos), Some(_)) => (
+            LogicalType::DateTime,
+            format_instant(Instant::utc(nanos.div_euclid(1_000))),
+        ),
+        _ => return None,
+    })
 }
 
 /// A pushed conjunct as a native predicate whose index candidates hold every
@@ -163,6 +196,20 @@ fn native_condition(
     };
     let name = rushdb_query::normalize(column);
     let field = |pred: FieldPred| Some(rushdb_query::Expr::Field(pred));
+    // A temporal literal against a column of its type: its ISO 8601 text,
+    // which the native predicate reads as a value of that type.
+    if let Some((ty, text)) = temporal_literal(lit) {
+        if !only(&[ty]) {
+            return None;
+        }
+        let text = Json::String(text);
+        return match op {
+            CmpOp::Eq => field(FieldPred::Eq(name, text)),
+            CmpOp::Gt | CmpOp::Gte => field(FieldPred::Gte(name, text)),
+            CmpOp::Lt | CmpOp::Lte => field(FieldPred::Lte(name, text)),
+            CmpOp::Ne => None,
+        };
+    }
     match lit {
         ScalarValue::Utf8(Some(text)) if op == CmpOp::Eq && only(&[LogicalType::Utf8]) => {
             field(FieldPred::Eq(name, Json::String(text.clone())))
@@ -358,6 +405,7 @@ fn label_columns(
     let mut first = Map::new();
     let mut extra: Vec<Json> = Vec::new();
     let mut columns: HashMap<String, ColumnFacts> = HashMap::new();
+    let mut types = crate::ColumnTypes::default();
     for (pid, _) in support {
         let definition = try_access::definition(snapshot, tenant, pid)?
             .ok_or(rushdb_storage::StorageError::CorruptLog)?;
@@ -387,6 +435,7 @@ fn label_columns(
         let facts = columns.entry(family.display_name.clone()).or_default();
         facts.types.push(definition.type_state);
         facts.array |= array;
+        types.add(&family.display_name, definition.type_state, array);
         if first.contains_key(&family.display_name) {
             let mut row = Map::new();
             row.insert(family.display_name, value);
@@ -399,7 +448,7 @@ fn label_columns(
     let schema =
         infer_json_schema_from_iterator(std::iter::once(Json::Object(first)).chain(extra).map(Ok))
             .map_err(|e| SqlError::Engine(e.to_string()))?;
-    Ok((schema, columns))
+    Ok((crate::typed_schema(&schema, &types), columns))
 }
 
 #[async_trait::async_trait]
@@ -1019,7 +1068,22 @@ pub(crate) fn batch_from_rows(
 ) -> std::result::Result<RecordBatch, datafusion::common::DataFusionError> {
     let mut ndjson = Vec::new();
     for row in rows {
-        serde_json::to_writer(&mut ndjson, &crate::sql_values(row))
+        let row = match row {
+            serde_json::Value::Object(object) => serde_json::Value::Object(
+                object
+                    .into_iter()
+                    .map(|(name, value)| {
+                        let value = match schema.field_with_name(&name) {
+                            Ok(field) => crate::sql_cell(value, field.data_type()),
+                            Err(_) => crate::sql_values(value),
+                        };
+                        (name, value)
+                    })
+                    .collect(),
+            ),
+            other => crate::sql_values(other),
+        };
+        serde_json::to_writer(&mut ndjson, &row)
             .map_err(|e| datafusion::common::DataFusionError::External(Box::new(e)))?;
         ndjson.push(b'\n');
         if ndjson.len() > MAX_BATCH_JSON_BYTES {
