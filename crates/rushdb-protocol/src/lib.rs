@@ -2933,6 +2933,22 @@ pub trait EnvelopeHandler: Send + Sync + 'static {
         scope: Option<String>,
     ) -> Result<ResponseEnvelope, ProtocolError>;
 
+    /// [`Self::execute`], with temporal values, durations and points left
+    /// in the engine's tagged form (`{"__date": "2024-05-01"}`) inside the
+    /// rows, for a transport that sends them as types of its own (Bolt's
+    /// structures). The default publishes them like [`Self::execute`].
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::execute`].
+    fn execute_typed(
+        &self,
+        envelope: RequestEnvelope,
+        scope: Option<String>,
+    ) -> Result<ResponseEnvelope, ProtocolError> {
+        self.execute(envelope, scope)
+    }
+
     /// The principal `credential` (a bearer token, a password) grants for
     /// `scope`, the tenant the caller asks for. Every transport asks here,
     /// so one rule, the server's, decides for all of them: the boot token

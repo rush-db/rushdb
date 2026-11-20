@@ -209,7 +209,11 @@ pub enum QueryLanguage {
 pub struct LanguageResult {
     /// Projected column names, in projection order.
     pub columns: Vec<String>,
-    /// One JSON object per result row, keyed by column name.
+    /// One JSON object per result row, keyed by column name. A temporal
+    /// value, duration or point is in its tagged form
+    /// (`rushdb_types::types::to_doc_json`): a transport publishes it
+    /// (`rushdb_types::types::doc_to_public`) or sends it as a type of its
+    /// own.
     pub rows: Vec<Json>,
     /// Optional engine status message (for example, a server-side notice).
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -490,7 +494,7 @@ fn execute_in_view_with_budget_cancellable_on_stack(
                 .cloned()
                 .unwrap_or_else(|| format!("column_{index}"));
             let value = result_value_to_json(snapshot, tenant, column_types.get(index), value)?;
-            object.insert(name, rushdb_types::types::doc_to_public(value));
+            object.insert(name, value);
         }
         let row = Json::Object(object);
         let row_bytes = serde_json::to_vec(&row)
@@ -768,13 +772,13 @@ fn execute_mutation_in_view_with_limits_on_stack(
                     .unwrap_or_else(|| format!("column_{index}"));
                 object.insert(
                     name,
-                    rushdb_types::types::doc_to_public(mutable_result_value_to_json(
+                    mutable_result_value_to_json(
                         store.as_ref(),
                         &node_id,
                         &edge_id,
                         column_types.get(index),
                         value,
-                    )),
+                    ),
                 );
             }
             Json::Object(object)
@@ -1050,7 +1054,7 @@ fn mutable_result_value_to_json(
                 })
                 .collect(),
         ),
-        (_, Value::Map(map)) => Json::Object(
+        (_, Value::Map(map)) => geojson_point_or(Json::Object(
             map.iter()
                 .map(|(key, item)| {
                     (
@@ -1065,7 +1069,7 @@ fn mutable_result_value_to_json(
                     )
                 })
                 .collect(),
-        ),
+        )),
         _ => value_to_json(value),
     }
 }
@@ -1149,7 +1153,7 @@ fn result_value_to_json(
                     .map(|item| (key.to_string(), item))
             })
             .collect::<Result<JsonMap<_, _>, _>>()
-            .map(Json::Object),
+            .map(|object| geojson_point_or(Json::Object(object))),
         _ => Ok(value_to_json(value)),
     }
 }
@@ -1261,6 +1265,15 @@ fn typed_value(value: &Json) -> Option<Value> {
     })
 }
 
+/// A map that is exactly a `GeoJSON` point as a point (Grafeo has no point
+/// type of its own); any other map as it is.
+fn geojson_point_or(object: Json) -> Json {
+    match rushdb_types::types::point::parse_geojson(&object) {
+        Some(point) => rushdb_types::types::to_doc_json(&rushdb_types::value::Scalar::Point(point)),
+        None => object,
+    }
+}
+
 /// A Grafeo value as a document value: JSON's own values, and the tagged
 /// form of `RushDB`'s typed values, so a write stores a date as a date.
 fn value_to_json(value: Value) -> Json {
@@ -1277,12 +1290,15 @@ fn value_to_json(value: Value) -> Json {
         Value::String(value) => Json::String(value.to_string()),
         Value::Bytes(value) => Json::Array(value.iter().copied().map(Json::from).collect()),
         Value::List(values) => Json::Array(values.iter().cloned().map(value_to_json).collect()),
-        Value::Map(values) => Json::Object(
-            values
-                .iter()
-                .map(|(key, value)| (key.to_string(), value_to_json(value.clone())))
-                .collect(),
-        ),
+        Value::Map(values) => {
+            let object = Json::Object(
+                values
+                    .iter()
+                    .map(|(key, value)| (key.to_string(), value_to_json(value.clone())))
+                    .collect(),
+            );
+            geojson_point_or(object)
+        }
         Value::Vector(values) => Json::Array(
             values
                 .iter()

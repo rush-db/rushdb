@@ -228,6 +228,9 @@ pub(crate) fn operation_kind(operation: &Operation) -> &'static str {
 /// itself; nothing reads an ambient thread-local scope anymore.
 pub struct ProtocolExecutor<'a> {
     node: crate::node::scope::RequestScope<'a>,
+    /// Leave typed values in rows in their tagged form (see
+    /// [`Self::with_typed_rows`]).
+    typed_rows: bool,
 }
 
 /// E3 `Range` mode extrema: numeric order for numbers, lexical order for
@@ -352,7 +355,18 @@ impl<'a> ProtocolExecutor<'a> {
     pub fn new(node: &'a Node, scope: Option<String>) -> Self {
         Self {
             node: crate::node::scope::RequestScope::new(node, scope),
+            typed_rows: false,
         }
+    }
+
+    /// Leave temporal values, durations and points in the rows a response
+    /// returns in the engine's tagged form, for a transport that sends them
+    /// as types of its own (Bolt); otherwise they are published as their
+    /// literals.
+    #[must_use]
+    pub fn with_typed_rows(mut self, typed: bool) -> Self {
+        self.typed_rows = typed;
+        self
     }
 
     /// Execute one request to completion, without cancellation.
@@ -397,6 +411,7 @@ impl<'a> ProtocolExecutor<'a> {
         let is_cancelled = || is_cancelled() || store.maintenance_aborted();
         ProtocolExecutor {
             node: self.node.clone().with_request_limits(limits),
+            typed_rows: self.typed_rows,
         }
         .execute_scoped(request, &is_cancelled)
     }
@@ -872,7 +887,9 @@ impl<'a> ProtocolExecutor<'a> {
                 .check_deadline()
                 .map_err(|error| execution_failed(error.to_string()))?;
         }
-        publish_rows(&mut response);
+        if !self.typed_rows {
+            publish_rows(&mut response);
+        }
         let mut encoded_bytes = serde_json::to_vec(&response).map_err(|error| {
             ProtocolError::new(
                 ErrorCode::ExecutionFailed,

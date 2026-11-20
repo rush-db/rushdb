@@ -416,7 +416,9 @@ impl Connection {
             ));
         }
         envelope.context.scope.clone_from(&target.scope);
-        let response = self.handler.execute(envelope, target.scope.clone())?;
+        // Typed rows: Bolt sends temporal values, durations and points as
+        // its own structures (`value::encode_value`).
+        let response = self.handler.execute_typed(envelope, target.scope.clone())?;
         serde_json::to_value(response.response)
             .map_err(|e| ProtocolError::new(ErrorCode::ExecutionFailed, e.to_string()))
     }
@@ -614,7 +616,20 @@ impl Connection {
             .and_then(Value::as_str)
             .ok_or("bolt: RUN needs a statement string")?
             .to_string();
-        let parameters = fields.get(1).cloned();
+        let parameters = match fields
+            .get(1)
+            .cloned()
+            .map(value::typed_parameter)
+            .transpose()
+        {
+            Ok(parameters) => parameters,
+            Err(message) => {
+                return Ok(vec![failure(
+                    "Neo.ClientError.Statement.TypeError",
+                    &message,
+                )]);
+            }
+        };
         // An auto-commit RUN runs in the tenant its `db` names; a RUN in a
         // transaction runs in the transaction's, and may not name another.
         let requested = extra_tenant(fields.get(2));

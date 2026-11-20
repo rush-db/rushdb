@@ -188,7 +188,20 @@ fn encode_int(i: i64, out: &mut Vec<u8>) {
 }
 
 /// Encode a single JSON value into `out` using Bolt packed-stream markers.
+/// A temporal value, duration or point in the engine's tagged form is sent
+/// as its Bolt structure ([`typed_struct`]).
 pub fn encode_value(value: &Value, out: &mut Vec<u8>) {
+    if let Some((tag, fields)) = typed_struct(value) {
+        encode_struct(tag, fields, out);
+        return;
+    }
+    // A struct as [`decode`] represents it encodes back as that struct.
+    if let (Some(tag), Some(Value::Object(map))) = (struct_tag(value), Some(value)) {
+        if map.len() == 2 && map.contains_key("__bolt_fields") {
+            encode_struct(tag, struct_fields(value), out);
+            return;
+        }
+    }
     match value {
         Value::Null => out.push(MARKER_NULL),
         Value::Bool(b) => out.push(if *b { MARKER_TRUE } else { MARKER_FALSE }),
@@ -206,6 +219,176 @@ pub fn encode_value(value: &Value, out: &mut Vec<u8>) {
         Value::Array(list) => encode_list(list, out),
         Value::Object(map) => encode_map(map, out),
     }
+}
+
+/// Bolt 5 structure tags of the temporal, duration and spatial types.
+pub mod tags {
+    /// `Date`: days since the epoch.
+    pub const DATE: u8 = b'D';
+    /// `Time`: nanoseconds since midnight and an offset (refused).
+    pub const TIME: u8 = b'T';
+    /// `LocalTime`: nanoseconds since midnight.
+    pub const LOCAL_TIME: u8 = b't';
+    /// `LocalDateTime`: seconds and nanoseconds of the wall clock.
+    pub const LOCAL_DATE_TIME: u8 = b'd';
+    /// `DateTime` (Bolt 5): UTC seconds, nanoseconds and the offset.
+    pub const DATE_TIME: u8 = b'I';
+    /// `DateTimeZoneId` (Bolt 5): UTC seconds, nanoseconds, a zone id.
+    pub const DATE_TIME_ZONE_ID: u8 = b'i';
+    /// `Duration`: months, days, seconds and nanoseconds.
+    pub const DURATION: u8 = b'E';
+    /// `Point2D`: SRID, x and y.
+    pub const POINT_2D: u8 = b'X';
+    /// `Point3D`: SRID, x, y and z.
+    pub const POINT_3D: u8 = b'Y';
+}
+
+/// The Bolt structure of a value in the engine's tagged form
+/// (`rushdb_types::types::to_doc_json`), as `(tag, fields)`; `None` for
+/// any other value.
+#[must_use]
+pub fn typed_struct(value: &Value) -> Option<(u8, Vec<Value>)> {
+    use rushdb_types::value::Scalar;
+    const MICROS: i64 = 1_000_000;
+    let split = |micros: i64| (micros.div_euclid(MICROS), micros.rem_euclid(MICROS) * 1_000);
+    Some(match rushdb_types::types::tagged_scalar(value)? {
+        Scalar::Date(days) => (tags::DATE, vec![Value::from(days)]),
+        Scalar::LocalTime(micros) => (tags::LOCAL_TIME, vec![Value::from(micros * 1_000)]),
+        Scalar::LocalDateTime(micros) => {
+            let (seconds, nanos) = split(micros);
+            (
+                tags::LOCAL_DATE_TIME,
+                vec![Value::from(seconds), Value::from(nanos)],
+            )
+        }
+        Scalar::DateTime(instant) => {
+            let (seconds, nanos) = split(instant.micros);
+            (
+                tags::DATE_TIME,
+                vec![
+                    Value::from(seconds),
+                    Value::from(nanos),
+                    Value::from(instant.offset),
+                ],
+            )
+        }
+        Scalar::Duration(duration) => (
+            tags::DURATION,
+            vec![
+                Value::from(duration.months),
+                Value::from(duration.days),
+                Value::from(duration.micros / MICROS),
+                Value::from(duration.micros % MICROS * 1_000),
+            ],
+        ),
+        Scalar::Point(point) => {
+            let srid = Value::from(point.crs.srid());
+            match point.z {
+                None => (
+                    tags::POINT_2D,
+                    vec![srid, Value::from(point.x), Value::from(point.y)],
+                ),
+                Some(z) => (
+                    tags::POINT_3D,
+                    vec![
+                        srid,
+                        Value::from(point.x),
+                        Value::from(point.y),
+                        Value::from(z),
+                    ],
+                ),
+            }
+        }
+        _ => return None,
+    })
+}
+
+/// A decoded value with every Bolt temporal, duration and spatial
+/// structure in it as the engine's tagged form, for a statement parameter.
+///
+/// # Errors
+///
+/// Returns a message for a structure the engine has no type for: a time of
+/// day with an offset (`Time`), a datetime in a named zone
+/// (`DateTimeZoneId`), or any other struct.
+pub fn typed_parameter(value: Value) -> Result<Value, String> {
+    use rushdb_types::types::{duration::Duration, point, temporal::Instant, to_doc_json};
+    use rushdb_types::value::Scalar;
+    let Some(tag) = struct_tag(&value) else {
+        return Ok(match value {
+            Value::Array(items) => Value::Array(
+                items
+                    .into_iter()
+                    .map(typed_parameter)
+                    .collect::<Result<_, _>>()?,
+            ),
+            Value::Object(map) => Value::Object(
+                map.into_iter()
+                    .map(|(key, value)| Ok((key, typed_parameter(value)?)))
+                    .collect::<Result<_, String>>()?,
+            ),
+            other => other,
+        });
+    };
+    let fields = struct_fields(&value);
+    let int = |at: usize| {
+        fields
+            .get(at)
+            .and_then(Value::as_i64)
+            .ok_or_else(|| format!("bolt: struct 0x{tag:02x} field {at} is not an integer"))
+    };
+    let float = |at: usize| {
+        fields
+            .get(at)
+            .and_then(Value::as_f64)
+            .ok_or_else(|| format!("bolt: struct 0x{tag:02x} field {at} is not a number"))
+    };
+    let micros = |seconds: i64, nanos: i64| {
+        seconds
+            .checked_mul(1_000_000)
+            .and_then(|micros| micros.checked_add(nanos.div_euclid(1_000)))
+            .ok_or_else(|| "bolt: temporal value out of range".to_owned())
+    };
+    let scalar = match tag {
+        tags::DATE => {
+            Scalar::Date(i32::try_from(int(0)?).map_err(|_| "bolt: date out of range".to_owned())?)
+        }
+        tags::LOCAL_TIME => Scalar::LocalTime(int(0)?.div_euclid(1_000)),
+        tags::LOCAL_DATE_TIME => Scalar::LocalDateTime(micros(int(0)?, int(1)?)?),
+        tags::DATE_TIME => Scalar::DateTime(Instant {
+            micros: micros(int(0)?, int(1)?)?,
+            offset: i32::try_from(int(2)?).map_err(|_| "bolt: offset out of range".to_owned())?,
+        }),
+        tags::DURATION => Scalar::Duration(Duration {
+            months: i32::try_from(int(0)?).map_err(|_| "bolt: duration out of range".to_owned())?,
+            days: i32::try_from(int(1)?).map_err(|_| "bolt: duration out of range".to_owned())?,
+            micros: micros(int(2)?, int(3)?)?,
+        }),
+        tags::POINT_2D | tags::POINT_3D => {
+            let crs = u32::try_from(int(0)?)
+                .ok()
+                .and_then(point::Crs::of_srid)
+                .ok_or_else(|| "bolt: point with an unknown SRID".to_owned())?;
+            let z = if tag == tags::POINT_3D {
+                Some(float(3)?)
+            } else {
+                None
+            };
+            Scalar::Point(
+                point::Point::new(crs, float(1)?, float(2)?, z)
+                    .ok_or_else(|| "bolt: point coordinates out of range".to_owned())?,
+            )
+        }
+        tags::TIME => return Err("bolt: a time of day with an offset is not supported".into()),
+        tags::DATE_TIME_ZONE_ID => {
+            return Err(
+                "bolt: a datetime in a named time zone is not supported; send it with an offset"
+                    .into(),
+            )
+        }
+        other => return Err(format!("bolt: struct 0x{other:02x} is not a value type")),
+    };
+    Ok(to_doc_json(&scalar))
 }
 
 // ---- decoding -------------------------------------------------------------

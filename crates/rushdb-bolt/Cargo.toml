@@ -16,6 +16,7 @@ rustls = { version = "0.23", default-features = false, features = ["ring", "std"
 rustls-pemfile = "2"
 rushdb-protocol = { workspace = true }
 rushdb-language = { workspace = true }
+rushdb-types = { workspace = true }
 serde_json = { workspace = true }
 
 [lints]

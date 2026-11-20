@@ -4183,6 +4183,7 @@ version = "3.0.13"
 dependencies = [
  "rushdb-language",
  "rushdb-protocol",
+ "rushdb-types",
  "rustls",
  "rustls-pemfile",
  "serde_json",
