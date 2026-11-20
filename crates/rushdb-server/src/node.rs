@@ -260,6 +260,10 @@ pub struct Node {
     maintenance_work: crate::lifecycle::MaintenanceWork,
     /// Wakes the index builder when an index is declared or dropped.
     index_build_wake: std::sync::Arc<tokio::sync::Notify>,
+    /// Wakes the text and structural appliers after a write, so an
+    /// `eventual` index takes it in milliseconds rather than at the next
+    /// tick.
+    index_apply_wake: std::sync::Arc<tokio::sync::Notify>,
 }
 
 impl Drop for Node {
@@ -447,6 +451,11 @@ impl Node {
     /// The index builder's wake-up signal (see `http::spawn_index_builder`).
     pub(crate) fn index_build_wake(&self) -> std::sync::Arc<tokio::sync::Notify> {
         std::sync::Arc::clone(&self.index_build_wake)
+    }
+
+    /// The index appliers' wake-up signal (see `http::spawn_index_applier`).
+    pub(crate) fn index_apply_wake(&self) -> std::sync::Arc<tokio::sync::Notify> {
+        std::sync::Arc::clone(&self.index_apply_wake)
     }
 
     /// Request this follower stop replicating and accept local writes.
@@ -662,6 +671,7 @@ impl Node {
             follower_stop_requested: std::sync::atomic::AtomicBool::new(false),
             maintenance_work: crate::lifecycle::MaintenanceWork::default(),
             index_build_wake: std::sync::Arc::default(),
+            index_apply_wake: std::sync::Arc::default(),
         };
         // Rewrite rows earlier releases stored in an older form before any
         // reader sees them. A follower receives the leader's rewrites.

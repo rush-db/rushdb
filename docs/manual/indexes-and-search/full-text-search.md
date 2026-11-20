@@ -93,7 +93,7 @@ took its snapshot stays queued, so no update is lost.
 
 | `consistency` | When a search sees a committed write | Cost |
 |---|---|---|
-| `eventual` (default) | After the background applier processes it. The applier runs continuously with a linger of at most 250 ms. | Writes and searches never wait for indexing. |
+| `eventual` (default) | After the background applier processes it: each write wakes the applier, so a small write is searchable within milliseconds (otherwise it runs every 250 ms). A search sent at the same moment can still miss it and says so in `pending`. | Writes and searches never wait for indexing. |
 | `immediate` | Always: a search first applies every queued change up to its snapshot (read-your-writes). | The first search after a burst of writes pays for indexing them. |
 
 > **Note:** An `immediate` search applies at most 32,768 queued changes

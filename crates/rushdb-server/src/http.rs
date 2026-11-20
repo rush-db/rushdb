@@ -919,11 +919,17 @@ pub(crate) fn spawn_index_applier(
     node: std::sync::Weak<Node>,
     period: std::time::Duration,
 ) -> tokio::task::JoinHandle<()> {
+    let wake = node.upgrade().map(|node| node.index_apply_wake());
     tokio::spawn(async move {
+        let Some(wake) = wake else { return };
         let mut interval = tokio::time::interval(period);
         interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
         loop {
-            interval.tick().await;
+            // A write wakes it; the tick catches anything else.
+            tokio::select! {
+                () = wake.notified() => {}
+                _ = interval.tick() => {}
+            }
             let Some(node) = node.upgrade() else {
                 break;
             };

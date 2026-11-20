@@ -459,6 +459,7 @@ impl<'a> ProtocolExecutor<'a> {
         // without a second measurement channel.
         let started = std::time::Instant::now();
         let operation = operation_label(&request.operation);
+        let wakes_appliers = is_write(&request.operation);
         self.validate_scope(request.context.scope.as_deref())?;
         // Rollback is cleanup. It must remain available when the ordinary
         // query phase pool is exhausted, so do not admit it through an
@@ -972,6 +973,9 @@ impl<'a> ProtocolExecutor<'a> {
                 .map_err(|error| execution_failed(error.to_string()))?;
         }
         observe_response_work(&self.node, operation, &response, encoded_bytes.len());
+        if wakes_appliers {
+            self.node.index_apply_wake().notify_one();
+        }
         Ok(Encoded {
             envelope: ResponseEnvelope {
                 protocol_version: PROTOCOL_VERSION,

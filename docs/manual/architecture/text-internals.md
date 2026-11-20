@@ -68,7 +68,7 @@ flowchart LR
 
 ## The applier
 
-The text applier runs every 250 ms. For each tenant that has text indexes,
+The text applier runs when a write commits, and every 250 ms. For each tenant that has text indexes,
 and within a time budget per round, it applies pending changes in batches
 of up to 512 records:
 

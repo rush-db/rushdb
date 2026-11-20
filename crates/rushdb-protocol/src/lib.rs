@@ -1621,7 +1621,7 @@ pub struct IndexDefinition {
     #[serde(default = "IndexDefinition::default_kind")]
     pub kind: String,
     /// Text indexes only: `eventual` (default; searches see what the applier
-    /// has indexed, typically within 250 ms) or `immediate` (read-your-writes).
+    /// has indexed, within milliseconds of a write) or `immediate` (read-your-writes).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub consistency: Option<String>,
     /// Structural indexes only: vector dimensions (8..=4096).
