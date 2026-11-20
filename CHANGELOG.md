@@ -128,7 +128,11 @@ in [`docs/manual/operations/upgrading-from-2x.md`](docs/manual/operations/upgrad
 - **Unindexed listing filters read resident columns** (L8). A listing
   filtered on properties no index covers is answered from the resident
   columns of those properties once they are built, instead of reading
-  every holder's values.
+  every holder's values. On 200,000 records, a filter on one or two
+  low-cardinality properties lists its first page in about 3 ms instead of
+  26–36 ms (median, measured in both orders against 3.0.13). A filter over
+  a property with very many distinct values (a numeric range over 100,000
+  values) is answered as before.
 
 ### Fixed
 
