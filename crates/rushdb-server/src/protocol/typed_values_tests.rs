@@ -438,6 +438,10 @@ fn sql_inserts_store_typed_literals_as_their_types() {
 /// and answers with warnings saying what it most likely meant; `strict`
 /// refuses it; `off` and a query without misses add nothing.
 #[test]
+#[expect(
+    clippy::too_many_lines,
+    reason = "every surface checked over one fixture"
+)]
 fn queries_answer_with_warnings_for_names_and_values_no_record_holds() {
     let node = node();
     for (name, city) in [("Ada", "Berlin"), ("Grace", "Paris")] {
@@ -530,6 +534,23 @@ fn queries_answer_with_warnings_for_names_and_values_no_record_holds() {
         mongo.warnings[0].kind,
         rushdb_protocol::QueryWarningKind::UnknownValue
     );
+    // SQL: texts compared by equality, placed by table and alias.
+    for sql in [
+        "SELECT name FROM \"Person\" WHERE city = 'berlin'",
+        "SELECT p.name FROM \"Person\" p WHERE p.city IN ('Paris', 'berlin')",
+    ] {
+        let request = json!({"protocolVersion": 1, "operation": {"kind": "query", "query": {
+            "kind": "statement", "language": "sql", "statement": sql}}});
+        let answered = crate::protocol::ProtocolExecutor::new(&node, None)
+            .execute(serde_json::from_value(request).unwrap())
+            .unwrap();
+        assert_eq!(answered.warnings.len(), 1, "{sql}: {:?}", answered.warnings);
+        assert_eq!(
+            answered.warnings[0].value.as_deref(),
+            Some("berlin"),
+            "{sql}"
+        );
+    }
     // The text stored in another label's property is suggested there.
     let venue = envelope(json!({"predicate": {"city": "berlin"}}), None).unwrap();
     assert!(

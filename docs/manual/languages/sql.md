@@ -109,6 +109,11 @@ wire, a date before year 1 is written in text as a signed ISO 8601 year
 (`-0043-03-15`) where PostgreSQL writes `0044-03-15 BC`; binary results
 carry the exact value.
 
+A read that compares a column with a text no row of that table holds
+(`WHERE city = 'berlin'` when the stored value is `Berlin`) still runs, and
+the response carries `warnings` with the stored spelling and the columns
+that do hold the text; see [Catalog check](../query/search-queries.md#catalog-check).
+
 ## Reading data
 
 DataFusion provides the full `SELECT` surface: filtering, projection, joins,

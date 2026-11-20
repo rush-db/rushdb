@@ -35,6 +35,8 @@ use serde_json::Value as Json;
 pub type Row = serde_json::Map<String, Json>;
 
 mod checked_sum;
+/// CHK-1: the texts a statement compares columns with by equality.
+pub mod compared_texts;
 mod distinct_topk;
 mod dml;
 mod edge_provider;

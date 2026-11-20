@@ -26,17 +26,30 @@ impl ProtocolExecutor<'_> {
         access: &CatalogAccess,
         is_cancelled: &dyn Fn() -> bool,
     ) -> Result<Vec<QueryWarning>, ProtocolError> {
-        let Some((labels, clause)) = checked_parts(operation) else {
-            return Ok(Vec::new());
-        };
         let view = std::sync::Arc::clone(context.read_view());
-        let misses = rushdb_query::catalog_check::check_search(
-            view.as_ref(),
-            context.tenant(),
-            &labels,
-            clause.as_ref(),
-        )
-        .map_err(|error| execution_failed(error.to_string()))?;
+        let checked = match operation {
+            Operation::Query {
+                query:
+                    Query::Statement {
+                        language: StatementLanguage::Sql,
+                        statement,
+                        ..
+                    },
+            } => sql_parts(&view, context.tenant(), statement)?,
+            _ => checked_parts(operation).into_iter().collect(),
+        };
+        let mut misses = Vec::new();
+        for (labels, clause) in checked {
+            misses.extend(
+                rushdb_query::catalog_check::check_search(
+                    view.as_ref(),
+                    context.tenant(),
+                    &labels,
+                    clause.as_ref(),
+                )
+                .map_err(|error| execution_failed(error.to_string()))?,
+            );
+        }
         misses
             .into_iter()
             .map(|miss| self.warning(miss, context, access, is_cancelled))
@@ -182,6 +195,56 @@ fn suggestion(
         value,
         reason: reason.to_owned(),
     }
+}
+
+/// Labels and the filter clause to check against them.
+type Checked = Vec<(Vec<String>, Option<serde_json::Value>)>;
+
+/// The labels and texts a SQL statement compares by equality, one clause
+/// per table that names a stored label (a table that names none fails
+/// planning on its own).
+fn sql_parts(
+    view: &rushdb_storage::ReadView,
+    tenant: rushdb_types::ids::TenantId,
+    sql: &str,
+) -> Result<Checked, ProtocolError> {
+    let texts = rushdb_sql::compared_texts::compared_texts(sql);
+    if texts.is_empty() {
+        return Ok(Vec::new());
+    }
+    let stored = rushdb_lmpg::reader::try_access::labels(view, tenant)
+        .map_err(|error| execution_failed(error.to_string()))?;
+    let mut by_label: std::collections::BTreeMap<
+        String,
+        serde_json::Map<String, serde_json::Value>,
+    > = std::collections::BTreeMap::new();
+    for text in texts {
+        // As a SELECT resolves a table: the label of that spelling, else the
+        // first stored label equal to it ignoring case.
+        let Some(label) = stored
+            .iter()
+            .find(|label| **label == text.table)
+            .or_else(|| {
+                stored
+                    .iter()
+                    .find(|label| label.eq_ignore_ascii_case(&text.table))
+            })
+        else {
+            continue;
+        };
+        let values = by_label
+            .entry(label.clone())
+            .or_default()
+            .entry(text.column)
+            .or_insert_with(|| serde_json::json!({"$in": []}));
+        if let Some(list) = values["$in"].as_array_mut() {
+            list.push(text.value.into());
+        }
+    }
+    Ok(by_label
+        .into_iter()
+        .map(|(label, clause)| (vec![label], Some(serde_json::Value::Object(clause))))
+        .collect())
 }
 
 /// The labels and the filter clause a checked query names: a records or

@@ -285,8 +285,10 @@ checked. `context.check` chooses what happens:
 | `off` | No check. |
 
 The check reads one counter or dictionary row per name and text, and reads
-suggestions only for a miss. It covers records and property-values queries
-and Mongo statements (the collection and the filter). Under an enforced
+suggestions only for a miss. It covers records and property-values queries,
+Mongo statements (the collection and the filter) and SQL reads (texts
+compared with `=`, `<>`, `IN` or `NOT IN`, placed by table or alias;
+unknown tables and columns already fail with suggestions). Under an enforced
 data-access policy, suggestions list only what the policy lets the caller
 see.
 

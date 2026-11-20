@@ -101,8 +101,48 @@ in [`docs/manual/operations/upgrading-from-2x.md`](docs/manual/operations/upgrad
 - **Mongo Extended JSON dates**: `{"$date": ...}` (ISO 8601 text,
   `{"$numberLong": ...}` or epoch milliseconds) is a datetime in filters
   and writes.
+- **Unique indexes** (#148). `"kind": "unique"` (SQL `CREATE UNIQUE
+  INDEX`, Cypher `CREATE CONSTRAINT … REQUIRE n.p IS UNIQUE`, Mongo
+  `createIndex` with `"unique": true`) refuses a write that would give a
+  second record of the label a value: `409 conflict` with `details:
+  {label, property, recordId}` (not the value), `23505` over PostgreSQL,
+  `Neo.ClientError.Schema.ConstraintValidationFailed` over Bolt. Checked
+  in the commit, so of concurrent writers exactly one succeeds, on every
+  write path. Declaring one on data that repeats a value is refused.
+- **Catalog check** (CHK-1). Records and property-values queries, Mongo
+  statements and SQL reads are checked against the data before they run: a label,
+  property or compared text no record holds comes back in a new
+  `warnings` field of the response, with what the query most likely meant
+  (stored spelling, the property that stores the text, similar names).
+  `context.check: "strict"` refuses such a query (`invalid_request`, the
+  warnings in the error's new `details`); `"off"` skips the check.
+- **Online compaction** (#427). A store file over
+  `compact-max-file-bytes` (1 GiB) is compacted while requests are served:
+  copied, caught up from the WAL and swapped in under a short hold.
+  Before, such a file was left to the offline `rushdb serve --compact`.
+- `scripts/prune-target.py` removes stale build output from a cargo target
+  directory.
+
+### Performance
+
+- **Unindexed listing filters read resident columns** (L8). A listing
+  filtered on properties no index covers is answered from the resident
+  columns of those properties once they are built, instead of reading
+  every holder's values.
 
 ### Fixed
+
+- **Requests and commits no longer fail when caches fill the memory
+  budget.** Request admission tokens and retained caches (an ANN build's
+  vector cache above all) could take the managed budget to its last byte;
+  every request was then refused with 429 and commits failed, an ingest
+  sometimes with its rollback failing too. They now leave headroom for
+  commits, a few tokens are reserved at start, commits wait briefly for
+  room, and admission is first in, first out. (Under a tight memory limit,
+  32 concurrent searches during a vector bind refused about a third of
+  searches and half the ingest batches; none now.)
+- **A keyword search right after a write finds it within milliseconds.**
+  The `eventual` text applier ran every 250 ms; a write now wakes it.
 
 - **The one-line installer no longer asks for a new shell after linking
   `rushdb`.** When it links `rushdb` into a directory already on `PATH`, it
