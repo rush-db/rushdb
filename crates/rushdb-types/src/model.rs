@@ -18,14 +18,7 @@ pub enum LogicalType {
 
 impl fmt::Display for LogicalType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let name = match self {
-            LogicalType::Boolean => "boolean",
-            LogicalType::Int64 => "int64",
-            LogicalType::Float64 => "float64",
-            LogicalType::Utf8 => "utf8",
-            LogicalType::DateTime => "datetime",
-        };
-        f.write_str(name)
+        f.write_str(self.name())
     }
 }
 

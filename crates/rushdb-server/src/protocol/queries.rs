@@ -42,12 +42,8 @@ fn value_matcher(search: &rushdb_protocol::ValueSearch) -> ValueMatcher {
 /// display type is always searched.
 fn display_type_may_match(search: &ValueMatcher, value_type: &str) -> bool {
     use rushdb_types::model::LogicalType;
-    match value_type {
-        "number" => search.may_match(LogicalType::Int64) || search.may_match(LogicalType::Float64),
-        "boolean" => search.may_match(LogicalType::Boolean),
-        "datetime" => search.may_match(LogicalType::DateTime),
-        _ => true,
-    }
+    let types = LogicalType::of_api_name(value_type);
+    types.is_empty() || types.into_iter().any(|ty| search.may_match(ty))
 }
 
 /// A `similar` search ranks by similarity, then by the count order already

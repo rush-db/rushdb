@@ -1543,15 +1543,8 @@ pub(crate) fn eval_pred(
             // expected logical type (datetime/string/number/boolean) matches
             // regardless of the reconstructed JSON shape
             if let Some(ty) = declared_type(name)? {
-                let name_of = |t: &rushdb_types::model::LogicalType| -> &'static str {
-                    match t {
-                        rushdb_types::model::LogicalType::Boolean => "boolean",
-                        rushdb_types::model::LogicalType::Int64
-                        | rushdb_types::model::LogicalType::Float64 => "number",
-                        rushdb_types::model::LogicalType::Utf8 => "string",
-                        rushdb_types::model::LogicalType::DateTime => "datetime",
-                    }
-                };
+                let name_of =
+                    |t: &rushdb_types::model::LogicalType| -> &'static str { t.api_name() };
                 if want_array {
                     // `$type: "string[]"`: value must be an array whose element
                     // type is `string` (baseline reports string[] for arrays).

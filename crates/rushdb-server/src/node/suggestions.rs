@@ -271,7 +271,7 @@ impl RequestScope<'_> {
         // each read their own values, range and distinct count.
         let types = logical_types_of(&column.value_type);
         let Some(domain) =
-            self.value_domain_of_types_in_view(view, &column.name, &scope, types, meter)?
+            self.value_domain_of_types_in_view(view, &column.name, &scope, &types, meter)?
         else {
             // The dictionary cannot answer for values too long for it: a
             // text column is counted from the long-value counters too, so
@@ -309,7 +309,7 @@ impl RequestScope<'_> {
                 view,
                 &column.name,
                 &scope,
-                types,
+                &types,
                 None,
                 meter,
             )?;
@@ -488,13 +488,6 @@ impl RequestScope<'_> {
 
 /// The stored logical types a catalog entry's type name covers (`number`
 /// covers both integers and floats).
-fn logical_types_of(value_type: &str) -> &'static [rushdb_types::model::LogicalType] {
-    use rushdb_types::model::LogicalType;
-    match value_type {
-        "number" => &[LogicalType::Int64, LogicalType::Float64],
-        "string" => &[LogicalType::Utf8],
-        "datetime" => &[LogicalType::DateTime],
-        "boolean" => &[LogicalType::Boolean],
-        _ => &[],
-    }
+fn logical_types_of(value_type: &str) -> Vec<rushdb_types::model::LogicalType> {
+    rushdb_types::model::LogicalType::of_api_name(value_type)
 }

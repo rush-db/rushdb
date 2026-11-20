@@ -129,11 +129,7 @@ fn range<R: TryRead>(
 ) -> Result<Option<OwnerSet>, QueryError> {
     let mut owners = OwnerSet::new();
     let above = matches!(op, RangeOp::Gt | RangeOp::Gte);
-    for ty in [
-        LogicalType::Int64,
-        LogicalType::Float64,
-        LogicalType::DateTime,
-    ] {
+    for ty in LogicalType::ALL.into_iter().filter(|ty| ty.rangeable()) {
         let tag = logical_tag(ty);
         // Bound the scan at the bound's encoding, rounded outward for the
         // integer domains; the exact comparison happens on each entry.

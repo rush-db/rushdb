@@ -92,13 +92,7 @@ pub fn explain_walk<R: TryRead>(
     let kind = rushdb_types::ids::OwnerKind::Record;
     let mut owners = 0u64;
     let mut walked_labels = std::collections::BTreeSet::new();
-    for ty in [
-        LogicalType::Utf8,
-        LogicalType::Int64,
-        LogicalType::Float64,
-        LogicalType::Boolean,
-        LogicalType::DateTime,
-    ] {
+    for ty in LogicalType::ALL {
         let Some(pid) = property_id(snap, tenant, fid, ty)? else {
             continue;
         };

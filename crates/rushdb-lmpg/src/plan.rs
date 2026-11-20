@@ -428,13 +428,7 @@ impl<'a> Planner<'a> {
 
     /// The family's first typed definition declared NOT NULL, if any.
     fn not_null_known(&mut self, fid: u64) -> Result<Option<PropertyDefinition>, PlanError> {
-        for ty in [
-            LogicalType::Boolean,
-            LogicalType::Int64,
-            LogicalType::Float64,
-            LogicalType::Utf8,
-            LogicalType::DateTime,
-        ] {
+        for ty in LogicalType::ALL {
             if let Some(def) = self.definition_exists(fid, TypeState::Known(ty))? {
                 if matches!(def.nullability, Nullability::NotNull) {
                     return Ok(Some(def));
@@ -540,14 +534,7 @@ impl<'a> Planner<'a> {
             // Created by this batch: nothing committed to delete.
             return Ok(());
         }
-        for ty_state in [
-            TypeState::Unresolved,
-            TypeState::Known(LogicalType::Boolean),
-            TypeState::Known(LogicalType::Int64),
-            TypeState::Known(LogicalType::Float64),
-            TypeState::Known(LogicalType::Utf8),
-            TypeState::Known(LogicalType::DateTime),
-        ] {
+        for ty_state in LogicalType::all_type_states() {
             if let Some(def) = self.definition_exists(family.family_id, ty_state)? {
                 self.stage_delete_owner_property(kind, owner_ord, def.property_id, None)?;
             }

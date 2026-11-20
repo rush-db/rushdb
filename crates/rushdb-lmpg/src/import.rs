@@ -1294,16 +1294,7 @@ impl MergeIndex {
             if !self.key_pids.contains_key(&norm) {
                 let mut found = Vec::new();
                 if let Some(fid) = family_id(snap, tenant, &norm)? {
-                    let states = std::iter::once(TypeState::Unresolved).chain(
-                        [
-                            LogicalType::Boolean,
-                            LogicalType::Int64,
-                            LogicalType::Float64,
-                            LogicalType::Utf8,
-                            LogicalType::DateTime,
-                        ]
-                        .map(TypeState::Known),
-                    );
+                    let states = LogicalType::all_type_states();
                     for state in states {
                         let raw =
                             snap.get(&kx::definition_key(tenant, fid, state))

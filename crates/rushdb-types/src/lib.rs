@@ -36,6 +36,8 @@ pub mod occurrence;
 pub mod security;
 /// Planner value-distribution summaries (estimates, never results).
 pub mod stats;
+/// The value type registry: names, tags and capabilities of each type.
+pub mod types;
 /// Scalar value model and JSON conversion helpers.
 pub mod value;
 /// Matching a search text against stored values.

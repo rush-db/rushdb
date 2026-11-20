@@ -114,13 +114,7 @@ impl RequestScope<'_> {
                 .map_err(|_| "corrupt family signature".to_string())?,
         );
         let mut out = Vec::new();
-        for ty in [
-            LogicalType::Int64,
-            LogicalType::Float64,
-            LogicalType::Utf8,
-            LogicalType::Boolean,
-            LogicalType::DateTime,
-        ] {
+        for ty in LogicalType::CATALOG_ORDER {
             let Some(pid_raw) = view
                 .get(&kx::definition_key(t, fid, TypeState::Known(ty)))
                 .map_err(|e| e.to_string())?
@@ -167,14 +161,8 @@ impl RequestScope<'_> {
                 .try_into()
                 .map_err(|_| "corrupt family signature".to_string())?,
         );
-        let states = [
-            TypeState::Unresolved,
-            TypeState::Known(LogicalType::Int64),
-            TypeState::Known(LogicalType::Float64),
-            TypeState::Known(LogicalType::Utf8),
-            TypeState::Known(LogicalType::Boolean),
-            TypeState::Known(LogicalType::DateTime),
-        ];
+        let states = std::iter::once(TypeState::Unresolved)
+            .chain(LogicalType::CATALOG_ORDER.map(TypeState::Known));
         for state in states {
             let Some(pid_raw) = view
                 .get(&kx::definition_key(t, fid, state))
@@ -283,7 +271,6 @@ impl RequestScope<'_> {
         types: &[rushdb_types::model::LogicalType],
         meter: &mut WorkingSet<'_>,
     ) -> Result<Option<ValueDomainIndex>, String> {
-        use rushdb_types::model::LogicalType;
         use rushdb_types::value::{scalar_cmp, scalar_to_json, Scalar};
         use std::cmp::Ordering;
         let Some(definitions) = self.scalar_definitions_of(view, property, types)? else {
@@ -327,7 +314,7 @@ impl RequestScope<'_> {
                 outcome = Ok(false);
                 break;
             }
-            let numeric = matches!(ty, LogicalType::Int64 | LogicalType::Float64);
+            let numeric = ty.numeric();
             if numeric {
                 any_numeric = true;
             } else {
@@ -405,7 +392,6 @@ impl RequestScope<'_> {
         label: &str,
         definitions: &[(rushdb_types::model::LogicalType, u64)],
     ) -> Result<Option<ValueDomainIndex>, String> {
-        use rushdb_types::model::LogicalType;
         let t = self.tenant();
         let mut held = Vec::new();
         for &(ty, pid) in definitions {
@@ -430,7 +416,7 @@ impl RequestScope<'_> {
                 .map_err(derived)?;
         let distinct = rushdb_lmpg::derived::label_distinct(view, t, OwnerKind::Record, label, pid)
             .map_err(derived)?;
-        let numeric = matches!(ty, LogicalType::Int64 | LogicalType::Float64);
+        let numeric = ty.numeric();
         let (mut min, mut max) = (None, None);
         if numeric {
             if let Some((first, last)) =
@@ -1461,12 +1447,11 @@ fn merge_number_definitions(
     entries: Vec<rushdb_protocol::PropertyDescription>,
     meta: &super::PropertyMetadata,
 ) -> Vec<rushdb_protocol::PropertyDescription> {
-    use rushdb_types::model::LogicalType;
     // Display name -> id of its first numeric definition.
     let canonical: std::collections::HashMap<&str, String> = meta
         .values()
         .flat_map(|defs| defs.iter())
-        .filter(|(_, _, _, logical)| matches!(logical, LogicalType::Int64 | LogicalType::Float64))
+        .filter(|(_, _, _, logical)| logical.numeric())
         .fold(
             std::collections::HashMap::new(),
             |mut first, (pid, name, _, _)| {

@@ -379,11 +379,7 @@ fn range_leaf_histogram_estimate<R: TryRead>(
         return Ok(None);
     };
     let above = matches!(op, RangeOp::Gt | RangeOp::Gte);
-    for ty in [
-        LogicalType::Int64,
-        LogicalType::Float64,
-        LogicalType::DateTime,
-    ] {
+    for ty in LogicalType::ALL.into_iter().filter(|ty| ty.rangeable()) {
         let Some(pid) = property_id(snap, tenant, fid, ty)? else {
             continue;
         };
@@ -743,11 +739,7 @@ fn owners_with_range<R: TryRead + Sync>(
         return Ok(Some(OwnerSet::new()));
     };
     let mut owners = OwnerSet::new();
-    for ty in [
-        LogicalType::Int64,
-        LogicalType::Float64,
-        LogicalType::DateTime,
-    ] {
+    for ty in LogicalType::ALL.into_iter().filter(|ty| ty.rangeable()) {
         let Some(pid) = property_id(snap, tenant, fid, ty)? else {
             continue;
         };
@@ -851,19 +843,7 @@ fn property_id<R: TryRead>(
 
 /// Every logical type state a property family may have definitions for.
 pub(super) fn all_type_states() -> Vec<TypeState> {
-    let mut states = vec![TypeState::Unresolved];
-    states.extend(
-        [
-            LogicalType::Boolean,
-            LogicalType::Int64,
-            LogicalType::Float64,
-            LogicalType::Utf8,
-            LogicalType::DateTime,
-        ]
-        .into_iter()
-        .map(TypeState::Known),
-    );
-    states
+    LogicalType::all_type_states()
 }
 
 /// Typed definitions `(pid)` of a property family, every type state.

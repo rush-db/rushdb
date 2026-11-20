@@ -561,13 +561,7 @@ fn typed_pids(
         .map(u64::from_be_bytes)
         .map_err(|_| StorageError::CorruptLog)?;
     let mut pids = Vec::new();
-    for ty in [
-        LogicalType::Boolean,
-        LogicalType::Int64,
-        LogicalType::Float64,
-        LogicalType::Utf8,
-        LogicalType::DateTime,
-    ] {
+    for ty in LogicalType::ALL {
         if let Some(raw) = get(&keys_ext::definition_key(t, fid, TypeState::Known(ty)))? {
             let pid = <[u8; 8]>::try_from(raw.as_slice())
                 .map(u64::from_be_bytes)

@@ -40,14 +40,7 @@ fn float_decode(b: &[u8]) -> f64 {
 /// Stable one-byte tag for a logical type used in encoded keys.
 #[must_use]
 pub fn logical_tag(ty: crate::model::LogicalType) -> u8 {
-    use crate::model::LogicalType::{Boolean, DateTime, Float64, Int64, Utf8};
-    match ty {
-        Boolean => 1,
-        Int64 => 2,
-        Float64 => 3,
-        Utf8 => 4,
-        DateTime => 5,
-    }
+    ty.tag()
 }
 
 /// Decode a logical type from its one-byte tag.
@@ -56,15 +49,7 @@ pub fn logical_tag(ty: crate::model::LogicalType) -> u8 {
 ///
 /// Returns [`TypesError::UnknownTypeTag`] if `tag` is not a known type tag.
 pub fn logical_from_tag(tag: u8) -> Result<crate::model::LogicalType, TypesError> {
-    use crate::model::LogicalType::{Boolean, DateTime, Float64, Int64, Utf8};
-    Ok(match tag {
-        1 => Boolean,
-        2 => Int64,
-        3 => Float64,
-        4 => Utf8,
-        5 => DateTime,
-        other => return Err(TypesError::UnknownTypeTag(other)),
-    })
+    crate::model::LogicalType::from_tag(tag).ok_or(TypesError::UnknownTypeTag(tag))
 }
 
 /// Encode a scalar with its logical type tag as a one-byte prefix.

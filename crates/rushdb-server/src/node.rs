@@ -1542,27 +1542,14 @@ fn bytes_from_hex(hex: &str) -> Result<[u8; 16], String> {
 }
 
 fn type_name_str(ty: rushdb_types::model::LogicalType) -> String {
-    match ty {
-        rushdb_types::model::LogicalType::Boolean => "boolean".to_string(),
-        rushdb_types::model::LogicalType::Int64 | rushdb_types::model::LogicalType::Float64 => {
-            "number".to_string()
-        }
-        rushdb_types::model::LogicalType::Utf8 => "string".to_string(),
-        rushdb_types::model::LogicalType::DateTime => "datetime".to_string(),
-    }
+    ty.api_name().to_string()
 }
 
 /// Canonical logical type name for E8 sibling flags. Unlike `type_name_str`
 /// (the display vocabulary, where int and float collapse to `number`), this
 /// preserves the exact split so an int/float coexistence is detectable.
 fn logical_type_name(ty: rushdb_types::model::LogicalType) -> String {
-    match ty {
-        rushdb_types::model::LogicalType::Boolean => "boolean".to_string(),
-        rushdb_types::model::LogicalType::Int64 => "int64".to_string(),
-        rushdb_types::model::LogicalType::Float64 => "float64".to_string(),
-        rushdb_types::model::LogicalType::Utf8 => "utf8".to_string(),
-        rushdb_types::model::LogicalType::DateTime => "datetime".to_string(),
-    }
+    ty.name().to_string()
 }
 
 fn schema_json_type(value: &serde_json::Value) -> String {
