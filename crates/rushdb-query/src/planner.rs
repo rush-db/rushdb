@@ -929,6 +929,30 @@ pub(super) fn all_type_states() -> Vec<TypeState> {
     LogicalType::all_type_states()
 }
 
+/// Typed definitions of a property family with their type states.
+pub(crate) fn typed_pids<R: TryRead>(
+    snap: &R,
+    tenant: rushdb_types::ids::TenantId,
+    fid: u64,
+) -> Result<Vec<(TypeState, u64)>, QueryError> {
+    use rushdb_lmpg::reader::keys_ext as kx;
+    let mut pids = Vec::new();
+    for state in all_type_states() {
+        let Some(raw) = snap.get(&kx::definition_key(tenant, fid, state))? else {
+            continue;
+        };
+        pids.push((
+            state,
+            u64::from_be_bytes(
+                raw.as_slice()
+                    .try_into()
+                    .map_err(|_| rushdb_storage::StorageError::CorruptLog)?,
+            ),
+        ));
+    }
+    Ok(pids)
+}
+
 /// Typed definitions `(pid)` of a property family, every type state.
 pub(crate) fn pids_of<R: TryRead>(
     snap: &R,

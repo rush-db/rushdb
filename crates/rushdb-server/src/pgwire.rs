@@ -903,6 +903,7 @@ fn run(
             deadline_ms: (timeout_ms > 0).then_some(timeout_ms),
             query_memory_max_bytes: session.query_memory_max_bytes,
             unindexed_walk_max_owners: session.unindexed_walk_max_owners,
+            check: None,
         },
         operation: if mutation.is_some() {
             Operation::Mutate {

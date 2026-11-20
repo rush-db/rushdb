@@ -433,3 +433,113 @@ fn sql_inserts_store_typed_literals_as_their_types() {
     assert_eq!(record["properties"]["at"], json!("2023-01-02T01:04:05Z"));
     assert_eq!(record["properties"]["starts"], json!("2023-01-02T08:00:00"));
 }
+
+/// CHK-1: a query naming a label, property or value no record holds runs
+/// and answers with warnings saying what it most likely meant; `strict`
+/// refuses it; `off` and a query without misses add nothing.
+#[test]
+fn queries_answer_with_warnings_for_names_and_values_no_record_holds() {
+    let node = node();
+    for (name, city) in [("Ada", "Berlin"), ("Grace", "Paris")] {
+        node.scope()
+            .create_record(
+                "Person",
+                &json!({"name": name, "city": city}),
+                &[],
+                &json!({}),
+            )
+            .unwrap();
+    }
+    node.scope()
+        .create_record("Venue", &json!({"town": "berlin"}), &[], &json!({}))
+        .unwrap();
+    let envelope = |query: Value, check: Option<&str>| {
+        let mut request = json!({"protocolVersion": 1,
+            "operation": {"kind": "query", "query": {"kind": "records", "query": query}}});
+        if let Some(check) = check {
+            request["context"] = json!({"check": check});
+        }
+        crate::protocol::ProtocolExecutor::new(&node, None)
+            .execute(serde_json::from_value(request).unwrap())
+            .map(|envelope| serde_json::to_value(envelope).unwrap())
+    };
+    // No miss: no `warnings` field.
+    let clean = envelope(
+        json!({"labels": ["Person"], "predicate": {"city": "Berlin"}}),
+        None,
+    )
+    .unwrap();
+    assert!(clean.get("warnings").is_none(), "{clean}");
+    // A value spelled otherwise, a property and a label that do not exist.
+    let warned = envelope(
+        json!({"labels": ["Person"], "predicate": {"city": "berlin", "nmae": "Ada"}}),
+        None,
+    )
+    .unwrap();
+    assert_eq!(warned["response"]["total"], json!(0), "{warned}");
+    let warnings = warned["warnings"].as_array().unwrap();
+    let value = warnings
+        .iter()
+        .find(|w| w["kind"] == "unknownValue")
+        .unwrap();
+    assert_eq!(value["value"], json!("berlin"));
+    assert!(
+        value["suggestions"]
+            .as_array()
+            .unwrap()
+            .contains(&json!({"value": "Berlin", "reason": "spelling"})),
+        "{value}"
+    );
+    let property = warnings
+        .iter()
+        .find(|w| w["kind"] == "unknownProperty")
+        .unwrap();
+    assert_eq!(property["property"], json!("nmae"));
+    assert_eq!(
+        property["suggestions"][0]["property"],
+        json!("name"),
+        "{property}"
+    );
+    let label = envelope(json!({"labels": ["Persn"]}), None).unwrap();
+    assert_eq!(
+        label["warnings"][0]["kind"],
+        json!("unknownLabel"),
+        "{label}"
+    );
+    assert_eq!(
+        label["warnings"][0]["suggestions"][0]["label"],
+        json!("Person")
+    );
+    // Strict refuses with the same warnings; off says nothing.
+    let refused = envelope(json!({"labels": ["Persn"]}), Some("strict")).unwrap_err();
+    assert_eq!(refused.code, rushdb_protocol::ErrorCode::InvalidRequest);
+    assert_eq!(
+        refused.details.unwrap()["warnings"][0]["label"],
+        json!("Persn")
+    );
+    let off = envelope(json!({"labels": ["Persn"]}), Some("off")).unwrap();
+    assert!(off.get("warnings").is_none(), "{off}");
+    // Mongo: the collection and the filter.
+    let request = json!({"protocolVersion": 1, "operation": {"kind": "query", "query": {
+        "kind": "statement", "language": "mongo",
+        "statement": r#"{"collection": "Person", "find": {"city": "berlin"}}"#}}});
+    let mongo = crate::protocol::ProtocolExecutor::new(&node, None)
+        .execute(serde_json::from_value(request).unwrap())
+        .unwrap();
+    assert_eq!(
+        mongo.warnings[0].kind,
+        rushdb_protocol::QueryWarningKind::UnknownValue
+    );
+    // The text stored in another label's property is suggested there.
+    let venue = envelope(json!({"predicate": {"city": "berlin"}}), None).unwrap();
+    assert!(
+        venue["warnings"][0]["suggestions"]
+            .as_array()
+            .unwrap()
+            .contains(
+                &json!({"label": "Venue", "property": "town", "value": "berlin",
+                "reason": "storedIn"})
+            ),
+        "{venue}"
+    );
+}

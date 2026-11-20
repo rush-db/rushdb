@@ -146,6 +146,7 @@ the boot token.
 | `context.deadlineMs` | Optional execution deadline in milliseconds; it may only shorten the server's `--request-timeout-ms`. |
 | `context.queryMemoryMaxBytes` | Optional working-memory cap of the request's queries (positive); it may only lower `query-memory-max`. |
 | `context.unindexedWalkMaxOwners` | Optional limit on the records a filter without a usable index may check; `0` refuses every such filter. It may only lower `unindexed-walk-max-owners`. See [request bounds](../architecture/resource-governance.md#request-bounds). |
+| `context.check` | Optional: `warn` (default), `strict` or `off`. See [Catalog check](../query/search-queries.md#catalog-check). |
 
 Successful responses carry `protocolVersion`, `requestId`, `serverTimingMs`
 and `response` (tagged by `kind`). Errors carry

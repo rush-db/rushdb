@@ -64,6 +64,8 @@ pub use planner::{
     unindexed_walks_total, UNINDEXED_WALK_THRESHOLD,
 };
 pub use property_predicate::{matches_properties, parse_property_predicate};
+/// CHK-1: what a query names that its snapshot does not hold.
+pub mod catalog_check;
 pub mod datetime;
 pub mod document;
 mod hex;

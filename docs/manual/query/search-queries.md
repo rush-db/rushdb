@@ -245,6 +245,51 @@ A request can make each of these bounds stricter with `context.deadlineMs`,
 A query without `limit` returns every match, so always set `limit` on
 listings whose size you do not control.
 
+## Catalog check
+
+Before a query runs, the server checks what it names against the data:
+every label in `labels` and in traversal blocks has records, every property
+in the predicate is carried by records of those labels, and every text
+compared by equality (a bare value, `$eq`, `$ne`, `$in`, `$nin`) is stored
+in that property. The query still runs; when something is missing, the
+response says so in `warnings`, with what the query most likely meant:
+
+```json
+{
+  "protocolVersion": 1,
+  "response": { "kind": "records", "records": [], "total": 0 },
+  "warnings": [
+    { "kind": "unknownValue", "labels": ["Person"], "property": "city", "value": "berlin",
+      "suggestions": [
+        { "value": "Berlin", "reason": "spelling" },
+        { "label": "Venue", "property": "town", "value": "berlin", "reason": "storedIn" }
+      ] }
+  ]
+}
+```
+
+| `kind` | Means | Suggestions |
+|---|---|---|
+| `unknownLabel` | No record carries `label`. | Labels spelled alike (`spelling`). |
+| `unknownProperty` | No record of `labels` carries `property`. | Properties spelled alike, with their label (`spelling`). |
+| `unknownValue` | No record of `labels` stores the text `value` in `property`. | The stored spelling (`spelling`, case ignored), other properties that store the text (`storedIn`), stored values containing it (`contains`). |
+
+A query without misses has no `warnings` field. Values compared as other
+types (numbers, dates, datetimes), and texts longer than 96 bytes, are not
+checked. `context.check` chooses what happens:
+
+| `context.check` | Behaviour |
+|---|---|
+| `warn` (default) | Run the query and return `warnings`. |
+| `strict` | Refuse a query with a miss before it runs: `invalid_request`, with the warnings in `error.details.warnings`. |
+| `off` | No check. |
+
+The check reads one counter or dictionary row per name and text, and reads
+suggestions only for a miss. It covers records and property-values queries
+and Mongo statements (the collection and the filter). Under an enforced
+data-access policy, suggestions list only what the policy lets the caller
+see.
+
 ## Explaining a query
 
 `describe.explain` takes the same document and reports the access path the

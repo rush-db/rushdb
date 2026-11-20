@@ -92,6 +92,7 @@ See [Authentication](authentication.md).
 | `context.deadlineMs` | no | Execution deadline in milliseconds. It may only shorten the server's `--request-timeout-ms`. |
 | `context.queryMemoryMaxBytes` | no | Working-memory cap of this request's queries, in bytes (positive). It may only lower `query-memory-max`. |
 | `context.unindexedWalkMaxOwners` | no | Refuse a filter without a usable index that would check more records than this; `0` refuses every such filter. It may only lower `unindexed-walk-max-owners`. See [request bounds](../architecture/resource-governance.md#request-bounds). |
+| `context.check` | no | `warn` (default), `strict` or `off`: how a query's labels, properties and values are checked against the data. See [Catalog check](../query/search-queries.md#catalog-check). |
 | `operation` | yes | The operation, tagged by `kind`. |
 
 Envelopes are strict where it matters: the native query document rejects
@@ -152,6 +153,7 @@ A successful request returns HTTP 200:
 | `requestId` | Echoed from the request when supplied. |
 | `serverTimingMs` | Server-side execution time. Informational only. |
 | `response` | The result, tagged by `kind`. |
+| `warnings` | Present when the query names a label, property or value no record holds, with suggestions. See [Catalog check](../query/search-queries.md#catalog-check). |
 
 Common `response.kind` values:
 

@@ -1,6 +1,7 @@
 //! Transport-independent execution of `rushdb-protocol` operations.
 
 mod capabilities;
+mod catalog_check;
 mod csv;
 mod errors;
 mod index_ddl;
@@ -503,6 +504,7 @@ impl<'a> ProtocolExecutor<'a> {
                         started.elapsed().as_millis().min(u128::from(u64::MAX)) as u64
                     ),
                     response,
+                    warnings: Vec::new(),
                 },
                 response_json: encoded_bytes,
             });
@@ -585,6 +587,25 @@ impl<'a> ProtocolExecutor<'a> {
                 ErrorCode::Unavailable,
                 "this node is a streaming-replication follower; writes must go to the leader",
             ));
+        }
+        // CHK-1: what the query names that the catalog does not hold.
+        let check = request.context.check.unwrap_or_default();
+        let warnings = if check == rushdb_protocol::CheckMode::Off {
+            Vec::new()
+        } else {
+            self.catalog_warnings(
+                &request.operation,
+                &mut execution_context,
+                &catalog_access,
+                is_cancelled,
+            )?
+        };
+        if check == rushdb_protocol::CheckMode::Strict && !warnings.is_empty() {
+            return Err(ProtocolError::new(
+                ErrorCode::InvalidRequest,
+                "the query names labels, properties or values that no record holds",
+            )
+            .with_details(serde_json::json!({ "warnings": warnings })));
         }
         let cancellable = matches!(
             &request.operation,
@@ -959,6 +980,7 @@ impl<'a> ProtocolExecutor<'a> {
                     started.elapsed().as_millis().min(u128::from(u64::MAX)) as u64
                 ),
                 response,
+                warnings,
             },
             response_json: encoded_bytes,
         })
