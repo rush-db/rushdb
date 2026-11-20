@@ -20,8 +20,17 @@ pub(crate) fn hit(point: &str) {
     }
 }
 
+/// One `kill` helper per process; see [`kill`].
+static KILLING: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
 /// SIGKILL this process: no unwinding, no destructors, no clean close.
+///
+/// Only the first caller spawns the helper; a later one waits here to be
+/// killed. A second helper spawned while the first kills this process holds
+/// copies of its files (the store's lock among them) until it execs, so the
+/// parent could see the exit and still find the store locked.
 pub(crate) fn kill() -> ! {
+    let _only = KILLING.lock();
     let _ = std::process::Command::new("kill")
         .args(["-KILL", &std::process::id().to_string()])
         .status();
