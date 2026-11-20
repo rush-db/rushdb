@@ -90,6 +90,7 @@ impl ProtocolExecutor<'_> {
     ) -> Result<Response, ProtocolError> {
         let (kind, consistency) = match kind {
             DdlKind::Ordered => ("ordered", None),
+            DdlKind::Unique => ("unique", None),
             DdlKind::Fulltext { immediate: true } => ("text", Some("immediate".to_string())),
             DdlKind::Fulltext { immediate: false } => ("text", Some("eventual".to_string())),
         };

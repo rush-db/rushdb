@@ -43,6 +43,8 @@ pub mod reader;
 pub mod scrub;
 /// Tenant directory resolution and registration.
 pub mod tenancy;
+/// Unique indexes: value claims checked at commit (#148).
+pub mod unique;
 
 /// Fallible rebuilds that surface storage errors instead of panicking.
 pub mod reconstruct;

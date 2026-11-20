@@ -319,6 +319,9 @@ them with `mutate.statement` over Protocol v1:
 -- Ordered index: equality, IN, ranges, and prefix filters on one property
 CREATE INDEX item_price ON Item(price);
 
+-- Unique index: a second record of the label with the same value is refused
+CREATE UNIQUE INDEX user_email ON "User"(email);
+
 -- Full-text (BM25) index; IMMEDIATE makes searches read their own writes
 CREATE INDEX note_body ON Note(body) USING TEXT IMMEDIATE;
 

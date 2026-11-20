@@ -124,9 +124,9 @@ reject DDL sent through `query.statement`, except `SHOW INDEXES`.
 
 | Language | Create | Drop | List |
 |---|---|---|---|
-| Cypher / GQL | `CREATE INDEX [name] [IF NOT EXISTS] FOR (n:Label) ON (n.prop)` | `DROP INDEX name [IF EXISTS]` | `SHOW INDEXES` (or `SHOW INDEX`) |
-| SQL | `CREATE INDEX name ON Label(prop)` | `DROP INDEX name` | — |
-| Mongo | `{"createIndex": {"collection": "Label", "property": "prop", "name": "…"}}` | `{"dropIndex": {"name": "…"}}` | — |
+| Cypher / GQL | `CREATE INDEX [name] [IF NOT EXISTS] FOR (n:Label) ON (n.prop)`; unique: `CREATE CONSTRAINT [name] FOR (n:Label) REQUIRE n.prop IS UNIQUE` | `DROP INDEX name [IF EXISTS]` | `SHOW INDEXES` (or `SHOW INDEX`) |
+| SQL | `CREATE [UNIQUE] INDEX name ON Label(prop)` | `DROP INDEX name` | — |
+| Mongo | `{"createIndex": {"collection": "Label", "property": "prop", "name": "…"}}`, with `"unique": true` for a unique index | `{"dropIndex": {"name": "…"}}` | — |
 
 When Cypher/GQL or Mongo omit the name, it defaults to `<Label>_<prop>`.
 A Cypher/GQL `ON (...)` clause takes exactly one property; `ON (n.a, n.b)` is
@@ -153,6 +153,39 @@ curl -s http://127.0.0.1:3000/protocol/v1/execute \
 A statement DDL answers with a `statementMutation` response: `affected` is `1`
 when it changed the catalog and `0` when `IF NOT EXISTS` / `IF EXISTS` made it
 a no-op; `status` carries the index name on create.
+
+## Unique indexes
+
+`"kind": "unique"` declares an ordered index whose values are unique under
+its label: a write that would give a second record of the label a value
+another record of it holds is refused with `409 conflict`, and
+`error.details` names the label, the property and the record that holds the
+value (the value itself is never in the error):
+
+```json
+{"protocolVersion": 1, "error": {"code": "conflict", "retryable": false,
+  "message": "unique constraint conflict on `User`.`email`: record 0192f0c4-… holds the value",
+  "details": {"label": "User", "property": "email", "recordId": "0192f0c4-…"}}}
+```
+
+- The rule is checked in the commit that writes the value, one commit after
+  another, so of two concurrent writers of one value exactly one succeeds.
+  Every write path is covered: `putRecord`, transactions, ingest and nested
+  import, and SQL, Cypher, GQL, Gremlin and Mongo writes.
+- Values compare as filters do: an integer and the string `"5"` are
+  different values, two datetimes of one instant are one value. Records of
+  another label may hold the value. A record may hold a value twice in an
+  array.
+- Changing or deleting a value releases it for other records.
+- Declaring one on data that already repeats a value is refused with
+  `409 conflict`, naming records that hold repeated values. (A repeated
+  value longer than 96 bytes is found by the build instead, which then drops
+  the index.)
+- Over PostgreSQL the error is SQLSTATE `23505`; over Bolt
+  `Neo.ClientError.Schema.ConstraintValidationFailed`; over gRPC
+  `ALREADY_EXISTS`.
+
+It answers queries like any ordered index.
 
 ## List indexes
 

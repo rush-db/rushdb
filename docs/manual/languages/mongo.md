@@ -194,6 +194,7 @@ Send index commands with `mutate.statement`:
 | Command | Effect |
 |---|---|
 | `{"createIndex": {"collection": "C", "property": "p"}}` | Ordered index named `C_p` (or `name`). |
+| `{"createIndex": {"collection": "C", "property": "p", "unique": true}}` | Unique index: a second document of the collection with the value is refused (see [Unique indexes](../indexes-and-search/indexes.md#unique-indexes)). |
 | `{"createIndex": {"collection": "C", "property": "p", "kind": "text", "consistency": "immediate"}}` | Full-text index. `consistency` defaults to eventual. |
 | `{"createIndex": {"collection": "C", "property": "p", "dimensions": 768, "similarity": "cosine", "name": "c-p"}}` | Vector index (any document with `dimensions`). |
 | `{"dropIndex": {"name": "..."}}` | Drops a declared index of that name, otherwise a vector index. |

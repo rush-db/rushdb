@@ -1083,6 +1083,8 @@ mod bytecode;
 mod tests;
 #[cfg(test)]
 mod typed_values_tests;
+#[cfg(test)]
+mod unique_tests;
 
 #[cfg(test)]
 mod facet_tests;

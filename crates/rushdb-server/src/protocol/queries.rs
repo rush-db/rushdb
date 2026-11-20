@@ -393,6 +393,17 @@ impl ProtocolExecutor<'_> {
                 status: index.get("name").and_then(|v| v.as_str()).map(String::from),
             }));
         }
+        // CREATE UNIQUE INDEX: the same form, values unique under the label.
+        let unique_index = upper.starts_with("CREATE UNIQUE INDEX");
+        let (trimmed, upper) = if unique_index {
+            (
+                format!("CREATE{}", &trimmed["CREATE UNIQUE".len()..]),
+                format!("CREATE{}", &upper["CREATE UNIQUE".len()..]),
+            )
+        } else {
+            (trimmed.to_owned(), upper)
+        };
+        let trimmed = trimmed.as_str();
         if upper.starts_with("CREATE INDEX") {
             // CREATE INDEX <name> ON <label>(<property>): a declared ordered
             // index.
@@ -419,7 +430,9 @@ impl ProtocolExecutor<'_> {
             // `… USING TEXT [IMMEDIATE]` declares a full-text index.
             let tail = on_clause[close + 1..].trim().to_ascii_uppercase();
             let kind = match tail.as_str() {
+                "" if unique_index => rushdb_language::ddl::DdlKind::Unique,
                 "" => rushdb_language::ddl::DdlKind::Ordered,
+                _ if unique_index => return Err(malformed()),
                 "USING TEXT" => rushdb_language::ddl::DdlKind::Fulltext { immediate: false },
                 "USING TEXT IMMEDIATE" => {
                     rushdb_language::ddl::DdlKind::Fulltext { immediate: true }

@@ -25,6 +25,7 @@ fn describe(def: &IndexDef) -> serde_json::Value {
     });
     match def.kind {
         IndexKind::Ordered => {}
+        IndexKind::Unique => out["kind"] = "unique".into(),
         IndexKind::Text { consistency } => {
             out["kind"] = "text".into();
             out["consistency"] = match consistency {
@@ -75,7 +76,10 @@ fn kind_of(definition: &rushdb_protocol::IndexDefinition) -> Result<IndexKind, S
     }
     match (definition.kind.as_str(), definition.consistency.as_deref()) {
         ("ordered", None) => Ok(IndexKind::Ordered),
-        ("ordered", Some(_)) => Err("`consistency` applies to text indexes only".into()),
+        ("unique", None) => Ok(IndexKind::Unique),
+        ("ordered" | "unique", Some(_)) => {
+            Err("`consistency` applies to text indexes only".into())
+        }
         ("text", None | Some("eventual")) => Ok(IndexKind::Text {
             consistency: TextConsistency::Eventual,
         }),
@@ -86,7 +90,7 @@ fn kind_of(definition: &rushdb_protocol::IndexDefinition) -> Result<IndexKind, S
             "unknown text consistency `{other}`; use `immediate` or `eventual`"
         )),
         (other, _) => Err(format!(
-            "unsupported index kind `{other}`; declared indexes are `ordered`, `text` or `structural` (vector indexes use createVector)"
+            "unsupported index kind `{other}`; declared indexes are `ordered`, `unique`, `text` or `structural` (vector indexes use createVector)"
         )),
     }
 }

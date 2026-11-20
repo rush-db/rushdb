@@ -118,7 +118,14 @@ impl ProtocolExecutor<'_> {
                                 // `"kind": "text"` (optionally with
                                 // `"consistency": "immediate"`) declares a
                                 // full-text index.
+                                let unique = idx
+                                    .get("unique")
+                                    .and_then(serde_json::Value::as_bool)
+                                    .unwrap_or(false);
                                 let kind = match idx.get("kind").and_then(|v| v.as_str()) {
+                                    None | Some("ordered") if unique => {
+                                        rushdb_language::ddl::DdlKind::Unique
+                                    }
                                     None | Some("ordered") => {
                                         rushdb_language::ddl::DdlKind::Ordered
                                     }

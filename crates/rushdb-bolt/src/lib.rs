@@ -267,6 +267,10 @@ fn neo_code(error: &ProtocolError) -> &'static str {
             "Neo.ClientError.Security.Unauthorized"
         }
         ErrorCode::NotFound => "Neo.ClientError.Statement.EntityNotFound",
+        // A write of a value a unique index already holds, as Neo4j names it.
+        ErrorCode::Conflict if error.message.contains("unique constraint conflict") => {
+            "Neo.ClientError.Schema.ConstraintValidationFailed"
+        }
         ErrorCode::Conflict => "Neo.ClientError.Constraint.UniqueConstraintViolation",
         ErrorCode::WriteConflict => "Neo.TransientError.Transaction.DeadlockDetected",
         ErrorCode::Cancelled => "Neo.ClientError.Transaction.TransactionTerminated",

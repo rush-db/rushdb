@@ -108,12 +108,40 @@ pub(crate) fn execution_failed(error: impl ToString) -> ProtocolError {
     } else {
         message
     };
-    let error = ProtocolError::new(code, client_message);
+    let mut error = ProtocolError::new(code, client_message);
+    if let Some(details) = unique_conflict_details(&error.message) {
+        // Told from the conflict on, without the layers' prefixes.
+        if let Some(at) = error.message.find(rushdb_lmpg::unique::UNIQUE_CONFLICT) {
+            error.message.drain(..at);
+        }
+        error = error.with_details(details);
+    }
     if fixed_staging_limit {
         error.with_retryable(false)
     } else {
         error
     }
+}
+
+/// `{label, property, recordId}` of a unique-index conflict message
+/// (`unique constraint conflict on `L`.`p`: record <id> holds the value`).
+/// The value itself is never in it.
+fn unique_conflict_details(message: &str) -> Option<serde_json::Value> {
+    let rest = message
+        .split(rushdb_lmpg::unique::UNIQUE_CONFLICT)
+        .nth(1)?
+        .strip_prefix(" on `")?;
+    let (label, rest) = rest.split_once("`.`")?;
+    let (property, rest) = rest.split_once('`')?;
+    let mut details = serde_json::json!({"label": label, "property": property});
+    if let Some(record) = rest
+        .strip_prefix(": record ")
+        .and_then(|rest| rest.split_once(' '))
+        .map(|(id, _)| id)
+    {
+        details["recordId"] = record.into();
+    }
+    Some(details)
 }
 
 /// A text search's typed failure: the caller's own input (an unknown

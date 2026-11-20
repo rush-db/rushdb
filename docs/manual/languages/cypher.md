@@ -178,6 +178,7 @@ read.
 
 ```cypher
 CREATE INDEX [name] [IF NOT EXISTS] FOR (n:Label) ON (n.prop)
+CREATE CONSTRAINT [name] [IF NOT EXISTS] FOR (n:Label) REQUIRE n.prop IS UNIQUE
 CREATE FULLTEXT INDEX [name] [IF NOT EXISTS] FOR (n:Label) ON EACH [n.prop]
   [OPTIONS {indexConfig: {consistency: 'immediate'}}]
 DROP INDEX name [IF EXISTS]
