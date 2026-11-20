@@ -2062,17 +2062,22 @@ impl StagedKeys {
 }
 
 /// A key for values a merge key can match: numbers by their exact integer
-/// or float form, date strings by their epoch milliseconds (a date is stored
-/// as a datetime, and an integer probes datetimes), other strings and
-/// booleans as themselves. Arrays, objects and null are not looked up by
-/// value (`None`).
+/// or float form, date and datetime strings by their instant (a date probes
+/// datetimes at midnight UTC; a whole millisecond keys as the integer that
+/// probes it as epoch milliseconds), other strings and booleans as
+/// themselves. Arrays, objects and null are not looked up by value (`None`).
 fn staged_fingerprint(value: &Json) -> Option<String> {
     infer_scalar(value)?;
     Some(match value {
-        Json::String(s) => match rushdb_types::datetime::parse_datetime(s) {
-            Some(ms) => format!("i:{ms}"),
-            None => format!("s:{s}"),
-        },
+        Json::String(s) => {
+            match rushdb_types::types::coerce_literal(LogicalType::DateTime, value) {
+                Some(Scalar::DateTime(instant)) if instant.micros % 1_000 == 0 => {
+                    format!("i:{}", instant.micros / 1_000)
+                }
+                Some(Scalar::DateTime(instant)) => format!("t:{}", instant.micros),
+                _ => format!("s:{s}"),
+            }
+        }
         Json::Number(_) => canonical_key_repr(value),
         other => other.to_string(),
     })

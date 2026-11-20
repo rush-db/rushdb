@@ -1126,24 +1126,15 @@ impl RequestScope<'_> {
                     let (_, name) = null_only.iter().find(|(null_pid, _)| null_pid == pid)?;
                     (name.clone(), "null".to_string(), Vec::new())
                 };
-                // Datetimes are stored as epoch milliseconds, which order
-                // by instant; describe them as the records response renders
-                // them.
-                let render = |value: &serde_json::Value| match value.as_i64() {
-                    Some(ms) if value_type == "datetime" => {
-                        serde_json::Value::String(rushdb_types::datetime::ms_to_datetime_string(ms))
-                    }
-                    _ => value.clone(),
-                };
                 Some(rushdb_protocol::PropertyDescription {
                     id: Self::public_property_id(*pid),
                     records_count: s.records_count as u64,
                     label: Some(label.clone()),
                     is_array: s.is_array,
                     sibling_types,
-                    sample_values: s.samples.iter().map(render).collect(),
-                    min: s.min.as_ref().map(render),
-                    max: s.max.as_ref().map(render),
+                    sample_values: s.samples.clone(),
+                    min: s.min.clone(),
+                    max: s.max.clone(),
                     name,
                     value_type,
                 })

@@ -3192,7 +3192,8 @@
    "outcome": "fail"
   },
   "tck/features/clauses/with-orderBy/WithOrderBy1.feature::[14] Sort local times in descending order": {
-   "outcome": "pass"
+   "category": "temporal",
+   "outcome": "fail"
   },
   "tck/features/clauses/with-orderBy/WithOrderBy1.feature::[15] Sort times in ascending order": {
    "outcome": "pass"
@@ -3334,10 +3335,12 @@
    "outcome": "fail"
   },
   "tck/features/clauses/with-orderBy/WithOrderBy1.feature::[36] Sort by a local time variable projected from a node property in descending order #1": {
-   "outcome": "pass"
+   "category": "temporal",
+   "outcome": "fail"
   },
   "tck/features/clauses/with-orderBy/WithOrderBy1.feature::[36] Sort by a local time variable projected from a node property in descending order #2": {
-   "outcome": "pass"
+   "category": "temporal",
+   "outcome": "fail"
   },
   "tck/features/clauses/with-orderBy/WithOrderBy1.feature::[37] Sort by a time variable projected from a node property in ascending order #1": {
    "category": "temporal",
@@ -3499,24 +3502,19 @@
    "outcome": "pass"
   },
   "tck/features/clauses/with-orderBy/WithOrderBy2.feature::[11] Sort by a date expression in ascending order #1": {
-   "category": "temporal",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/with-orderBy/WithOrderBy2.feature::[11] Sort by a date expression in ascending order #2": {
-   "category": "temporal",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/with-orderBy/WithOrderBy2.feature::[11] Sort by a date expression in ascending order #3": {
-   "category": "temporal",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/with-orderBy/WithOrderBy2.feature::[12] Sort by a date expression in descending order #1": {
-   "category": "temporal",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/with-orderBy/WithOrderBy2.feature::[12] Sort by a date expression in descending order #2": {
-   "category": "temporal",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/with-orderBy/WithOrderBy2.feature::[13] Sort by a local time expression in ascending order #1": {
    "category": "temporal",
@@ -9511,7 +9509,8 @@
    "outcome": "fail"
   },
   "tck/features/expressions/temporal/Temporal1.feature::[12] Should construct duration #8": {
-   "outcome": "pass"
+   "category": "temporal",
+   "outcome": "fail"
   },
   "tck/features/expressions/temporal/Temporal1.feature::[12] Should construct duration #9": {
    "category": "temporal",
@@ -9746,7 +9745,8 @@
    "outcome": "fail"
   },
   "tck/features/expressions/temporal/Temporal1.feature::[5] Should construct local time #2": {
-   "outcome": "pass"
+   "category": "temporal",
+   "outcome": "fail"
   },
   "tck/features/expressions/temporal/Temporal1.feature::[5] Should construct local time #3": {
    "category": "temporal",
@@ -9927,8 +9927,7 @@
    "outcome": "fail"
   },
   "tck/features/expressions/temporal/Temporal1.feature::[7] Should construct local date time #6": {
-   "category": "temporal",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/temporal/Temporal1.feature::[7] Should construct local date time #7": {
    "category": "temporal",
@@ -10801,8 +10800,7 @@
    "outcome": "fail"
   },
   "tck/features/expressions/temporal/Temporal2.feature::[4] Should parse local date time from string #1": {
-   "category": "temporal",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/temporal/Temporal2.feature::[4] Should parse local date time from string #2": {
    "category": "temporal",
@@ -11220,7 +11218,8 @@
    "outcome": "fail"
   },
   "tck/features/expressions/temporal/Temporal3.feature::[2] Should select local time #1": {
-   "outcome": "pass"
+   "category": "temporal",
+   "outcome": "fail"
   },
   "tck/features/expressions/temporal/Temporal3.feature::[2] Should select local time #10": {
    "category": "temporal",
@@ -11928,12 +11927,10 @@
    "outcome": "pass"
   },
   "tck/features/expressions/temporal/Temporal8.feature::[1] Should add or subtract duration to or from date #1": {
-   "category": "temporal",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/temporal/Temporal8.feature::[1] Should add or subtract duration to or from date #2": {
-   "category": "temporal",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/temporal/Temporal8.feature::[1] Should add or subtract duration to or from date #3": {
    "category": "temporal",
@@ -11956,8 +11953,7 @@
    "outcome": "fail"
   },
   "tck/features/expressions/temporal/Temporal8.feature::[3] Should add or subtract duration to or from time #2": {
-   "category": "temporal",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/temporal/Temporal8.feature::[3] Should add or subtract duration to or from time #3": {
    "category": "temporal",
@@ -12004,8 +12000,7 @@
    "outcome": "fail"
   },
   "tck/features/expressions/temporal/Temporal8.feature::[6] Should add or subtract durations #5": {
-   "category": "temporal",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/temporal/Temporal8.feature::[6] Should add or subtract durations #6": {
    "category": "temporal",

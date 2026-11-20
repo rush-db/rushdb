@@ -12,8 +12,6 @@ pub mod command;
 /// Binary codec of [`command::CommitBatch`] for the WAL, outcome payloads
 /// and replication.
 pub mod command_codec;
-/// Canonical date/datetime parsing and formatting helpers.
-pub mod datetime;
 /// Order-preserving byte encodings for the scalar value model.
 pub mod encoding;
 /// Error type shared by the canonical type layer.

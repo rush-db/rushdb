@@ -247,7 +247,18 @@ fn values_range(
     if !values.iter().any(serde_json::Value::is_number) {
         let dated: Vec<(i64, &serde_json::Value)> = values
             .iter()
-            .filter_map(|v| Some((rushdb_types::datetime::parse_datetime(v.as_str()?)?, v)))
+            .filter_map(|v| {
+                v.as_str()?;
+                let rushdb_types::value::Scalar::DateTime(instant) =
+                    rushdb_types::types::coerce_literal(
+                        rushdb_types::model::LogicalType::DateTime,
+                        v,
+                    )?
+                else {
+                    return None;
+                };
+                Some((instant.micros, v))
+            })
             .collect();
         if !dated.is_empty() {
             let min = dated

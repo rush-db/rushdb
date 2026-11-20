@@ -320,7 +320,15 @@ impl RequestScope<'_> {
                     // By instant: rendered text does not order signed years.
                     let instants = ranked.iter().filter_map(|(value, _)| {
                         let text = value.as_str()?;
-                        Some((rushdb_types::datetime::parse_datetime(text)?, text))
+                        let rushdb_types::value::Scalar::DateTime(instant) =
+                            rushdb_types::types::coerce_literal(
+                                rushdb_types::model::LogicalType::DateTime,
+                                value,
+                            )?
+                        else {
+                            return None;
+                        };
+                        Some((instant.micros, text))
                     });
                     summary.min = instants
                         .clone()
