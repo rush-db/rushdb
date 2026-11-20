@@ -4,6 +4,15 @@ This project follows [Semantic Versioning](https://semver.org/). Release notes
 describe observable engine and protocol changes; migration instructions belong
 in [`docs/manual/operations/upgrading-from-2x.md`](docs/manual/operations/upgrading-from-2x.md).
 
+## Unreleased
+
+### Fixed
+
+- **The one-line installer no longer asks for a new shell after linking
+  `rushdb`.** When it links `rushdb` into a directory already on `PATH`, it
+  now says `rushdb` is ready in this shell; the `export PATH=...` hint is
+  printed only when no link was made.
+
 ## 3.0.13 — 2026-11-20
 
 ### Changed

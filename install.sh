@@ -172,8 +172,9 @@ add_to_path() {
   esac
   if ! grep -qs "# rushdb" "$profile"; then
     printf '\n%s\n' "$line" >>"$profile"
-    say "Added $1 to PATH in $profile."
+    say "Added $1 to PATH in $profile for new shells."
   fi
+  [ -z "$linked" ] || return 0
   say "Open a new shell, or run:"
   say "  $line"
 }
@@ -194,7 +195,7 @@ link_on_path() {
       fi
     fi
     ln -sf "$1/rushdb" "$dir/rushdb" || continue
-    say "Linked $dir/rushdb to it, so \`rushdb\` works in this shell too."
+    linked="$dir/rushdb"
     return 0
   done
 }
@@ -252,8 +253,12 @@ main() {
 
   installed="$("$install_dir/rushdb" --version 2>/dev/null)" || err "the installed rushdb does not run on this system"
   say "Installed $installed to $install_dir."
-  add_to_path "$install_dir"
+  linked=""
   link_on_path "$install_dir"
+  add_to_path "$install_dir"
+  if [ -n "$linked" ]; then
+    say "Linked $linked to $install_dir/rushdb: \`rushdb\` is ready in this shell."
+  fi
   say ""
   say "Start a local database:"
   say "  rushdb up"
