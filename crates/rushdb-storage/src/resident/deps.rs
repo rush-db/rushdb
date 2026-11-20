@@ -132,6 +132,8 @@ pub(crate) enum Family<'a> {
     IndexName,
     IndexEntry(u32),
     IndexPending,
+    /// A unique index's value claims (#148): read by commit expansion only.
+    UniqueClaim,
     UsageBytes,
     Rederive(&'a str),
     /// `meta/…` tenant rows (id allocators).
@@ -221,6 +223,7 @@ fn tenant_family(tenant: TenantId, key: &[u8]) -> Option<Family<'_>> {
         keys::F_INDEX_NAME => Family::IndexName,
         keys::F_INDEX_ENTRY => Family::IndexEntry(keys::parse_index_entry_index(key)?.1),
         keys::F_INDEX_PENDING => Family::IndexPending,
+        keys::F_UNIQUE_CLAIM => Family::UniqueClaim,
         keys::F_USAGE_BYTES => Family::UsageBytes,
         keys::F_REDERIVE => Family::Rederive(keys::parse_rederive_key(key)?.1),
         b'/' => segment_family(tenant, &key[at..])?,
@@ -316,7 +319,8 @@ pub(crate) fn deps_of_key(key: &[u8], mut out: impl FnMut(Dep)) {
         Family::UnknownGlobal => out(Dep::Global),
         // Read by no resident layer: record identity and headers (rows are
         // answered from occurrences and membership), id allocators, usage
-        // accounting, text-index work queues, embedding aliases (resolved
+        // accounting, text-index work queues, unique-index claims (read by
+        // commit expansion only), embedding aliases (resolved
         // per request, then keyed by space id), slot reclamation (slots
         // are never reused), migration progress, and commit bookkeeping.
         Family::RecordId
@@ -324,6 +328,7 @@ pub(crate) fn deps_of_key(key: &[u8], mut out: impl FnMut(Dep)) {
         | Family::UsageCounter
         | Family::IndexName
         | Family::IndexPending
+        | Family::UniqueClaim
         | Family::UsageBytes
         | Family::Meta
         | Family::EmbeddingAlias

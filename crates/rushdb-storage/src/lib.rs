@@ -40,19 +40,15 @@ pub mod open_repair;
 mod overlay_view;
 pub mod parallel;
 mod persist;
+mod phase;
 mod publish;
 mod read_view;
 mod receipt;
 mod redb_backend;
 pub mod resident;
 pub mod resources;
-
-/// The bytes a request's phase token reserves from the phase pool.
-pub const PHASE_TOKEN_BYTES: usize = 8 * 1024 * 1024;
-/// The phase pool's budget name.
-pub const PHASE_POOL_NAME: &str = "query-phases";
-/// Phase tokens reserved from the managed budget at open.
-const PHASE_FLOOR_TOKENS: usize = 4;
+use phase::PHASE_FLOOR_TOKENS;
+pub use phase::{PHASE_POOL_NAME, PHASE_TOKEN_BYTES};
 mod temp_path;
 pub mod tenant_dir;
 mod usage;
@@ -1082,34 +1078,6 @@ impl Store {
         self.start_materializers()
     }
 
-    /// Whether the store opened in the previous layout format (written by
-    /// 3.0.13 or before): its data migration must run before it serves, then
-    /// [`Self::complete_format_upgrade`] records the current format.
-    #[must_use]
-    pub fn format_migrating(&self) -> bool {
-        self.format_migrating.load(Ordering::SeqCst)
-    }
-
-    /// Record that the data migration to the current layout format
-    /// finished: the manifest names the current format, so the next start
-    /// neither migrates nor checks. A no-op for a store without a file or
-    /// already current.
-    ///
-    /// # Errors
-    /// Returns [`StorageError::Durability`] when the manifest cannot be
-    /// rewritten; the store stays migrating and the next start migrates again.
-    pub fn complete_format_upgrade(&self) -> Result<(), StorageError> {
-        if !self.format_migrating() {
-            return Ok(());
-        }
-        let path = self.health.cleanup(self.data_path.lock()).clone();
-        if let Some(path) = path {
-            layout::complete_format_upgrade(&path).map_err(StorageError::Durability)?;
-        }
-        self.format_migrating.store(false, Ordering::SeqCst);
-        Ok(())
-    }
-
     /// The durable backend for a physical shard, if this store has one.
     fn backend(&self, shard: usize) -> Option<Arc<dyn StorageBackend>> {
         self.health
@@ -1136,31 +1104,6 @@ impl Store {
     #[must_use]
     pub fn phase_budget(&self) -> Option<resources::ByteBudget> {
         self.phase_resources.clone()
-    }
-
-    /// FIFO admission to [`Self::phase_budget`]: a request waits here for
-    /// its phase token while the pool is full, instead of being refused.
-    #[must_use]
-    pub fn phase_admission(&self) -> Option<Arc<resources::FairAdmission>> {
-        self.phase_admission.clone()
-    }
-
-    /// Bytes of the managed budget the phase tokens reserved at open hold.
-    #[must_use]
-    pub fn phase_floor_bytes(&self) -> usize {
-        self.phase_floor
-            .as_ref()
-            .map_or(0, |(floor, _)| floor.bytes())
-    }
-
-    /// FIFO admission to the few phase tokens reserved at open, for a
-    /// request that finds the managed budget (not the phase pool) exhausted
-    /// by retained caches: some requests always make progress.
-    #[must_use]
-    pub fn phase_floor_admission(&self) -> Option<Arc<resources::FairAdmission>> {
-        self.phase_floor
-            .as_ref()
-            .map(|(_, admission)| Arc::clone(admission))
     }
 
     /// All open shard backends, in shard order.

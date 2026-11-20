@@ -533,6 +533,7 @@ fn family_samples() -> Vec<(&'static str, Vec<u8>)> {
         ("F_INDEX_NAME", keys::index_name_key(t, "by_fare")),
         ("F_INDEX_ENTRY", keys::index_entry_key(t, 2, b"e", 5)),
         ("F_INDEX_PENDING", keys::index_pending_key(t, 2, 5)),
+        ("F_UNIQUE_CLAIM", keys::unique_claim_key(t, 2, b"\x05value")),
         ("F_USAGE_BYTES", keys::usage_bytes_key(t)),
         ("F_REDERIVE", keys::rederive_key(t, "Trip")),
         ("P_META", keys::key(t, &[keys::P_META, b"alloc", b"x"])),

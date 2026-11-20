@@ -13,7 +13,8 @@ mod leaf_walk;
 mod leaf_walk_tests;
 pub(super) use expansion::{expansions, target_estimate};
 pub use explain::{explain_cardinality, explain_expansion, explain_walk};
-use leaf_walk::{each_presence_owner, owners_matching};
+pub(crate) use leaf_walk::typed_pids;
+use leaf_walk::{each_presence_owner, owners_matching, owners_within};
 
 /// Index-only candidate plan for a `where` conjunction. Eligible positive
 /// leaves (`field == scalar`, `field IN`, `$exists: true`, null, and numeric
@@ -774,41 +775,6 @@ fn owners_with_range<R: TryRead + Sync>(
     Ok(Some(owners))
 }
 
-/// Owners holding a point in `region`, walking the point property's
-/// holders when no index answers it.
-fn owners_within<R: TryRead + Sync>(
-    snap: &R,
-    tenant: rushdb_types::ids::TenantId,
-    name: &str,
-    region: &Json,
-    scope: &LeafScope<'_>,
-) -> Result<Option<OwnerSet>, QueryError> {
-    let region = crate::spatial::Region::parse(region).map_err(QueryError::InvalidPredicate)?;
-    let norm = normalize(name);
-    if norm.is_empty() || rushdb_types::value::is_reserved_name(&norm) {
-        return Ok(None);
-    }
-    let Some(fid) = family_id(snap, tenant, &norm)? else {
-        return Ok(Some(OwnerSet::new()));
-    };
-    let mut owners = OwnerSet::new();
-    let Some(pid) = property_id(snap, tenant, fid, LogicalType::Point)? else {
-        return Ok(Some(owners));
-    };
-    let keep = |occ: &access::Occurrence| {
-        matches!(
-            occ.value,
-            rushdb_types::occurrence::OccurrenceValue::Stored {
-                ty: LogicalType::Point
-            }
-        ) && rushdb_types::types::point::decode(&occ.payload).is_some_and(|at| region.contains(at))
-    };
-    if !owners_matching(snap, tenant, pid, scope, &mut owners, &keep)? {
-        return Ok(None);
-    }
-    Ok(Some(owners))
-}
-
 #[derive(Clone, Copy)]
 pub(super) enum RangeOp {
     Gt,
@@ -939,30 +905,6 @@ fn property_id<R: TryRead>(
 /// Every logical type state a property family may have definitions for.
 pub(super) fn all_type_states() -> Vec<TypeState> {
     LogicalType::all_type_states()
-}
-
-/// Typed definitions of a property family with their type states.
-pub(crate) fn typed_pids<R: TryRead>(
-    snap: &R,
-    tenant: rushdb_types::ids::TenantId,
-    fid: u64,
-) -> Result<Vec<(TypeState, u64)>, QueryError> {
-    use rushdb_lmpg::reader::keys_ext as kx;
-    let mut pids = Vec::new();
-    for state in all_type_states() {
-        let Some(raw) = snap.get(&kx::definition_key(tenant, fid, state))? else {
-            continue;
-        };
-        pids.push((
-            state,
-            u64::from_be_bytes(
-                raw.as_slice()
-                    .try_into()
-                    .map_err(|_| rushdb_storage::StorageError::CorruptLog)?,
-            ),
-        ));
-    }
-    Ok(pids)
 }
 
 /// Typed definitions `(pid)` of a property family, every type state.

@@ -216,6 +216,38 @@ fn sync_parent_directory(path: &Path) -> Result<(), String> {
         .map_err(|error| format!("fsync layout parent directory: {error}"))
 }
 
+impl crate::Store {
+    /// Whether the store opened in the previous layout format (written by
+    /// 3.0.13 or before): its data migration must run before it serves, then
+    /// [`Self::complete_format_upgrade`] records the current format.
+    #[must_use]
+    pub fn format_migrating(&self) -> bool {
+        self.format_migrating
+            .load(std::sync::atomic::Ordering::SeqCst)
+    }
+
+    /// Record that the data migration to the current layout format
+    /// finished: the manifest names the current format, so the next start
+    /// neither migrates nor checks. A no-op for a store without a file or
+    /// already current.
+    ///
+    /// # Errors
+    /// Returns [`crate::StorageError::Durability`] when the manifest cannot be
+    /// rewritten; the store stays migrating and the next start migrates again.
+    pub fn complete_format_upgrade(&self) -> Result<(), crate::StorageError> {
+        if !self.format_migrating() {
+            return Ok(());
+        }
+        let path = self.health.cleanup(self.data_path.lock()).clone();
+        if let Some(path) = path {
+            complete_format_upgrade(&path).map_err(crate::StorageError::Durability)?;
+        }
+        self.format_migrating
+            .store(false, std::sync::atomic::Ordering::SeqCst);
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

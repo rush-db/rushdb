@@ -17,6 +17,30 @@ use super::{execution_failed, ProtocolExecutor};
 const SUGGESTIONS: usize = 5;
 
 impl ProtocolExecutor<'_> {
+    /// [`Self::catalog_warnings`] under `check`: none when `off`, and a
+    /// refusal carrying them when `strict` finds any.
+    pub(super) fn checked_warnings(
+        &self,
+        operation: &Operation,
+        check: rushdb_protocol::CheckMode,
+        context: &mut rushdb_engine::ExecutionContext,
+        access: &CatalogAccess,
+        is_cancelled: &dyn Fn() -> bool,
+    ) -> Result<Vec<QueryWarning>, ProtocolError> {
+        if check == rushdb_protocol::CheckMode::Off {
+            return Ok(Vec::new());
+        }
+        let warnings = self.catalog_warnings(operation, context, access, is_cancelled)?;
+        if check == rushdb_protocol::CheckMode::Strict && !warnings.is_empty() {
+            return Err(ProtocolError::new(
+                rushdb_protocol::ErrorCode::InvalidRequest,
+                "the query names labels, properties or values that no record holds",
+            )
+            .with_details(serde_json::json!({ "warnings": warnings })));
+        }
+        Ok(warnings)
+    }
+
     /// The warnings of `operation` (none for an operation that is not a
     /// query this check reads).
     pub(super) fn catalog_warnings(
