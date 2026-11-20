@@ -211,9 +211,11 @@ sequenceDiagram
     E-->>Q: top k, deterministic ties
 ```
 
-- **Routing by candidate count.** The server resolves a predicate into a
-  sorted owner set before searching. Up to `vector-exact-max-pool` candidates
-  are scored exactly, one owner-prefix seek per candidate
+- **Routing by cost.** The server resolves a predicate into a sorted owner
+  set before searching. While scoring the candidates costs less than the
+  filtered walk (`vector-exact-max-pool: auto`: `pool² × dims ≤ 26,000 × ef ×
+  ready vectors`; or a fixed pool) they are scored exactly, one owner-prefix
+  seek per candidate
   (`emb_owner_bindings_prefix`), so the cost follows the candidate count, not
   the space size; only an unfiltered exact search scans the whole space.
 - **Filtering during the walk.** Above that, each frozen segment searches its

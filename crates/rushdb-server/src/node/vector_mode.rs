@@ -1,15 +1,18 @@
 //! Which path answers a vector search. The decision is made on the vectors
 //! the search could score: the candidate owners of a filtered search (at
 //! most the index's ready vectors), or the whole index otherwise. `auto`
-//! (the default) searches exactly while that pool is at most
-//! `resources.vector-exact-max-pool`, and on the ANN graph above it; a
-//! caller can force either path, and a forced `ann` over a filtered pool
-//! that small is still answered exactly (`smallCandidateSet`). The response
-//! reports the path taken, and `explain` reports it before searching.
+//! (the default) searches exactly while that pool is small enough
+//! (`resources.vector-exact-max-pool`: by cost, [`exact_costs_less`], or a
+//! fixed pool), and on the ANN graph above it; a caller can force either
+//! path, and a forced `ann` over a filtered pool that small is still
+//! answered exactly (`smallCandidateSet`). The response reports the path
+//! taken, and `explain` reports it before searching.
 
 use std::sync::Arc;
 
 use rushdb_protocol::VectorSearchMode;
+
+use crate::resource_config::ExactPool;
 use rushdb_vector::search::{FallbackReason, SearchMode, SearchPath};
 use rushdb_vector::{Candidates, EmbeddingSpace, ScoredSource, VectorEngine};
 
@@ -111,10 +114,18 @@ impl Node {
             .map_err(|e| e.to_string())?;
         let candidates = search.candidates.owner_count();
         let pool = candidates.map_or(ready, |owners| owners.min(ready));
-        let small = pool <= self.vector_exact_max_pool;
         let ef = search.ef.filter(|ef| *ef > 0);
-        let ann = SearchMode::Ann {
-            ef: ef.unwrap_or(self.vector_default_ef).max(search.k),
+        let walk_ef = ef.unwrap_or(self.vector_default_ef).max(search.k);
+        let ann = SearchMode::Ann { ef: walk_ef };
+        let small = match self.vector_exact_max_pool {
+            ExactPool::Fixed(max) => pool <= max,
+            ExactPool::Auto => exact_costs_less(
+                pool,
+                ready,
+                u64::from(space.dims),
+                walk_ef,
+                candidates.is_some(),
+            ),
         };
         let cosine = space.similarity == rushdb_types::occurrence::Similarity::Cosine;
         let requested = search.mode.unwrap_or(if ef.is_some() {
@@ -151,6 +162,39 @@ impl Node {
             }
             VectorSearchMode::Ann | VectorSearchMode::Auto => route(ann, None),
         })
+    }
+}
+
+/// Work units an exact search over a whole index may take per unit of
+/// `ef` and still cost no more than the walk: exact scores every ready
+/// vector from the space's resident rows (`ready × dims`), the walk costs
+/// about `ef`. Measured on 100,000 × 1,536-d cosine vectors (exact 11.7 ms,
+/// walk at `ef` 128 1.4 ms).
+const UNFILTERED_WORK_PER_EF: u128 = 144_000;
+
+/// The same for a filtered search, in `pool² × dims / ready` units per
+/// `ef`: exact reads and scores each candidate owner's vectors (`pool ×
+/// dims`), a filtered walk admitting `pool / ready` of the graph costs
+/// about `ef × ready / pool`. Calibrated on cosine vectors, top 10, where
+/// exact and the walk cost the same: 100,000 × 1,536-d at pools of about
+/// 13,000 (`ef` 128) and 27,000 (`ef` 512), 1,000,000 × 768-d at about
+/// 75,000 and 150,000. This constant puts the bound within 13% of each.
+const FILTERED_WORK_PER_EF: u128 = 26_000;
+
+/// Whether scoring `pool` vectors of `dims` exactly is expected to cost less
+/// than an ANN walk of breadth `ef` over an index of `ready` vectors that
+/// admits only those `pool` (`filtered`) or all of them. Exact is never
+/// less accurate, so a tie goes to exact.
+fn exact_costs_less(pool: u64, ready: u64, dims: u64, ef: usize, filtered: bool) -> bool {
+    let (pool, ready, dims) = (u128::from(pool), u128::from(ready), u128::from(dims));
+    let ef = u128::try_from(ef).unwrap_or(u128::MAX);
+    if filtered {
+        pool.saturating_mul(pool).saturating_mul(dims)
+            <= FILTERED_WORK_PER_EF
+                .saturating_mul(ef)
+                .saturating_mul(ready)
+    } else {
+        ready.saturating_mul(dims) <= UNFILTERED_WORK_PER_EF.saturating_mul(ef)
     }
 }
 
@@ -246,4 +290,60 @@ pub(super) fn vector_search_report(route: &VectorRoute, path: SearchPath) -> ser
         report["fallback"] = fallback.into();
     }
     report
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{exact_costs_less, FILTERED_WORK_PER_EF, UNFILTERED_WORK_PER_EF};
+
+    /// The largest pool a filtered search over `ready` vectors of `dims`
+    /// answers exactly at `ef`.
+    fn filtered_bound(ready: u64, dims: u64, ef: usize) -> u64 {
+        let mut pool = 0;
+        while pool < ready && exact_costs_less(pool + 1, ready, dims, ef, true) {
+            pool += 1;
+        }
+        pool
+    }
+
+    #[test]
+    fn a_filtered_pool_is_exact_up_to_its_cost_bound() {
+        let bound = filtered_bound(100_000, 1_536, 128);
+        // pool² × dims ≤ K × ef × ready, and one more is past it.
+        let work = |pool: u64| u128::from(pool).pow(2) * 1_536;
+        assert!(work(bound) <= FILTERED_WORK_PER_EF * 128 * 100_000);
+        assert!(work(bound + 1) > FILTERED_WORK_PER_EF * 128 * 100_000);
+        assert!(exact_costs_less(bound, 100_000, 1_536, 128, true));
+        assert!(!exact_costs_less(bound + 1, 100_000, 1_536, 128, true));
+        // Wider walks, larger indexes and fewer dimensions move the bound up.
+        assert!(filtered_bound(100_000, 1_536, 512) > bound);
+        assert!(filtered_bound(400_000, 1_536, 128) > bound);
+        assert!(filtered_bound(100_000, 768, 128) > bound);
+        // A small index answers every filter exactly.
+        assert_eq!(filtered_bound(1_000, 1_536, 128), 1_000);
+    }
+
+    #[test]
+    fn an_unfiltered_index_is_exact_up_to_its_cost_bound() {
+        let bound = UNFILTERED_WORK_PER_EF * 128 / 1_536;
+        let bound = u64::try_from(bound).unwrap();
+        assert!(exact_costs_less(bound, bound, 1_536, 128, false));
+        assert!(!exact_costs_less(bound + 1, bound + 1, 1_536, 128, false));
+        // Half the dimensions, twice the vectors.
+        assert!(exact_costs_less(2 * bound, 2 * bound, 768, 128, false));
+        assert!(!exact_costs_less(
+            2 * bound + 2,
+            2 * bound + 2,
+            768,
+            128,
+            false
+        ));
+    }
+
+    #[test]
+    fn huge_inputs_saturate_instead_of_overflowing() {
+        assert!(!exact_costs_less(u64::MAX, u64::MAX, u64::MAX, 128, true));
+        assert!(!exact_costs_less(u64::MAX, u64::MAX, u64::MAX, 128, false));
+        assert!(exact_costs_less(0, u64::MAX, 1_536, usize::MAX, true));
+    }
 }

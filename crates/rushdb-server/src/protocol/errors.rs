@@ -261,15 +261,6 @@ pub(crate) fn language_execution_failed(error: rushdb_language::LanguageError) -
         LanguageError::Query { .. } if message.contains("GRAFEO-X") => {
             if message.contains(" require the ") {
                 ProtocolError::new(ErrorCode::Unsupported, message)
-            } else if message.contains("Unsupported expression type for property source") {
-                // Grafeo plans a CREATE property only from a literal, a
-                // parameter, a variable or a property: say so, not "internal".
-                ProtocolError::new(
-                    ErrorCode::Unsupported,
-                    "GRAFEO-X001: a computed property value in CREATE (a list index, CASE, \
-                     arithmetic or a function call) is not supported; compute it in a WITH \
-                     clause first: WITH r[0] AS v CREATE (n {p: v})",
-                )
             } else {
                 execution_failed(message)
             }

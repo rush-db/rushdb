@@ -753,6 +753,67 @@ mod tests {
         assert_eq!(defaulted.port, stored.port);
     }
 
+    /// `vector-exact-max-pool`: a new `config.yml` says `auto`; the `5000`
+    /// every earlier `config.yml` was generated with reads as `auto`; any
+    /// other number is a fixed pool, and `fixed:5000` pins 5,000. Each
+    /// value is written back as it reads.
+    #[test]
+    fn the_exact_pool_setting_reads_auto_numbers_and_pinned_pools() {
+        use crate::resource_config::ExactPool;
+        let rendered = ConfigFile::render(&cfg(false));
+        assert!(
+            rendered.contains("  vector-exact-max-pool: auto\n"),
+            "{rendered}"
+        );
+        let with = |value: &str| -> ExactPool {
+            let text = rendered.replace(
+                "vector-exact-max-pool: auto",
+                &format!("vector-exact-max-pool: {value}"),
+            );
+            let file: ConfigFile = serde_yml::from_str(&text).unwrap();
+            let pool = file.resources.unwrap().vector_exact_max_pool;
+            let mut again = cfg(false);
+            again.resources.vector_exact_max_pool = pool;
+            let reread: ConfigFile = serde_yml::from_str(&ConfigFile::render(&again)).unwrap();
+            assert_eq!(
+                reread.resources.unwrap().vector_exact_max_pool,
+                pool,
+                "{value}"
+            );
+            pool
+        };
+        assert_eq!(with("auto"), ExactPool::Auto);
+        assert_eq!(with("5000"), ExactPool::Auto);
+        assert_eq!(with("5001"), ExactPool::Fixed(5_001));
+        assert_eq!(with("0"), ExactPool::Fixed(0));
+        assert_eq!(with("fixed:5000"), ExactPool::Fixed(5_000));
+        assert_eq!(with("\"fixed:20000\""), ExactPool::Fixed(20_000));
+        let error = serde_yml::from_str::<ConfigFile>(
+            &rendered.replace("vector-exact-max-pool: auto", "vector-exact-max-pool: some"),
+        )
+        .unwrap_err()
+        .to_string();
+        assert!(error.contains("vector-exact-max-pool"), "{error}");
+        // The flag reads the same way, so `--vector-exact-max-pool 5000`
+        // agrees with a file that says `auto`.
+        for (flag, pool) in [
+            ("auto", ExactPool::Auto),
+            ("5000", ExactPool::Auto),
+            ("fixed:5000", ExactPool::Fixed(5_000)),
+            ("12", ExactPool::Fixed(12)),
+        ] {
+            assert_eq!(flag.parse::<ExactPool>().unwrap(), pool, "{flag}");
+        }
+        let file: ConfigFile = serde_yml::from_str(&rendered).unwrap();
+        let mut requested = cfg(false);
+        requested.resources.vector_exact_max_pool = "5000".parse().unwrap();
+        requested.explicit_flags = ["vector-exact-max-pool".to_string()].into();
+        validate_config(&file, &mut requested).unwrap();
+        requested.resources.vector_exact_max_pool = ExactPool::Fixed(5_000);
+        let error = validate_config(&file, &mut requested).unwrap_err();
+        assert!(error.contains("--vector-exact-max-pool"), "{error}");
+    }
+
     #[test]
     fn a_replica_role_flag_is_this_boots_role_not_a_conflict() {
         // A follower built from a leader's base backup carries the leader's

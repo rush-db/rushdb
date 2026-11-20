@@ -446,6 +446,8 @@ fn commit_metadata_retention_prunes_log_but_preserves_state_and_outcomes() {
         old_commit_key = rushdb_types::command_codec::decode(&log_before[0])
             .unwrap()
             .commit_key;
+        // File statistics count what is materialized.
+        store.wait_materialized().unwrap();
         let receipt_rows = store.storage_stats().unwrap().receipt_keys;
         assert_eq!(
             receipt_rows, 400,

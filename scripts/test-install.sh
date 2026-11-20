@@ -59,7 +59,9 @@ if [ "$expect" != "ok" ]; then
 fi
 curl -fsSL "$base/install.sh" | RUSHDB_DOWNLOAD_URL="$base" sh
 grep -q '# rushdb' /root/.bashrc
-PATH="/root/.rushdb/bin:$PATH"
+# The startup file only reaches new shells; the link into /usr/local/bin (on
+# PATH and writable for root) makes `rushdb` work in this one.
+[ "$(command -v rushdb)" = /usr/local/bin/rushdb ]
 rushdb --version
 port=$((20000 + $$ % 10000))
 # The container shares the CI runner's disk, where the build tree can leave
@@ -78,6 +80,11 @@ curl -fsS "http://127.0.0.1:$port/protocol/v1/execute" \
 # Re-running the installer upgrades in place and leaves the profile alone.
 curl -fsSL "$base/install.sh" | RUSHDB_DOWNLOAD_URL="$base" sh >/dev/null
 [ "$(grep -c '# rushdb' /root/.bashrc)" = "1" ]
+[ "$(readlink /usr/local/bin/rushdb)" = /root/.rushdb/bin/rushdb ]
+# --no-modify-path neither edits startup files nor links the binary.
+rm /usr/local/bin/rushdb
+curl -fsSL "$base/install.sh" | RUSHDB_DOWNLOAD_URL="$base" sh -s -- --no-modify-path >/dev/null
+[ ! -e /usr/local/bin/rushdb ]
 echo "installed and serving"
 EOF
 

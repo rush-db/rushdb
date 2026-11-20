@@ -1847,10 +1847,10 @@ mod p11_tests {
         }
         worker.abort();
         let _ = worker.await;
-        // SCALE-2: the import published and the tick checkpointed, each
-        // under its own writer holder.
+        // SCALE-2: the import was materialized and the tick checkpointed,
+        // each under its own writer holder.
         let rendered = node.metrics_render();
-        for holder in ["publish", "checkpoint"] {
+        for holder in ["materialize", "checkpoint"] {
             let prefix = format!("rushdb_writer_hold_seconds_count{{holder=\"{holder}\"}} ");
             let count = rendered
                 .lines()

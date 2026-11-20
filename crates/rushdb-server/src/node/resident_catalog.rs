@@ -119,3 +119,98 @@ where
     layer.offer(tenant, view, Arc::clone(&value));
     Ok(value)
 }
+
+/// One `describe.properties` request without a filter: the tenant and the
+/// request document (labels, detail, entry window), serialized.
+pub(super) type DescribeKey = (TenantId, String);
+
+/// Answers of unfiltered `describe.properties` requests (and the property
+/// part of `describe.schema`), as the request computed them. The answer is
+/// a function of the snapshot alone: it reads the property definitions,
+/// the label catalog (when no label is named), and per described label its
+/// members (samples), its
+/// label-scoped property rows (support, array shape, value dictionary:
+/// ranges and distinct counts) and the occurrences of the properties it
+/// holds. A write to any of those drops it; a write to another label's
+/// rows of properties it does not hold keeps it. A policy acts before (the
+/// labels in the key) and after (masking), never inside.
+///
+/// Entries are offered by the request that computed them, not built in the
+/// background (`build` declines): the computation needs the request scope.
+#[derive(Default)]
+pub(super) struct Describes;
+
+impl Resident for Describes {
+    type Key = DescribeKey;
+    type Value = Vec<rushdb_protocol::PropertyDescription>;
+    const NAME: &'static str = "describe";
+    const BUDGET: Budget = Budget::Logical;
+
+    fn deps(
+        &self,
+        (tenant, document): &DescribeKey,
+        view: &ReadView,
+    ) -> Result<Vec<Dep>, StorageError> {
+        let tenant = *tenant;
+        let mut deps = vec![Dep::Definitions(tenant)];
+        let named: Vec<String> = serde_json::from_str::<serde_json::Value>(document)
+            .ok()
+            .and_then(|document| document.get("labels").cloned())
+            .and_then(|labels| serde_json::from_value(labels).ok())
+            .unwrap_or_default();
+        // Every label is described when none is named: then the label
+        // catalog decides which.
+        let labels = if named.is_empty() {
+            deps.push(Dep::Labels(tenant));
+            label_catalog(view, tenant)?.0
+        } else {
+            named
+        };
+        for label in &labels {
+            let hash = rushdb_storage::resident::label_hash(label);
+            deps.push(Dep::Label(tenant, hash));
+            deps.push(Dep::LabelProperties(tenant, hash));
+        }
+        // The occurrences a value change writes are not label-scoped: depend
+        // on every property the described labels hold (a property new to a
+        // label writes its label-scoped support row).
+        for pid in property_ids(view, tenant)? {
+            let held =
+                rushdb_lmpg::reader::try_access::prop_support_label_counts(view, tenant, pid)?
+                    .iter()
+                    .any(|(label, _)| labels.contains(label));
+            if held {
+                deps.push(Dep::Pid(tenant, pid));
+            }
+        }
+        Ok(deps)
+    }
+
+    fn build(
+        &self,
+        _key: &DescribeKey,
+        _view: &ReadView,
+        _cx: &BuildCx,
+    ) -> Result<Option<Self::Value>, BuildError> {
+        Ok(None)
+    }
+
+    fn bytes(value: &Self::Value) -> usize {
+        serde_json::to_vec(value).map_or(usize::MAX, |encoded| encoded.len() + 64)
+    }
+}
+
+/// Every property id `tenant` defines at `view`, typed or not.
+fn property_ids(view: &ReadView, tenant: TenantId) -> Result<Vec<u64>, StorageError> {
+    use rushdb_types::keys::key;
+    view.range_prefix(&key(tenant, &[b"property-row", b""]))?
+        .into_iter()
+        .map(|(_, raw)| {
+            serde_json::from_slice::<rushdb_types::occurrence::PropertyDefinition>(&raw)
+                .map(|definition| definition.property_id)
+                .map_err(|error| {
+                    StorageError::InvalidRead(format!("corrupt property definition: {error}"))
+                })
+        })
+        .collect()
+}

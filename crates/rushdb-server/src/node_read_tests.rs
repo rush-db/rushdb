@@ -1523,8 +1523,13 @@ fn commit_phase_timings_are_exported() {
         let plan =
             rushdb_lmpg::import::serialize_bfs(&json!({ "Doc": [{ "n": 2 }] }), "", &options);
         rushdb_lmpg::import::import_bfs(&lmpg, &plan, &options).unwrap();
+        // A redb store applies off the commit path, after a gap push.
+        node.store().wait_materialized().unwrap();
         let rendered = node.metrics_render();
         for phase in rushdb_storage::CommitPhase::ALL {
+            if phase == rushdb_storage::CommitPhase::GapPush && !node.store().is_durable() {
+                continue;
+            }
             let prefix = format!(
                 "rushdb_commit_phase_seconds_count{{phase=\"{}\"}} ",
                 phase.label()

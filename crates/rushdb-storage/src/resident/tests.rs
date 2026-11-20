@@ -262,6 +262,7 @@ fn sample_key(dep: Dep) -> Vec<u8> {
         Dep::Pid(t, pid) => keys::occ_key(t, OwnerKind::Record, 9, pid, 0),
         Dep::Label(t, _) => keys::rederive_key(t, "Trip"),
         Dep::ValueDict(t, pid) => keys::value_dict_key(t, OwnerKind::Record, "Trip", pid, b"v"),
+        Dep::LabelProperties(t, _) => keys::presence_key(t, OwnerKind::Record, "Trip", 7, 0, 9),
         Dep::Definitions(t) => keys::key(t, &[keys::P_FAMILY, b"f"]),
         Dep::Labels(t) => keys::label_count_key(t, "Trip"),
         Dep::Adjacency(t) => keys::key(t, &[b"adj", b"out", &keys::u64be(1)]),
@@ -339,24 +340,90 @@ fn noting_a_commit_raises_every_area_it_writes_like_one_bump_per_row() {
 
 #[test]
 fn every_dep_kind_is_reached_by_its_sample_key() {
-    for dep in [
-        Dep::Index(T1, 3),
-        Dep::Pid(T1, 7),
-        Dep::Label(T1, label_hash("Trip")),
-        Dep::ValueDict(T1, 7),
-        Dep::Definitions(T1),
-        Dep::Labels(T1),
-        Dep::Adjacency(T1),
-        Dep::Space(T1, 4),
-        Dep::Policy(T1),
-        Dep::TenantDir,
-        Dep::Tenant(T1),
-        Dep::Global,
+    let trip = Dep::LabelProperties(T1, label_hash("Trip"));
+    for (dep, also) in [
+        (Dep::Index(T1, 3), None),
+        (Dep::Pid(T1, 7), None),
+        (Dep::Label(T1, label_hash("Trip")), None),
+        // A label's value dictionary is one of its label-scoped rows.
+        (Dep::ValueDict(T1, 7), Some(trip)),
+        (trip, Some(Dep::Pid(T1, 7))),
+        (Dep::Definitions(T1), None),
+        (Dep::Labels(T1), None),
+        (Dep::Adjacency(T1), None),
+        (Dep::Space(T1, 4), None),
+        (Dep::Policy(T1), None),
+        (Dep::TenantDir, None),
+        (Dep::Tenant(T1), None),
+        (Dep::Global, None),
     ] {
         let mut got = Vec::new();
         deps_of_key(&sample_key(dep), |d| got.push(d));
-        assert_eq!(got, vec![dep]);
+        let mut want: Vec<Dep> = std::iter::once(dep).chain(also).collect();
+        got.sort();
+        want.sort();
+        assert_eq!(got, want);
     }
+}
+
+/// Every label-scoped property row raises its label's `LabelProperties`
+/// and its property's own dep; a pid-wide row raises only the latter.
+#[test]
+fn label_scoped_property_rows_raise_their_label() {
+    let trip = Dep::LabelProperties(T1, label_hash("Trip"));
+    let rec = OwnerKind::Record;
+    for (name, key, want) in [
+        (
+            "presence",
+            keys::presence_key(T1, rec, "Trip", 7, 0, 9),
+            vec![Dep::Pid(T1, 7), trip],
+        ),
+        (
+            "value dictionary",
+            keys::value_dict_key(T1, rec, "Trip", 7, b"v"),
+            vec![Dep::ValueDict(T1, 7), trip],
+        ),
+        (
+            "array marker",
+            keys::array_label_marker_key(T1, rec, 7, "Trip"),
+            vec![Dep::Pid(T1, 7), trip],
+        ),
+        (
+            "occurrence",
+            keys::occ_key(T1, rec, 9, 7, 0),
+            vec![Dep::Pid(T1, 7)],
+        ),
+    ] {
+        let mut got = Vec::new();
+        deps_of_key(&key, |d| got.push(d));
+        let mut want = want;
+        got.sort();
+        want.sort();
+        assert_eq!(got, want, "{name}");
+    }
+    // The label-scoped counters, from the counter keys a commit writes.
+    let mut counters = 0;
+    for (name, key) in family_samples() {
+        let mut got = Vec::new();
+        deps_of_key(&key, |d| got.push(d));
+        let scoped = matches!(
+            name,
+            "C_SUPPORT_BY_LABEL"
+                | "C_DISTINCT"
+                | "C_LONG_VALUES"
+                | "C_LONG_VALUE"
+                | "C_LONG_DISTINCT"
+        );
+        if scoped {
+            counters += 1;
+            assert!(
+                got.iter()
+                    .any(|dep| matches!(dep, Dep::LabelProperties(..))),
+                "{name}: {got:?}"
+            );
+        }
+    }
+    assert_eq!(counters, 5);
 }
 
 #[test]

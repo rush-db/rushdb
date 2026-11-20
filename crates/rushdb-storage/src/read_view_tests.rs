@@ -877,6 +877,8 @@ fn native_history_decode_has_an_explicit_block_ceiling() {
     configure(&store);
     commit(&store, vec![(b"u/a".to_vec(), Some(vec![1; 100]))]);
     commit(&store, vec![(b"u/a".to_vec(), Some(vec![2]))]);
+    // The limit guards decoding redb's history blocks.
+    store.wait_materialized().unwrap();
     let view = store
         .read_with_limits(
             Some(1),
@@ -927,6 +929,8 @@ fn native_current_reads_do_not_decode_deleted_key_history() {
     );
     commit(&store, vec![(b"u/live".to_vec(), Some(vec![3]))]);
     assert_eq!(current.get(b"u/live").unwrap(), Some(vec![2]));
+    // The limit guards decoding redb's history blocks.
+    store.wait_materialized().unwrap();
     assert!(matches!(
         store
             .read_with_limits(Some(1), limits)

@@ -224,7 +224,7 @@ curl -s http://127.0.0.1:3000/protocol/v1/execute \
         "language": "cypher",
         "status": "release_candidate",
         "profile": "openCypher property-graph profile",
-        "implementation": "Grafeo 0.5.42",
+        "implementation": "Grafeo 0.5.44",
         "access": "readWrite",
         "parameterStyles": ["named"],
         "transports": ["protocolJson"],

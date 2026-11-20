@@ -223,6 +223,7 @@ fn data_directories_of_every_release_open_and_answer_as_they_did() {
 
 /// Every key a release wrote into `config.yml` still loads: a removed one
 /// needs a compatibility path (`config::REMOVED_KEYS`), not a startup error.
+/// The `vector-exact-max-pool: 5000` every release wrote reads as `auto`.
 #[test]
 fn every_released_config_file_loads() {
     for release in releases() {
@@ -232,7 +233,14 @@ fn every_released_config_file_loads() {
                 .unwrap_or_else(|error| panic!("{release} {mode}: {error}"))
                 .expect("a config.yml");
             assert_eq!(file.tenancy.mode, mode, "{release}");
-            assert!(file.resources.is_some(), "{release} {mode}");
+            let resources = file
+                .resources
+                .unwrap_or_else(|| panic!("{release} {mode}: no resources"));
+            assert_eq!(
+                resources.vector_exact_max_pool,
+                rushdb_server::resource_config::ExactPool::Auto,
+                "{release} {mode}"
+            );
         }
     }
 }

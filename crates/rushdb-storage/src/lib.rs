@@ -27,11 +27,13 @@ mod dependency_set;
 mod derive;
 pub mod derived_health;
 mod fair_gate;
+mod gap;
 pub mod history_v2;
 mod layout;
 mod log_export;
 pub mod log_store;
 mod maintenance;
+mod materialize;
 mod memory_backend;
 mod observability;
 pub mod open_repair;
@@ -66,6 +68,10 @@ pub use read_view::{
 
 #[cfg(test)]
 mod derive_tests;
+#[cfg(test)]
+mod gap_tests;
+#[cfg(test)]
+mod kill_point;
 #[cfg(test)]
 mod read_view_tests;
 #[cfg(test)]
@@ -168,6 +174,7 @@ impl SequencerState {
 
 pub(crate) const LOG_PREFIX: &[u8] = b"__log__/";
 const LAST_APPLIED_KEY: &[u8] = b"meta/last-applied";
+
 /// Durable watermark: the highest LSN retention has retired.
 /// Bounds `Store::truncate_log`, so the retention floor (hard caps and
 /// consumer protection) decides which WAL segments may go.
@@ -628,7 +635,7 @@ pub struct Store {
     published: AtomicU64,
     expander: RwLock<Option<Arc<ExpandFn>>>,
     /// Called with each durable commit's latency in seconds (metrics hook).
-    commit_observer: RwLock<Option<Arc<CommitObserver>>>,
+    commit_observer: Arc<RwLock<Option<Arc<CommitObserver>>>>,
     /// Apply-time deriver; `None` applies base ops unchanged.
     deriver: RwLock<Option<Arc<dyn Deriver>>>,
     /// Bounded tenant-directory resolution cache.
@@ -687,6 +694,12 @@ pub struct Store {
     wal_bytes_appended: AtomicU64,
     /// Encoded op bytes handed to the backends, cumulative.
     applied_bytes: AtomicU64,
+    /// Per physical shard of a redb store: commits published at WAL
+    /// durability and not yet materialized (PUB-1). Empty for in-memory
+    /// stores, which apply on the publish path.
+    gaps: RwLock<Box<[Option<Arc<gap::Gap>>]>>,
+    /// The threads that drain `gaps` into the backends.
+    materializers: materialize::Materializers,
     /// Whether a physical compaction holds the database: every read and
     /// commit waits on it, so readiness reports it.
     compacting: AtomicBool,
@@ -799,7 +812,7 @@ impl Store {
             next_commit_index: AtomicU64::new(1),
             published: AtomicU64::new(0),
             expander: RwLock::new(None),
-            commit_observer: RwLock::new(None),
+            commit_observer: Arc::default(),
             deriver: RwLock::new(None),
             ids: IdAllocator::default(),
             underived_replay: std::sync::atomic::AtomicBool::new(false),
@@ -824,6 +837,8 @@ impl Store {
             purged_since_compaction: AtomicU64::new(0),
             wal_bytes_appended: AtomicU64::new(0),
             applied_bytes: AtomicU64::new(0),
+            gaps: RwLock::new(Box::new([])),
+            materializers: materialize::Materializers::default(),
             compacting: AtomicBool::new(false),
         })
     }
@@ -1001,7 +1016,7 @@ impl Store {
         if layout_info.is_none() {
             layout::create_manifest(path, shard_count).map_err(StorageError::Durability)?;
         }
-        Ok(())
+        self.start_materializers()
     }
 
     /// The durable backend for a physical shard, if this store has one.
@@ -1205,8 +1220,11 @@ impl Store {
 
     fn check_publisher(&self) -> Result<(), StorageError> {
         self.check_health()?;
-        match self.health.guard(self.publisher_failure.lock())?.clone() {
-            Some(error) => Err(error),
+        if let Some(error) = self.health.guard(self.publisher_failure.lock())?.clone() {
+            return Err(error);
+        }
+        match self.all_gaps().iter().find_map(|gap| gap.failure()) {
+            Some(failure) => Err(StorageError::Durability(failure)),
             None => Ok(()),
         }
     }
@@ -1225,18 +1243,22 @@ impl Store {
             .cleanup(self.publisher_failure.lock())
             .as_ref()
             .map(ToString::to_string)
+            .or_else(|| self.all_gaps().iter().find_map(|gap| gap.failure()))
     }
 
     fn native_transaction_view(&self) -> Result<Option<redb_backend::MergedViews>, StorageError> {
         self.check_health()?;
-        let backends = self.all_backends();
-        if backends.is_empty() {
+        let backends: Vec<Option<Arc<dyn StorageBackend>>> =
+            self.health.guard(self.durable.read())?.to_vec();
+        if backends.iter().all(Option::is_none) {
             return Ok(None);
         }
         let mut views: Vec<Box<dyn crate::backend::StorageReadView>> =
             Vec::with_capacity(backends.len());
-        for backend in &backends {
-            views.push(backend.read_view()?);
+        for (shard, backend) in backends.iter().enumerate() {
+            if let Some(backend) = backend {
+                views.push(self.shard_read_view(shard, backend.as_ref())?);
+            }
         }
         Ok(Some(redb_backend::MergedViews::new(views)))
     }
@@ -1720,7 +1742,12 @@ impl Store {
             .collect();
         // Aborted-outcome idempotency markers are local metadata, not part of
         // the committed log sequence (they carry no commit index), so they are
-        // written to the materialization directly rather than the WAL.
+        // written to the materialization directly rather than the WAL. An
+        // expired receipt of the same key still in the gap would be written
+        // over this one, so it goes into the backend first.
+        if self.try_get(&receipt::receipt_key(commit_key))?.is_some() {
+            self.wait_materialized()?;
+        }
         self.persist_ops_local(&ops, ci)
     }
 

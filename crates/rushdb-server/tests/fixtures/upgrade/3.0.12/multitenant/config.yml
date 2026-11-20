@@ -1,0 +1,117 @@
+# RushDB engine configuration.
+# Generated on first start. Edit to change and restart to apply.
+#
+# Security secrets are never stored here. Set them via the CLI or
+# environment:
+#   token:             --token / RUSHDB_TOKEN
+#   capability-secret: --capability-secret (HMAC secret enabling
+#                       signed X-RushDB-Token capability auth)
+#
+# The tenancy mode is an isolation invariant: an existing data
+# directory cannot switch between single-tenant and multitenant
+# modes. To change it, migrate to a fresh data directory.
+version: 1
+server:
+#   HTTP protocol adapter port.
+  port: 35979
+#   HTTP bind address (default 127.0.0.1). Use 0.0.0.0 to expose
+#   beyond loopback (pair with TLS).
+  listen-addr: 127.0.0.1
+#   HTTPS PEM certificate chain path (requires tls-key too).
+  # tls-cert: (TLS disabled)
+#   HTTPS PEM private key path (PKCS#8).
+  # tls-key: (TLS disabled)
+#   PostgreSQL wire-protocol port (0 = disabled; requires sql).
+  pgwire-port: 0
+#   gRPC transport port (0 = disabled).
+  grpc-port: 0
+#   Bolt (Neo4j wire) transport port (0 = disabled).
+  bolt-port: 0
+#   Maximum protocol payload (HTTP request body, gRPC per-message,
+#   response budget). Bytes or B/KiB/MiB/GiB. Default 16MiB.
+  body-limit: 16777216B
+#   Maintenance mode (default false): reject writes and mark
+#   /health as maintenance until cleared.
+  maintenance: false
+#   Persistent database directory.
+  data-dir: "/data"
+tenancy:
+#   single | multitenant
+  mode: multitenant
+# This file is the source of truth for this data directory: a startup flag or
+# environment variable that disagrees with a value here is a startup error.
+# Byte values are bytes; B/KiB/MiB/GiB strings are also accepted.
+# Managed reservations are NOT a process RSS cap.
+resources:
+  managed-limit: 536870912
+  storage-cache: 134217728
+  transaction-pool: 134217728
+  memory-headroom: 134217728
+  durability: local
+  shards: 1
+  experimental-sharding: false
+  max-group-count: 0
+  max-group-bytes: 0
+  max-group-delay-ms: 0
+  logical-cache-bytes: 134217728
+  vector-cache-bytes: 268435456
+  graph-cache-bytes: 134217728
+  planner-stats-bytes: 33554432
+  owner-set-cache-bytes: 67108864
+  column-cache-bytes: 268435456
+  resident-caches: on
+  resident-verify-rate: 0.0
+  tenant-idle-seconds: 300
+  tenant-resident-bytes: 536870912
+  metrics-tenant-limit: 0
+  rss-max: 0
+  query-memory-max: 268435456
+  unindexed-walk-max-owners: 0
+  lock-timeout-ms: 0
+  max-expanded-commit-bytes: 536870912
+  compact-interval-seconds: 300
+  compact-quiesce-seconds: 10
+  compact-growth-percent: 150
+  compact-max-file-bytes: 1073741824
+  checkpoint-interval-seconds: 0
+  wal-archive-dir: null
+  idempotency-window-seconds: 86400
+  wal-archive-retention-seconds: 604800
+  wal-archive-retention-bytes: 0
+  replica-of: null
+  replica-id: default
+  replica-token: null
+  tx-log-retention-commits: 100000
+  tx-log-keep-commits: 0
+  tx-log-keep-all: false
+  tx-log-retention-bytes: 4294967296
+  logs-query-threshold-ms: 5000
+  tenant-bulk-concurrency: 2
+  metrics-prefix: null
+  metrics-filter: null
+  disk-space-threshold-percent: 10
+  threads: 0
+  retention-consumer-lease-seconds: 86400
+  http-inflight-body-bytes: 268435456
+  advertised-address: null
+  bolt-advertised-address: null
+  require-vector-index-name: true
+  vector-exact-max-pool: 5000
+  vector-default-ef: 128
+  introspection-value-max-chars: 64
+transactions:
+  max-active: 128
+  max-operations: 10000
+  max-staged-bytes: 8388608
+  max-expired-ids: 128
+  default-ttl-seconds: 60
+  max-age-seconds: 60
+  max-staged-bytes-per-tenant: 0
+languages:
+  sql: true
+  gql: false
+  cypher: false
+  gremlin: true
+  sql-pgq: true
+  mongodb: true
+# searchquery (the native query document) is always enabled and cannot be disabled.

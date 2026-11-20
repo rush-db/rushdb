@@ -515,7 +515,7 @@ mod tests {
     /// `docs` (of `consistency`) on `Doc`.
     fn node(consistency: &str) -> Node {
         let mut cfg = ServerConfig::default();
-        cfg.resources.vector_exact_max_pool = 4;
+        cfg.resources.vector_exact_max_pool = crate::resource_config::ExactPool::Fixed(4);
         let node = Node::bootstrap(&mut cfg).unwrap();
         node.scope()
             .create_vector_index(&rushdb_protocol::VectorIndexDefinition {

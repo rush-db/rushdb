@@ -51,7 +51,7 @@ const SEGMENT_FORMAT_VERSION: u8 = 2;
 /// it projects, and the value hash recorded at bind time. Mirrors
 /// `ann::AnnEntry`; kept separate because segments have their own identity
 /// (position within ONE segment, not a single generation's slot order).
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct SegmentEntry {
     pub slot: u64,
     pub source: SourceRef,
@@ -1225,13 +1225,18 @@ impl SegmentSet {
     ///
     /// An owner set ([`Candidates::Owners`]) is applied during each
     /// segment's gather together with liveness, so every gathered entry is a
-    /// live candidate and a selective filter does not empty the gather.
-    /// Other candidates are checked on the gathered entries only.
+    /// live candidate and a selective filter does not empty the gather. A
+    /// point check ([`Candidates::Check`]) runs on the reranked entries in
+    /// rank order and stops once `k` pass: the top `k` is the one checking
+    /// every gathered entry first gives, with about `k` checks instead of
+    /// one per gathered entry.
     ///
     /// Returns the deduped, filtered candidate count alongside the reranked
     /// top-`k` — the caller's degradation contract (fall back to an exact
     /// scan when ANN confidence is too low) is defined over that pre-rerank
-    /// count, not the post-truncate result length.
+    /// count, not the post-truncate result length. Under a point check the
+    /// count stops at `k` once `k` pass (the contract only asks whether
+    /// fewer than `k` do).
     ///
     /// # Errors
     /// Propagates whatever `rerank` returns for a resolved candidate.
@@ -1249,6 +1254,7 @@ impl SegmentSet {
             return Ok((0, Vec::new()));
         }
         let gather_k = ef.max(k);
+        let deferred = matches!(candidates, Candidates::Check(_));
         // Phase timings, emitted only when the
         // `rushdb_vector::search` debug target is enabled.
         let profile = tracing::enabled!(target: "rushdb_vector::search", tracing::Level::DEBUG);
@@ -1278,12 +1284,12 @@ impl SegmentSet {
                 let Some(entry) = segment.entries().get(index) else {
                     continue;
                 };
-                if live(index, entry) && candidates.admits(entry.source) {
+                if live(index, entry) && (deferred || candidates.admits(entry.source)) {
                     resolved.push(entry);
                 }
             }
         }
-        let candidate_count = resolved.len();
+        let mut candidate_count = resolved.len();
         let rerank_started = profile.then(std::time::Instant::now);
         let mut out: Vec<ScoredSource> = resolved
             .into_iter()
@@ -1299,7 +1305,7 @@ impl SegmentSet {
                 frozen_segments = frozen.0,
                 frozen_entries = frozen.1,
                 frozen_gather_us = frozen.2.as_micros(),
-                reranked = candidate_count,
+                reranked = out.len(),
                 rerank_us = started.elapsed().as_micros(),
                 "segment search"
             );
@@ -1312,6 +1318,18 @@ impl SegmentSet {
                 .unwrap_or(std::cmp::Ordering::Equal)
                 .then_with(|| source_key(a.source).cmp(&source_key(b.source)))
         });
+        if deferred {
+            let mut admitted = 0;
+            out.retain(|hit| {
+                if admitted < k && candidates.admits(hit.source) {
+                    admitted += 1;
+                    true
+                } else {
+                    false
+                }
+            });
+            candidate_count = admitted;
+        }
         out.truncate(k);
         Ok((candidate_count, out))
     }
@@ -1549,6 +1567,86 @@ mod tests {
             .collect();
         for worker in workers {
             worker.join().unwrap();
+        }
+    }
+
+    /// A point check runs on reranked hits in rank order: the top `k` and
+    /// the count the confidence rule reads are those of checking every
+    /// gathered entry first (here every entry is gathered, so the reference
+    /// is the brute-force ranking of the passing sources), with no more
+    /// checks than it takes to find `k` passing hits.
+    #[test]
+    fn a_point_check_on_ranked_hits_returns_the_eagerly_checked_top_k() {
+        let vectors = noise(60, 8, 11);
+        let set = SegmentSet::new();
+        for (part, range) in [(0usize, 0..30usize), (1, 30..60)] {
+            let entries = entries_for(
+                &vectors[range.clone()],
+                range.start as u64,
+                range.start as u64,
+            );
+            let frozen =
+                FrozenSegment::build_in_memory(entries, ok(&vectors[range]), 8, Similarity::Cosine)
+                    .unwrap();
+            set.push(Arc::new(Segment::Frozen(frozen)));
+            assert_eq!(set.state.load().segments.len(), part + 1);
+        }
+        let mut store = CanonicalStore::new();
+        store.insert_all(&entries_for(&vectors, 0, 0), &vectors);
+        let query = noise(1, 8, 99).remove(0);
+        let reference = |passes: &(dyn Fn(u64) -> bool + Sync), k: usize| {
+            let mut hits: Vec<ScoredSource> = entries_for(&vectors, 0, 0)
+                .iter()
+                .filter(|entry| passes(entry.source.owner_ord))
+                .map(|entry| store.rerank(&query, Similarity::Cosine, entry).unwrap())
+                .collect();
+            let passing = hits.len();
+            hits.sort_by(|a, b| {
+                b.score
+                    .partial_cmp(&a.score)
+                    .unwrap()
+                    .then_with(|| source_key(a.source).cmp(&source_key(b.source)))
+            });
+            hits.truncate(k);
+            (passing, hits)
+        };
+        let filters: [(&str, &(dyn Fn(u64) -> bool + Sync)); 3] = [
+            ("every source", &|_| true),
+            ("every third rejected", &|ord| ord % 3 != 0),
+            ("four pass", &|ord| ord % 15 == 4),
+        ];
+        for (name, passes) in filters {
+            let calls = std::sync::atomic::AtomicUsize::new(0);
+            let check = |source: SourceRef| {
+                calls.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                passes(source.owner_ord)
+            };
+            let k = 6;
+            let (count, hits) = set
+                .search(
+                    &query,
+                    k,
+                    64,
+                    Similarity::Cosine,
+                    Candidates::Check(&check),
+                    |entry| store.rerank(&query, Similarity::Cosine, entry),
+                )
+                .unwrap();
+            let (passing, expected) = reference(passes, k);
+            let ids = |hits: &[ScoredSource]| {
+                hits.iter()
+                    .map(|hit| (hit.source.owner_ord, hit.score.to_bits()))
+                    .collect::<Vec<_>>()
+            };
+            assert_eq!(ids(&hits), ids(&expected), "{name}");
+            assert_eq!(count, passing.min(k), "{name}");
+            // The confidence rule (`count < k`) decides as with every
+            // gathered entry checked.
+            assert_eq!(count < k, passing < k, "{name}");
+            let calls = calls.into_inner();
+            if passing >= k {
+                assert!(calls < vectors.len(), "{name}: {calls} checks");
+            }
         }
     }
 

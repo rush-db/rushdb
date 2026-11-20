@@ -40,6 +40,10 @@
    "kind": "defect",
    "description": "Grafeo fails the statement with an internal error."
   },
+  "grafeo-null-writes": {
+   "kind": "defect",
+   "description": "A write on a null entity (an OPTIONAL MATCH that found nothing) fails with a type mismatch instead of being ignored."
+  },
   "grafeo-write-column-names": {
    "kind": "defect",
    "description": "Write statements name projected aggregates and functions differently from the expression text (count(...) for count(*))."
@@ -111,6 +115,10 @@
   {
    "category": "grafeo-internal",
    "pattern": "internal execution error|GRAFEO-X"
+  },
+  {
+   "category": "grafeo-null-writes",
+   "pattern": "GRAFEO-V006: Type mismatch: expected Int64 \\((node|edge|entity) ID\\), found Null"
   },
   {
    "category": "grafeo-write-column-names",

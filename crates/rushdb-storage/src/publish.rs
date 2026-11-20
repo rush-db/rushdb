@@ -136,9 +136,12 @@ impl Store {
                 })
                 .collect();
             self.note_resident_writes(&pairs);
-            let publication = self.persist_many_sharded(&pairs, &batch);
             drop(pairs);
-            drop(derived);
+            let publication = self.persist_many_sharded(&batch, derived);
+            #[cfg(test)]
+            if publication.is_ok() {
+                crate::kill_point::hit("before-publish");
+            }
             match publication {
                 Ok(()) => {
                     let publish_started = std::time::Instant::now();
@@ -182,8 +185,9 @@ impl Store {
 
     /// Per commit of a publish group, the ops derived from it (empty when
     /// nothing was derived), each derived against the state before it: its
-    /// shard backend plus the earlier commits of the group. That prior state
-    /// borrows the group's ops; nothing is copied into it.
+    /// shard's view (published commits not yet materialized included) plus
+    /// the earlier commits of the group. That prior state borrows the
+    /// group's ops; nothing is copied into it.
     fn derive_group(&self, batch: &[PendingCommit]) -> Result<Vec<Vec<Op>>, StorageError> {
         let Some(deriver) = self.deriver() else {
             return Ok(vec![Vec::new(); batch.len()]);
@@ -198,7 +202,9 @@ impl Store {
             for (position, (pc, cell)) in batch.iter().zip(&outputs).enumerate() {
                 if let std::collections::btree_map::Entry::Vacant(slot) = bases.entry(pc.shard) {
                     slot.insert(match self.backend(pc.shard) {
-                        Some(backend) => Box::new(derive::BackendRead(backend.read_view()?)),
+                        Some(backend) => Box::new(derive::BackendRead(
+                            self.shard_read_view(pc.shard, backend.as_ref())?,
+                        )),
                         None => Box::new(derive::Empty),
                     });
                 }

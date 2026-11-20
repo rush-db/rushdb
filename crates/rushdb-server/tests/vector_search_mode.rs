@@ -1,6 +1,8 @@
-//! Vector search mode: `auto` answers exactly while the search could score
-//! at most `resources.vector-exact-max-pool` vectors (a predicate's matching
-//! owners, or the whole index) and on the ANN graph above it, never waiting
+//! Vector search mode (here with a fixed `resources.vector-exact-max-pool`;
+//! the `auto` cost rule is pinned in `node::vector_mode`): `auto` answers
+//! exactly while the search could score at most that many vectors (a
+//! predicate's matching owners, or the whole index) and on the ANN graph
+//! above it, never waiting
 //! for a build; `exact`/`ann` force a path, though a forced `ann` over a
 //! small filtered pool is answered exactly; `scoreThreshold` drops weak
 //! hits; the response and `explain` report the path and the pool.
@@ -19,7 +21,8 @@ fn node() -> Node {
 
 fn node_with_pool(exact_max_pool: u64) -> Node {
     let mut cfg = ServerConfig::default();
-    cfg.resources.vector_exact_max_pool = exact_max_pool;
+    cfg.resources.vector_exact_max_pool =
+        rushdb_server::resource_config::ExactPool::Fixed(exact_max_pool);
     Node::bootstrap(&mut cfg).unwrap()
 }
 
@@ -382,6 +385,70 @@ fn a_forced_ann_over_a_small_candidate_set_is_answered_exactly() {
     );
 }
 
+/// With the default setting (`auto`) the bound follows cost: at 2,048
+/// dimensions, 40 vectors and a walk of `ef` 2, a filter matching 4 records
+/// is scored exactly and one matching 36 walks the graph
+/// (`pool² × dims ≤ 26,000 × ef × vectors`: 31 and below).
+#[test]
+#[expect(
+    clippy::cast_precision_loss,
+    reason = "a small record index mapped into f32 radians"
+)]
+fn auto_routes_a_forced_ann_by_cost_with_the_default_setting() {
+    const DIMS: usize = 2_048;
+    let n = Node::bootstrap(&mut ServerConfig::default()).unwrap();
+    n.scope()
+        .create_vector_index(&VectorIndexDefinition {
+            name: Some("wide".into()),
+            label: "WIDE".into(),
+            property: "embedding".into(),
+            dimensions: u32::try_from(DIMS).unwrap(),
+            similarity: "cosine".into(),
+            model: None,
+            owner: None,
+        })
+        .unwrap();
+    let items: Vec<VectorItem> = (0..40usize)
+        .map(|i| {
+            let angle = i as f32 * 6.2 / 40.0;
+            let mut vector = vec![0.0f32; DIMS];
+            (vector[0], vector[1]) = (angle.cos(), angle.sin());
+            let id = n
+                .scope()
+                .create_record(
+                    "WIDE",
+                    &serde_json::json!({ "tenant": u64::from(i % 10 != 0) }),
+                    &[],
+                    &serde_json::json!({}),
+                )
+                .unwrap()["id"]
+                .as_str()
+                .unwrap()
+                .to_string();
+            VectorItem {
+                record_id: id,
+                vector,
+                source_hash: None,
+                index_generation: None,
+            }
+        })
+        .collect();
+    n.scope().upsert_vector_index("wide", &items).unwrap();
+    let forced = |tenant: u64| {
+        let mut query = filtered("wide", "WIDE", tenant, Some(VectorSearchMode::Ann));
+        query.vector = vec![0.0; DIMS];
+        query.vector[0] = 1.0;
+        query.ef = Some(1);
+        query.limit = 2;
+        search(&n, &query).unwrap().1
+    };
+    assert_eq!(
+        forced(0),
+        report("exact", None, Some("smallCandidateSet"), 4)
+    );
+    assert_eq!(forced(1), report("ann", Some(2), None, 36));
+}
+
 #[test]
 fn explain_reports_the_route_the_search_takes() {
     let n = node();
@@ -463,8 +530,8 @@ fn index_reads(n: &Node, query: &VectorQuery) -> ((u64, u64), VectorSearchReport
 #[test]
 fn a_filtered_search_reads_its_candidates_not_the_index() {
     // The same 50 matching records inside an index of 500 and of 5,000
-    // vectors (the default pool, 5,000, keeps the 50 exact). Read
-    // accounting counts the on-disk backend's reads.
+    // vectors (the default, `auto`, scores 50 exactly). Read accounting
+    // counts the on-disk backend's reads.
     let reads = |total: usize| {
         let dir = tempfile::tempdir().unwrap();
         let mut cfg = ServerConfig {

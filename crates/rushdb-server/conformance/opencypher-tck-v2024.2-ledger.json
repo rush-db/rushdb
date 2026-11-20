@@ -233,8 +233,7 @@
    "outcome": "pass"
   },
   "tck/features/clauses/create/Create1.feature::[17] Fail when adding new label predicate on a node that is already bound 3": {
-   "category": "grafeo-error-detection",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/create/Create1.feature::[18] Fail when adding new label predicate on a node that is already bound 4": {
    "outcome": "pass"
@@ -329,8 +328,7 @@
    "outcome": "pass"
   },
   "tck/features/clauses/create/Create2.feature::[23] Fail when creating a relationship that is already bound": {
-   "category": "grafeo-error-detection",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/create/Create2.feature::[24] Fail when creating a relationship using undefined variable in pattern": {
    "outcome": "pass"
@@ -507,15 +505,15 @@
    "outcome": "fail"
   },
   "tck/features/clauses/delete/Delete1.feature::[4] Delete on null node": {
-   "category": "grafeo-semantic",
+   "category": "grafeo-null-writes",
    "outcome": "fail"
   },
   "tck/features/clauses/delete/Delete1.feature::[5] Ignore null when deleting node": {
-   "category": "grafeo-semantic",
+   "category": "grafeo-null-writes",
    "outcome": "fail"
   },
   "tck/features/clauses/delete/Delete1.feature::[6] Detach delete on null node": {
-   "category": "grafeo-semantic",
+   "category": "grafeo-null-writes",
    "outcome": "fail"
   },
   "tck/features/clauses/delete/Delete1.feature::[7] Failing when deleting connected nodes": {
@@ -538,7 +536,7 @@
    "outcome": "fail"
   },
   "tck/features/clauses/delete/Delete2.feature::[4] Ignore null when deleting relationship": {
-   "category": "grafeo-semantic",
+   "category": "grafeo-null-writes",
    "outcome": "fail"
   },
   "tck/features/clauses/delete/Delete2.feature::[5] Failing when deleting a relationship type": {
@@ -550,7 +548,7 @@
    "outcome": "fail"
   },
   "tck/features/clauses/delete/Delete3.feature::[2] Delete on null path": {
-   "category": "grafeo-semantic",
+   "category": "grafeo-null-writes",
    "outcome": "fail"
   },
   "tck/features/clauses/delete/Delete4.feature::[1] Undirected expand followed by delete and count": {
@@ -703,8 +701,7 @@
    "outcome": "pass"
   },
   "tck/features/clauses/match-where/MatchWhere2.feature::[1] Filter nodes with conjunctive two-part property predicate on multi variables with multiple bindings": {
-   "category": "grafeo-result",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/match-where/MatchWhere2.feature::[2] Filter node with conjunctive multi-part property predicates on multi variables with multiple bindings": {
    "category": "lmpg-single-label",
@@ -723,8 +720,7 @@
    "outcome": "pass"
   },
   "tck/features/clauses/match-where/MatchWhere4.feature::[2] Join with disjunctive multi-part predicates including patterns": {
-   "category": "grafeo-syntax",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/match-where/MatchWhere5.feature::[1] Filter out on null": {
    "outcome": "pass"
@@ -753,8 +749,7 @@
    "outcome": "fail"
   },
   "tck/features/clauses/match-where/MatchWhere6.feature::[5] Matching and optionally matching with unbound nodes and equality predicate in reverse direction": {
-   "category": "grafeo-result",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/match-where/MatchWhere6.feature::[6] Join nodes on non-equality of properties \u2013 OPTIONAL MATCH and WHERE": {
    "outcome": "pass"
@@ -846,20 +841,16 @@
    "outcome": "fail"
   },
   "tck/features/clauses/match/Match1.feature::[11] Fail when matching a node variable bound to a value #1": {
-   "category": "grafeo-error-detection",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/match/Match1.feature::[11] Fail when matching a node variable bound to a value #2": {
-   "category": "grafeo-error-detection",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/match/Match1.feature::[11] Fail when matching a node variable bound to a value #3": {
-   "category": "grafeo-error-detection",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/match/Match1.feature::[11] Fail when matching a node variable bound to a value #4": {
-   "category": "grafeo-error-detection",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/match/Match1.feature::[11] Fail when matching a node variable bound to a value #5": {
    "category": "grafeo-error-detection",
@@ -900,48 +891,37 @@
    "outcome": "pass"
   },
   "tck/features/clauses/match/Match1.feature::[7] Fail when a relationship has the same variable in a preceding MATCH #1": {
-   "category": "grafeo-error-detection",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/match/Match1.feature::[7] Fail when a relationship has the same variable in a preceding MATCH #10": {
-   "category": "grafeo-error-detection",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/match/Match1.feature::[7] Fail when a relationship has the same variable in a preceding MATCH #11": {
-   "category": "grafeo-error-detection",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/match/Match1.feature::[7] Fail when a relationship has the same variable in a preceding MATCH #2": {
-   "category": "grafeo-error-detection",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/match/Match1.feature::[7] Fail when a relationship has the same variable in a preceding MATCH #3": {
-   "category": "grafeo-error-detection",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/match/Match1.feature::[7] Fail when a relationship has the same variable in a preceding MATCH #4": {
-   "category": "grafeo-error-detection",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/match/Match1.feature::[7] Fail when a relationship has the same variable in a preceding MATCH #5": {
-   "category": "grafeo-error-detection",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/match/Match1.feature::[7] Fail when a relationship has the same variable in a preceding MATCH #6": {
-   "category": "grafeo-error-detection",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/match/Match1.feature::[7] Fail when a relationship has the same variable in a preceding MATCH #7": {
-   "category": "grafeo-error-detection",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/match/Match1.feature::[7] Fail when a relationship has the same variable in a preceding MATCH #8": {
-   "category": "grafeo-error-detection",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/match/Match1.feature::[7] Fail when a relationship has the same variable in a preceding MATCH #9": {
-   "category": "grafeo-error-detection",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/match/Match1.feature::[8] Fail when a path has the same variable in a preceding MATCH #1": {
    "category": "grafeo-error-detection",
@@ -1008,104 +988,79 @@
    "outcome": "fail"
   },
   "tck/features/clauses/match/Match1.feature::[9] Fail when a relationship has the same variable in the same pattern #1": {
-   "category": "grafeo-error-detection",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/match/Match1.feature::[9] Fail when a relationship has the same variable in the same pattern #10": {
-   "category": "grafeo-error-detection",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/match/Match1.feature::[9] Fail when a relationship has the same variable in the same pattern #11": {
-   "category": "grafeo-error-detection",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/match/Match1.feature::[9] Fail when a relationship has the same variable in the same pattern #12": {
-   "category": "grafeo-error-detection",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/match/Match1.feature::[9] Fail when a relationship has the same variable in the same pattern #13": {
-   "category": "grafeo-error-detection",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/match/Match1.feature::[9] Fail when a relationship has the same variable in the same pattern #14": {
-   "category": "grafeo-error-detection",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/match/Match1.feature::[9] Fail when a relationship has the same variable in the same pattern #15": {
-   "category": "grafeo-error-detection",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/match/Match1.feature::[9] Fail when a relationship has the same variable in the same pattern #16": {
-   "category": "grafeo-error-detection",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/match/Match1.feature::[9] Fail when a relationship has the same variable in the same pattern #17": {
-   "category": "grafeo-error-detection",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/match/Match1.feature::[9] Fail when a relationship has the same variable in the same pattern #18": {
-   "category": "grafeo-error-detection",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/match/Match1.feature::[9] Fail when a relationship has the same variable in the same pattern #19": {
-   "category": "grafeo-error-detection",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/match/Match1.feature::[9] Fail when a relationship has the same variable in the same pattern #2": {
-   "category": "grafeo-error-detection",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/match/Match1.feature::[9] Fail when a relationship has the same variable in the same pattern #20": {
-   "category": "grafeo-error-detection",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/match/Match1.feature::[9] Fail when a relationship has the same variable in the same pattern #21": {
-   "category": "grafeo-error-detection",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/match/Match1.feature::[9] Fail when a relationship has the same variable in the same pattern #22": {
-   "category": "grafeo-error-detection",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/match/Match1.feature::[9] Fail when a relationship has the same variable in the same pattern #23": {
-   "category": "grafeo-error-detection",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/match/Match1.feature::[9] Fail when a relationship has the same variable in the same pattern #24": {
-   "category": "grafeo-error-detection",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/match/Match1.feature::[9] Fail when a relationship has the same variable in the same pattern #25": {
-   "category": "grafeo-error-detection",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/match/Match1.feature::[9] Fail when a relationship has the same variable in the same pattern #3": {
-   "category": "grafeo-error-detection",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/match/Match1.feature::[9] Fail when a relationship has the same variable in the same pattern #4": {
-   "category": "grafeo-error-detection",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/match/Match1.feature::[9] Fail when a relationship has the same variable in the same pattern #5": {
-   "category": "grafeo-error-detection",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/match/Match1.feature::[9] Fail when a relationship has the same variable in the same pattern #6": {
-   "category": "grafeo-error-detection",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/match/Match1.feature::[9] Fail when a relationship has the same variable in the same pattern #7": {
-   "category": "grafeo-error-detection",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/match/Match1.feature::[9] Fail when a relationship has the same variable in the same pattern #8": {
-   "category": "grafeo-error-detection",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/match/Match1.feature::[9] Fail when a relationship has the same variable in the same pattern #9": {
-   "category": "grafeo-error-detection",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/match/Match2.feature::[10] Fail when a path has the same variable in a preceding MATCH #1": {
    "category": "grafeo-error-detection",
@@ -1136,16 +1091,13 @@
    "outcome": "fail"
   },
   "tck/features/clauses/match/Match2.feature::[10] Fail when a path has the same variable in a preceding MATCH #16": {
-   "category": "grafeo-error-detection",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/match/Match2.feature::[10] Fail when a path has the same variable in a preceding MATCH #17": {
-   "category": "grafeo-error-detection",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/match/Match2.feature::[10] Fail when a path has the same variable in a preceding MATCH #18": {
-   "category": "grafeo-error-detection",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/match/Match2.feature::[10] Fail when a path has the same variable in a preceding MATCH #19": {
    "category": "grafeo-error-detection",
@@ -1184,72 +1136,55 @@
    "outcome": "fail"
   },
   "tck/features/clauses/match/Match2.feature::[11] Fail when a node has the same variable in the same pattern #1": {
-   "category": "grafeo-error-detection",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/match/Match2.feature::[11] Fail when a node has the same variable in the same pattern #10": {
-   "category": "grafeo-error-detection",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/match/Match2.feature::[11] Fail when a node has the same variable in the same pattern #11": {
-   "category": "grafeo-error-detection",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/match/Match2.feature::[11] Fail when a node has the same variable in the same pattern #12": {
-   "category": "grafeo-error-detection",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/match/Match2.feature::[11] Fail when a node has the same variable in the same pattern #13": {
-   "category": "grafeo-error-detection",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/match/Match2.feature::[11] Fail when a node has the same variable in the same pattern #14": {
-   "category": "grafeo-error-detection",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/match/Match2.feature::[11] Fail when a node has the same variable in the same pattern #15": {
-   "category": "grafeo-error-detection",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/match/Match2.feature::[11] Fail when a node has the same variable in the same pattern #16": {
-   "category": "grafeo-error-detection",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/match/Match2.feature::[11] Fail when a node has the same variable in the same pattern #17": {
-   "category": "grafeo-error-detection",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/match/Match2.feature::[11] Fail when a node has the same variable in the same pattern #2": {
-   "category": "grafeo-error-detection",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/match/Match2.feature::[11] Fail when a node has the same variable in the same pattern #3": {
-   "category": "grafeo-error-detection",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/match/Match2.feature::[11] Fail when a node has the same variable in the same pattern #4": {
-   "category": "grafeo-error-detection",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/match/Match2.feature::[11] Fail when a node has the same variable in the same pattern #5": {
-   "category": "grafeo-error-detection",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/match/Match2.feature::[11] Fail when a node has the same variable in the same pattern #6": {
-   "category": "grafeo-error-detection",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/match/Match2.feature::[11] Fail when a node has the same variable in the same pattern #7": {
-   "category": "grafeo-error-detection",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/match/Match2.feature::[11] Fail when a node has the same variable in the same pattern #8": {
-   "category": "grafeo-error-detection",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/match/Match2.feature::[11] Fail when a node has the same variable in the same pattern #9": {
-   "category": "grafeo-error-detection",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/match/Match2.feature::[12] Fail when a path has the same variable in the same pattern #1": {
    "category": "grafeo-error-detection",
@@ -1284,20 +1219,16 @@
    "outcome": "fail"
   },
   "tck/features/clauses/match/Match2.feature::[13] Fail when matching a relationship variable bound to a value #1": {
-   "category": "grafeo-error-detection",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/match/Match2.feature::[13] Fail when matching a relationship variable bound to a value #2": {
-   "category": "grafeo-error-detection",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/match/Match2.feature::[13] Fail when matching a relationship variable bound to a value #3": {
-   "category": "grafeo-error-detection",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/match/Match2.feature::[13] Fail when matching a relationship variable bound to a value #4": {
-   "category": "grafeo-error-detection",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/match/Match2.feature::[13] Fail when matching a relationship variable bound to a value #5": {
    "category": "grafeo-error-detection",
@@ -1345,108 +1276,82 @@
    "outcome": "pass"
   },
   "tck/features/clauses/match/Match2.feature::[9] Fail when a node has the same variable in a preceding MATCH #1": {
-   "category": "grafeo-error-detection",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/match/Match2.feature::[9] Fail when a node has the same variable in a preceding MATCH #10": {
-   "category": "grafeo-error-detection",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/match/Match2.feature::[9] Fail when a node has the same variable in a preceding MATCH #11": {
-   "category": "grafeo-error-detection",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/match/Match2.feature::[9] Fail when a node has the same variable in a preceding MATCH #12": {
-   "category": "grafeo-error-detection",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/match/Match2.feature::[9] Fail when a node has the same variable in a preceding MATCH #13": {
-   "category": "grafeo-error-detection",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/match/Match2.feature::[9] Fail when a node has the same variable in a preceding MATCH #14": {
-   "category": "grafeo-error-detection",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/match/Match2.feature::[9] Fail when a node has the same variable in a preceding MATCH #15": {
-   "category": "grafeo-error-detection",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/match/Match2.feature::[9] Fail when a node has the same variable in a preceding MATCH #16": {
-   "category": "grafeo-error-detection",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/match/Match2.feature::[9] Fail when a node has the same variable in a preceding MATCH #17": {
-   "category": "grafeo-error-detection",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/match/Match2.feature::[9] Fail when a node has the same variable in a preceding MATCH #18": {
-   "category": "grafeo-error-detection",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/match/Match2.feature::[9] Fail when a node has the same variable in a preceding MATCH #19": {
-   "category": "grafeo-error-detection",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/match/Match2.feature::[9] Fail when a node has the same variable in a preceding MATCH #2": {
-   "category": "grafeo-error-detection",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/match/Match2.feature::[9] Fail when a node has the same variable in a preceding MATCH #20": {
-   "category": "grafeo-error-detection",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/match/Match2.feature::[9] Fail when a node has the same variable in a preceding MATCH #21": {
-   "category": "grafeo-error-detection",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/match/Match2.feature::[9] Fail when a node has the same variable in a preceding MATCH #22": {
-   "category": "grafeo-error-detection",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/match/Match2.feature::[9] Fail when a node has the same variable in a preceding MATCH #23": {
-   "category": "grafeo-error-detection",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/match/Match2.feature::[9] Fail when a node has the same variable in a preceding MATCH #24": {
-   "category": "grafeo-error-detection",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/match/Match2.feature::[9] Fail when a node has the same variable in a preceding MATCH #25": {
-   "category": "grafeo-error-detection",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/match/Match2.feature::[9] Fail when a node has the same variable in a preceding MATCH #26": {
-   "category": "grafeo-error-detection",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/match/Match2.feature::[9] Fail when a node has the same variable in a preceding MATCH #3": {
-   "category": "grafeo-error-detection",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/match/Match2.feature::[9] Fail when a node has the same variable in a preceding MATCH #4": {
-   "category": "grafeo-error-detection",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/match/Match2.feature::[9] Fail when a node has the same variable in a preceding MATCH #5": {
-   "category": "grafeo-error-detection",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/match/Match2.feature::[9] Fail when a node has the same variable in a preceding MATCH #6": {
-   "category": "grafeo-error-detection",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/match/Match2.feature::[9] Fail when a node has the same variable in a preceding MATCH #7": {
-   "category": "grafeo-error-detection",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/match/Match2.feature::[9] Fail when a node has the same variable in a preceding MATCH #8": {
-   "category": "grafeo-error-detection",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/match/Match2.feature::[9] Fail when a node has the same variable in a preceding MATCH #9": {
-   "category": "grafeo-error-detection",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/match/Match3.feature::[10] Matching using self-referencing pattern returns no result": {
    "category": "lmpg-single-label",
@@ -1514,7 +1419,7 @@
    "outcome": "fail"
   },
   "tck/features/clauses/match/Match3.feature::[27] Matching from null nodes should return no results owing to finding no matches": {
-   "category": "grafeo-semantic",
+   "category": "grafeo-internal",
    "outcome": "fail"
   },
   "tck/features/clauses/match/Match3.feature::[28] Matching from null nodes should return no results owing to matches being filtered out": {
@@ -1588,8 +1493,7 @@
    "outcome": "fail"
   },
   "tck/features/clauses/match/Match4.feature::[8] Matching relationships into a list and matching variable length using the list": {
-   "category": "grafeo-result",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/match/Match4.feature::[9] Fail when asterisk operator is missing": {
    "outcome": "pass"
@@ -1646,23 +1550,22 @@
    "outcome": "pass"
   },
   "tck/features/clauses/match/Match5.feature::[25] Handling a variable length relationship and a standard relationship in chain, longer 3": {
-   "category": "grafeo-internal",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/match/Match5.feature::[26] Handling mixed relationship patterns and directions 1": {
-   "category": "grafeo-internal",
+   "category": "grafeo-result",
    "outcome": "fail"
   },
   "tck/features/clauses/match/Match5.feature::[27] Handling mixed relationship patterns and directions 2": {
-   "category": "grafeo-internal",
+   "category": "grafeo-result",
    "outcome": "fail"
   },
   "tck/features/clauses/match/Match5.feature::[28] Handling mixed relationship patterns 1": {
-   "category": "grafeo-internal",
+   "category": "grafeo-result",
    "outcome": "fail"
   },
   "tck/features/clauses/match/Match5.feature::[29] Handling mixed relationship patterns 2": {
-   "category": "grafeo-internal",
+   "category": "grafeo-result",
    "outcome": "fail"
   },
   "tck/features/clauses/match/Match5.feature::[2] Handling explicitly unbounded variable length match": {
@@ -2075,12 +1978,10 @@
    "outcome": "fail"
   },
   "tck/features/clauses/match/Match7.feature::[10] Optionally matching from null nodes should return null": {
-   "category": "grafeo-semantic",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/match/Match7.feature::[11] Return two subgraphs with bound undirected relationship and optional relationship": {
-   "category": "grafeo-result",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/match/Match7.feature::[12] Variable length optional relationships": {
    "category": "grafeo-result",
@@ -2111,15 +2012,13 @@
    "outcome": "fail"
   },
   "tck/features/clauses/match/Match7.feature::[1] Simple OPTIONAL MATCH on empty graph": {
-   "category": "grafeo-semantic",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/match/Match7.feature::[20] Variable length optional relationships with bound nodes, no matches": {
    "outcome": "pass"
   },
   "tck/features/clauses/match/Match7.feature::[21] Handling optional matches between nulls": {
-   "category": "grafeo-semantic",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/match/Match7.feature::[22] MATCH after OPTIONAL MATCH": {
    "category": "grafeo-internal",
@@ -2139,8 +2038,7 @@
    "outcome": "pass"
   },
   "tck/features/clauses/match/Match7.feature::[27] Handling optional matches between optionally matched entities": {
-   "category": "grafeo-semantic",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/match/Match7.feature::[28] Handling optional matches with inline label predicate": {
    "outcome": "pass"
@@ -2184,8 +2082,7 @@
    "outcome": "pass"
   },
   "tck/features/clauses/match/Match8.feature::[2] Counting rows after MATCH, MERGE, OPTIONAL MATCH": {
-   "category": "grafeo-write-column-names",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/match/Match8.feature::[3] Matching and disregarding output, then matching again": {
    "category": "lmpg-single-label",
@@ -2196,8 +2093,7 @@
    "outcome": "fail"
   },
   "tck/features/clauses/match/Match9.feature::[2] Return relationships by collecting them as a list - directed, one way": {
-   "category": "grafeo-result",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/match/Match9.feature::[3] Return relationships by collecting them as a list - undirected, starting from two extremes": {
    "category": "grafeo-result",
@@ -2208,12 +2104,10 @@
    "outcome": "fail"
   },
   "tck/features/clauses/match/Match9.feature::[5] Variable length pattern with label predicate on both sides": {
-   "category": "grafeo-write-column-names",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/match/Match9.feature::[6] Matching relationships into a list and matching variable length using the list, with bound nodes": {
-   "category": "grafeo-result",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/match/Match9.feature::[7] Matching relationships into a list and matching variable length using the list, with bound nodes, wrong direction": {
    "outcome": "pass"
@@ -2244,8 +2138,7 @@
    "outcome": "pass"
   },
   "tck/features/clauses/merge/Merge1.feature::[15] Fail when merge a node that is already bound": {
-   "category": "grafeo-error-detection",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/merge/Merge1.feature::[16] Fail when using parameter as node predicate in MERGE": {
    "outcome": "pass"
@@ -2258,8 +2151,7 @@
    "outcome": "fail"
   },
   "tck/features/clauses/merge/Merge1.feature::[2] Merge node with label": {
-   "category": "grafeo-write-column-names",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/merge/Merge1.feature::[3] Merge node with label when it exists": {
    "outcome": "pass"
@@ -2286,7 +2178,7 @@
    "outcome": "fail"
   },
   "tck/features/clauses/merge/Merge2.feature::[1] Merge node with label add label on create": {
-   "category": "grafeo-write-column-names",
+   "category": "grafeo-result",
    "outcome": "fail"
   },
   "tck/features/clauses/merge/Merge2.feature::[2] ON CREATE on created nodes": {
@@ -2310,7 +2202,7 @@
    "outcome": "fail"
   },
   "tck/features/clauses/merge/Merge3.feature::[2] Merge node with label add label on match when it exists": {
-   "category": "grafeo-write-column-names",
+   "category": "grafeo-result",
    "outcome": "fail"
   },
   "tck/features/clauses/merge/Merge3.feature::[3] Merge node and set property on match": {
@@ -2346,12 +2238,10 @@
    "outcome": "fail"
   },
   "tck/features/clauses/merge/Merge5.feature::[14] Using list properties via variable": {
-   "category": "grafeo-write-column-names",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/merge/Merge5.feature::[15] Matching using list property": {
-   "category": "grafeo-write-column-names",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/merge/Merge5.feature::[16] Aliasing of existing nodes 1": {
    "category": "lmpg-single-label",
@@ -2370,18 +2260,17 @@
    "outcome": "fail"
   },
   "tck/features/clauses/merge/Merge5.feature::[1] Creating a relationship": {
-   "category": "grafeo-write-column-names",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/merge/Merge5.feature::[20] Do not match on deleted entities": {
-   "outcome": "pass"
+   "category": "grafeo-semantic",
+   "outcome": "fail"
   },
   "tck/features/clauses/merge/Merge5.feature::[21] Do not match on deleted relationships": {
    "outcome": "pass"
   },
   "tck/features/clauses/merge/Merge5.feature::[22] Fail when imposing new predicates on a variable that is already bound": {
-   "category": "grafeo-error-detection",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/merge/Merge5.feature::[23] Fail when merging relationship without type": {
    "outcome": "pass"
@@ -2405,32 +2294,26 @@
    "outcome": "pass"
   },
   "tck/features/clauses/merge/Merge5.feature::[2] Matching a relationship": {
-   "category": "grafeo-write-column-names",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/merge/Merge5.feature::[3] Matching two relationships": {
-   "category": "grafeo-write-column-names",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/merge/Merge5.feature::[4] Using bound variables from other updating clause": {
    "category": "lmpg-single-label",
    "outcome": "fail"
   },
   "tck/features/clauses/merge/Merge5.feature::[5] Filtering relationships": {
-   "category": "grafeo-write-column-names",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/merge/Merge5.feature::[6] Creating relationship when all matches filtered out": {
-   "category": "grafeo-write-column-names",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/merge/Merge5.feature::[7] Matching incoming relationship": {
-   "category": "grafeo-write-column-names",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/merge/Merge5.feature::[8] Creating relationship with property": {
-   "category": "grafeo-write-column-names",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/merge/Merge5.feature::[9] Creating relationship using merged nodes": {
    "outcome": "pass"
@@ -2439,24 +2322,20 @@
    "outcome": "pass"
   },
   "tck/features/clauses/merge/Merge6.feature::[2] Using ON CREATE on a relationship": {
-   "category": "grafeo-write-column-names",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/merge/Merge6.feature::[3] Updating one property with ON CREATE": {
-   "category": "grafeo-result",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/merge/Merge6.feature::[4] Null-setting one property with ON CREATE": {
-   "category": "grafeo-result",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/merge/Merge6.feature::[6] Copying properties from node with ON CREATE": {
    "category": "grafeo-lazy-writes",
    "outcome": "fail"
   },
   "tck/features/clauses/merge/Merge6.feature::[7] Copying properties from literal map with ON CREATE": {
-   "category": "grafeo-result",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/merge/Merge7.feature::[1] Using ON MATCH on created node": {
    "outcome": "pass"
@@ -2465,20 +2344,17 @@
    "outcome": "pass"
   },
   "tck/features/clauses/merge/Merge7.feature::[3] Using ON MATCH on a relationship": {
-   "category": "grafeo-write-column-names",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/merge/Merge7.feature::[4] Copying properties from node with ON MATCH": {
    "category": "grafeo-lazy-writes",
    "outcome": "fail"
   },
   "tck/features/clauses/merge/Merge7.feature::[5] Copying properties from literal map with ON MATCH": {
-   "category": "grafeo-result",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/merge/Merge8.feature::[1] Using ON CREATE and ON MATCH": {
-   "category": "grafeo-write-column-names",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/merge/Merge9.feature::[1] UNWIND with one MERGE": {
    "category": "lmpg-single-label",
@@ -2488,8 +2364,7 @@
    "outcome": "pass"
   },
   "tck/features/clauses/merge/Merge9.feature::[3] Mixing MERGE with CREATE": {
-   "category": "grafeo-write-column-names",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/merge/Merge9.feature::[4] MERGE after WITH with predicate and WITH with aggregation": {
    "outcome": "pass"
@@ -2509,7 +2384,7 @@
    "outcome": "fail"
   },
   "tck/features/clauses/remove/Remove1.feature::[5] Ignore null when removing property from a node": {
-   "category": "grafeo-semantic",
+   "category": "grafeo-null-writes",
    "outcome": "fail"
   },
   "tck/features/clauses/remove/Remove1.feature::[6] Ignore null when removing property from a relationship": {
@@ -2533,11 +2408,10 @@
    "outcome": "fail"
   },
   "tck/features/clauses/remove/Remove2.feature::[4] Remove a non-existent node label": {
-   "category": "grafeo-write-column-names",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/remove/Remove2.feature::[5] Ignore null when removing a node label": {
-   "category": "grafeo-semantic",
+   "category": "grafeo-null-writes",
    "outcome": "fail"
   },
   "tck/features/clauses/remove/Remove3.feature::[10] Skipping and limiting to a few results after removing a label from nodes affects the result set but not the side effects": {
@@ -2619,8 +2493,7 @@
    "outcome": "fail"
   },
   "tck/features/clauses/return-orderby/ReturnOrderBy1.feature::[10] ORDER BY DESC should order lists in the expected order": {
-   "category": "grafeo-result",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/return-orderby/ReturnOrderBy1.feature::[11] ORDER BY should order distinct types in the expected order": {
    "category": "lmpg-single-label",
@@ -2665,7 +2538,8 @@
    "outcome": "pass"
   },
   "tck/features/clauses/return-orderby/ReturnOrderBy2.feature::[12] Aggregation of named paths": {
-   "outcome": "pass"
+   "category": "grafeo-internal",
+   "outcome": "fail"
   },
   "tck/features/clauses/return-orderby/ReturnOrderBy2.feature::[13] Fail when sorting on variable removed by DISTINCT": {
    "category": "lmpg-single-label",
@@ -2695,8 +2569,7 @@
    "outcome": "pass"
   },
   "tck/features/clauses/return-orderby/ReturnOrderBy2.feature::[6] Count star should count everything in scope": {
-   "category": "grafeo-write-column-names",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/return-orderby/ReturnOrderBy2.feature::[7] Ordering with aggregation": {
    "category": "lmpg-single-label",
@@ -2715,8 +2588,7 @@
    "outcome": "fail"
   },
   "tck/features/clauses/return-orderby/ReturnOrderBy4.feature::[1] ORDER BY of a column introduced in RETURN should return salient results in ascending order": {
-   "category": "grafeo-result",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/return-orderby/ReturnOrderBy4.feature::[2] Handle projections with ORDER BY": {
    "outcome": "pass"
@@ -2858,8 +2730,7 @@
    "outcome": "pass"
   },
   "tck/features/clauses/return/Return2.feature::[10] Return count aggregation over an empty graph": {
-   "category": "grafeo-write-column-names",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/return/Return2.feature::[11] RETURN does not lose precision on large integers": {
    "outcome": "pass"
@@ -2939,11 +2810,10 @@
    "outcome": "pass"
   },
   "tck/features/clauses/return/Return4.feature::[10] Fail when returning multiple columns with same name": {
-   "category": "grafeo-error-detection",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/return/Return4.feature::[11] Reusing variable names in RETURN": {
-   "category": "grafeo-internal",
+   "category": "grafeo-semantic",
    "outcome": "fail"
   },
   "tck/features/clauses/return/Return4.feature::[1] Honour the column name for RETURN items": {
@@ -3014,7 +2884,8 @@
    "outcome": "fail"
   },
   "tck/features/clauses/return/Return6.feature::[13] Returning the minimum length of paths": {
-   "outcome": "pass"
+   "category": "grafeo-internal",
+   "outcome": "fail"
   },
   "tck/features/clauses/return/Return6.feature::[14] Aggregates in aggregates": {
    "outcome": "pass"
@@ -3123,7 +2994,7 @@
    "outcome": "fail"
   },
   "tck/features/clauses/set/Set1.feature::[8] Ignore null when setting property": {
-   "category": "grafeo-semantic",
+   "category": "grafeo-null-writes",
    "outcome": "fail"
   },
   "tck/features/clauses/set/Set1.feature::[9] Failing when using undefined variable in SET": {
@@ -3168,7 +3039,7 @@
    "outcome": "fail"
   },
   "tck/features/clauses/set/Set3.feature::[8] Ignore null when setting label": {
-   "category": "grafeo-semantic",
+   "category": "grafeo-null-writes",
    "outcome": "fail"
   },
   "tck/features/clauses/set/Set4.feature::[1] Set multiple properties with a property map": {
@@ -3184,11 +3055,11 @@
    "outcome": "pass"
   },
   "tck/features/clauses/set/Set4.feature::[5] Ignore null when setting properties using an overriding map": {
-   "category": "grafeo-semantic",
+   "category": "grafeo-null-writes",
    "outcome": "fail"
   },
   "tck/features/clauses/set/Set5.feature::[1] Ignore null when setting properties using an appending map": {
-   "category": "grafeo-semantic",
+   "category": "grafeo-null-writes",
    "outcome": "fail"
   },
   "tck/features/clauses/set/Set5.feature::[2] Overwrite values when using +=": {
@@ -3294,8 +3165,7 @@
    "outcome": "pass"
   },
   "tck/features/clauses/union/Union1.feature::[5] Failing when UNION has different columns": {
-   "category": "grafeo-error-detection",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/union/Union2.feature::[1] Two elements, both unique, not distinct": {
    "outcome": "pass"
@@ -3310,16 +3180,13 @@
    "outcome": "pass"
   },
   "tck/features/clauses/union/Union2.feature::[5] Failing when UNION ALL has different columns": {
-   "category": "grafeo-error-detection",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/union/Union3.feature::[1] Failing when mixing UNION and UNION ALL": {
-   "category": "grafeo-error-detection",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/union/Union3.feature::[2] Failing when mixing UNION ALL and UNION": {
-   "category": "grafeo-error-detection",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/unwind/Unwind1.feature::[10] Unwinding list with duplicates": {
    "outcome": "pass"
@@ -3346,8 +3213,7 @@
    "outcome": "pass"
   },
   "tck/features/clauses/unwind/Unwind1.feature::[3] Unwinding a concatenation of lists": {
-   "category": "grafeo-result",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/unwind/Unwind1.feature::[4] Unwinding a collected unwound expression": {
    "outcome": "pass"
@@ -3370,8 +3236,7 @@
    "outcome": "pass"
   },
   "tck/features/clauses/with-orderBy/WithOrderBy1.feature::[10] Sort lists in descending order": {
-   "category": "grafeo-result",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/with-orderBy/WithOrderBy1.feature::[11] Sort dates in ascending order": {
    "outcome": "pass"
@@ -3486,126 +3351,116 @@
    "outcome": "pass"
   },
   "tck/features/clauses/with-orderBy/WithOrderBy1.feature::[31] Sort by a list variable projected from a node property in ascending order #1": {
-   "category": "grafeo-result",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/with-orderBy/WithOrderBy1.feature::[31] Sort by a list variable projected from a node property in ascending order #2": {
-   "category": "grafeo-result",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/with-orderBy/WithOrderBy1.feature::[31] Sort by a list variable projected from a node property in ascending order #3": {
-   "category": "grafeo-result",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/with-orderBy/WithOrderBy1.feature::[32] Sort by a list variable projected from a node property in descending order #1": {
-   "category": "grafeo-result",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/with-orderBy/WithOrderBy1.feature::[32] Sort by a list variable projected from a node property in descending order #2": {
-   "category": "grafeo-result",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/with-orderBy/WithOrderBy1.feature::[33] Sort by a date variable projected from a node property in ascending order #1": {
-   "category": "grafeo-internal",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/with-orderBy/WithOrderBy1.feature::[33] Sort by a date variable projected from a node property in ascending order #2": {
-   "category": "grafeo-internal",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/with-orderBy/WithOrderBy1.feature::[33] Sort by a date variable projected from a node property in ascending order #3": {
-   "category": "grafeo-internal",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/with-orderBy/WithOrderBy1.feature::[34] Sort by a date variable projected from a node property in descending order #1": {
-   "category": "grafeo-internal",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/with-orderBy/WithOrderBy1.feature::[34] Sort by a date variable projected from a node property in descending order #2": {
-   "category": "grafeo-internal",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/with-orderBy/WithOrderBy1.feature::[35] Sort by a local time variable projected from a node property in ascending order #1": {
-   "category": "grafeo-internal",
+   "category": "temporal",
    "outcome": "fail"
   },
   "tck/features/clauses/with-orderBy/WithOrderBy1.feature::[35] Sort by a local time variable projected from a node property in ascending order #2": {
-   "category": "grafeo-internal",
+   "category": "temporal",
    "outcome": "fail"
   },
   "tck/features/clauses/with-orderBy/WithOrderBy1.feature::[35] Sort by a local time variable projected from a node property in ascending order #3": {
-   "category": "grafeo-internal",
+   "category": "temporal",
    "outcome": "fail"
   },
   "tck/features/clauses/with-orderBy/WithOrderBy1.feature::[36] Sort by a local time variable projected from a node property in descending order #1": {
-   "category": "grafeo-internal",
+   "category": "temporal",
    "outcome": "fail"
   },
   "tck/features/clauses/with-orderBy/WithOrderBy1.feature::[36] Sort by a local time variable projected from a node property in descending order #2": {
-   "category": "grafeo-internal",
+   "category": "temporal",
    "outcome": "fail"
   },
   "tck/features/clauses/with-orderBy/WithOrderBy1.feature::[37] Sort by a time variable projected from a node property in ascending order #1": {
-   "category": "grafeo-internal",
+   "category": "temporal",
    "outcome": "fail"
   },
   "tck/features/clauses/with-orderBy/WithOrderBy1.feature::[37] Sort by a time variable projected from a node property in ascending order #2": {
-   "category": "grafeo-internal",
+   "category": "temporal",
    "outcome": "fail"
   },
   "tck/features/clauses/with-orderBy/WithOrderBy1.feature::[37] Sort by a time variable projected from a node property in ascending order #3": {
-   "category": "grafeo-internal",
+   "category": "temporal",
    "outcome": "fail"
   },
   "tck/features/clauses/with-orderBy/WithOrderBy1.feature::[38] Sort by a time variable projected from a node property in descending order #1": {
-   "category": "grafeo-internal",
+   "category": "temporal",
    "outcome": "fail"
   },
   "tck/features/clauses/with-orderBy/WithOrderBy1.feature::[38] Sort by a time variable projected from a node property in descending order #2": {
-   "category": "grafeo-internal",
+   "category": "temporal",
    "outcome": "fail"
   },
   "tck/features/clauses/with-orderBy/WithOrderBy1.feature::[39] Sort by a local date time variable projected from a node property in ascending order #1": {
-   "category": "grafeo-internal",
+   "category": "temporal",
    "outcome": "fail"
   },
   "tck/features/clauses/with-orderBy/WithOrderBy1.feature::[39] Sort by a local date time variable projected from a node property in ascending order #2": {
-   "category": "grafeo-internal",
+   "category": "temporal",
    "outcome": "fail"
   },
   "tck/features/clauses/with-orderBy/WithOrderBy1.feature::[39] Sort by a local date time variable projected from a node property in ascending order #3": {
-   "category": "grafeo-internal",
+   "category": "temporal",
    "outcome": "fail"
   },
   "tck/features/clauses/with-orderBy/WithOrderBy1.feature::[3] Sort integers in ascending order": {
    "outcome": "pass"
   },
   "tck/features/clauses/with-orderBy/WithOrderBy1.feature::[40] Sort by a local date time variable projected from a node property in descending order #1": {
-   "category": "grafeo-internal",
+   "category": "temporal",
    "outcome": "fail"
   },
   "tck/features/clauses/with-orderBy/WithOrderBy1.feature::[40] Sort by a local date time variable projected from a node property in descending order #2": {
-   "category": "grafeo-internal",
+   "category": "temporal",
    "outcome": "fail"
   },
   "tck/features/clauses/with-orderBy/WithOrderBy1.feature::[41] Sort by a date time variable projected from a node property in ascending order #1": {
-   "category": "grafeo-internal",
+   "category": "temporal",
    "outcome": "fail"
   },
   "tck/features/clauses/with-orderBy/WithOrderBy1.feature::[41] Sort by a date time variable projected from a node property in ascending order #2": {
-   "category": "grafeo-internal",
+   "category": "temporal",
    "outcome": "fail"
   },
   "tck/features/clauses/with-orderBy/WithOrderBy1.feature::[41] Sort by a date time variable projected from a node property in ascending order #3": {
-   "category": "grafeo-internal",
+   "category": "temporal",
    "outcome": "fail"
   },
   "tck/features/clauses/with-orderBy/WithOrderBy1.feature::[42] Sort by a date time variable projected from a node property in descending order #1": {
-   "category": "grafeo-internal",
+   "category": "temporal",
    "outcome": "fail"
   },
   "tck/features/clauses/with-orderBy/WithOrderBy1.feature::[42] Sort by a date time variable projected from a node property in descending order #2": {
-   "category": "grafeo-internal",
+   "category": "temporal",
    "outcome": "fail"
   },
   "tck/features/clauses/with-orderBy/WithOrderBy1.feature::[43] Sort by a variable that is only partially orderable on a non-distinct binding table #1": {
@@ -3709,103 +3564,101 @@
    "outcome": "pass"
   },
   "tck/features/clauses/with-orderBy/WithOrderBy2.feature::[10] Sort by a list expression in descending order #1": {
-   "category": "grafeo-result",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/with-orderBy/WithOrderBy2.feature::[10] Sort by a list expression in descending order #2": {
-   "category": "grafeo-result",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/with-orderBy/WithOrderBy2.feature::[11] Sort by a date expression in ascending order #1": {
-   "category": "grafeo-internal",
+   "category": "temporal",
    "outcome": "fail"
   },
   "tck/features/clauses/with-orderBy/WithOrderBy2.feature::[11] Sort by a date expression in ascending order #2": {
-   "category": "grafeo-internal",
+   "category": "temporal",
    "outcome": "fail"
   },
   "tck/features/clauses/with-orderBy/WithOrderBy2.feature::[11] Sort by a date expression in ascending order #3": {
-   "category": "grafeo-internal",
+   "category": "temporal",
    "outcome": "fail"
   },
   "tck/features/clauses/with-orderBy/WithOrderBy2.feature::[12] Sort by a date expression in descending order #1": {
-   "category": "grafeo-internal",
+   "category": "temporal",
    "outcome": "fail"
   },
   "tck/features/clauses/with-orderBy/WithOrderBy2.feature::[12] Sort by a date expression in descending order #2": {
-   "category": "grafeo-internal",
+   "category": "temporal",
    "outcome": "fail"
   },
   "tck/features/clauses/with-orderBy/WithOrderBy2.feature::[13] Sort by a local time expression in ascending order #1": {
-   "category": "grafeo-internal",
+   "category": "temporal",
    "outcome": "fail"
   },
   "tck/features/clauses/with-orderBy/WithOrderBy2.feature::[13] Sort by a local time expression in ascending order #2": {
-   "category": "grafeo-internal",
+   "category": "temporal",
    "outcome": "fail"
   },
   "tck/features/clauses/with-orderBy/WithOrderBy2.feature::[13] Sort by a local time expression in ascending order #3": {
-   "category": "grafeo-internal",
+   "category": "temporal",
    "outcome": "fail"
   },
   "tck/features/clauses/with-orderBy/WithOrderBy2.feature::[14] Sort by a local time expression in descending order #1": {
-   "category": "grafeo-internal",
+   "category": "temporal",
    "outcome": "fail"
   },
   "tck/features/clauses/with-orderBy/WithOrderBy2.feature::[14] Sort by a local time expression in descending order #2": {
-   "category": "grafeo-internal",
+   "category": "temporal",
    "outcome": "fail"
   },
   "tck/features/clauses/with-orderBy/WithOrderBy2.feature::[15] Sort by a time expression in ascending order #1": {
-   "category": "grafeo-internal",
+   "category": "temporal",
    "outcome": "fail"
   },
   "tck/features/clauses/with-orderBy/WithOrderBy2.feature::[15] Sort by a time expression in ascending order #2": {
-   "category": "grafeo-internal",
+   "category": "temporal",
    "outcome": "fail"
   },
   "tck/features/clauses/with-orderBy/WithOrderBy2.feature::[15] Sort by a time expression in ascending order #3": {
-   "category": "grafeo-internal",
+   "category": "temporal",
    "outcome": "fail"
   },
   "tck/features/clauses/with-orderBy/WithOrderBy2.feature::[16] Sort by a time expression in descending order #1": {
-   "category": "grafeo-internal",
+   "category": "temporal",
    "outcome": "fail"
   },
   "tck/features/clauses/with-orderBy/WithOrderBy2.feature::[16] Sort by a time expression in descending order #2": {
-   "category": "grafeo-internal",
+   "category": "temporal",
    "outcome": "fail"
   },
   "tck/features/clauses/with-orderBy/WithOrderBy2.feature::[17] Sort by a local date time expression in ascending order #1": {
-   "category": "grafeo-internal",
+   "category": "temporal",
    "outcome": "fail"
   },
   "tck/features/clauses/with-orderBy/WithOrderBy2.feature::[17] Sort by a local date time expression in ascending order #2": {
-   "category": "grafeo-internal",
+   "category": "temporal",
    "outcome": "fail"
   },
   "tck/features/clauses/with-orderBy/WithOrderBy2.feature::[17] Sort by a local date time expression in ascending order #3": {
-   "category": "grafeo-internal",
+   "category": "temporal",
    "outcome": "fail"
   },
   "tck/features/clauses/with-orderBy/WithOrderBy2.feature::[18] Sort by a local date time expression in descending order #1": {
-   "category": "grafeo-internal",
+   "category": "temporal",
    "outcome": "fail"
   },
   "tck/features/clauses/with-orderBy/WithOrderBy2.feature::[18] Sort by a local date time expression in descending order #2": {
-   "category": "grafeo-internal",
+   "category": "temporal",
    "outcome": "fail"
   },
   "tck/features/clauses/with-orderBy/WithOrderBy2.feature::[19] Sort by a date time expression in ascending order #1": {
-   "category": "grafeo-internal",
+   "category": "temporal",
    "outcome": "fail"
   },
   "tck/features/clauses/with-orderBy/WithOrderBy2.feature::[19] Sort by a date time expression in ascending order #2": {
-   "category": "grafeo-internal",
+   "category": "temporal",
    "outcome": "fail"
   },
   "tck/features/clauses/with-orderBy/WithOrderBy2.feature::[19] Sort by a date time expression in ascending order #3": {
-   "category": "grafeo-internal",
+   "category": "temporal",
    "outcome": "fail"
   },
   "tck/features/clauses/with-orderBy/WithOrderBy2.feature::[1] Sort by a boolean expression in ascending order #1": {
@@ -3818,11 +3671,11 @@
    "outcome": "pass"
   },
   "tck/features/clauses/with-orderBy/WithOrderBy2.feature::[20] Sort by a date time expression in descending order #1": {
-   "category": "grafeo-internal",
+   "category": "temporal",
    "outcome": "fail"
   },
   "tck/features/clauses/with-orderBy/WithOrderBy2.feature::[20] Sort by a date time expression in descending order #2": {
-   "category": "grafeo-internal",
+   "category": "temporal",
    "outcome": "fail"
   },
   "tck/features/clauses/with-orderBy/WithOrderBy2.feature::[21] Sort by an expression that is only partially orderable on a non-distinct binding table #1": {
@@ -3892,8 +3745,7 @@
    "outcome": "pass"
   },
   "tck/features/clauses/with-orderBy/WithOrderBy2.feature::[25] Fail on sorting by an aggregation #2": {
-   "category": "grafeo-error-detection",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/with-orderBy/WithOrderBy2.feature::[25] Fail on sorting by an aggregation #20": {
    "outcome": "pass"
@@ -3914,32 +3766,25 @@
    "outcome": "pass"
   },
   "tck/features/clauses/with-orderBy/WithOrderBy2.feature::[25] Fail on sorting by an aggregation #3": {
-   "category": "grafeo-error-detection",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/with-orderBy/WithOrderBy2.feature::[25] Fail on sorting by an aggregation #4": {
-   "category": "grafeo-error-detection",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/with-orderBy/WithOrderBy2.feature::[25] Fail on sorting by an aggregation #5": {
-   "category": "grafeo-error-detection",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/with-orderBy/WithOrderBy2.feature::[25] Fail on sorting by an aggregation #6": {
-   "category": "grafeo-error-detection",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/with-orderBy/WithOrderBy2.feature::[25] Fail on sorting by an aggregation #7": {
-   "category": "grafeo-error-detection",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/with-orderBy/WithOrderBy2.feature::[25] Fail on sorting by an aggregation #8": {
-   "category": "grafeo-error-detection",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/with-orderBy/WithOrderBy2.feature::[25] Fail on sorting by an aggregation #9": {
-   "category": "grafeo-error-detection",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/with-orderBy/WithOrderBy2.feature::[2] Sort by a boolean expression in descending order #1": {
    "outcome": "pass"
@@ -4316,8 +4161,7 @@
    "outcome": "fail"
   },
   "tck/features/clauses/with-orderBy/WithOrderBy4.feature::[12] Sort by an aliased aggregate projection": {
-   "category": "grafeo-semantic",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/with-orderBy/WithOrderBy4.feature::[13] Fail on sorting by a non-projected aggregation on a variable": {
    "outcome": "pass"
@@ -4330,7 +4174,8 @@
    "outcome": "fail"
   },
   "tck/features/clauses/with-orderBy/WithOrderBy4.feature::[16] Handle constants and parameters inside an order by item which contains an aggregation expression": {
-   "outcome": "pass"
+   "category": "grafeo-semantic",
+   "outcome": "fail"
   },
   "tck/features/clauses/with-orderBy/WithOrderBy4.feature::[17] Handle projected variables inside an order by item which contains an aggregation expression": {
    "category": "grafeo-semantic",
@@ -4341,15 +4186,13 @@
    "outcome": "fail"
   },
   "tck/features/clauses/with-orderBy/WithOrderBy4.feature::[19] Fail if not projected variables are used inside an order by item which contains an aggregation expression": {
-   "category": "grafeo-error-detection",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/with-orderBy/WithOrderBy4.feature::[1] Sort by a projected expression": {
    "outcome": "pass"
   },
   "tck/features/clauses/with-orderBy/WithOrderBy4.feature::[20] Fail if more complex expressions, even if projected, are used inside an order by item which contains an aggregation expression": {
-   "category": "grafeo-error-detection",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/with-orderBy/WithOrderBy4.feature::[2] Sort by an alias of a projected expression": {
    "outcome": "pass"
@@ -4370,7 +4213,7 @@
    "outcome": "pass"
   },
   "tck/features/clauses/with-orderBy/WithOrderBy4.feature::[8] Sort by non-projected existing variable": {
-   "category": "grafeo-internal",
+   "category": "grafeo-semantic",
    "outcome": "fail"
   },
   "tck/features/clauses/with-orderBy/WithOrderBy4.feature::[9] Sort by an alias of a projected expression containing the variable shadowed by the alias": {
@@ -4419,14 +4262,15 @@
    "outcome": "fail"
   },
   "tck/features/clauses/with-where/WithWhere1.feature::[3] Filter for an unbound relationship variable": {
-   "outcome": "pass"
+   "category": "grafeo-semantic",
+   "outcome": "fail"
   },
   "tck/features/clauses/with-where/WithWhere1.feature::[4] Filter for an unbound node variable": {
-   "outcome": "pass"
+   "category": "grafeo-semantic",
+   "outcome": "fail"
   },
   "tck/features/clauses/with-where/WithWhere2.feature::[1] Filter nodes with conjunctive two-part property predicate on multi variables with multiple bindings": {
-   "category": "grafeo-result",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/with-where/WithWhere2.feature::[2] Filter node with conjunctive multi-part property predicates on multi variables with multiple bindings": {
    "category": "lmpg-single-label",
@@ -4445,8 +4289,7 @@
    "outcome": "pass"
   },
   "tck/features/clauses/with-where/WithWhere4.feature::[2] Join with disjunctive multi-part predicates including patterns": {
-   "category": "grafeo-syntax",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/with-where/WithWhere5.feature::[1] Filter out on null": {
    "outcome": "pass"
@@ -4491,19 +4334,17 @@
    "outcome": "fail"
   },
   "tck/features/clauses/with/With1.feature::[5] Forwarding null": {
-   "category": "grafeo-semantic",
+   "category": "grafeo-internal",
    "outcome": "fail"
   },
   "tck/features/clauses/with/With1.feature::[6] Forwarding a node variable possibly null": {
-   "category": "grafeo-semantic",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/with/With2.feature::[1] Forwarding a property to express a join": {
    "outcome": "pass"
   },
   "tck/features/clauses/with/With2.feature::[2] Forwarding a nested map literal": {
-   "category": "grafeo-semantic",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/with/With3.feature::[1] Forwarding multiple node and relationship variables": {
    "category": "lmpg-single-label",
@@ -4525,11 +4366,10 @@
    "outcome": "fail"
   },
   "tck/features/clauses/with/With4.feature::[5] Fail when not aliasing expressions in WITH": {
-   "category": "grafeo-error-detection",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/clauses/with/With4.feature::[6] Reusing variable names in WITH": {
-   "category": "grafeo-internal",
+   "category": "grafeo-semantic",
    "outcome": "fail"
   },
   "tck/features/clauses/with/With4.feature::[7] Multiple aliasing and backreferencing": {
@@ -4593,51 +4433,41 @@
    "outcome": "fail"
   },
   "tck/features/expressions/aggregation/Aggregation2.feature::[10] `min()` over list values": {
-   "category": "grafeo-write-column-names",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/aggregation/Aggregation2.feature::[11] `max()` over mixed values": {
-   "category": "grafeo-write-column-names",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/aggregation/Aggregation2.feature::[12] `min()` over mixed values": {
-   "category": "grafeo-write-column-names",
+   "category": "grafeo-result",
    "outcome": "fail"
   },
   "tck/features/expressions/aggregation/Aggregation2.feature::[1] `max()` over integers": {
-   "category": "grafeo-write-column-names",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/aggregation/Aggregation2.feature::[2] `min()` over integers": {
-   "category": "grafeo-write-column-names",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/aggregation/Aggregation2.feature::[3] `max()` over floats": {
-   "category": "grafeo-write-column-names",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/aggregation/Aggregation2.feature::[4] `min()` over floats": {
-   "category": "grafeo-write-column-names",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/aggregation/Aggregation2.feature::[5] `max()` over mixed numeric values": {
-   "category": "grafeo-write-column-names",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/aggregation/Aggregation2.feature::[6] `min()` over mixed numeric values": {
-   "category": "grafeo-write-column-names",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/aggregation/Aggregation2.feature::[7] `max()` over strings": {
-   "category": "grafeo-write-column-names",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/aggregation/Aggregation2.feature::[8] `min()` over strings": {
-   "category": "grafeo-write-column-names",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/aggregation/Aggregation2.feature::[9] `max()` over list values": {
-   "category": "grafeo-write-column-names",
+   "category": "grafeo-result",
    "outcome": "fail"
   },
   "tck/features/expressions/aggregation/Aggregation3.feature::[1] Sum only non-null values": {
@@ -4645,16 +4475,14 @@
    "outcome": "fail"
   },
   "tck/features/expressions/aggregation/Aggregation3.feature::[2] No overflow during summation": {
-   "category": "grafeo-write-column-names",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/aggregation/Aggregation5.feature::[1] `collect()` filtering nulls": {
    "category": "lmpg-single-label",
    "outcome": "fail"
   },
   "tck/features/expressions/aggregation/Aggregation5.feature::[2] OPTIONAL MATCH and `collect()` on node property": {
-   "category": "grafeo-semantic",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/aggregation/Aggregation6.feature::[1] `percentileDisc()` #1": {
    "category": "lmpg-single-label",
@@ -4705,11 +4533,11 @@
    "outcome": "fail"
   },
   "tck/features/expressions/aggregation/Aggregation6.feature::[5] `percentileDisc()` failing in more involved query": {
-   "outcome": "pass"
+   "category": "lmpg-single-label",
+   "outcome": "fail"
   },
   "tck/features/expressions/aggregation/Aggregation8.feature::[1] Distinct on unbound node": {
-   "category": "grafeo-semantic",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/aggregation/Aggregation8.feature::[2] Distinct on null": {
    "category": "lmpg-single-label",
@@ -5308,8 +5136,7 @@
    "outcome": "pass"
   },
   "tck/features/expressions/comparison/Comparison1.feature::[14] Direction of traversed relationship is not significant for path equality, simple": {
-   "category": "grafeo-write-column-names",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/comparison/Comparison1.feature::[15] It is unknown - i.e. null - if a null is equal to a null": {
    "outcome": "pass"
@@ -5545,7 +5372,7 @@
    "outcome": "fail"
   },
   "tck/features/expressions/comparison/Comparison4.feature::[1] Handling long chains of operators": {
-   "category": "grafeo-write-column-names",
+   "category": "grafeo-result",
    "outcome": "fail"
   },
   "tck/features/expressions/conditional/Conditional1.feature::[1] Run coalesce": {
@@ -5638,8 +5465,7 @@
    "outcome": "fail"
   },
   "tck/features/expressions/graph/Graph3.feature::[4] Create node with label in pattern": {
-   "category": "grafeo-write-column-names",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/graph/Graph3.feature::[5] Using `labels()` in return clauses": {
    "category": "lmpg-single-label",
@@ -5650,7 +5476,7 @@
    "outcome": "fail"
   },
   "tck/features/expressions/graph/Graph3.feature::[7] `labels()` on null node": {
-   "category": "grafeo-semantic",
+   "category": "grafeo-write-column-names",
    "outcome": "fail"
   },
   "tck/features/expressions/graph/Graph3.feature::[8] `labels()` failing on a path": {
@@ -5750,8 +5576,7 @@
    "outcome": "fail"
   },
   "tck/features/expressions/graph/Graph6.feature::[3] Statically access a property of a null node": {
-   "category": "grafeo-semantic",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/graph/Graph6.feature::[4] Statically access a property of a node resulting from an expression": {
    "category": "lmpg-single-label",
@@ -5766,8 +5591,7 @@
    "outcome": "fail"
   },
   "tck/features/expressions/graph/Graph6.feature::[7] Statically access a property of a null relationship": {
-   "category": "grafeo-semantic",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/graph/Graph6.feature::[8] Statically access a property of a relationship resulting from an expression": {
    "category": "lmpg-single-label",
@@ -5849,7 +5673,7 @@
    "outcome": "fail"
   },
   "tck/features/expressions/graph/Graph9.feature::[3] `properties()` on null": {
-   "category": "grafeo-semantic",
+   "category": "grafeo-write-column-names",
    "outcome": "fail"
   },
   "tck/features/expressions/graph/Graph9.feature::[4] `properties()` on a map": {
@@ -5872,8 +5696,7 @@
    "outcome": "pass"
   },
   "tck/features/expressions/list/List1.feature::[2] Indexing into nested literal lists": {
-   "category": "grafeo-write-column-names",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/list/List1.feature::[3] Use list lookup based on parameters when there is no type information": {
    "category": "grafeo-result",
@@ -6187,12 +6010,10 @@
    "outcome": "fail"
   },
   "tck/features/expressions/list/List12.feature::[1] Collect and extract using a list comprehension": {
-   "category": "grafeo-result",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/list/List12.feature::[2] Collect and filter using a list comprehension": {
-   "category": "grafeo-write-column-names",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/list/List12.feature::[3] Size of list comprehension": {
    "category": "grafeo-result",
@@ -6203,12 +6024,11 @@
    "outcome": "fail"
   },
   "tck/features/expressions/list/List12.feature::[5] Using a list comprehension in a WITH": {
-   "category": "grafeo-internal",
+   "category": "grafeo-result",
    "outcome": "fail"
   },
   "tck/features/expressions/list/List12.feature::[6] Using a list comprehension in a WHERE": {
-   "category": "grafeo-result",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/list/List12.feature::[7] Fail when using aggregation in list comprehension": {
    "outcome": "pass"
@@ -6452,8 +6272,7 @@
    "outcome": "pass"
   },
   "tck/features/expressions/list/List6.feature::[2] Setting and returning the size of a list property": {
-   "category": "grafeo-write-column-names",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/list/List6.feature::[3] Concatenating and returning the size of literal lists": {
    "outcome": "pass"
@@ -6467,28 +6286,36 @@
    "outcome": "fail"
   },
   "tck/features/expressions/list/List6.feature::[6] Fail for `size()` on pattern predicates #1": {
-   "outcome": "pass"
+   "category": "grafeo-error-detection",
+   "outcome": "fail"
   },
   "tck/features/expressions/list/List6.feature::[6] Fail for `size()` on pattern predicates #2": {
-   "outcome": "pass"
+   "category": "grafeo-error-detection",
+   "outcome": "fail"
   },
   "tck/features/expressions/list/List6.feature::[6] Fail for `size()` on pattern predicates #3": {
-   "outcome": "pass"
+   "category": "grafeo-error-detection",
+   "outcome": "fail"
   },
   "tck/features/expressions/list/List6.feature::[6] Fail for `size()` on pattern predicates #4": {
-   "outcome": "pass"
+   "category": "grafeo-error-detection",
+   "outcome": "fail"
   },
   "tck/features/expressions/list/List6.feature::[6] Fail for `size()` on pattern predicates #5": {
-   "outcome": "pass"
+   "category": "grafeo-error-detection",
+   "outcome": "fail"
   },
   "tck/features/expressions/list/List6.feature::[6] Fail for `size()` on pattern predicates #6": {
-   "outcome": "pass"
+   "category": "grafeo-error-detection",
+   "outcome": "fail"
   },
   "tck/features/expressions/list/List6.feature::[6] Fail for `size()` on pattern predicates #7": {
-   "outcome": "pass"
+   "category": "grafeo-error-detection",
+   "outcome": "fail"
   },
   "tck/features/expressions/list/List6.feature::[6] Fail for `size()` on pattern predicates #8": {
-   "outcome": "pass"
+   "category": "grafeo-error-detection",
+   "outcome": "fail"
   },
   "tck/features/expressions/list/List6.feature::[7] Using size of pattern comprehension to test existence": {
    "category": "lmpg-single-label",
@@ -6503,8 +6330,7 @@
    "outcome": "fail"
   },
   "tck/features/expressions/list/List9.feature::[1] Returning nested expressions based on list property": {
-   "category": "grafeo-write-column-names",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/literals/Literals1.feature::[1] Return a boolean true lower case": {
    "outcome": "pass"
@@ -6924,7 +6750,7 @@
    "outcome": "pass"
   },
   "tck/features/expressions/map/Map1.feature::[3] Statically access a field of a map resulting from an expression": {
-   "category": "grafeo-semantic",
+   "category": "grafeo-write-column-names",
    "outcome": "fail"
   },
   "tck/features/expressions/map/Map1.feature::[4] Statically access a field is case-sensitive #1": {
@@ -7067,12 +6893,10 @@
    "outcome": "pass"
   },
   "tck/features/expressions/mathematical/Mathematical11.feature::[1] Absolute function": {
-   "category": "grafeo-write-column-names",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/mathematical/Mathematical13.feature::[1] `sqrt()` returning float values": {
-   "category": "grafeo-write-column-names",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/mathematical/Mathematical2.feature::[1] Allow addition": {
    "category": "lmpg-single-label",
@@ -7098,8 +6922,7 @@
    "outcome": "fail"
   },
   "tck/features/expressions/null/Null1.feature::[3] Property null check on null node": {
-   "category": "grafeo-semantic",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/null/Null1.feature::[4] A literal null IS null": {
    "outcome": "pass"
@@ -7152,8 +6975,7 @@
    "outcome": "fail"
   },
   "tck/features/expressions/null/Null2.feature::[3] Property not null check on null node": {
-   "category": "grafeo-semantic",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/null/Null2.feature::[4] A literal null is not IS NOT null": {
    "outcome": "pass"
@@ -7233,12 +7055,10 @@
    "outcome": "fail"
   },
   "tck/features/expressions/path/Path2.feature::[1] Return relationships by fetching them from the path": {
-   "category": "grafeo-write-column-names",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/path/Path2.feature::[2] Return relationships by fetching them from the path - starting from the end": {
-   "category": "grafeo-write-column-names",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/path/Path2.feature::[3] `relationships()` on null path": {
    "category": "grafeo-internal",
@@ -7257,49 +7077,63 @@
    "outcome": "pass"
   },
   "tck/features/expressions/pattern/Pattern1.feature::[10] Fail on introducing unbounded variables in pattern #10": {
-   "outcome": "pass"
+   "category": "grafeo-error-detection",
+   "outcome": "fail"
   },
   "tck/features/expressions/pattern/Pattern1.feature::[10] Fail on introducing unbounded variables in pattern #11": {
-   "outcome": "pass"
+   "category": "grafeo-error-detection",
+   "outcome": "fail"
   },
   "tck/features/expressions/pattern/Pattern1.feature::[10] Fail on introducing unbounded variables in pattern #12": {
-   "outcome": "pass"
+   "category": "grafeo-error-detection",
+   "outcome": "fail"
   },
   "tck/features/expressions/pattern/Pattern1.feature::[10] Fail on introducing unbounded variables in pattern #13": {
-   "outcome": "pass"
+   "category": "grafeo-error-detection",
+   "outcome": "fail"
   },
   "tck/features/expressions/pattern/Pattern1.feature::[10] Fail on introducing unbounded variables in pattern #14": {
-   "outcome": "pass"
+   "category": "grafeo-error-detection",
+   "outcome": "fail"
   },
   "tck/features/expressions/pattern/Pattern1.feature::[10] Fail on introducing unbounded variables in pattern #15": {
-   "outcome": "pass"
+   "category": "grafeo-error-detection",
+   "outcome": "fail"
   },
   "tck/features/expressions/pattern/Pattern1.feature::[10] Fail on introducing unbounded variables in pattern #2": {
-   "outcome": "pass"
+   "category": "grafeo-error-detection",
+   "outcome": "fail"
   },
   "tck/features/expressions/pattern/Pattern1.feature::[10] Fail on introducing unbounded variables in pattern #3": {
-   "outcome": "pass"
+   "category": "grafeo-error-detection",
+   "outcome": "fail"
   },
   "tck/features/expressions/pattern/Pattern1.feature::[10] Fail on introducing unbounded variables in pattern #4": {
-   "outcome": "pass"
+   "category": "grafeo-error-detection",
+   "outcome": "fail"
   },
   "tck/features/expressions/pattern/Pattern1.feature::[10] Fail on introducing unbounded variables in pattern #5": {
-   "outcome": "pass"
+   "category": "grafeo-error-detection",
+   "outcome": "fail"
   },
   "tck/features/expressions/pattern/Pattern1.feature::[10] Fail on introducing unbounded variables in pattern #6": {
-   "outcome": "pass"
+   "category": "grafeo-error-detection",
+   "outcome": "fail"
   },
   "tck/features/expressions/pattern/Pattern1.feature::[10] Fail on introducing unbounded variables in pattern #7": {
-   "outcome": "pass"
+   "category": "grafeo-error-detection",
+   "outcome": "fail"
   },
   "tck/features/expressions/pattern/Pattern1.feature::[10] Fail on introducing unbounded variables in pattern #8": {
-   "outcome": "pass"
+   "category": "grafeo-error-detection",
+   "outcome": "fail"
   },
   "tck/features/expressions/pattern/Pattern1.feature::[10] Fail on introducing unbounded variables in pattern #9": {
-   "outcome": "pass"
+   "category": "grafeo-error-detection",
+   "outcome": "fail"
   },
   "tck/features/expressions/pattern/Pattern1.feature::[10] Matching on a specific type of undirected connection with length 2": {
-   "category": "grafeo-syntax",
+   "category": "grafeo-result",
    "outcome": "fail"
   },
   "tck/features/expressions/pattern/Pattern1.feature::[11] Fail on checking self pattern": {
@@ -7307,89 +7141,74 @@
    "outcome": "fail"
   },
   "tck/features/expressions/pattern/Pattern1.feature::[12] Matching two nodes on a single directed connection between them": {
-   "category": "grafeo-syntax",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/pattern/Pattern1.feature::[13] Fail on matching two nodes on a single undirected connection between them": {
-   "category": "grafeo-syntax",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/pattern/Pattern1.feature::[14] Matching two nodes on a specific type of single outgoing directed connection": {
-   "category": "grafeo-syntax",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/pattern/Pattern1.feature::[15] Matching two nodes on a specific type of single undirected connection": {
-   "category": "grafeo-syntax",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/pattern/Pattern1.feature::[16] Matching two nodes on a specific type of a variable length outgoing directed connection": {
-   "category": "grafeo-syntax",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/pattern/Pattern1.feature::[17] Matching two nodes on a specific type of variable length undirected connection": {
-   "category": "grafeo-syntax",
+   "category": "grafeo-nontermination",
    "outcome": "fail"
   },
   "tck/features/expressions/pattern/Pattern1.feature::[18] Matching two nodes on a specific type of undirected connection with length 2": {
-   "category": "grafeo-syntax",
+   "category": "grafeo-result",
    "outcome": "fail"
   },
   "tck/features/expressions/pattern/Pattern1.feature::[19] Using a negated existential pattern predicate": {
-   "category": "grafeo-syntax",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/pattern/Pattern1.feature::[1] Matching on any single outgoing directed connection": {
-   "category": "grafeo-syntax",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/pattern/Pattern1.feature::[20] Using two existential pattern predicates in a conjunction": {
-   "category": "grafeo-syntax",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/pattern/Pattern1.feature::[21] Using two existential pattern predicates in a disjunction": {
-   "category": "grafeo-syntax",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/pattern/Pattern1.feature::[22] Fail on using pattern in RETURN projection": {
-   "outcome": "pass"
+   "category": "grafeo-error-detection",
+   "outcome": "fail"
   },
   "tck/features/expressions/pattern/Pattern1.feature::[23] Fail on using pattern in WITH projection": {
-   "outcome": "pass"
+   "category": "grafeo-error-detection",
+   "outcome": "fail"
   },
   "tck/features/expressions/pattern/Pattern1.feature::[24] Fail on using pattern in right-hand side of SET": {
    "outcome": "pass"
   },
   "tck/features/expressions/pattern/Pattern1.feature::[2] Matching on a single undirected connection": {
-   "category": "grafeo-syntax",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/pattern/Pattern1.feature::[3] Matching on any single incoming directed connection": {
-   "category": "grafeo-syntax",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/pattern/Pattern1.feature::[4] Matching on a specific type of single outgoing directed connection": {
-   "category": "grafeo-syntax",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/pattern/Pattern1.feature::[5] Matching on a specific type of single undirected connection": {
-   "category": "grafeo-syntax",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/pattern/Pattern1.feature::[6] Matching on a specific type of single incoming directed connection": {
-   "category": "grafeo-syntax",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/pattern/Pattern1.feature::[7] Matching on a specific type of a variable length outgoing directed connection": {
-   "category": "grafeo-syntax",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/pattern/Pattern1.feature::[8] Matching on a specific type of variable length undirected connection": {
-   "category": "grafeo-syntax",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/pattern/Pattern1.feature::[9] Matching on a specific type of variable length incoming directed connection": {
-   "category": "grafeo-syntax",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/pattern/Pattern2.feature::[10] Use a pattern comprehension in RETURN": {
    "category": "lmpg-single-label",
@@ -8089,31 +7908,25 @@
    "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier1.feature::[5] None quantifier on list literal containing strings #2": {
-   "category": "grafeo-quantifiers",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier1.feature::[5] None quantifier on list literal containing strings #3": {
    "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier1.feature::[5] None quantifier on list literal containing strings #4": {
-   "category": "grafeo-quantifiers",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier1.feature::[5] None quantifier on list literal containing strings #5": {
-   "category": "grafeo-quantifiers",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier1.feature::[5] None quantifier on list literal containing strings #6": {
-   "category": "grafeo-quantifiers",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier1.feature::[5] None quantifier on list literal containing strings #7": {
-   "category": "grafeo-quantifiers",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier1.feature::[5] None quantifier on list literal containing strings #8": {
-   "category": "grafeo-quantifiers",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier1.feature::[5] None quantifier on list literal containing strings #9": {
    "outcome": "pass"
@@ -8122,31 +7935,25 @@
    "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier1.feature::[6] None quantifier on list literal containing lists #2": {
-   "category": "grafeo-quantifiers",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier1.feature::[6] None quantifier on list literal containing lists #3": {
    "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier1.feature::[6] None quantifier on list literal containing lists #4": {
-   "category": "grafeo-quantifiers",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier1.feature::[6] None quantifier on list literal containing lists #5": {
-   "category": "grafeo-quantifiers",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier1.feature::[6] None quantifier on list literal containing lists #6": {
-   "category": "grafeo-quantifiers",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier1.feature::[6] None quantifier on list literal containing lists #7": {
-   "category": "grafeo-quantifiers",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier1.feature::[6] None quantifier on list literal containing lists #8": {
-   "category": "grafeo-quantifiers",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier1.feature::[6] None quantifier on list literal containing lists #9": {
    "outcome": "pass"
@@ -8182,195 +7989,194 @@
    "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier1.feature::[9] None quantifier on list containing relationships": {
-   "category": "grafeo-semantic",
+   "category": "grafeo-quantifiers",
    "outcome": "fail"
   },
   "tck/features/expressions/quantifier/Quantifier10.feature::[1] Single quantifier is always false if the predicate is statically false and the list is not empty": {
-   "category": "grafeo-semantic",
+   "category": "grafeo-quantifiers",
    "outcome": "fail"
   },
   "tck/features/expressions/quantifier/Quantifier10.feature::[2] Single quantifier is always false if the predicate is statically true and the list has more than one element": {
-   "category": "grafeo-semantic",
+   "category": "grafeo-quantifiers",
    "outcome": "fail"
   },
   "tck/features/expressions/quantifier/Quantifier10.feature::[3] Single quantifier is always true if the predicate is statically true and the list has exactly one non-null element": {
-   "category": "grafeo-semantic",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier10.feature::[4] Single quantifier is always equal whether the size of the list filtered with same the predicate is one #1": {
-   "category": "grafeo-semantic",
+   "category": "grafeo-quantifiers",
    "outcome": "fail"
   },
   "tck/features/expressions/quantifier/Quantifier10.feature::[4] Single quantifier is always equal whether the size of the list filtered with same the predicate is one #2": {
-   "category": "grafeo-semantic",
+   "category": "grafeo-quantifiers",
    "outcome": "fail"
   },
   "tck/features/expressions/quantifier/Quantifier10.feature::[4] Single quantifier is always equal whether the size of the list filtered with same the predicate is one #3": {
-   "category": "grafeo-semantic",
+   "category": "grafeo-quantifiers",
    "outcome": "fail"
   },
   "tck/features/expressions/quantifier/Quantifier10.feature::[4] Single quantifier is always equal whether the size of the list filtered with same the predicate is one #4": {
-   "category": "grafeo-semantic",
+   "category": "grafeo-quantifiers",
    "outcome": "fail"
   },
   "tck/features/expressions/quantifier/Quantifier10.feature::[4] Single quantifier is always equal whether the size of the list filtered with same the predicate is one #5": {
-   "category": "grafeo-semantic",
+   "category": "grafeo-quantifiers",
    "outcome": "fail"
   },
   "tck/features/expressions/quantifier/Quantifier11.feature::[1] Any quantifier is always false if the predicate is statically false and the list is not empty": {
-   "category": "grafeo-semantic",
+   "category": "grafeo-quantifiers",
    "outcome": "fail"
   },
   "tck/features/expressions/quantifier/Quantifier11.feature::[2] Any quantifier is always true if the predicate is statically true and the list is not empty": {
-   "category": "grafeo-semantic",
+   "category": "grafeo-quantifiers",
    "outcome": "fail"
   },
   "tck/features/expressions/quantifier/Quantifier11.feature::[3] Any quantifier is always true if the single or the all quantifier is true #1": {
-   "category": "grafeo-semantic",
+   "category": "grafeo-quantifiers",
    "outcome": "fail"
   },
   "tck/features/expressions/quantifier/Quantifier11.feature::[3] Any quantifier is always true if the single or the all quantifier is true #2": {
-   "category": "grafeo-semantic",
+   "category": "grafeo-quantifiers",
    "outcome": "fail"
   },
   "tck/features/expressions/quantifier/Quantifier11.feature::[3] Any quantifier is always true if the single or the all quantifier is true #3": {
-   "category": "grafeo-semantic",
+   "category": "grafeo-quantifiers",
    "outcome": "fail"
   },
   "tck/features/expressions/quantifier/Quantifier11.feature::[3] Any quantifier is always true if the single or the all quantifier is true #4": {
-   "category": "grafeo-semantic",
+   "category": "grafeo-quantifiers",
    "outcome": "fail"
   },
   "tck/features/expressions/quantifier/Quantifier11.feature::[3] Any quantifier is always true if the single or the all quantifier is true #5": {
-   "category": "grafeo-semantic",
+   "category": "grafeo-quantifiers",
    "outcome": "fail"
   },
   "tck/features/expressions/quantifier/Quantifier11.feature::[4] Any quantifier is always equal the boolean negative of the none quantifier #1": {
-   "category": "grafeo-semantic",
+   "category": "grafeo-quantifiers",
    "outcome": "fail"
   },
   "tck/features/expressions/quantifier/Quantifier11.feature::[4] Any quantifier is always equal the boolean negative of the none quantifier #2": {
-   "category": "grafeo-semantic",
+   "category": "grafeo-quantifiers",
    "outcome": "fail"
   },
   "tck/features/expressions/quantifier/Quantifier11.feature::[4] Any quantifier is always equal the boolean negative of the none quantifier #3": {
-   "category": "grafeo-semantic",
+   "category": "grafeo-quantifiers",
    "outcome": "fail"
   },
   "tck/features/expressions/quantifier/Quantifier11.feature::[4] Any quantifier is always equal the boolean negative of the none quantifier #4": {
-   "category": "grafeo-semantic",
+   "category": "grafeo-quantifiers",
    "outcome": "fail"
   },
   "tck/features/expressions/quantifier/Quantifier11.feature::[4] Any quantifier is always equal the boolean negative of the none quantifier #5": {
-   "category": "grafeo-semantic",
+   "category": "grafeo-quantifiers",
    "outcome": "fail"
   },
   "tck/features/expressions/quantifier/Quantifier11.feature::[5] Any quantifier is always equal the boolean negative of the all quantifier on the boolean negative of the predicate #1": {
-   "category": "grafeo-semantic",
+   "category": "grafeo-quantifiers",
    "outcome": "fail"
   },
   "tck/features/expressions/quantifier/Quantifier11.feature::[5] Any quantifier is always equal the boolean negative of the all quantifier on the boolean negative of the predicate #2": {
-   "category": "grafeo-semantic",
+   "category": "grafeo-quantifiers",
    "outcome": "fail"
   },
   "tck/features/expressions/quantifier/Quantifier11.feature::[5] Any quantifier is always equal the boolean negative of the all quantifier on the boolean negative of the predicate #3": {
-   "category": "grafeo-semantic",
+   "category": "grafeo-quantifiers",
    "outcome": "fail"
   },
   "tck/features/expressions/quantifier/Quantifier11.feature::[5] Any quantifier is always equal the boolean negative of the all quantifier on the boolean negative of the predicate #4": {
-   "category": "grafeo-semantic",
+   "category": "grafeo-quantifiers",
    "outcome": "fail"
   },
   "tck/features/expressions/quantifier/Quantifier11.feature::[5] Any quantifier is always equal the boolean negative of the all quantifier on the boolean negative of the predicate #5": {
-   "category": "grafeo-semantic",
+   "category": "grafeo-quantifiers",
    "outcome": "fail"
   },
   "tck/features/expressions/quantifier/Quantifier11.feature::[6] Any quantifier is always equal whether the size of the list filtered with same the predicate is grater zero #1": {
-   "category": "grafeo-semantic",
+   "category": "grafeo-quantifiers",
    "outcome": "fail"
   },
   "tck/features/expressions/quantifier/Quantifier11.feature::[6] Any quantifier is always equal whether the size of the list filtered with same the predicate is grater zero #2": {
-   "category": "grafeo-semantic",
+   "category": "grafeo-quantifiers",
    "outcome": "fail"
   },
   "tck/features/expressions/quantifier/Quantifier11.feature::[6] Any quantifier is always equal whether the size of the list filtered with same the predicate is grater zero #3": {
-   "category": "grafeo-semantic",
+   "category": "grafeo-quantifiers",
    "outcome": "fail"
   },
   "tck/features/expressions/quantifier/Quantifier11.feature::[6] Any quantifier is always equal whether the size of the list filtered with same the predicate is grater zero #4": {
-   "category": "grafeo-semantic",
+   "category": "grafeo-quantifiers",
    "outcome": "fail"
   },
   "tck/features/expressions/quantifier/Quantifier11.feature::[6] Any quantifier is always equal whether the size of the list filtered with same the predicate is grater zero #5": {
-   "category": "grafeo-semantic",
+   "category": "grafeo-quantifiers",
    "outcome": "fail"
   },
   "tck/features/expressions/quantifier/Quantifier12.feature::[1] All quantifier is always false if the predicate is statically false and the list is not empty": {
-   "category": "grafeo-semantic",
+   "category": "grafeo-quantifiers",
    "outcome": "fail"
   },
   "tck/features/expressions/quantifier/Quantifier12.feature::[2] All quantifier is always true if the predicate is statically true and the list is not empty": {
-   "category": "grafeo-semantic",
+   "category": "grafeo-quantifiers",
    "outcome": "fail"
   },
   "tck/features/expressions/quantifier/Quantifier12.feature::[3] All quantifier is always equal the none quantifier on the boolean negative of the predicate #1": {
-   "category": "grafeo-semantic",
+   "category": "grafeo-quantifiers",
    "outcome": "fail"
   },
   "tck/features/expressions/quantifier/Quantifier12.feature::[3] All quantifier is always equal the none quantifier on the boolean negative of the predicate #2": {
-   "category": "grafeo-semantic",
+   "category": "grafeo-quantifiers",
    "outcome": "fail"
   },
   "tck/features/expressions/quantifier/Quantifier12.feature::[3] All quantifier is always equal the none quantifier on the boolean negative of the predicate #3": {
-   "category": "grafeo-semantic",
+   "category": "grafeo-quantifiers",
    "outcome": "fail"
   },
   "tck/features/expressions/quantifier/Quantifier12.feature::[3] All quantifier is always equal the none quantifier on the boolean negative of the predicate #4": {
-   "category": "grafeo-semantic",
+   "category": "grafeo-quantifiers",
    "outcome": "fail"
   },
   "tck/features/expressions/quantifier/Quantifier12.feature::[3] All quantifier is always equal the none quantifier on the boolean negative of the predicate #5": {
-   "category": "grafeo-semantic",
+   "category": "grafeo-quantifiers",
    "outcome": "fail"
   },
   "tck/features/expressions/quantifier/Quantifier12.feature::[4] All quantifier is always equal the boolean negative of the any quantifier on the boolean negative of the predicate #1": {
-   "category": "grafeo-semantic",
+   "category": "grafeo-quantifiers",
    "outcome": "fail"
   },
   "tck/features/expressions/quantifier/Quantifier12.feature::[4] All quantifier is always equal the boolean negative of the any quantifier on the boolean negative of the predicate #2": {
-   "category": "grafeo-semantic",
+   "category": "grafeo-quantifiers",
    "outcome": "fail"
   },
   "tck/features/expressions/quantifier/Quantifier12.feature::[4] All quantifier is always equal the boolean negative of the any quantifier on the boolean negative of the predicate #3": {
-   "category": "grafeo-semantic",
+   "category": "grafeo-quantifiers",
    "outcome": "fail"
   },
   "tck/features/expressions/quantifier/Quantifier12.feature::[4] All quantifier is always equal the boolean negative of the any quantifier on the boolean negative of the predicate #4": {
-   "category": "grafeo-semantic",
+   "category": "grafeo-quantifiers",
    "outcome": "fail"
   },
   "tck/features/expressions/quantifier/Quantifier12.feature::[4] All quantifier is always equal the boolean negative of the any quantifier on the boolean negative of the predicate #5": {
-   "category": "grafeo-semantic",
+   "category": "grafeo-quantifiers",
    "outcome": "fail"
   },
   "tck/features/expressions/quantifier/Quantifier12.feature::[5] All quantifier is always equal whether the size of the list filtered with same the predicate is equal the size of the unfiltered list #1": {
-   "category": "grafeo-semantic",
+   "category": "grafeo-quantifiers",
    "outcome": "fail"
   },
   "tck/features/expressions/quantifier/Quantifier12.feature::[5] All quantifier is always equal whether the size of the list filtered with same the predicate is equal the size of the unfiltered list #2": {
-   "category": "grafeo-semantic",
+   "category": "grafeo-quantifiers",
    "outcome": "fail"
   },
   "tck/features/expressions/quantifier/Quantifier12.feature::[5] All quantifier is always equal whether the size of the list filtered with same the predicate is equal the size of the unfiltered list #3": {
-   "category": "grafeo-semantic",
+   "category": "grafeo-quantifiers",
    "outcome": "fail"
   },
   "tck/features/expressions/quantifier/Quantifier12.feature::[5] All quantifier is always equal whether the size of the list filtered with same the predicate is equal the size of the unfiltered list #4": {
-   "category": "grafeo-semantic",
+   "category": "grafeo-quantifiers",
    "outcome": "fail"
   },
   "tck/features/expressions/quantifier/Quantifier12.feature::[5] All quantifier is always equal whether the size of the list filtered with same the predicate is equal the size of the unfiltered list #5": {
-   "category": "grafeo-semantic",
+   "category": "grafeo-quantifiers",
    "outcome": "fail"
   },
   "tck/features/expressions/quantifier/Quantifier2.feature::[10] Single quantifier on lists containing nulls #1": {
@@ -8617,26 +8423,22 @@
    "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier2.feature::[5] Single quantifier on list literal containing strings #2": {
-   "category": "grafeo-quantifiers",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier2.feature::[5] Single quantifier on list literal containing strings #3": {
    "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier2.feature::[5] Single quantifier on list literal containing strings #4": {
-   "category": "grafeo-quantifiers",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier2.feature::[5] Single quantifier on list literal containing strings #5": {
-   "category": "grafeo-quantifiers",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier2.feature::[5] Single quantifier on list literal containing strings #6": {
    "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier2.feature::[5] Single quantifier on list literal containing strings #7": {
-   "category": "grafeo-quantifiers",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier2.feature::[5] Single quantifier on list literal containing strings #8": {
    "outcome": "pass"
@@ -8648,26 +8450,22 @@
    "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier2.feature::[6] Single quantifier on list literal containing lists #2": {
-   "category": "grafeo-quantifiers",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier2.feature::[6] Single quantifier on list literal containing lists #3": {
    "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier2.feature::[6] Single quantifier on list literal containing lists #4": {
-   "category": "grafeo-quantifiers",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier2.feature::[6] Single quantifier on list literal containing lists #5": {
-   "category": "grafeo-quantifiers",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier2.feature::[6] Single quantifier on list literal containing lists #6": {
    "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier2.feature::[6] Single quantifier on list literal containing lists #7": {
-   "category": "grafeo-quantifiers",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier2.feature::[6] Single quantifier on list literal containing lists #8": {
    "outcome": "pass"
@@ -8706,7 +8504,7 @@
    "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier2.feature::[9] Single quantifier on list containing relationships": {
-   "category": "grafeo-semantic",
+   "category": "grafeo-quantifiers",
    "outcome": "fail"
   },
   "tck/features/expressions/quantifier/Quantifier3.feature::[10] Any quantifier on lists containing nulls #1": {
@@ -8948,31 +8746,25 @@
    "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier3.feature::[5] Any quantifier on list literal containing strings #2": {
-   "category": "grafeo-quantifiers",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier3.feature::[5] Any quantifier on list literal containing strings #3": {
    "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier3.feature::[5] Any quantifier on list literal containing strings #4": {
-   "category": "grafeo-quantifiers",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier3.feature::[5] Any quantifier on list literal containing strings #5": {
-   "category": "grafeo-quantifiers",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier3.feature::[5] Any quantifier on list literal containing strings #6": {
-   "category": "grafeo-quantifiers",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier3.feature::[5] Any quantifier on list literal containing strings #7": {
-   "category": "grafeo-quantifiers",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier3.feature::[5] Any quantifier on list literal containing strings #8": {
-   "category": "grafeo-quantifiers",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier3.feature::[5] Any quantifier on list literal containing strings #9": {
    "outcome": "pass"
@@ -8981,31 +8773,25 @@
    "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier3.feature::[6] Any quantifier on list literal containing lists #2": {
-   "category": "grafeo-quantifiers",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier3.feature::[6] Any quantifier on list literal containing lists #3": {
    "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier3.feature::[6] Any quantifier on list literal containing lists #4": {
-   "category": "grafeo-quantifiers",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier3.feature::[6] Any quantifier on list literal containing lists #5": {
-   "category": "grafeo-quantifiers",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier3.feature::[6] Any quantifier on list literal containing lists #6": {
-   "category": "grafeo-quantifiers",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier3.feature::[6] Any quantifier on list literal containing lists #7": {
-   "category": "grafeo-quantifiers",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier3.feature::[6] Any quantifier on list literal containing lists #8": {
-   "category": "grafeo-quantifiers",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier3.feature::[6] Any quantifier on list literal containing lists #9": {
    "outcome": "pass"
@@ -9041,7 +8827,7 @@
    "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier3.feature::[9] Any quantifier on list containing relationships": {
-   "category": "grafeo-semantic",
+   "category": "grafeo-quantifiers",
    "outcome": "fail"
   },
   "tck/features/expressions/quantifier/Quantifier4.feature::[10] All quantifier on lists containing nulls #1": {
@@ -9284,8 +9070,7 @@
    "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier4.feature::[5] All quantifier on list literal containing strings #2": {
-   "category": "grafeo-quantifiers",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier4.feature::[5] All quantifier on list literal containing strings #3": {
    "outcome": "pass"
@@ -9303,8 +9088,7 @@
    "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier4.feature::[5] All quantifier on list literal containing strings #8": {
-   "category": "grafeo-quantifiers",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier4.feature::[5] All quantifier on list literal containing strings #9": {
    "outcome": "pass"
@@ -9313,8 +9097,7 @@
    "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier4.feature::[6] All quantifier on list literal containing lists #2": {
-   "category": "grafeo-quantifiers",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier4.feature::[6] All quantifier on list literal containing lists #3": {
    "outcome": "pass"
@@ -9332,8 +9115,7 @@
    "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier4.feature::[6] All quantifier on list literal containing lists #8": {
-   "category": "grafeo-quantifiers",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier4.feature::[6] All quantifier on list literal containing lists #9": {
    "outcome": "pass"
@@ -9369,64 +9151,56 @@
    "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier4.feature::[9] All quantifier on list containing relationships": {
-   "category": "grafeo-semantic",
+   "category": "grafeo-quantifiers",
    "outcome": "fail"
   },
   "tck/features/expressions/quantifier/Quantifier5.feature::[1] None quantifier can nest itself and other quantifiers on nested lists #1": {
    "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier5.feature::[1] None quantifier can nest itself and other quantifiers on nested lists #2": {
-   "category": "grafeo-quantifiers",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier5.feature::[1] None quantifier can nest itself and other quantifiers on nested lists #3": {
    "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier5.feature::[1] None quantifier can nest itself and other quantifiers on nested lists #4": {
-   "category": "grafeo-quantifiers",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier5.feature::[1] None quantifier can nest itself and other quantifiers on nested lists #5": {
    "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier5.feature::[1] None quantifier can nest itself and other quantifiers on nested lists #6": {
-   "category": "grafeo-quantifiers",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier5.feature::[1] None quantifier can nest itself and other quantifiers on nested lists #7": {
    "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier5.feature::[1] None quantifier can nest itself and other quantifiers on nested lists #8": {
-   "category": "grafeo-quantifiers",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier5.feature::[2] None quantifier can nest itself and other quantifiers on the same list #1": {
    "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier5.feature::[2] None quantifier can nest itself and other quantifiers on the same list #2": {
-   "category": "grafeo-quantifiers",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier5.feature::[2] None quantifier can nest itself and other quantifiers on the same list #3": {
    "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier5.feature::[2] None quantifier can nest itself and other quantifiers on the same list #4": {
-   "category": "grafeo-quantifiers",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier5.feature::[2] None quantifier can nest itself and other quantifiers on the same list #5": {
    "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier5.feature::[2] None quantifier can nest itself and other quantifiers on the same list #6": {
-   "category": "grafeo-quantifiers",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier5.feature::[2] None quantifier can nest itself and other quantifiers on the same list #7": {
    "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier5.feature::[2] None quantifier can nest itself and other quantifiers on the same list #8": {
-   "category": "grafeo-quantifiers",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier5.feature::[3] None quantifier is equal the boolean negative of the any quantifier #1": {
    "outcome": "pass"
@@ -9474,57 +9248,49 @@
    "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier6.feature::[1] Single quantifier can nest itself and other quantifiers on nested lists #1": {
-   "category": "grafeo-quantifiers",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier6.feature::[1] Single quantifier can nest itself and other quantifiers on nested lists #2": {
    "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier6.feature::[1] Single quantifier can nest itself and other quantifiers on nested lists #3": {
-   "category": "grafeo-quantifiers",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier6.feature::[1] Single quantifier can nest itself and other quantifiers on nested lists #4": {
    "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier6.feature::[1] Single quantifier can nest itself and other quantifiers on nested lists #5": {
-   "category": "grafeo-quantifiers",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier6.feature::[1] Single quantifier can nest itself and other quantifiers on nested lists #6": {
    "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier6.feature::[1] Single quantifier can nest itself and other quantifiers on nested lists #7": {
-   "category": "grafeo-quantifiers",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier6.feature::[1] Single quantifier can nest itself and other quantifiers on nested lists #8": {
    "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier6.feature::[2] Single quantifier can nest itself and other quantifiers on the same list #1": {
-   "category": "grafeo-quantifiers",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier6.feature::[2] Single quantifier can nest itself and other quantifiers on the same list #2": {
    "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier6.feature::[2] Single quantifier can nest itself and other quantifiers on the same list #3": {
-   "category": "grafeo-quantifiers",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier6.feature::[2] Single quantifier can nest itself and other quantifiers on the same list #4": {
    "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier6.feature::[2] Single quantifier can nest itself and other quantifiers on the same list #5": {
-   "category": "grafeo-quantifiers",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier6.feature::[2] Single quantifier can nest itself and other quantifiers on the same list #6": {
    "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier6.feature::[2] Single quantifier can nest itself and other quantifiers on the same list #7": {
-   "category": "grafeo-quantifiers",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier6.feature::[2] Single quantifier can nest itself and other quantifiers on the same list #8": {
    "outcome": "pass"
@@ -9545,57 +9311,49 @@
    "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier7.feature::[1] Any quantifier can nest itself and other quantifiers on nested lists #1": {
-   "category": "grafeo-quantifiers",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier7.feature::[1] Any quantifier can nest itself and other quantifiers on nested lists #2": {
    "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier7.feature::[1] Any quantifier can nest itself and other quantifiers on nested lists #3": {
-   "category": "grafeo-quantifiers",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier7.feature::[1] Any quantifier can nest itself and other quantifiers on nested lists #4": {
    "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier7.feature::[1] Any quantifier can nest itself and other quantifiers on nested lists #5": {
-   "category": "grafeo-quantifiers",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier7.feature::[1] Any quantifier can nest itself and other quantifiers on nested lists #6": {
    "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier7.feature::[1] Any quantifier can nest itself and other quantifiers on nested lists #7": {
-   "category": "grafeo-quantifiers",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier7.feature::[1] Any quantifier can nest itself and other quantifiers on nested lists #8": {
    "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier7.feature::[2] Any quantifier can nest itself and other quantifiers on the same list #1": {
-   "category": "grafeo-quantifiers",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier7.feature::[2] Any quantifier can nest itself and other quantifiers on the same list #2": {
    "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier7.feature::[2] Any quantifier can nest itself and other quantifiers on the same list #3": {
-   "category": "grafeo-quantifiers",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier7.feature::[2] Any quantifier can nest itself and other quantifiers on the same list #4": {
    "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier7.feature::[2] Any quantifier can nest itself and other quantifiers on the same list #5": {
-   "category": "grafeo-quantifiers",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier7.feature::[2] Any quantifier can nest itself and other quantifiers on the same list #6": {
    "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier7.feature::[2] Any quantifier can nest itself and other quantifiers on the same list #7": {
-   "category": "grafeo-quantifiers",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier7.feature::[2] Any quantifier can nest itself and other quantifiers on the same list #8": {
    "outcome": "pass"
@@ -9666,57 +9424,49 @@
    "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier8.feature::[1] All quantifier can nest itself and other quantifiers on nested lists #1": {
-   "category": "grafeo-quantifiers",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier8.feature::[1] All quantifier can nest itself and other quantifiers on nested lists #2": {
    "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier8.feature::[1] All quantifier can nest itself and other quantifiers on nested lists #3": {
-   "category": "grafeo-quantifiers",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier8.feature::[1] All quantifier can nest itself and other quantifiers on nested lists #4": {
    "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier8.feature::[1] All quantifier can nest itself and other quantifiers on nested lists #5": {
-   "category": "grafeo-quantifiers",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier8.feature::[1] All quantifier can nest itself and other quantifiers on nested lists #6": {
    "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier8.feature::[1] All quantifier can nest itself and other quantifiers on nested lists #7": {
-   "category": "grafeo-quantifiers",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier8.feature::[1] All quantifier can nest itself and other quantifiers on nested lists #8": {
    "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier8.feature::[2] All quantifier can nest itself and other quantifiers on the same list #1": {
-   "category": "grafeo-quantifiers",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier8.feature::[2] All quantifier can nest itself and other quantifiers on the same list #2": {
    "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier8.feature::[2] All quantifier can nest itself and other quantifiers on the same list #3": {
-   "category": "grafeo-quantifiers",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier8.feature::[2] All quantifier can nest itself and other quantifiers on the same list #4": {
    "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier8.feature::[2] All quantifier can nest itself and other quantifiers on the same list #5": {
-   "category": "grafeo-quantifiers",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier8.feature::[2] All quantifier can nest itself and other quantifiers on the same list #6": {
    "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier8.feature::[2] All quantifier can nest itself and other quantifiers on the same list #7": {
-   "category": "grafeo-quantifiers",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier8.feature::[2] All quantifier can nest itself and other quantifiers on the same list #8": {
    "outcome": "pass"
@@ -9767,71 +9517,71 @@
    "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier9.feature::[1] None quantifier is always true if the predicate is statically false and the list is not empty": {
-   "category": "grafeo-semantic",
+   "category": "grafeo-quantifiers",
    "outcome": "fail"
   },
   "tck/features/expressions/quantifier/Quantifier9.feature::[2] None quantifier is always false if the predicate is statically true and the list is not empty": {
-   "category": "grafeo-semantic",
+   "category": "grafeo-quantifiers",
    "outcome": "fail"
   },
   "tck/features/expressions/quantifier/Quantifier9.feature::[3] None quantifier is always equal the boolean negative of the any quantifier #1": {
-   "category": "grafeo-semantic",
+   "category": "grafeo-quantifiers",
    "outcome": "fail"
   },
   "tck/features/expressions/quantifier/Quantifier9.feature::[3] None quantifier is always equal the boolean negative of the any quantifier #2": {
-   "category": "grafeo-semantic",
+   "category": "grafeo-quantifiers",
    "outcome": "fail"
   },
   "tck/features/expressions/quantifier/Quantifier9.feature::[3] None quantifier is always equal the boolean negative of the any quantifier #3": {
-   "category": "grafeo-semantic",
+   "category": "grafeo-quantifiers",
    "outcome": "fail"
   },
   "tck/features/expressions/quantifier/Quantifier9.feature::[3] None quantifier is always equal the boolean negative of the any quantifier #4": {
-   "category": "grafeo-semantic",
+   "category": "grafeo-quantifiers",
    "outcome": "fail"
   },
   "tck/features/expressions/quantifier/Quantifier9.feature::[3] None quantifier is always equal the boolean negative of the any quantifier #5": {
-   "category": "grafeo-semantic",
+   "category": "grafeo-quantifiers",
    "outcome": "fail"
   },
   "tck/features/expressions/quantifier/Quantifier9.feature::[4] None quantifier is always equal the all quantifier on the boolean negative of the predicate #1": {
-   "category": "grafeo-semantic",
+   "category": "grafeo-quantifiers",
    "outcome": "fail"
   },
   "tck/features/expressions/quantifier/Quantifier9.feature::[4] None quantifier is always equal the all quantifier on the boolean negative of the predicate #2": {
-   "category": "grafeo-semantic",
+   "category": "grafeo-quantifiers",
    "outcome": "fail"
   },
   "tck/features/expressions/quantifier/Quantifier9.feature::[4] None quantifier is always equal the all quantifier on the boolean negative of the predicate #3": {
-   "category": "grafeo-semantic",
+   "category": "grafeo-quantifiers",
    "outcome": "fail"
   },
   "tck/features/expressions/quantifier/Quantifier9.feature::[4] None quantifier is always equal the all quantifier on the boolean negative of the predicate #4": {
-   "category": "grafeo-semantic",
+   "category": "grafeo-quantifiers",
    "outcome": "fail"
   },
   "tck/features/expressions/quantifier/Quantifier9.feature::[4] None quantifier is always equal the all quantifier on the boolean negative of the predicate #5": {
-   "category": "grafeo-semantic",
+   "category": "grafeo-quantifiers",
    "outcome": "fail"
   },
   "tck/features/expressions/quantifier/Quantifier9.feature::[5] None quantifier is always equal whether the size of the list filtered with same the predicate is zero #1": {
-   "category": "grafeo-semantic",
+   "category": "grafeo-quantifiers",
    "outcome": "fail"
   },
   "tck/features/expressions/quantifier/Quantifier9.feature::[5] None quantifier is always equal whether the size of the list filtered with same the predicate is zero #2": {
-   "category": "grafeo-semantic",
+   "category": "grafeo-quantifiers",
    "outcome": "fail"
   },
   "tck/features/expressions/quantifier/Quantifier9.feature::[5] None quantifier is always equal whether the size of the list filtered with same the predicate is zero #3": {
-   "category": "grafeo-semantic",
+   "category": "grafeo-quantifiers",
    "outcome": "fail"
   },
   "tck/features/expressions/quantifier/Quantifier9.feature::[5] None quantifier is always equal whether the size of the list filtered with same the predicate is zero #4": {
-   "category": "grafeo-semantic",
+   "category": "grafeo-quantifiers",
    "outcome": "fail"
   },
   "tck/features/expressions/quantifier/Quantifier9.feature::[5] None quantifier is always equal whether the size of the list filtered with same the predicate is zero #5": {
-   "category": "grafeo-semantic",
+   "category": "grafeo-quantifiers",
    "outcome": "fail"
   },
   "tck/features/expressions/string/String1.feature::[1] `substring()` with default second argument": {
@@ -9872,8 +9622,7 @@
    "outcome": "pass"
   },
   "tck/features/expressions/string/String3.feature::[1] `reverse()`": {
-   "category": "grafeo-write-column-names",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/string/String4.feature::[1] `split()`": {
    "outcome": "pass"
@@ -12216,23 +11965,23 @@
    "outcome": "fail"
   },
   "tck/features/expressions/temporal/Temporal4.feature::[10] Should store date time array #1": {
-   "category": "temporal",
+   "category": "lmpg-single-label",
    "outcome": "fail"
   },
   "tck/features/expressions/temporal/Temporal4.feature::[10] Should store date time array #2": {
-   "category": "temporal",
+   "category": "lmpg-single-label",
    "outcome": "fail"
   },
   "tck/features/expressions/temporal/Temporal4.feature::[11] Should store duration #1": {
-   "category": "temporal",
+   "category": "lmpg-single-label",
    "outcome": "fail"
   },
   "tck/features/expressions/temporal/Temporal4.feature::[12] Should store duration array #1": {
-   "category": "temporal",
+   "category": "lmpg-single-label",
    "outcome": "fail"
   },
   "tck/features/expressions/temporal/Temporal4.feature::[12] Should store duration array #2": {
-   "category": "temporal",
+   "category": "lmpg-single-label",
    "outcome": "fail"
   },
   "tck/features/expressions/temporal/Temporal4.feature::[13] Should propagate null #1": {
@@ -12314,55 +12063,55 @@
    "outcome": "pass"
   },
   "tck/features/expressions/temporal/Temporal4.feature::[1] Should store date #1": {
-   "category": "temporal",
+   "category": "lmpg-single-label",
    "outcome": "fail"
   },
   "tck/features/expressions/temporal/Temporal4.feature::[2] Should store date array #1": {
-   "category": "temporal",
+   "category": "lmpg-single-label",
    "outcome": "fail"
   },
   "tck/features/expressions/temporal/Temporal4.feature::[2] Should store date array #2": {
-   "category": "temporal",
+   "category": "lmpg-single-label",
    "outcome": "fail"
   },
   "tck/features/expressions/temporal/Temporal4.feature::[3] Should store local time #1": {
-   "category": "temporal",
+   "category": "lmpg-single-label",
    "outcome": "fail"
   },
   "tck/features/expressions/temporal/Temporal4.feature::[4] Should store local time array #1": {
-   "category": "temporal",
+   "category": "lmpg-single-label",
    "outcome": "fail"
   },
   "tck/features/expressions/temporal/Temporal4.feature::[4] Should store local time array #2": {
-   "category": "temporal",
+   "category": "lmpg-single-label",
    "outcome": "fail"
   },
   "tck/features/expressions/temporal/Temporal4.feature::[5] Should store time #1": {
-   "category": "temporal",
+   "category": "lmpg-single-label",
    "outcome": "fail"
   },
   "tck/features/expressions/temporal/Temporal4.feature::[6] Should store time array #1": {
-   "category": "temporal",
+   "category": "lmpg-single-label",
    "outcome": "fail"
   },
   "tck/features/expressions/temporal/Temporal4.feature::[6] Should store time array #2": {
-   "category": "temporal",
+   "category": "lmpg-single-label",
    "outcome": "fail"
   },
   "tck/features/expressions/temporal/Temporal4.feature::[7] Should store local date time #1": {
-   "category": "temporal",
+   "category": "lmpg-single-label",
    "outcome": "fail"
   },
   "tck/features/expressions/temporal/Temporal4.feature::[8] Should store local date time array #1": {
-   "category": "temporal",
+   "category": "lmpg-single-label",
    "outcome": "fail"
   },
   "tck/features/expressions/temporal/Temporal4.feature::[8] Should store local date time array #2": {
-   "category": "temporal",
+   "category": "lmpg-single-label",
    "outcome": "fail"
   },
   "tck/features/expressions/temporal/Temporal4.feature::[9] Should store date time #1": {
-   "category": "temporal",
+   "category": "lmpg-single-label",
    "outcome": "fail"
   },
   "tck/features/expressions/temporal/Temporal5.feature::[1] Should provide accessors for date": {
@@ -12394,8 +12143,7 @@
    "outcome": "fail"
   },
   "tck/features/expressions/temporal/Temporal6.feature::[1] Should serialize date": {
-   "category": "temporal",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/temporal/Temporal6.feature::[2] Should serialize local time": {
    "category": "temporal",
@@ -12414,8 +12162,7 @@
    "outcome": "fail"
   },
   "tck/features/expressions/temporal/Temporal6.feature::[6] Should serialize duration #1": {
-   "category": "temporal",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/temporal/Temporal6.feature::[6] Should serialize duration #10": {
    "category": "temporal",
@@ -12426,12 +12173,10 @@
    "outcome": "fail"
   },
   "tck/features/expressions/temporal/Temporal6.feature::[6] Should serialize duration #2": {
-   "category": "temporal",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/temporal/Temporal6.feature::[6] Should serialize duration #3": {
-   "category": "temporal",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/temporal/Temporal6.feature::[6] Should serialize duration #4": {
    "category": "temporal",
@@ -12462,12 +12207,10 @@
    "outcome": "fail"
   },
   "tck/features/expressions/temporal/Temporal7.feature::[1] Should compare dates #1": {
-   "category": "temporal",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/temporal/Temporal7.feature::[1] Should compare dates #2": {
-   "category": "temporal",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/temporal/Temporal7.feature::[2] Should compare local times #1": {
    "category": "temporal",
@@ -12482,56 +12225,44 @@
    "outcome": "fail"
   },
   "tck/features/expressions/temporal/Temporal7.feature::[3] Should compare times #2": {
-   "category": "temporal",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/temporal/Temporal7.feature::[4] Should compare local date times #1": {
-   "category": "temporal",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/temporal/Temporal7.feature::[4] Should compare local date times #2": {
-   "category": "temporal",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/temporal/Temporal7.feature::[5] Should compare date times #1": {
-   "category": "temporal",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/temporal/Temporal7.feature::[5] Should compare date times #2": {
-   "category": "temporal",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/temporal/Temporal7.feature::[6] Should compare durations for equality #1": {
-   "category": "temporal",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/temporal/Temporal7.feature::[6] Should compare durations for equality #2": {
    "category": "temporal",
    "outcome": "fail"
   },
   "tck/features/expressions/temporal/Temporal7.feature::[6] Should compare durations for equality #3": {
-   "category": "temporal",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/temporal/Temporal7.feature::[6] Should compare durations for equality #4": {
-   "category": "temporal",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/temporal/Temporal7.feature::[6] Should compare durations for equality #5": {
-   "category": "temporal",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/temporal/Temporal7.feature::[6] Should compare durations for equality #6": {
-   "category": "temporal",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/temporal/Temporal7.feature::[6] Should compare durations for equality #7": {
-   "category": "temporal",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/temporal/Temporal7.feature::[6] Should compare durations for equality #8": {
-   "category": "temporal",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/temporal/Temporal8.feature::[1] Should add or subtract duration to or from date #1": {
    "category": "temporal",
@@ -13966,15 +13697,13 @@
    "outcome": "fail"
   },
   "tck/features/expressions/typeConversion/TypeConversion2.feature::[1] `toInteger()` on float": {
-   "category": "grafeo-write-column-names",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/typeConversion/TypeConversion2.feature::[2] `toInteger()` returning null on non-numerical string": {
    "outcome": "pass"
   },
   "tck/features/expressions/typeConversion/TypeConversion2.feature::[3] `toInteger()` handling mixed number types": {
-   "category": "grafeo-result",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/typeConversion/TypeConversion2.feature::[4] `toInteger()` handling Any type": {
    "category": "grafeo-result",
@@ -14011,19 +13740,16 @@
    "outcome": "fail"
   },
   "tck/features/expressions/typeConversion/TypeConversion3.feature::[1] `toFloat()` on mixed number types": {
-   "category": "grafeo-result",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/typeConversion/TypeConversion3.feature::[2] `toFloat()` returning null on non-numerical string": {
    "outcome": "pass"
   },
   "tck/features/expressions/typeConversion/TypeConversion3.feature::[3] `toFloat()` handling Any type": {
-   "category": "grafeo-result",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/typeConversion/TypeConversion3.feature::[4] `toFloat()` on a list of strings": {
-   "category": "grafeo-result",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/typeConversion/TypeConversion3.feature::[5] `toFloat()` on node property": {
    "outcome": "pass"
@@ -14082,20 +13808,16 @@
    "outcome": "pass"
   },
   "tck/features/expressions/typeConversion/TypeConversion4.feature::[4] `toString()` handling boolean properties": {
-   "category": "grafeo-write-column-names",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/typeConversion/TypeConversion4.feature::[5] `toString()` should work on Any type": {
-   "category": "grafeo-result",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/typeConversion/TypeConversion4.feature::[6] `toString()` on a list of integers": {
-   "category": "grafeo-result",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/typeConversion/TypeConversion4.feature::[7] `toString()` on node property": {
-   "category": "grafeo-write-column-names",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/expressions/typeConversion/TypeConversion4.feature::[8] `toString()` should accept potentially correct types 1": {
    "outcome": "pass"
@@ -14104,105 +13826,115 @@
    "outcome": "pass"
   },
   "tck/features/useCases/countingSubgraphMatches/CountingSubgraphMatches1.feature::[10] Mixing directed and undirected pattern parts with self-relationship, count": {
-   "category": "grafeo-write-column-names",
+   "category": "grafeo-result",
    "outcome": "fail"
   },
   "tck/features/useCases/countingSubgraphMatches/CountingSubgraphMatches1.feature::[11] Mixing directed and undirected pattern parts with self-relationship, undirected count": {
-   "category": "grafeo-write-column-names",
+   "category": "grafeo-result",
    "outcome": "fail"
   },
   "tck/features/useCases/countingSubgraphMatches/CountingSubgraphMatches1.feature::[1] Undirected match in self-relationship graph, count": {
-   "category": "grafeo-write-column-names",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/useCases/countingSubgraphMatches/CountingSubgraphMatches1.feature::[2] Undirected match of self-relationship in self-relationship graph, count": {
-   "category": "grafeo-write-column-names",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/useCases/countingSubgraphMatches/CountingSubgraphMatches1.feature::[3] Undirected match on simple relationship graph, count": {
-   "category": "grafeo-write-column-names",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/useCases/countingSubgraphMatches/CountingSubgraphMatches1.feature::[4] Directed match on self-relationship graph, count": {
-   "category": "grafeo-write-column-names",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/useCases/countingSubgraphMatches/CountingSubgraphMatches1.feature::[5] Directed match of self-relationship on self-relationship graph, count": {
-   "category": "grafeo-write-column-names",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/useCases/countingSubgraphMatches/CountingSubgraphMatches1.feature::[6] Counting undirected self-relationships in self-relationship graph": {
-   "category": "grafeo-write-column-names",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/useCases/countingSubgraphMatches/CountingSubgraphMatches1.feature::[7] Counting distinct undirected self-relationships in self-relationship graph": {
-   "category": "grafeo-write-column-names",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/useCases/countingSubgraphMatches/CountingSubgraphMatches1.feature::[8] Directed match of a simple relationship, count": {
-   "category": "grafeo-write-column-names",
-   "outcome": "fail"
+   "outcome": "pass"
   },
   "tck/features/useCases/countingSubgraphMatches/CountingSubgraphMatches1.feature::[9] Counting directed self-relationships": {
    "category": "lmpg-single-label",
    "outcome": "fail"
   },
   "tck/features/useCases/triadicSelection/TriadicSelection1.feature::[10] Handling triadic friend of a friend that is not a friend with implicit superset of labels": {
-   "outcome": "pass"
+   "category": "grafeo-semantic",
+   "outcome": "fail"
   },
   "tck/features/useCases/triadicSelection/TriadicSelection1.feature::[11] Handling triadic friend of a friend that is a friend": {
-   "outcome": "pass"
+   "category": "grafeo-semantic",
+   "outcome": "fail"
   },
   "tck/features/useCases/triadicSelection/TriadicSelection1.feature::[12] Handling triadic friend of a friend that is a friend with different relationship type": {
-   "outcome": "pass"
+   "category": "grafeo-semantic",
+   "outcome": "fail"
   },
   "tck/features/useCases/triadicSelection/TriadicSelection1.feature::[13] Handling triadic friend of a friend that is a friend with superset of relationship type": {
-   "outcome": "pass"
+   "category": "grafeo-semantic",
+   "outcome": "fail"
   },
   "tck/features/useCases/triadicSelection/TriadicSelection1.feature::[14] Handling triadic friend of a friend that is a friend with implicit subset of relationship type": {
-   "outcome": "pass"
+   "category": "grafeo-semantic",
+   "outcome": "fail"
   },
   "tck/features/useCases/triadicSelection/TriadicSelection1.feature::[15] Handling triadic friend of a friend that is a friend with explicit subset of relationship type": {
-   "outcome": "pass"
+   "category": "grafeo-semantic",
+   "outcome": "fail"
   },
   "tck/features/useCases/triadicSelection/TriadicSelection1.feature::[16] Handling triadic friend of a friend that is a friend with same labels": {
-   "outcome": "pass"
+   "category": "grafeo-semantic",
+   "outcome": "fail"
   },
   "tck/features/useCases/triadicSelection/TriadicSelection1.feature::[17] Handling triadic friend of a friend that is a friend with different labels": {
-   "outcome": "pass"
+   "category": "grafeo-semantic",
+   "outcome": "fail"
   },
   "tck/features/useCases/triadicSelection/TriadicSelection1.feature::[18] Handling triadic friend of a friend that is a friend with implicit subset of labels": {
-   "outcome": "pass"
+   "category": "grafeo-semantic",
+   "outcome": "fail"
   },
   "tck/features/useCases/triadicSelection/TriadicSelection1.feature::[19] Handling triadic friend of a friend that is a friend with implicit superset of labels": {
-   "outcome": "pass"
+   "category": "grafeo-semantic",
+   "outcome": "fail"
   },
   "tck/features/useCases/triadicSelection/TriadicSelection1.feature::[1] Handling triadic friend of a friend": {
    "outcome": "pass"
   },
   "tck/features/useCases/triadicSelection/TriadicSelection1.feature::[2] Handling triadic friend of a friend that is not a friend": {
-   "outcome": "pass"
+   "category": "grafeo-semantic",
+   "outcome": "fail"
   },
   "tck/features/useCases/triadicSelection/TriadicSelection1.feature::[3] Handling triadic friend of a friend that is not a friend with different relationship type": {
-   "outcome": "pass"
+   "category": "grafeo-semantic",
+   "outcome": "fail"
   },
   "tck/features/useCases/triadicSelection/TriadicSelection1.feature::[4] Handling triadic friend of a friend that is not a friend with superset of relationship type": {
-   "outcome": "pass"
+   "category": "grafeo-semantic",
+   "outcome": "fail"
   },
   "tck/features/useCases/triadicSelection/TriadicSelection1.feature::[5] Handling triadic friend of a friend that is not a friend with implicit subset of relationship type": {
-   "outcome": "pass"
+   "category": "grafeo-semantic",
+   "outcome": "fail"
   },
   "tck/features/useCases/triadicSelection/TriadicSelection1.feature::[6] Handling triadic friend of a friend that is not a friend with explicit subset of relationship type": {
-   "outcome": "pass"
+   "category": "grafeo-semantic",
+   "outcome": "fail"
   },
   "tck/features/useCases/triadicSelection/TriadicSelection1.feature::[7] Handling triadic friend of a friend that is not a friend with same labels": {
-   "outcome": "pass"
+   "category": "grafeo-semantic",
+   "outcome": "fail"
   },
   "tck/features/useCases/triadicSelection/TriadicSelection1.feature::[8] Handling triadic friend of a friend that is not a friend with different labels": {
-   "outcome": "pass"
+   "category": "grafeo-semantic",
+   "outcome": "fail"
   },
   "tck/features/useCases/triadicSelection/TriadicSelection1.feature::[9] Handling triadic friend of a friend that is not a friend with implicit subset of labels": {
-   "outcome": "pass"
+   "category": "grafeo-semantic",
+   "outcome": "fail"
   }
  },
  "schemaVersion": 1

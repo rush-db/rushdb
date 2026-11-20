@@ -964,25 +964,23 @@ impl RequestScope<'_> {
                 }
                 continue;
             }
-            if let Some(hdr) = access::record_by_ord(snap, self.tenant(), h.source.owner_ord)
+            // A missing record reconstructs to `None`, like a denied one.
+            let Some(rec) = authz
+                .reconstruct_record(h.source.owner_ord)
                 .map_err(|e| e.to_string())?
-            {
-                let Some(rec) = authz
-                    .reconstruct_record(hdr.ordinal)
-                    .map_err(|e| e.to_string())?
-                else {
-                    continue;
-                };
-                let rec = Self::canonical_record_with(&rec, &proptypes);
-                let mut obj = rec.as_object().cloned().unwrap_or_default();
+            else {
+                continue;
+            };
+            let mut rec = Self::canonical_record_with(&rec, &proptypes);
+            if let Some(obj) = rec.as_object_mut() {
                 obj.insert("score".to_string(), serde_json::json!(h.score));
-                append_bounded_json_response(
-                    &mut data,
-                    &mut encoded_bytes,
-                    serde_json::Value::Object(obj),
-                    self.max_response_bytes(),
-                )?;
             }
+            append_bounded_json_response(
+                &mut data,
+                &mut encoded_bytes,
+                rec,
+                self.max_response_bytes(),
+            )?;
         }
         Ok(serde_json::json!({ "data": data, "vectorSearch": report }))
     }

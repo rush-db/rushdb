@@ -231,7 +231,7 @@ impl LmpgGraphStore {
         }
     }
 
-    // Grafeo 0.5.42's GraphStore methods cannot return storage errors. Poison
+    // Grafeo 0.5.44's GraphStore methods cannot return storage errors. Poison
     // the whole statement on first failure, stop further storage work, and
     // reject its result at every engine boundary. This adapter is private so
     // callers cannot accidentally accept its terminal placeholder values.

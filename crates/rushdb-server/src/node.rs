@@ -228,7 +228,7 @@ pub struct Node {
     /// derived `emb__...` alias fallback).
     require_vector_index_name: bool,
     /// See `resources.vector-exact-max-pool`.
-    vector_exact_max_pool: u64,
+    vector_exact_max_pool: crate::resource_config::ExactPool,
     /// See `resources.vector-default-ef`.
     vector_default_ef: usize,
     /// See `resources.introspection-value-max-chars`.

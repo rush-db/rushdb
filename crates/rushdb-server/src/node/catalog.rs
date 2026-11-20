@@ -907,13 +907,41 @@ impl RequestScope<'_> {
         self.describe_properties_in_view(&view, body, None, &|| false)
     }
 
-    /// Describe properties from a caller-owned pinned snapshot.
+    /// Describe properties from a caller-owned pinned snapshot. An
+    /// unfiltered request is answered from the `describe` resident layer
+    /// while nothing it reads was written, else computed and offered to it.
+    pub(crate) fn describe_properties_in_view(
+        &self,
+        view: &Arc<rushdb_storage::ReadView>,
+        body: &serde_json::Value,
+        matched: Option<&[u64]>,
+        is_cancelled: &dyn Fn() -> bool,
+    ) -> Result<Vec<rushdb_protocol::PropertyDescription>, String> {
+        let unfiltered = matched.is_none()
+            && body.get("where").is_none_or(|v| {
+                v.is_null() || v.as_object().is_some_and(serde_json::Map::is_empty)
+            });
+        if !unfiltered {
+            return self.describe_properties_computed(view, body, matched, is_cancelled);
+        }
+        let layer = view
+            .residents()
+            .layer::<super::resident_catalog::Describes>();
+        let key = (self.tenant(), body.to_string());
+        if let Some(answer) = layer.get(&key, view) {
+            return Ok(answer.as_ref().clone());
+        }
+        let answer = self.describe_properties_computed(view, body, None, is_cancelled)?;
+        layer.offer(key, view, Arc::new(answer.clone()));
+        Ok(answer)
+    }
+
     #[expect(
         clippy::too_many_lines,
         clippy::cast_possible_truncation,
         reason = "single linear operation/reader; splitting it would scatter shared borrows and hurt auditability"
     )]
-    pub(crate) fn describe_properties_in_view(
+    fn describe_properties_computed(
         &self,
         view: &Arc<rushdb_storage::ReadView>,
         body: &serde_json::Value,

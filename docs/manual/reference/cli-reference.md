@@ -6,7 +6,7 @@ image. Its commands:
 | Command | Purpose |
 |---|---|
 | `rushdb serve` | The database server. Also runs one-shot maintenance commands (init, export, restore, compaction, base backup, point-in-time restore, verification). |
-| `rushdb up` | `rushdb serve` for a local node: a persistent `./.rushdb` data directory by default and a startup summary. |
+| `rushdb up` | `rushdb serve` for a local node: a persistent `./.rushdb` data directory by default (`./.rushdb/data` when `./.rushdb` holds the binary) and a startup summary. |
 | `rushdb health` | Probe a running node. |
 
 `rushdb --help` (`-h`) and `rushdb --version` (`-V`) work on their own and
@@ -19,7 +19,7 @@ rushdb <COMMAND>
 
 Commands:
   serve   Run the database server. Without `--data-dir` the node is in memory
-  up      Run a persistent local node: `serve` with a `./.rushdb` data directory and a startup summary. Takes every `serve` option
+  up      Run a persistent local node: `serve` with a `./.rushdb` data directory (`./.rushdb/data` when `./.rushdb` holds this binary) and a startup summary. Takes every `serve` option
   health  Check that a node is up: exits 0 when `GET /health` answers 200
   help    Print this message or the help of the given subcommand(s)
 ```
@@ -33,7 +33,7 @@ option and environment variable; only one default differs:
 
 | Option | Environment | Default under `up` | Default under `serve` |
 |---|---|---|---|
-| `--data-dir <DATA_DIR>` | `RUSHDB_DATA_DIR` | `./.rushdb` | none: an in-memory node |
+| `--data-dir <DATA_DIR>` | `RUSHDB_DATA_DIR` | `./.rushdb`; `./.rushdb/data` when `./.rushdb` holds the `rushdb` binary (a store already in `./.rushdb` keeps opening there) | none: an in-memory node |
 
 ```bash
 RUSHDB_TOKEN=change-me rushdb up

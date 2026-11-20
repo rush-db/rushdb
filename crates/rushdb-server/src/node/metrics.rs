@@ -39,6 +39,7 @@ pub struct Metrics {
     storage_admission_wait_ms: prometheus::IntCounter,
     storage_checkpoints: prometheus::IntCounter,
     storage_checkpoint_wait_ms: prometheus::IntCounter,
+    storage_paced_checkpoints: prometheus::IntCounter,
     storage_wal_bytes: prometheus::IntCounter,
     storage_applied_bytes: prometheus::IntCounter,
     storage_backend_mutex_wait_ms: prometheus::IntCounter,
@@ -48,6 +49,7 @@ pub struct Metrics {
     wal_retained_bytes: prometheus::IntGauge,
     /// C0: bytes held by the in-memory conflict window.
     conflict_window_bytes: prometheus::IntGauge,
+    unmaterialized_bytes: prometheus::IntGauge,
     /// C0: HTTP request-body bytes reserved in flight.
     http_inflight_body_bytes: prometheus::IntGauge,
     /// C0: duration of each maintenance (GC/retention/checkpoint) tick.
@@ -198,6 +200,10 @@ impl Metrics {
             &self.storage_checkpoint_wait_ms,
             clamp(written.checkpoint_wait_ms),
         );
+        advance(
+            &self.storage_paced_checkpoints,
+            clamp(written.paced_checkpoints),
+        );
         advance(&self.storage_wal_bytes, clamp(written.wal_bytes_appended));
         advance(&self.storage_applied_bytes, clamp(written.applied_bytes));
         let locks = store.backend_lock_times();
@@ -216,6 +222,9 @@ impl Metrics {
         if let Ok(bytes) = store.retained_log_bytes() {
             self.wal_retained_bytes.set(clamp(bytes));
         }
+        self.unmaterialized_bytes.set(clamp(
+            u64::try_from(store.unmaterialized_bytes()).unwrap_or(u64::MAX),
+        ));
         self.conflict_window_bytes.set(clamp(
             u64::try_from(store.conflict_window_bytes()).unwrap_or(u64::MAX),
         ));
@@ -457,6 +466,11 @@ impl Metrics {
             "Cumulative milliseconds spent in durability checkpoints",
         )
         .expect("valid Prometheus metric");
+        let storage_paced_checkpoints = prometheus::IntCounter::new(
+            "rushdb_storage_paced_checkpoints_total",
+            "Cumulative checkpoints run between maintenance ticks because a shard's buffered writes passed their bound",
+        )
+        .expect("valid Prometheus metric");
         let storage_wal_bytes = prometheus::IntCounter::new(
             "rushdb_storage_wal_bytes_total",
             "Cumulative bytes appended to the write-ahead log",
@@ -480,6 +494,11 @@ impl Metrics {
         let wal_retained_bytes =
             prometheus::IntGauge::new("rushdb_wal_retained_bytes", "WAL bytes retained on disk")
                 .expect("valid Prometheus metric");
+        let unmaterialized_bytes = prometheus::IntGauge::new(
+            "rushdb_storage_unmaterialized_bytes",
+            "Bytes of published commits not yet applied to the store file (commits wait at the bound)",
+        )
+        .expect("valid Prometheus metric");
         let conflict_window_bytes = prometheus::IntGauge::new(
             "rushdb_conflict_window_bytes",
             "Bytes held by the in-memory conflict-validation window",
@@ -627,6 +646,7 @@ impl Metrics {
             Box::new(storage_admission_wait_ms.clone()),
             Box::new(storage_checkpoints.clone()),
             Box::new(storage_checkpoint_wait_ms.clone()),
+            Box::new(storage_paced_checkpoints.clone()),
             Box::new(storage_wal_bytes.clone()),
             Box::new(storage_applied_bytes.clone()),
             Box::new(storage_backend_mutex_wait_ms.clone()),
@@ -634,6 +654,7 @@ impl Metrics {
             Box::new(storage_backend_mutex_hold_max_ms.clone()),
             Box::new(wal_retained_bytes.clone()),
             Box::new(conflict_window_bytes.clone()),
+            Box::new(unmaterialized_bytes.clone()),
             Box::new(http_inflight_body_bytes.clone()),
             Box::new(gc_tick_seconds.clone()),
             Box::new(retention_consumers.clone()),
@@ -700,6 +721,7 @@ impl Metrics {
             storage_admission_wait_ms,
             storage_checkpoints,
             storage_checkpoint_wait_ms,
+            storage_paced_checkpoints,
             storage_wal_bytes,
             storage_applied_bytes,
             storage_backend_mutex_wait_ms,
@@ -707,6 +729,7 @@ impl Metrics {
             storage_backend_mutex_hold_max_ms,
             wal_retained_bytes,
             conflict_window_bytes,
+            unmaterialized_bytes,
             http_inflight_body_bytes,
             gc_tick_seconds,
             retention_consumers,

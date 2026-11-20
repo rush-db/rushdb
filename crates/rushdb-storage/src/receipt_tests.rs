@@ -104,7 +104,11 @@ fn receipt_sweep_is_bounded_per_tick() {
     now.fetch_add(10_000, Ordering::SeqCst);
     let fresh = Uuid::now_v7();
     let fresh_outcome = commit(&store, fresh, "fresh");
-    let rows = |store: &Store| store.storage_stats().unwrap().receipt_keys;
+    // File statistics count what is materialized.
+    let rows = |store: &Store| {
+        store.wait_materialized().unwrap();
+        store.storage_stats().unwrap().receipt_keys
+    };
     // Two rows per receipt (the receipt and its expiry index entry).
     assert_eq!(rows(&store), 52);
     // Nothing is past the window yet.
@@ -123,6 +127,56 @@ fn receipt_sweep_is_bounded_per_tick() {
 }
 
 #[test]
+fn a_swept_receipt_still_in_the_gap_stays_swept() {
+    let (store, now, dir) = store("sweep-gap");
+    // Receipts published but not yet in the store file.
+    store.pause_materialization(true);
+    for index in 0..5 {
+        commit(&store, Uuid::now_v7(), &format!("gap-{index}"));
+    }
+    now.fetch_add(WINDOW_SECONDS * 1000 + 1_000, Ordering::SeqCst);
+    std::thread::scope(|scope| {
+        let sweep = scope.spawn(|| store.sweep_receipts(10).unwrap());
+        std::thread::sleep(std::time::Duration::from_millis(100));
+        store.pause_materialization(false);
+        assert_eq!(sweep.join().unwrap(), 5);
+    });
+    // Materializing the receipts did not bring them back.
+    store.wait_materialized().unwrap();
+    assert_eq!(store.storage_stats().unwrap().receipt_keys, 0);
+    assert_eq!(store.sweep_receipts(10).unwrap(), 0);
+    drop(store);
+    std::fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
+fn an_aborted_outcome_is_not_overwritten_by_an_expired_receipt_in_the_gap() {
+    let (store, now, dir) = store("abort-gap");
+    let key = Uuid::now_v7();
+    // The committed receipt is published but not yet in the store file.
+    store.pause_materialization(true);
+    commit(&store, key, "first");
+    now.fetch_add(WINDOW_SECONDS * 1000 + 1_000, Ordering::SeqCst);
+    // Past the window the key is free again; this attempt aborts.
+    std::thread::scope(|scope| {
+        let aborted = scope.spawn(|| store.record_aborted_outcome(key).unwrap());
+        std::thread::sleep(std::time::Duration::from_millis(100));
+        store.pause_materialization(false);
+        aborted.join().unwrap();
+    });
+    store.wait_materialized().unwrap();
+    assert_eq!(
+        store
+            .lookup_outcome_checked(key)
+            .unwrap()
+            .map(|(status, _)| status),
+        Some(crate::OutcomeStatus::Aborted)
+    );
+    drop(store);
+    std::fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
 fn receipt_sweep_drains_a_backlog_within_its_budget() {
     let (store, now, dir) = store("sweep-drain");
     for index in 0..25 {
@@ -135,6 +189,8 @@ fn receipt_sweep_drains_a_backlog_within_its_budget() {
     // stays.
     let budget = std::time::Duration::from_secs(60);
     assert_eq!(store.sweep_expired_receipts(10, budget).unwrap(), 25);
+    // File statistics count what is materialized.
+    store.wait_materialized().unwrap();
     assert_eq!(store.storage_stats().unwrap().receipt_keys, 2);
     assert_eq!(store.sweep_expired_receipts(10, budget).unwrap(), 0);
     // A spent budget stops after one batch.

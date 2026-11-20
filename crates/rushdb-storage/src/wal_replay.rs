@@ -228,6 +228,10 @@ impl Store {
         to_lsn: Option<u64>,
     ) -> Result<u64, StorageError> {
         self.check_health()?;
+        // Records are applied straight to the backends and derived against
+        // them, so every published commit must be there first: one still in
+        // the gap would be written over the replayed state.
+        self.wait_materialized()?;
         let mut last = self.committed_version();
         // Reject an LSN gap — leading or interior. A missing segment must not be
         // silently compacted by renumbering, which would produce a database that

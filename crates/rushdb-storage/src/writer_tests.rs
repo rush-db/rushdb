@@ -537,6 +537,57 @@ fn bounded_writer_byte_cap_splits_groups() {
 }
 
 #[test]
+fn a_shard_past_its_buffered_bound_is_checkpointed_by_its_materializer() {
+    // PERF-2: once a shard's materializer has left more than the paced
+    // bound buffered, it checkpoints the shard itself instead of leaving it
+    // to the next maintenance tick; publication never waits for it.
+    let dir = std::env::temp_dir().join(format!(
+        "rushdb-paced-flush-{}-{}",
+        std::process::id(),
+        Uuid::now_v7()
+    ));
+    std::fs::create_dir_all(&dir).unwrap();
+    let store = Store::new_with_resources(resources::StorageResources {
+        managed_limit_bytes: 256 * 1024 * 1024,
+        page_cache_bytes: 1024 * 1024,
+        durability: resources::Durability::Local,
+        ..resources::StorageResources::default()
+    })
+    .unwrap();
+    store.attach_redb(&dir.join("rushdb.redb")).unwrap();
+    let group = |ci: u64, values: u32| {
+        let ops: Vec<Op> = (0..values)
+            .map(|n| Op::Put(format!("k{ci}-{n}").into_bytes(), vec![5u8; 1024 * 1024]))
+            .collect();
+        let (ack, _rx) = mpsc::channel();
+        let batch = vec![PendingCommit {
+            ci,
+            shard: 0,
+            prepared: PreparedCommand::from_ops(ci, &ops),
+            ops: Arc::new(ops),
+            command_payload: Vec::new(),
+            ack,
+        }];
+        store
+            .persist_many_sharded(&batch, vec![Vec::new()])
+            .unwrap();
+        store.gap(0).unwrap().wait_materialized(ci).unwrap();
+    };
+    group(1, 4);
+    assert_eq!(
+        store.write_counters().paced_checkpoints,
+        0,
+        "below the bound"
+    );
+    group(2, 16);
+    assert_eq!(store.write_counters().paced_checkpoints, 1);
+    // It wrote everything out: the same checkpoint again writes nothing.
+    assert!(!store.backend(0).unwrap().checkpoint(2).unwrap());
+    drop(store);
+    std::fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
 fn multi_shard_persist_fans_out_to_both_backends_in_parallel() {
     // One drain group spanning two physical shards must persist each
     // shard's op-sets to its own backend file (parallel since disjoint).
@@ -594,15 +645,11 @@ fn multi_shard_persist_fans_out_to_both_backends_in_parallel() {
             ack: ack1,
         },
     ];
-    let pairs: Vec<crate::backend::CommitOps<'_>> = batch
-        .iter()
-        .map(|pc| crate::backend::CommitOps {
-            ci: pc.ci,
-            base: &pc.ops,
-            derived: &[],
-        })
-        .collect();
-    store.persist_many_sharded(&pairs, &batch).unwrap();
+    store
+        .persist_many_sharded(&batch, vec![Vec::new(); 2])
+        .unwrap();
+    store.gap(0).unwrap().wait_materialized(2).unwrap();
+    store.gap(1).unwrap().wait_materialized(2).unwrap();
     let get = |shard: usize, key: &[u8]| {
         store
             .backend(shard)

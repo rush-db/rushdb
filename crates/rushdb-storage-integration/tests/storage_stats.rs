@@ -32,6 +32,8 @@ fn storage_stats_account_for_every_stored_byte() {
             .unwrap();
     }
 
+    // File statistics count what is materialized.
+    store.wait_materialized().unwrap();
     let stats = store.storage_stats().unwrap();
     let file = store.storage_file_bytes().unwrap();
     eprintln!("stats = {stats:?}");

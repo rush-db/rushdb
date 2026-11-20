@@ -25,6 +25,11 @@ pub enum Dep {
     /// Membership rows and the suspect marker of one label (by
     /// [`label_hash`]).
     Label(TenantId, u64),
+    /// The label-scoped property rows of one label (by [`label_hash`]):
+    /// presence, per-label support counters, array markers and the value
+    /// dictionary with its counters, of any property id. Every such row
+    /// also raises its property's [`Dep::Pid`] or [`Dep::ValueDict`].
+    LabelProperties(TenantId, u64),
     /// Value dictionary and distinct counters of one property id, any label.
     ValueDict(TenantId, u64),
     /// Property families, definitions and signatures.
@@ -55,6 +60,7 @@ impl Dep {
             Self::Index(tenant, _)
             | Self::Pid(tenant, _)
             | Self::Label(tenant, _)
+            | Self::LabelProperties(tenant, _)
             | Self::ValueDict(tenant, _)
             | Self::Definitions(tenant)
             | Self::Labels(tenant)
@@ -81,6 +87,7 @@ impl Dep {
             Self::TenantDir => (10, 0, 0),
             Self::Tenant(t) => (11, t.0, 0),
             Self::Global => (12, 0, 0),
+            Self::LabelProperties(t, hash) => (13, t.0, hash),
         };
         splitmix(splitmix((tag << 32) | u64::from(tenant)) ^ item)
     }
@@ -110,14 +117,17 @@ pub(crate) enum Family<'a> {
     LabelMember(&'a str),
     LabelCounter,
     PidCounter(u64),
-    ValueCounter(u64),
+    /// A `(label, pid)` support counter.
+    LabelPidCounter(&'a str, u64),
+    ValueCounter(&'a str, u64),
     GraphCounter,
     UsageCounter,
     UnknownCounter,
-    ValueDict(u64),
-    Marker(u64),
+    ValueDict(&'a str, u64),
+    /// A pid's marker, with its label when the marker is label-scoped.
+    Marker(u64, Option<&'a str>),
     Occurrence(u64),
-    Presence(u64),
+    Presence(&'a str, u64),
     IndexDef(u32),
     IndexName,
     IndexEntry(u32),
@@ -188,17 +198,22 @@ fn tenant_family(tenant: TenantId, key: &[u8]) -> Option<Family<'_>> {
         keys::F_LABEL => Family::LabelMember(keys::read_str(key, at)?.0),
         keys::F_COUNTER => counter_family(key, at)?,
         keys::F_VALUE_DICT => {
-            let (_, pos) = keys::read_str(key, at + 1)?;
-            Family::ValueDict(keys::read_ord(key, pos)?.0)
+            let (label, pos) = keys::read_str(key, at + 1)?;
+            Family::ValueDict(label, keys::read_ord(key, pos)?.0)
         }
-        keys::F_MARKER => Family::Marker(keys::read_u64(key, at + 2)?),
+        keys::F_MARKER => {
+            let label = (key.get(at) == Some(&keys::M_ARRAY_LABEL))
+                .then(|| keys::read_str(key, at + 10).map(|(label, _)| label))
+                .flatten();
+            Family::Marker(keys::read_u64(key, at + 2)?, label)
+        }
         keys::F_OCC => {
             let (_, pos) = keys::read_ord(key, at + 1)?;
             Family::Occurrence(keys::read_ord(key, pos)?.0)
         }
         keys::F_PRESENCE => {
-            let (_, pos) = keys::read_str(key, at + 1)?;
-            Family::Presence(keys::read_ord(key, pos)?.0)
+            let (label, pos) = keys::read_str(key, at + 1)?;
+            Family::Presence(label, keys::read_ord(key, pos)?.0)
         }
         keys::F_INDEX_DEF => {
             Family::IndexDef(u32::from_be_bytes(key.get(at..at + 4)?.try_into().ok()?))
@@ -217,18 +232,22 @@ fn counter_family(key: &[u8], at: usize) -> Option<Family<'_>> {
     let sub = *key.get(at)?;
     let rest = at + 1;
     // `(kind, label, pid u64)` counters.
-    let labelled_pid = || -> Option<u64> {
-        let (_, pos) = keys::read_str(key, rest + 1)?;
-        keys::read_u64(key, pos)
+    let labelled_pid = || -> Option<(&str, u64)> {
+        let (label, pos) = keys::read_str(key, rest + 1)?;
+        Some((label, keys::read_u64(key, pos)?))
     };
     Some(match sub {
         keys::C_LABEL => Family::LabelCounter,
         keys::C_SUPPORT_TOTAL | keys::C_SUPPORT_BY_PID | keys::C_NULL => {
             Family::PidCounter(keys::read_u64(key, rest + 1)?)
         }
-        keys::C_SUPPORT_BY_LABEL => Family::PidCounter(labelled_pid()?),
+        keys::C_SUPPORT_BY_LABEL => {
+            let (label, pid) = labelled_pid()?;
+            Family::LabelPidCounter(label, pid)
+        }
         keys::C_DISTINCT | keys::C_LONG_VALUES | keys::C_LONG_VALUE | keys::C_LONG_DISTINCT => {
-            Family::ValueCounter(labelled_pid()?)
+            let (label, pid) = labelled_pid()?;
+            Family::ValueCounter(label, pid)
         }
         keys::C_DEGREE | keys::C_REL_CATALOG | keys::C_REL_SHAPE_PROP => Family::GraphCounter,
         keys::C_USAGE => Family::UsageCounter,
@@ -272,11 +291,19 @@ pub(crate) fn deps_of_key(key: &[u8], mut out: impl FnMut(Dep)) {
         }
         Family::Rederive(label) => out(Dep::Label(tenant(), label_hash(label))),
         Family::LabelCounter => out(Dep::Labels(tenant())),
-        Family::PidCounter(pid)
-        | Family::Marker(pid)
-        | Family::Occurrence(pid)
-        | Family::Presence(pid) => out(Dep::Pid(tenant(), pid)),
-        Family::ValueDict(pid) | Family::ValueCounter(pid) => out(Dep::ValueDict(tenant(), pid)),
+        Family::PidCounter(pid) | Family::Marker(pid, None) | Family::Occurrence(pid) => {
+            out(Dep::Pid(tenant(), pid));
+        }
+        Family::LabelPidCounter(label, pid)
+        | Family::Marker(pid, Some(label))
+        | Family::Presence(label, pid) => {
+            out(Dep::Pid(tenant(), pid));
+            out(Dep::LabelProperties(tenant(), label_hash(label)));
+        }
+        Family::ValueDict(label, pid) | Family::ValueCounter(label, pid) => {
+            out(Dep::ValueDict(tenant(), pid));
+            out(Dep::LabelProperties(tenant(), label_hash(label)));
+        }
         Family::GraphCounter | Family::Relationship | Family::Adjacency => {
             out(Dep::Adjacency(tenant()));
         }

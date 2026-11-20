@@ -48,7 +48,7 @@ Bolt, and `pgwire.execute` for PostgreSQL wire.
 |---|---|---|---|
 | `rushdb_commits_total` | counter | — | Durable commit index: commits since the store was created. |
 | `rushdb_commit_latency_seconds` | histogram | — | Time from enqueue to durable acknowledgement per commit. |
-| `rushdb_commit_phase_seconds` | histogram | `phase` | Commit pipeline time by phase. Per commit: `admission_wait`, `build`, `expand`, `durable`; a transaction commit (and a merge import) times `tx_validate` and `tx_expand` instead of `build` and `expand`. Per publish group: `wal_encode`, `wal_append_sync`, `backend_apply`, `derive`, `publish`. |
+| `rushdb_commit_phase_seconds` | histogram | `phase` | Commit pipeline time by phase. Per commit: `admission_wait`, `build`, `expand`, `durable`; a transaction commit (and a merge import) times `tx_validate` and `tx_expand` instead of `build` and `expand`. Per publish group: `wal_encode`, `wal_append_sync`, `derive`, `gap_push` (handing the group to the materializers; it grows when commits wait at the bound of not yet materialized commits), `publish`. `backend_apply` is the time a materializer spent applying one batch of published commits to the store file, off the commit path. |
 | `rushdb_storage_group_commits_total` | counter | — | Group-commit write transactions persisted. |
 | `rushdb_sequencer_inflight_keys` | gauge | — | Keys assigned to commits that are not yet published. |
 | `rushdb_conflict_window_bytes` | gauge | — | Memory held by the conflict-validation window. |
@@ -57,7 +57,7 @@ Bolt, and `pgwire.execute` for PostgreSQL wire.
 | `rushdb_storage_backend_mutex_wait_ms_total` | counter | — | Milliseconds spent waiting for the storage backend lock. |
 | `rushdb_storage_backend_mutex_hold_ms_total` | counter | — | Milliseconds the storage backend lock was held. |
 | `rushdb_storage_backend_mutex_hold_max_ms` | gauge | — | Longest single hold of the storage backend lock. |
-| `rushdb_writer_hold_seconds` | histogram | `holder` | Time one write transaction held the storage writer, from the start of its work to its commit: `publish` (commit groups), `history_gc` (one GC batch), `checkpoint` (fsync), `pause` (backup copy). Every other commit waits meanwhile, so the longest holds explain commit stalls. |
+| `rushdb_writer_hold_seconds` | histogram | `holder` | Time one write transaction held the storage writer, from the start of its work to its commit: `materialize` (applying published commits to the store file), `history_gc` (one GC batch), `checkpoint` (fsync), `pause` (backup copy). Materialization waits meanwhile; commits wait only once the published, not yet materialized commits reach their bound, so the longest holds explain commit stalls then. |
 
 ## Storage, WAL, and retention
 
@@ -72,6 +72,8 @@ Bolt, and `pgwire.execute` for PostgreSQL wire.
 | `rushdb_bytes_stored` | gauge | `tenant` | Approximate stored bytes; `tenant="all"` is the node total. |
 | `rushdb_records_stored` | gauge | `tenant` | Records stored. `tenant="all"` always; per-tenant series (internal tenant id) only with `--metrics-tenant-limit`. |
 | `rushdb_storage_checkpoints_total` | counter | — | Durability checkpoints that wrote. A maintenance tick with nothing new to make durable skips the checkpoint and is not counted. |
+| `rushdb_storage_paced_checkpoints_total` | counter | — | Checkpoints a materializer ran between maintenance ticks because 16 MiB of writes were waiting to be made durable, so no single checkpoint holds the writer for long. Not in `rushdb_storage_checkpoints_total`. |
+| `rushdb_storage_unmaterialized_bytes` | gauge | — | Published commits not yet applied to the store file. Reads include them; at a quarter of the managed budget (at most 256 MiB) new commits wait. |
 | `rushdb_storage_wal_bytes_total` | counter | — | Bytes appended to the write-ahead log (framed records). 0 for an in-memory node, which has no WAL. |
 | `rushdb_storage_applied_bytes_total` | counter | — | Encoded op bytes (base and derived) applied to the store. With the WAL counter, the two write streams a commit produces; compare against file growth and the process's block writes. |
 | `rushdb_storage_checkpoint_wait_ms_total` | counter | — | Milliseconds spent in the checkpoints counted above. |

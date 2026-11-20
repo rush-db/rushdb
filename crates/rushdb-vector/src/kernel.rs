@@ -21,7 +21,11 @@
 //! The query is prepared once per search ([`PreparedQuery`]): its own norm
 //! is not recomputed per candidate. Stored vectors are scored straight from
 //! their little-endian bytes ([`PreparedQuery::score_stored`]), without
-//! decoding them into a `Vec<f32>` first.
+//! decoding them into a `Vec<f32>` first. A resident row
+//! ([`PreparedQuery::score_resident`]) was checked finite when it was made
+//! and carries its own `sum v*v` ([`norm_sq`]), accumulated in the same
+//! lanes and tree as the per-candidate sum, so it is scored with one sum
+//! instead of two and returns the same bits.
 
 use rushdb_types::occurrence::Similarity;
 
@@ -75,31 +79,33 @@ impl Components<'_> {
     }
 }
 
-/// Which of the per-lane sums a kernel produces.
+/// The first per-lane sum a kernel produces. With `NORM` it also produces
+/// `sum v*v` (the stored vector's norm, and its finiteness).
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Kind {
-    /// `sum q*v` and `sum v*v`.
-    DotNorm,
-    /// `sum f64(q - v)^2` (difference in `f32`, as the metric defines it)
-    /// and `sum v*v` (finiteness of the stored vector).
-    L2Norm,
+    /// `sum q*v`.
+    Dot,
+    /// `sum f64(q - v)^2` (difference in `f32`, as the metric defines it).
+    L2,
 }
 
 /// One lane step of `kind` for component `i`.
 #[inline]
-fn step(kind: Kind, q: f32, v: f32, first: &mut f64, second: &mut f64) {
+fn step<const NORM: bool>(kind: Kind, q: f32, v: f32, first: &mut f64, second: &mut f64) {
     let b = f64::from(v);
     match kind {
-        Kind::DotNorm => *first += f64::from(q) * b,
-        Kind::L2Norm => {
+        Kind::Dot => *first += f64::from(q) * b,
+        Kind::L2 => {
             let d = f64::from(q - v);
             *first += d * d;
         }
     }
-    *second += b * b;
+    if NORM {
+        *second += b * b;
+    }
 }
 
-fn sums_portable(kind: Kind, q: &[f32], v: Components<'_>) -> (Acc, Acc) {
+fn sums_portable<const NORM: bool>(kind: Kind, q: &[f32], v: Components<'_>) -> (Acc, Acc) {
     let mut first = [0f64; LANES];
     let mut second = [0f64; LANES];
     let len = q.len();
@@ -107,7 +113,7 @@ fn sums_portable(kind: Kind, q: &[f32], v: Components<'_>) -> (Acc, Acc) {
     let mut base = 0;
     while base < full {
         for lane in 0..LANES {
-            step(
+            step::<NORM>(
                 kind,
                 q[base + lane],
                 v.at(base + lane),
@@ -118,7 +124,7 @@ fn sums_portable(kind: Kind, q: &[f32], v: Components<'_>) -> (Acc, Acc) {
         base += LANES;
     }
     for i in full..len {
-        step(
+        step::<NORM>(
             kind,
             q[i],
             v.at(i),
@@ -133,7 +139,7 @@ fn sums_portable(kind: Kind, q: &[f32], v: Components<'_>) -> (Acc, Acc) {
 #[target_feature(enable = "avx2")]
 /// # Safety
 /// AVX2 must be available, and `v` must hold `q.len()` components.
-unsafe fn sums_avx2(kind: Kind, q: &[f32], v: Components<'_>) -> (Acc, Acc) {
+unsafe fn sums_avx2<const NORM: bool>(kind: Kind, q: &[f32], v: Components<'_>) -> (Acc, Acc) {
     use std::arch::x86_64::{
         _mm256_add_pd, _mm256_castps256_ps128, _mm256_cvtps_pd, _mm256_extractf128_ps,
         _mm256_loadu_ps, _mm256_mul_pd, _mm256_setzero_pd, _mm256_storeu_pd, _mm256_sub_ps,
@@ -150,13 +156,13 @@ unsafe fn sums_avx2(kind: Kind, q: &[f32], v: Components<'_>) -> (Acc, Acc) {
         let v_lo = _mm256_cvtps_pd(_mm256_castps256_ps128(vv));
         let v_hi = _mm256_cvtps_pd(_mm256_extractf128_ps::<1>(vv));
         let (a_lo, a_hi, b_lo, b_hi) = match kind {
-            Kind::DotNorm => (
+            Kind::Dot => (
                 _mm256_cvtps_pd(_mm256_castps256_ps128(qv)),
                 _mm256_cvtps_pd(_mm256_extractf128_ps::<1>(qv)),
                 v_lo,
                 v_hi,
             ),
-            Kind::L2Norm => {
+            Kind::L2 => {
                 let d = _mm256_sub_ps(qv, vv);
                 let d_lo = _mm256_cvtps_pd(_mm256_castps256_ps128(d));
                 let d_hi = _mm256_cvtps_pd(_mm256_extractf128_ps::<1>(d));
@@ -165,8 +171,10 @@ unsafe fn sums_avx2(kind: Kind, q: &[f32], v: Components<'_>) -> (Acc, Acc) {
         };
         first_lo = _mm256_add_pd(first_lo, _mm256_mul_pd(a_lo, b_lo));
         first_hi = _mm256_add_pd(first_hi, _mm256_mul_pd(a_hi, b_hi));
-        second_lo = _mm256_add_pd(second_lo, _mm256_mul_pd(v_lo, v_lo));
-        second_hi = _mm256_add_pd(second_hi, _mm256_mul_pd(v_hi, v_hi));
+        if NORM {
+            second_lo = _mm256_add_pd(second_lo, _mm256_mul_pd(v_lo, v_lo));
+            second_hi = _mm256_add_pd(second_hi, _mm256_mul_pd(v_hi, v_hi));
+        }
         base += LANES;
     }
     let mut first = [0f64; LANES];
@@ -176,7 +184,7 @@ unsafe fn sums_avx2(kind: Kind, q: &[f32], v: Components<'_>) -> (Acc, Acc) {
     _mm256_storeu_pd(second.as_mut_ptr(), second_lo);
     _mm256_storeu_pd(second.as_mut_ptr().add(4), second_hi);
     for i in full..len {
-        step(
+        step::<NORM>(
             kind,
             q[i],
             v.at(i),
@@ -224,22 +232,23 @@ impl<'a> PreparedQuery<'a> {
             norm_sq: 0.0,
             avx2,
         };
-        prepared.norm_sq = prepared.sums(Kind::DotNorm, Components::F32(query)).1;
+        prepared.norm_sq = prepared.sums::<true>(Kind::Dot, Components::F32(query)).1;
         prepared
     }
 
-    /// Both reduced sums of `kind` against `v` (same length as the query).
-    fn sums(&self, kind: Kind, v: Components<'_>) -> (f64, f64) {
+    /// The reduced sums of `kind` against `v` (same length as the query):
+    /// the first, and `sum v*v` with `NORM` (else 0).
+    fn sums<const NORM: bool>(&self, kind: Kind, v: Components<'_>) -> (f64, f64) {
         debug_assert_eq!(v.len(), self.query.len());
         #[cfg(target_arch = "x86_64")]
         if self.avx2 && cfg!(target_endian = "little") {
             // SAFETY: AVX2 is available (checked at runtime), and both
             // operands hold `query.len()` components (checked by every
             // caller), so every unaligned load stays in bounds.
-            let (first, second) = unsafe { sums_avx2(kind, self.query, v) };
+            let (first, second) = unsafe { sums_avx2::<NORM>(kind, self.query, v) };
             return (reduce(&first), reduce(&second));
         }
-        let (first, second) = sums_portable(kind, self.query, v);
+        let (first, second) = sums_portable::<NORM>(kind, self.query, v);
         (reduce(&first), reduce(&second))
     }
 
@@ -270,6 +279,52 @@ impl<'a> PreparedQuery<'a> {
         finite.then_some(score)
     }
 
+    /// The score of a resident row: finite components of the query's
+    /// length whose `sum v*v` is `norm_sq` ([`norm_sq`] of the same row).
+    /// Bit for bit [`Self::score`] of the row, with one sum instead of two.
+    ///
+    /// # Panics
+    /// Panics when `v`'s length differs from the query's.
+    #[must_use]
+    pub fn score_resident(&self, v: &[f32], norm_sq: f64) -> f32 {
+        assert_eq!(
+            v.len(),
+            self.query.len(),
+            "vector length differs from the query"
+        );
+        let v = Components::F32(v);
+        match self.similarity {
+            Similarity::Cosine => self.cosine(self.sums::<false>(Kind::Dot, v).0, norm_sq),
+            Similarity::Dot | Similarity::Euclidean => self.finish_first(v),
+        }
+    }
+
+    #[expect(
+        clippy::cast_possible_truncation,
+        reason = "scores accumulate in f64, then narrow to the f32 public API"
+    )]
+    fn cosine(&self, dot: f64, norm_sq: f64) -> f32 {
+        if self.norm_sq == 0.0 || norm_sq == 0.0 {
+            0.0
+        } else {
+            (dot / (self.norm_sq.sqrt() * norm_sq.sqrt())) as f32
+        }
+    }
+
+    /// The score of `v` under `Dot` or `Euclidean`: one sum, no norm.
+    #[expect(
+        clippy::cast_possible_truncation,
+        reason = "scores accumulate in f64, then narrow to the f32 public API"
+    )]
+    fn finish_first(&self, v: Components<'_>) -> f32 {
+        match self.similarity {
+            Similarity::Euclidean => {
+                (1.0 / (1.0 + self.sums::<false>(Kind::L2, v).0.sqrt())) as f32
+            }
+            Similarity::Cosine | Similarity::Dot => self.sums::<false>(Kind::Dot, v).0 as f32,
+        }
+    }
+
     /// The narrowed score and whether every component of `v` was finite: a
     /// finite `f32` squared cannot overflow `f64`, so `sum v*v` is finite
     /// exactly when every component is.
@@ -280,24 +335,32 @@ impl<'a> PreparedQuery<'a> {
     fn finish(&self, v: Components<'_>) -> (f32, bool) {
         match self.similarity {
             Similarity::Cosine => {
-                let (dot, norm_sq) = self.sums(Kind::DotNorm, v);
-                let score = if self.norm_sq == 0.0 || norm_sq == 0.0 {
-                    0.0
-                } else {
-                    (dot / (self.norm_sq.sqrt() * norm_sq.sqrt())) as f32
-                };
-                (score, norm_sq.is_finite())
+                let (dot, norm_sq) = self.sums::<true>(Kind::Dot, v);
+                (self.cosine(dot, norm_sq), norm_sq.is_finite())
             }
             Similarity::Dot => {
-                let (dot, norm_sq) = self.sums(Kind::DotNorm, v);
+                let (dot, norm_sq) = self.sums::<true>(Kind::Dot, v);
                 (dot as f32, norm_sq.is_finite())
             }
             Similarity::Euclidean => {
-                let (dist_sq, norm_sq) = self.sums(Kind::L2Norm, v);
+                let (dist_sq, norm_sq) = self.sums::<true>(Kind::L2, v);
                 ((1.0 / (1.0 + dist_sq.sqrt())) as f32, norm_sq.is_finite())
             }
         }
     }
+}
+
+/// `sum v*v` of a row, in the lanes and reduction tree every score's
+/// `sum v*v` uses (the second sum of [`PreparedQuery::score`]), so a
+/// resident row's norm is the same `f64` a search would compute.
+#[must_use]
+pub(crate) fn norm_sq(v: &[f32]) -> f64 {
+    let mut lanes = [0f64; LANES];
+    for (i, component) in v.iter().enumerate() {
+        let b = f64::from(*component);
+        lanes[i % LANES] += b * b;
+    }
+    reduce(&lanes)
 }
 
 #[cfg(test)]
@@ -425,6 +488,34 @@ mod tests {
                         portable.score_stored(&bytes).map(f32::to_bits),
                         Some(expected)
                     );
+                }
+            }
+        }
+    }
+
+    /// A resident row scored with its precomputed norm returns the bits of
+    /// scoring it with both sums, on every kernel and metric: the norm is
+    /// the same `f64` either way.
+    #[test]
+    fn a_resident_row_with_its_norm_scores_the_same_bits() {
+        let mut rng = Rng(7);
+        for dims in [1usize, 5, 8, 17, 384, 1536] {
+            for similarity in METRICS {
+                let query = rng.vector(dims);
+                for avx2 in [false, use_avx2()] {
+                    let prepared = PreparedQuery::with_kernel(&query, similarity, avx2);
+                    for i in 0..50 {
+                        let v = if i == 0 {
+                            vec![0.0; dims]
+                        } else {
+                            rng.vector(dims)
+                        };
+                        assert_eq!(
+                            prepared.score_resident(&v, norm_sq(&v)).to_bits(),
+                            prepared.score(&v).to_bits(),
+                            "dims {dims} {similarity:?} avx2 {avx2}"
+                        );
+                    }
                 }
             }
         }

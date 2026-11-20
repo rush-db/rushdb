@@ -10,13 +10,17 @@
 #
 #   --version <tag>     RUSHDB_VERSION        release tag, e.g. v3.0.0 (default: latest)
 #   --dir <path>        RUSHDB_INSTALL_DIR    install directory (default: ~/.rushdb/bin)
-#   --no-modify-path    RUSHDB_NO_MODIFY_PATH=1   do not edit shell startup files
+#   --no-modify-path    RUSHDB_NO_MODIFY_PATH=1   do not edit shell startup files or link the binary
 #   --verify-signature  RUSHDB_VERIFY_SIGNATURE=1 require a cosign signature check
 #
 # RUSHDB_DOWNLOAD_URL replaces the release download base, for mirrors.
 #
-# Uninstall: delete the install directory and the line this script added to
-# your shell startup file (marked "# rushdb").
+# A startup file only changes PATH for new shells, so the script also links
+# `rushdb` into the first of ~/.local/bin, ~/bin, /opt/homebrew/bin and
+# /usr/local/bin that is already on PATH and writable, if any.
+#
+# Uninstall: delete the install directory, the `rushdb` link the script made,
+# and the line it added to your shell startup file (marked "# rushdb").
 set -eu
 
 REPO="rush-db/rushdb"
@@ -174,6 +178,27 @@ add_to_path() {
   say "  $line"
 }
 
+# Link the binary into a directory that is already on PATH, so `rushdb` works
+# in the shell that ran the installer. Only a directory the user can write
+# (no sudo), and only a `rushdb` that is missing or this install's own link.
+link_on_path() {
+  [ "$modify_path" = "1" ] || return 0
+  case ":$PATH:" in *":$1:"*) return 0 ;; esac
+  for dir in "$HOME/.local/bin" "$HOME/bin" /opt/homebrew/bin /usr/local/bin; do
+    case ":$PATH:" in *":$dir:"*) ;; *) continue ;; esac
+    [ -d "$dir" ] && [ -w "$dir" ] || continue
+    if [ -e "$dir/rushdb" ] || [ -L "$dir/rushdb" ]; then
+      if [ "$(readlink "$dir/rushdb" 2>/dev/null)" != "$1/rushdb" ]; then
+        say "$dir/rushdb exists and is not a link to this install; left it alone."
+        return 0
+      fi
+    fi
+    ln -sf "$1/rushdb" "$dir/rushdb" || continue
+    say "Linked $dir/rushdb to it, so \`rushdb\` works in this shell too."
+    return 0
+  done
+}
+
 main() {
   version="${RUSHDB_VERSION:-latest}"
   install_dir="${RUSHDB_INSTALL_DIR:-${HOME:?HOME is not set}/.rushdb/bin}"
@@ -217,6 +242,7 @@ main() {
   verify_signature "$archive" "$tmp"
 
   mkdir -p "$tmp/unpacked" "$install_dir"
+  install_dir="$(CDPATH='' cd -- "$install_dir" && pwd)"
   tar -xzf "$tmp/$archive" -C "$tmp/unpacked"
   [ -f "$tmp/unpacked/rushdb" ] || err "the archive has no rushdb"
   # Replace through a rename so a running server keeps its old binary.
@@ -227,6 +253,7 @@ main() {
   installed="$("$install_dir/rushdb" --version 2>/dev/null)" || err "the installed rushdb does not run on this system"
   say "Installed $installed to $install_dir."
   add_to_path "$install_dir"
+  link_on_path "$install_dir"
   say ""
   say "Start a local database:"
   say "  rushdb up"

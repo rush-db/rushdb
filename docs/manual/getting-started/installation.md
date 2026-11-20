@@ -14,7 +14,7 @@ RushDB is one binary, `rushdb`, with three commands:
 | Command | Purpose |
 |---|---|
 | `rushdb serve` | The database server. Every option is a command-line flag or an environment variable; `rushdb serve --help` lists them all. |
-| `rushdb up` | The server for a local node: a persistent `./.rushdb` data directory by default and a startup summary. Takes every `serve` option. |
+| `rushdb up` | The server for a local node: a persistent `./.rushdb` data directory by default (`./.rushdb/data` when `./.rushdb` holds the binary) and a startup summary. Takes every `serve` option. |
 | `rushdb health` | Check that a node is up. |
 
 ## Install script (Linux and macOS)
@@ -25,14 +25,17 @@ curl -fsSL https://raw.githubusercontent.com/rush-db/rushdb/main/install.sh | sh
 
 The script picks the archive for your platform, verifies its SHA-256
 checksum, installs `rushdb` into `~/.rushdb/bin`, and adds that
-directory to `PATH` in your shell's startup file. When `cosign` is installed it
-also verifies the archive's Sigstore signature.
+directory to `PATH` in your shell's startup file. So that `rushdb` also works
+in the shell that ran the script, it links `rushdb` into the first of
+`~/.local/bin`, `~/bin`, `/opt/homebrew/bin` and `/usr/local/bin` that is
+already on `PATH` and writable by you, if there is one (it never uses `sudo`).
+When `cosign` is installed it also verifies the archive's Sigstore signature.
 
 | Option | Environment variable | Default | Meaning |
 |---|---|---|---|
 | `--version <tag>` | `RUSHDB_VERSION` | latest release | Install a specific release, e.g. `v3.0.0` |
 | `--dir <path>` | `RUSHDB_INSTALL_DIR` | `~/.rushdb/bin` | Install directory |
-| `--no-modify-path` | `RUSHDB_NO_MODIFY_PATH=1` | off | Leave shell startup files alone |
+| `--no-modify-path` | `RUSHDB_NO_MODIFY_PATH=1` | off | Leave shell startup files alone and link nothing |
 | `--verify-signature` | `RUSHDB_VERIFY_SIGNATURE=1` | off | Fail unless `cosign` verifies the signature |
 
 Pass options after `sh -s --`:
@@ -52,8 +55,8 @@ Alpine and other musl-based systems, and Windows, have no prebuilt binary; use
 the Docker image (on Windows, through WSL 2 or Docker Desktop).
 
 To upgrade, run the script again; it replaces the binary. To uninstall,
-delete `~/.rushdb/bin` and the line ending in `# rushdb` from your shell's
-startup file.
+delete `~/.rushdb/bin`, the `rushdb` link the script reported, and the line
+ending in `# rushdb` from your shell's startup file.
 
 ## Homebrew
 
@@ -161,10 +164,16 @@ settings the node:
 
 - serves the native HTTP protocol on `http://127.0.0.1:3000` (loopback only);
 - serves the PostgreSQL wire protocol on `127.0.0.1:5432`;
-- keeps its data in `./.rushdb`;
+- keeps its data in `./.rushdb`, or `./.rushdb/data` when `./.rushdb` holds the `rushdb` binary itself (as `~/.rushdb` does after `install.sh`, so `rushdb up` from your home directory keeps its data in `~/.rushdb/data`);
 - accepts the token `local-token`;
 - runs in single-tenant mode, with SQL, Gremlin, SQL/PGQ and Mongo-style
   statements enabled.
+
+A store that an earlier release already keeps in `~/.rushdb` itself, next
+to `~/.rushdb/bin`, keeps opening there; `rushdb up` then says so in one
+line. To keep the data apart from the binary, stop the node and move the
+store files (everything in `~/.rushdb` except `bin/`) into
+`~/.rushdb/data`.
 
 Check that it is up:
 
@@ -184,7 +193,7 @@ returns the same document.
 
 | Option | Environment variable | Default | Meaning |
 |---|---|---|---|
-| `--data-dir <path>` | `RUSHDB_DATA_DIR` | `./.rushdb` | Persistent database directory |
+| `--data-dir <path>` | `RUSHDB_DATA_DIR` | `./.rushdb` (`./.rushdb/data` when it holds the binary) | Persistent database directory |
 | `--port <n>` | — | `3000` | HTTP port |
 | `--pgwire-port <n>` | — | `5432` | PostgreSQL wire port; `0` disables it |
 | `--token <token>` | `RUSHDB_TOKEN` | `local-token` | Token clients must present |

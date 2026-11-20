@@ -127,7 +127,7 @@ Settings are read at startup only; there is no live reload.
 ### Local development
 
 ```bash
-RUSHDB_TOKEN=dev rushdb up            # data in ./.rushdb, HTTP on 127.0.0.1:3000
+RUSHDB_TOKEN=dev rushdb up            # data in ./.rushdb (./.rushdb/data from ~ after install.sh), HTTP on 127.0.0.1:3000
 ```
 
 ### Single-tenant service with SQL and Cypher on one host

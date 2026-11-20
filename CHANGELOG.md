@@ -4,6 +4,137 @@ This project follows [Semantic Versioning](https://semver.org/). Release notes
 describe observable engine and protocol changes; migration instructions belong
 in [`docs/manual/operations/upgrading-from-2x.md`](docs/manual/operations/upgrading-from-2x.md).
 
+## 3.0.13 — 2026-11-20
+
+### Changed
+
+- **Breaking: Cypher, GQL, Gremlin and SQL/PGQ run on Grafeo 0.5.44**
+  (was 0.5.42). Some statement results change:
+  - An unaliased column is named after its expression as written:
+    `RETURN count(n)` returns a column `count(n)`, not `countnonnull(...)`.
+  - Statements that returned wrong rows now fail with an error: two columns
+    with the same name (`RETURN 1 AS a, 2 AS a`; give one another alias),
+    an unnamed expression in `WITH`, and `UNION` mixed with `UNION ALL`. A
+    parameter that was not supplied fails with `Missing parameter: $name`
+    instead of an internal error.
+  - `ORDER BY` uses the openCypher order across value types (strings before
+    numbers), and GQL `NULLS FIRST`/`NULLS LAST` are no longer reversed
+    with `DESC`.
+  - Cypher `=~` must match the whole string: `'abc' =~ 'b'` is false.
+  - A variable-length relationship variable holds the list of the path's
+    relationships (`size(rs)` was null).
+  - `MERGE` binds every matching node, one row each, instead of the first.
+  - `keys(r)` of a relationship lists its keys (was null).
+  - `EXISTS { ... }` over a multi-hop pattern runs (was an internal error).
+  - Computed property values in `CREATE` (`CREATE (:Item {n: r[0]})`) now
+    work; they used to be refused as `unsupported`.
+  - One form that worked is now refused: a `WITH ... WHERE` that reads a
+    variable the `WITH` does not project, such as the anti-join
+    `OPTIONAL MATCH (a)-[r]->(c) WITH c WHERE r IS NULL`. Write
+    `WITH c, r WHERE r IS NULL`.
+
+  The openCypher TCK now passes 1,653 of 3,897 scenarios (was 1,385); of
+  the 2,403 in the supported profile, 1,653 pass (was 1,385 of 2,431).
+- **Commits are published once their write-ahead log record is durable.**
+  Before, a commit became visible only after it was also written into the
+  store file, one group at a time, so every tenant's write waited for the
+  whole store-file write of any large commit ahead of it, such as a merge
+  import (one commit per request since 3.0.11). That write now happens on
+  a background thread per store file; reads include the commits it has not
+  written yet, with the same answers at every snapshot. The backlog is
+  bounded at a quarter of the managed budget, at most 256 MiB; at the bound
+  commits wait for it. 50 light tenants writing single records beside a
+  200,000-record merge import, same host, before → after: requests of
+  5,000 documents: light p99 387–475 → 275–283 ms, import 3,619–3,729 →
+  3,022–3,630 records/s; requests of 1,000 documents: light p99 397–405 →
+  169–192 ms, import 3,027–3,279 → 3,490–3,503 records/s. The same import
+  alone: 45.7–46.1 → 44.5–44.9 s. A commit of 16,384 keys or more, such as
+  a large import request, enters that backlog as one sorted run instead of
+  key by key, with a filter of its key prefixes, so an index lookup that
+  finds nothing in the run skips it without a search. Against 3.0.12: a
+  1,000,000-row CSV import 22.0–22.9k → 23.0–23.6k rows/s, nested JSON
+  documents in requests of 5,000 4.4–4.6k → 5.5k documents/s and of 500
+  3.5–3.6k → 4.9–5.0k documents/s. The advice to send merge imports of
+  about 1,000 records on shared hosts is withdrawn. Writes that go to the
+  store file directly instead of through that backlog wait for it to drain
+  first, so a backlogged commit is never written over them: the sweep of
+  expired retry receipts, the receipt of an aborted commit, and the WAL
+  replay of a point-in-time restore. Metrics: the
+  writer-hold label `publish` is now `materialize`; new
+  `rushdb_storage_unmaterialized_bytes` and commit phase `gap_push`;
+  `backend_apply` now times the background writes.
+- **Faster unfiltered ANN vector search.** The label-membership check of an
+  unfiltered `query.vector` (and the vector leg of `query.hybrid`) now runs
+  on the reranked hits in rank order until `limit + offset` pass, instead
+  of on every gathered candidate, and a hit's record is read once. Responses
+  are byte-identical. 100,000 × 1,536-d cosine vectors, top 10: server time
+  1.54 → 1.37 ms at `ef` 128 and 0.93 → 0.86 ms at `ef` 64.
+- **Exact vector search twice as fast once a space is resident.** A
+  space's resident vectors (`vector-cache-bytes`) now also hold its ready
+  bindings and each vector's norm, so an exact search without a predicate
+  (or with one matching more records than the space holds vectors) scores
+  them in one parallel pass instead of first reading every binding from
+  storage on one thread, and cosine scoring computes one sum per vector
+  instead of two. Scores and order are bit-identical. 100,000 × 1,536-d
+  cosine vectors, exact top 10: server time 24.1 → 11.7 ms. The resident
+  form of a space grows by 48 bytes per vector (under 1% at 1,536-d).
+- **Filtered vector searches pick exact or ANN by cost.**
+  `resources.vector-exact-max-pool` now defaults to `auto`: a filtered
+  search is scored exactly while `pool² × dimensions ≤ 26,000 × ef × index
+  vectors` (the walk slows down as the filter admits less of the index), an
+  unfiltered one while `index vectors × dimensions ≤ 144,000 × ef`, instead
+  of a fixed 5,000 at any size. 100,000 × 1,536-d, a filter matching 10%,
+  `mode: ann`, `ef` 512: 18.7 → 4.4 ms (now exact, recall 1.0); a filter
+  matching 50% stays on the graph. A number still fixes the pool, and the
+  new form `fixed:<number>` does too.
+  **Behaviour change for existing data directories:** every `config.yml`
+  written before 3.0.13 holds `vector-exact-max-pool: 5000`, which now
+  reads as `auto`. If you set 5,000 on purpose, write
+  `vector-exact-max-pool: fixed:5000` (or `--vector-exact-max-pool
+  fixed:5000`, `RUSHDB_VECTOR_EXACT_MAX_POOL=fixed:5000`) to keep it. New
+  data directories are written with `auto`.
+- **Repeated schema reads are answered from memory.** An unfiltered
+  `describe.properties` answer (and the property part of `describe.schema`)
+  is kept in a resident layer (`describe`, a share of
+  `logical-cache-bytes`) until a write reaches what it reads: the described
+  labels' records and property rows, a property they hold, or the property
+  definitions. Writes to other labels' own properties and to other tenants
+  keep it; a policy still narrows and masks every answer. Answers are
+  byte-identical. 10,000 nested documents (4 labels): `describe.properties`
+  server time 3.1 → 0.2 ms; one `describe.schema` plus one
+  `describe.properties` per label, client side: 11.8 → 1.5–2.0 ms.
+
+### Fixed
+
+- **`rushdb` works right after the one-line installer, in the same shell.**
+  `curl -fsSL .../install.sh | sh && rushdb up` failed with `command not
+  found`: the binary goes to `~/.rushdb/bin`, and the `PATH` line added to
+  the shell startup file only reaches new shells. The installer now also
+  links `rushdb` into the first of `~/.local/bin`, `~/bin`,
+  `/opt/homebrew/bin` and `/usr/local/bin` that is already on `PATH` and
+  writable by the user (never with `sudo`), and says so. It replaces only its
+  own link there, never another `rushdb`. `--no-modify-path` links nothing;
+  `--dir` / `RUSHDB_INSTALL_DIR` is the link's target.
+- **`rushdb up` no longer keeps its data beside the installed binary.**
+  `install.sh` installs into `~/.rushdb/bin`, and `rushdb up` defaults to
+  `./.rushdb`, so started from the home directory it put the store in
+  `~/.rushdb` itself: deleting that data directory deleted the binary. When
+  `./.rushdb` holds the running binary, the default is now `./.rushdb/data`.
+  A store already in `~/.rushdb` keeps opening there, with a one-line notice
+  on how to move it; nothing is moved. An explicit `--data-dir` or
+  `RUSHDB_DATA_DIR` is unchanged.
+- **No more half-second write stall after a large load.** Commits are
+  applied to the store file without a sync and made durable by periodic
+  checkpoints; the first durable commit after a load (a checkpoint, or the
+  history-GC batch that completes a sweep) wrote out and synced the whole
+  load while it held the file's only writer, so the next commit of every
+  tenant waited for it. A store file whose unsynced writes pass 16 MiB is
+  now checkpointed right away by the thread that writes commits into it,
+  so no durable commit carries more than that. 50,000 nested documents, then 400 single-record
+  writes (two runs each, btrfs): longest writer hold above 1 s → under
+  0.5 s, slowest write after the load 188–319 → 92–105 ms. New metric
+  `rushdb_storage_paced_checkpoints_total`.
+
 ## 3.0.12 — 2026-11-17
 
 ### Fixed

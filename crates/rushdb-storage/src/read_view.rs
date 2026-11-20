@@ -207,25 +207,24 @@ impl Store {
         // shard uses the optimized current-read path; multiple shards merge
         // their native views per key (the global LSN is unchanged), so reads
         // stay memory-bounded with no in-memory mirror.
-        let backends: Vec<Arc<dyn crate::StorageBackend>> = match tenant {
-            Some(tenant) if self.resource_config().shard_count > 1 => self
-                .backend(physical_shard_for(
-                    Some(tenant),
-                    self.resource_config().shard_count,
-                ))
-                .into_iter()
-                .collect(),
-            _ if self.resource_config().shard_count == 1 => {
-                self.primary_backend().into_iter().collect()
-            }
-            _ => self.all_backends(),
+        let shards: Vec<usize> = match tenant {
+            Some(tenant) if self.resource_config().shard_count > 1 => vec![physical_shard_for(
+                Some(tenant),
+                self.resource_config().shard_count,
+            )],
+            _ if self.resource_config().shard_count == 1 => vec![0],
+            _ => (0..self.resource_config().shard_count).collect(),
         };
-        let has_backends = !backends.is_empty();
+        let mut backends: Vec<Arc<dyn crate::StorageBackend>> = Vec::with_capacity(shards.len());
         let mut views: Vec<Box<dyn crate::backend::StorageReadView>> =
-            Vec::with_capacity(backends.len());
-        for backend in &backends {
-            views.push(backend.read_view()?);
+            Vec::with_capacity(shards.len());
+        for shard in shards {
+            if let Some(backend) = self.backend(shard) {
+                views.push(self.shard_read_view(shard, backend.as_ref())?);
+                backends.push(backend);
+            }
         }
+        let has_backends = !backends.is_empty();
         let merged = MergedViews::new(views);
         let (visible, floor) = match (has_backends, tenant) {
             // A tenant-routed native transaction may lag the global watermark
