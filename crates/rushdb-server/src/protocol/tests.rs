@@ -4754,7 +4754,7 @@ fn language_gating_enforces_enablement_and_searchquery_always_on() {
     let gql_unsupported = ProtocolExecutor::new(&node3, None)
         .execute(statement(
             StatementLanguage::Gql,
-            "MATCH (n) WITH n ORDER BY n.id LIMIT 1 MATCH (m) RETURN m",
+            "CALL { MATCH (n) RETURN n } IN TRANSACTIONS",
         ))
         .unwrap_err();
     assert_eq!(gql_unsupported.code, ErrorCode::Unsupported);

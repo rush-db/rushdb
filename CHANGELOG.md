@@ -6,6 +6,39 @@ in [`docs/manual/operations/upgrading-from-2x.md`](docs/manual/operations/upgrad
 
 ## Unreleased
 
+### Changed
+
+- **Breaking: Cypher, GQL, Gremlin and SQL/PGQ run on Grafeo 0.6** (was
+  0.5.44). Until Grafeo 0.6.4 is released, RushDB builds Grafeo's
+  `release/0.6.4` branch with two fixes applied that are not released yet:
+  GrafeoDB/grafeo#807 (named zero-length paths, grouping keys inside maps,
+  long `CREATE` chains) and one that lets `text_match`/`text_score` run on
+  RushDB's text indexes outside a pushed-down `WHERE`. Results that change:
+  - GQL refuses an unbounded quantifier without a path mode or selector, as
+    ISO GQL requires: `MATCH (a)-[:R]->{0,}(b)` (or `-[:R*0..]->`) needs
+    `MATCH TRAIL`, `ACYCLIC`, `SIMPLE`, a selector such as `ANY SHORTEST`,
+    or an upper bound.
+  - The anti-join `OPTIONAL MATCH (a)-[r]->(c) WITH c WHERE r IS NULL`,
+    refused since 3.0.13, works again.
+  - Long `CREATE` scripts run again: Grafeo 0.6 refused more than 128
+    clauses (its plan depth limit); the limit is RushDB's 8,192 clauses.
+  - `RETURN collect([1, 2])` without a `MATCH` runs.
+  - Fixed in Grafeo: `all`/`any`/`none`/`single` over nulls and nested
+    lists, operator precedence, `SKIP`/`LIMIT` after an updating clause no
+    longer limits the updates, `SET`/`REMOVE`/`DELETE` on a null from
+    `OPTIONAL MATCH` does nothing instead of failing, and a variable-length
+    match around a cycle ends.
+  - Ten statements the openCypher TCK requires to fail now run instead of
+    being refused, as on plain Grafeo 0.6: binding a bound node again in
+    `CREATE` or `MERGE`, `length()` of a node or relationship, an aggregate
+    inside a list comprehension, `count(rand())`, and a pattern on the
+    right-hand side of `SET`.
+
+  The openCypher TCK now passes 2,012 of 3,897 scenarios (was 1,653); of
+  the 2,417 in the supported profile, 2,012 pass (was 1,653 of 2,403).
+- **Breaking: building RushDB from source needs Rust 1.100** (was 1.91 as
+  the minimum, 1.98.1 pinned), as Grafeo 0.6 does.
+
 ### Fixed
 
 - **The one-line installer no longer asks for a new shell after linking

@@ -615,11 +615,7 @@ trait LayerStats: Send + Sync {
 impl<R: Resident> LayerStats for Layer<R> {
     fn snapshot(&self) -> LayerSnapshot {
         let load = |counter: &AtomicU64| counter.load(Ordering::Relaxed);
-        let occupancy = self
-            .cache()
-            .as_ref()
-            .map(LogicalCache::stats)
-            .unwrap_or_default();
+        let occupancy = self.cache().as_ref().map_or_default(LogicalCache::stats);
         #[expect(
             clippy::cast_precision_loss,
             reason = "seconds for a metric; nanosecond precision is not needed"

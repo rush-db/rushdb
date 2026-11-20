@@ -79,7 +79,7 @@ fn restore_relationship(lmpg: &Lmpg, v: &serde_json::Value) -> Result<(), String
     let fields: Vec<(String, rushdb_lmpg::plan::FieldChange)> = v
         .get("properties")
         .and_then(serde_json::Value::as_object)
-        .map(|o| {
+        .map_or_default(|o| {
             o.iter()
                 .map(|(k, val)| {
                     let change = if val.is_null() {
@@ -90,8 +90,7 @@ fn restore_relationship(lmpg: &Lmpg, v: &serde_json::Value) -> Result<(), String
                     (k.clone(), change)
                 })
                 .collect()
-        })
-        .unwrap_or_default();
+        });
 
     let snap = lmpg.store.read_view().map_err(|e| e.to_string())?;
     let s_hdr = rushdb_lmpg::reader::try_access::record_by_id(

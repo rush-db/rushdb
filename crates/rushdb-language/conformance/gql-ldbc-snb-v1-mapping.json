@@ -101,11 +101,11 @@
    "sourceSha256": "1ac9125f6817402cd5df456b5201fc44187b646ffe6bf8497070db2abae84bce",
    "status": "accepted",
    "kind": "read",
-   "translation": "Neo4j :param directives and comments removed. Message (the LDBC supertype of Post and Comment) is matched as `x:Post OR x:Comment`: LMPG records carry one label.",
+   "translation": "Neo4j :param directives and comments removed. Message (the LDBC supertype of Post and Comment) is matched as `x:Post OR x:Comment`: LMPG records carry one label. The unbounded reply chain is matched as a TRAIL, as GQL requires of an unbounded quantifier (a reply chain never repeats an edge, so the rows are the same).",
    "parameters": {
     "messageId": 31
    },
-   "statement": "MATCH (m {id: $messageId })-[:REPLY_OF*0..]->(p:Post)<-[:CONTAINER_OF]-(f:Forum)-[:HAS_MODERATOR]->(mod:Person) WHERE m:Post OR m:Comment RETURN f.id AS forumId, f.title AS forumTitle, mod.id AS moderatorId, mod.firstName AS moderatorFirstName, mod.lastName AS moderatorLastName",
+   "statement": "MATCH TRAIL (m {id: $messageId })-[:REPLY_OF*0..]->(p:Post)<-[:CONTAINER_OF]-(f:Forum)-[:HAS_MODERATOR]->(mod:Person) WHERE m:Post OR m:Comment RETURN f.id AS forumId, f.title AS forumTitle, mod.id AS moderatorId, mod.firstName AS moderatorFirstName, mod.lastName AS moderatorLastName",
    "expectedRows": [
     {
      "forumId": 20,

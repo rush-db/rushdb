@@ -279,9 +279,7 @@ fn put_record_over<S: Read + Write>(
         }
     })
     .to_string();
-    let scope_header = scope
-        .map(|scope| format!("X-RushDB-Tenant: {scope}\r\n"))
-        .unwrap_or_default();
+    let scope_header = scope.map_or_default(|scope| format!("X-RushDB-Tenant: {scope}\r\n"));
     let request = format!(
         "POST /protocol/v1/execute HTTP/1.1\r\nHost: localhost\r\nX-RushDB-Token: pgwire-token\r\nContent-Type: application/json\r\n{scope_header}Content-Length: {}\r\nConnection: close\r\n\r\n{body}",
         body.len()

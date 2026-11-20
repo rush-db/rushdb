@@ -636,9 +636,7 @@ impl FrozenSegment {
                 .index
                 .filtered_search(query, k.max(ef), |key| admit(key as usize)),
         };
-        found
-            .map(|matches| matches.keys.into_iter().map(|key| key as usize).collect())
-            .unwrap_or_default()
+        found.map_or_default(|matches| matches.keys.into_iter().map(|key| key as usize).collect())
     }
 
     /// This segment's persisted manifest. Not yet surfaced by

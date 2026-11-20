@@ -1059,8 +1059,7 @@ fn check_aggregate_order(
 ) -> Result<(), QueryDocumentError> {
     let mut outputs: Vec<String> = select
         .and_then(Json::as_object)
-        .map(|map| map.keys().cloned().collect())
-        .unwrap_or_default();
+        .map_or_default(|map| map.keys().cloned().collect());
     outputs.extend(
         group_by
             .iter()
@@ -1124,21 +1123,18 @@ fn projected_order(
 pub(crate) fn parse_order_by(v: Option<&Json>) -> Vec<(String, bool)> {
     match v {
         Some(v) if v.is_string() => vec![(ID_FIELD.into(), v.as_str().unwrap() == "desc")],
-        Some(v) => v
-            .as_object()
-            .map(|m| {
-                m.iter()
-                    .map(|(k, d)| {
-                        let field = if k == "id" {
-                            ID_FIELD.to_string()
-                        } else {
-                            norm(k)
-                        };
-                        (field, d.as_str().unwrap_or("asc") == "desc")
-                    })
-                    .collect()
-            })
-            .unwrap_or_default(),
+        Some(v) => v.as_object().map_or_default(|m| {
+            m.iter()
+                .map(|(k, d)| {
+                    let field = if k == "id" {
+                        ID_FIELD.to_string()
+                    } else {
+                        norm(k)
+                    };
+                    (field, d.as_str().unwrap_or("asc") == "desc")
+                })
+                .collect()
+        }),
         None => Vec::new(),
     }
 }
@@ -1369,7 +1365,7 @@ pub fn parse_document(document: &Json) -> Result<ParsedQuery, QueryDocumentError
     let group_by: Vec<String> = obj
         .get("groupBy")
         .and_then(|x| x.as_array())
-        .map(|a| {
+        .map_or_default(|a| {
             a.iter()
                 .filter_map(|v| v.as_str())
                 .map(|s| {
@@ -1378,8 +1374,7 @@ pub fn parse_document(document: &Json) -> Result<ParsedQuery, QueryDocumentError
                         .to_string()
                 })
                 .collect()
-        })
-        .unwrap_or_default();
+        });
 
     // `$collect` is a per-record output shape: extract every `$collect` from
     // `select` onto the search request so the listing path attaches them.
@@ -1462,8 +1457,7 @@ pub fn parse_document(document: &Json) -> Result<ParsedQuery, QueryDocumentError
             let select_names: Vec<String> = select
                 .as_ref()
                 .and_then(|s| s.as_object())
-                .map(|m| m.keys().map(|k| norm(k)).collect())
-                .unwrap_or_default();
+                .map_or_default(|m| m.keys().map(|k| norm(k)).collect());
             let all_self = group_by.iter().all(|g| select_names.contains(&norm(g)));
             if all_self {
                 agg.group_by.clear(); // single global group

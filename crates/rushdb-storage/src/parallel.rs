@@ -25,7 +25,7 @@ pub fn set_threads(threads: usize) {
     if helpers >= previous {
         FREE.fetch_add(helpers - previous, Ordering::SeqCst);
     } else {
-        let _ = FREE.fetch_update(Ordering::SeqCst, Ordering::SeqCst, |free| {
+        let _ = FREE.try_update(Ordering::SeqCst, Ordering::SeqCst, |free| {
             Some(free.saturating_sub(previous - helpers))
         });
     }
@@ -43,7 +43,7 @@ struct Lease(usize);
 impl Lease {
     fn take(wanted: usize) -> Self {
         let mut taken = 0;
-        let _ = FREE.fetch_update(Ordering::SeqCst, Ordering::SeqCst, |free| {
+        let _ = FREE.try_update(Ordering::SeqCst, Ordering::SeqCst, |free| {
             taken = free.min(wanted);
             Some(free - taken)
         });

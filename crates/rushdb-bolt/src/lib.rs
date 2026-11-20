@@ -147,7 +147,7 @@ impl Drop for ConnectionPermit {
 
 fn acquire_connection() -> Result<ConnectionPermit, String> {
     ACTIVE_CONNECTIONS
-        .fetch_update(Ordering::AcqRel, Ordering::Relaxed, |active| {
+        .try_update(Ordering::AcqRel, Ordering::Relaxed, |active| {
             (active < MAX_CONNECTIONS).then_some(active + 1)
         })
         .map(|_| ConnectionPermit)
@@ -971,12 +971,10 @@ impl BoltServer {
             return Ok(());
         };
         let tls = self.tls.take();
-        let local_addr = self.advertised_address.take().unwrap_or_else(|| {
-            listener
-                .local_addr()
-                .map(|a| a.to_string())
-                .unwrap_or_default()
-        });
+        let local_addr = self
+            .advertised_address
+            .take()
+            .unwrap_or_else(|| listener.local_addr().map_or_default(|a| a.to_string()));
         let mut connections: Vec<(TcpStream, std::thread::JoinHandle<()>)> = Vec::new();
         while !handler.shutdown_requested() {
             // Reap completed sessions so an idle long-lived listener does not

@@ -224,8 +224,7 @@ pub fn expand_commit(ci: u64, batch: &CommitBatch, txn: &mut Txn) -> Result<(), 
                     record_label(txn, t, *source_ord)?,
                     record_label(txn, t, *target_ord)?,
                 ) {
-                    let captured = serde_json::to_vec(&(src_label.clone(), tgt_label.clone()))
-                        .map_err(ser_err)?;
+                    let captured = serde_json::to_vec(&(src_label, tgt_label)).map_err(ser_err)?;
                     // The relationship catalog keys on these creation-time
                     // labels, live and on replay alike; the deriver
                     // counts it from this row.

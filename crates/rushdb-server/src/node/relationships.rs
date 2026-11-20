@@ -247,10 +247,8 @@ impl RequestScope<'_> {
         let rel_type = command.relation_type.clone();
         let direction = command.direction;
         let many_to_many = command.allow_cartesian;
-        let props: Vec<(String, rushdb_lmpg::plan::FieldChange)> = command
-            .properties
-            .as_object()
-            .map(|o| {
+        let props: Vec<(String, rushdb_lmpg::plan::FieldChange)> =
+            command.properties.as_object().map_or_default(|o| {
                 o.iter()
                     .map(|(k, v)| {
                         (
@@ -263,8 +261,7 @@ impl RequestScope<'_> {
                         )
                     })
                     .collect()
-            })
-            .unwrap_or_default();
+            });
 
         let source_label = command.source.label.clone();
         let target_label = command.target.label.clone();

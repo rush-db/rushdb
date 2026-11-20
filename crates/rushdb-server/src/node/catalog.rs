@@ -972,16 +972,13 @@ impl RequestScope<'_> {
         }
         let siblings_of = |norm: &str, logical: &rushdb_types::model::LogicalType| -> Vec<String> {
             let here = logical_type_name(*logical);
-            sibling_map
-                .get(norm)
-                .map(|types| {
-                    types
-                        .iter()
-                        .filter(|t| t.as_str() != here)
-                        .cloned()
-                        .collect()
-                })
-                .unwrap_or_default()
+            sibling_map.get(norm).map_or_default(|types| {
+                types
+                    .iter()
+                    .filter(|t| t.as_str() != here)
+                    .cloned()
+                    .collect()
+            })
         };
         // E2 entry pagination: slice of the returned entry list, independent
         // of the stats scan window below.

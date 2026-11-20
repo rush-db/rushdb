@@ -1672,7 +1672,7 @@ mod tests {
                     .into_iter()
                     .take(24)
                     .collect();
-                let mut reranked: Vec<usize> = gathered.clone();
+                let mut reranked: Vec<usize> = gathered;
                 reranked.sort_by(|a, b| {
                     crate::score(
                         query,

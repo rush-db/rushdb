@@ -390,13 +390,12 @@ impl RequestScope<'_> {
             rushdb_lmpg::reconstruct::reconstruct_record(snap, self.tenant(), hdr.ordinal)
                 .map_err(|e| e.to_string())?
                 .and_then(|r| r.as_object().cloned())
-                .map(|o| {
+                .map_or_default(|o| {
                     o.keys()
                         .filter(|k| !rushdb_types::value::is_reserved_name(k))
                         .cloned()
                         .collect()
-                })
-                .unwrap_or_default();
+                });
         // One commit: the new properties, plus a delete of every existing
         // one they do not name. A refused commit leaves the record as it was.
         let mut fields = Self::props_from_properties(properties)?;

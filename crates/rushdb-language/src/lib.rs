@@ -9,7 +9,7 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::sync::Arc;
 
 use grafeo_common::types::{EdgeId, LogicalType, NodeId, PropertyKey, Value};
-use grafeo_core::graph::{GraphStore, GraphStoreMut, GraphStoreSearch};
+use grafeo_core::graph::{GraphBackend, GraphStore};
 use grafeo_engine::{Config, GrafeoDB};
 use rushdb_lmpg::reconstruct::{reconstruct_record, reconstruct_relationship};
 use rushdb_lmpg::Lmpg;
@@ -432,7 +432,7 @@ fn execute_in_view_with_budget_cancellable_on_stack(
         tenant,
         text.cloned(),
     ));
-    let store: Arc<dyn GraphStoreSearch> = adapter.clone();
+    let store: Arc<dyn GraphStore> = adapter.clone();
     let initialized = GrafeoDB::with_read_store(store, Config::in_memory());
     // A failed text search cancels the statement's reads: report it, not
     // the cancelled reads it caused.
@@ -673,7 +673,7 @@ fn execute_mutation_in_view_with_limits_on_stack(
         max_nodes,
         max_bytes,
     ));
-    let graph_store: Arc<dyn GraphStoreMut> = store.clone();
+    let graph_store: Arc<dyn GraphBackend> = store.clone();
     let db = GrafeoDB::with_store(graph_store, Config::in_memory())
         .map_err(|error| LanguageError::Initialization(error.to_string()))?;
     let params = parameters.map(parameters_from_json).transpose()?;
@@ -860,7 +860,7 @@ fn stage_statement_mutation_in_overlay_on_stack(
         max_nodes,
         MUTATION_MAX_BYTES,
     ));
-    let graph_store: Arc<dyn GraphStoreMut> = store.clone();
+    let graph_store: Arc<dyn GraphBackend> = store.clone();
     let db = GrafeoDB::with_store(graph_store, Config::in_memory())
         .map_err(|error| LanguageError::Initialization(error.to_string()))?;
     let params = parameters.map(parameters_from_json).transpose()?;
@@ -953,7 +953,12 @@ fn mutable_result_value_to_json(
     }
     match (logical_type, &value) {
         (Some(LogicalType::Node), Value::Int64(id)) if *id >= 0 => store
-            .get_node(NodeId::new(u64::try_from(*id).unwrap_or_default()))
+            .node(
+                NodeId::new(u64::try_from(*id).unwrap_or_default()),
+                grafeo_common::types::ReadView::latest(),
+            )
+            .ok()
+            .flatten()
             .map_or(Json::Null, |node| {
                 let mut object = node
                     .properties
@@ -975,7 +980,12 @@ fn mutable_result_value_to_json(
                 Json::Object(object)
             }),
         (Some(LogicalType::Edge), Value::Int64(id)) if *id >= 0 => store
-            .get_edge(EdgeId::new(u64::try_from(*id).unwrap_or_default()))
+            .edge(
+                EdgeId::new(u64::try_from(*id).unwrap_or_default()),
+                grafeo_common::types::ReadView::latest(),
+            )
+            .ok()
+            .flatten()
             .map_or(Json::Null, |edge| {
                 let mut object = edge
                     .properties
@@ -1296,11 +1306,9 @@ fn value_to_json(value: Value) -> Json {
 #[cfg(test)]
 mod mutation_budget_tests {
     use super::*;
-    use crate::lmpg_store::compare_values;
     use rushdb_lmpg::Lmpg;
     use rushdb_storage::Store;
     use rushdb_types::ids::TenantId;
-    use std::cmp::Ordering;
 
     #[test]
     fn oversized_mutation_working_set_is_refused() {
@@ -1337,11 +1345,15 @@ mod mutation_budget_tests {
     }
 
     #[test]
-    fn mixed_numeric_comparison_preserves_large_integer_order() {
+    fn mixed_numeric_range_preserves_large_integer_order() {
+        use grafeo_core::execution::operators::value_utils::AcrossKinds;
+        use grafeo_core::graph::traits::ValueRange;
         let integer = Value::Int64(9_007_199_254_740_993);
         let rounded = Value::Float64(9_007_199_254_740_992.0);
-        assert_eq!(compare_values(&integer, &rounded), Some(Ordering::Greater));
-        assert_eq!(compare_values(&rounded, &integer), Some(Ordering::Less));
+        let at_most = ValueRange::new(None, Some(&rounded), false, true, AcrossKinds::Apart);
+        let at_least = ValueRange::new(Some(&rounded), None, false, true, AcrossKinds::Apart);
+        assert!(!at_most.contains(&integer));
+        assert!(at_least.contains(&integer));
     }
 
     #[test]

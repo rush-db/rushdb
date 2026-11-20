@@ -185,9 +185,7 @@ fn corpus() -> Vec<Case> {
         Case {
             name: "standalone-collect",
             statement: "RETURN collect([1,2]) AS c",
-            unsupported: Some(
-                "Grafeo adapter: collect is an aggregation over matched rows, not a standalone list constructor (GRAFEO-X001 Empty plan)",
-            ),
+            unsupported: None,
         },
     ]
 }

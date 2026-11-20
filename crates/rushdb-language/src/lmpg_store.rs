@@ -5,14 +5,18 @@
 //! through declared ordered indexes when every label holding the property
 //! has one (`has_property_index`); otherwise Grafeo scans the label.
 
-use std::cmp::Ordering;
 use std::collections::{BTreeSet, HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 
-use grafeo_common::types::{EdgeId, EpochId, NodeId, PropertyKey, TransactionId, Value};
+use grafeo_common::change::Labels;
+use grafeo_common::types::{
+    ArcStr, EdgeId, EpochId, NodeId, PropertyKey, ReadView as GView, Value,
+};
+use grafeo_common::utils::error::{Error as GError, Result as GResult};
 use grafeo_common::utils::hash::FxHashMap;
-use grafeo_core::graph::lpg::{CompareOp, Edge, Node};
-use grafeo_core::graph::{Direction, GraphStore, GraphStoreSearch};
+use grafeo_core::graph::lpg::{Edge, Node};
+use grafeo_core::graph::traits::ValueRange;
+use grafeo_core::graph::{Direction, GraphStore};
 use grafeo_core::statistics::Statistics;
 use rushdb_lmpg::reader::try_access as access;
 use rushdb_lmpg::reconstruct::{reconstruct_relationship, FamilyCache, ReconstructSession};
@@ -21,7 +25,7 @@ use rushdb_types::ids::TenantId;
 use rushdb_types::index::IndexDef;
 use rushdb_types::keys::{key, P_REL_BY_ORD};
 use rushdb_types::model::LogicalType;
-use rushdb_types::value::{scalar_cmp, Scalar};
+use rushdb_types::value::Scalar;
 use serde_json::Value as Json;
 
 use crate::json_to_value_checked;
@@ -57,18 +61,18 @@ pub(crate) struct LmpgGraphStore {
 
 impl LmpgGraphStore {
     /// `(records, relationships)` from the label and relationship catalogs.
-    fn catalog_totals(&self) -> (u64, u64) {
+    fn catalog_totals(&self) -> GResult<(u64, u64)> {
         let nodes = self
-            .read(|| access::label_counts(&self.view, self.tenant))
+            .get(|| access::label_counts(&self.view, self.tenant))?
             .iter()
             .map(|(_, count)| count)
             .sum();
         let edges = self
-            .read(|| access::relationship_catalog(&self.view, self.tenant))
+            .get(|| access::relationship_catalog(&self.view, self.tenant))?
             .iter()
             .map(|(_, _, _, count)| count)
             .sum();
-        (nodes, edges)
+        Ok((nodes, edges))
     }
 
     pub(crate) fn new(
@@ -231,32 +235,33 @@ impl LmpgGraphStore {
         }
     }
 
-    // Grafeo 0.5.44's GraphStore methods cannot return storage errors. Poison
-    // the whole statement on first failure, stop further storage work, and
-    // reject its result at every engine boundary. This adapter is private so
-    // callers cannot accidentally accept its terminal placeholder values.
-    pub(crate) fn read<T: Default>(&self, read: impl FnOnce() -> Result<T, StorageError>) -> T {
-        if self.check().is_err() {
-            return T::default();
+    /// Run a storage read for Grafeo. The first failure poisons the whole
+    /// statement: it is kept (so every engine boundary reports the storage
+    /// error itself, not Grafeo's wrapping of it), further storage work
+    /// stops, and Grafeo gets an internal error that ends the statement.
+    pub(crate) fn get<T>(&self, read: impl FnOnce() -> Result<T, StorageError>) -> GResult<T> {
+        if let Err(error) = self.check() {
+            return Err(GError::Internal(error.to_string()));
         }
-        match read() {
-            Ok(value) => value,
-            Err(error) => {
-                let mut failure = self
-                    .failure
-                    .lock()
-                    .unwrap_or_else(std::sync::PoisonError::into_inner);
-                if failure.is_none() {
-                    *failure = Some(error);
-                }
-                self.view.cancellation().cancel();
-                T::default()
+        read().map_err(|error| {
+            let message = error.to_string();
+            let mut failure = self
+                .failure
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            if failure.is_none() {
+                *failure = Some(error);
             }
-        }
+            self.view.cancellation().cancel();
+            GError::Internal(message)
+        })
     }
 
-    fn node(&self, id: NodeId) -> Option<Node> {
-        self.read(|| self.try_node(id))
+    /// [`get`](Self::get) for the reads whose callers cannot return an
+    /// error (planner estimates): a failure poisons the statement the same
+    /// way and the read answers its default.
+    pub(crate) fn read<T: Default>(&self, read: impl FnOnce() -> Result<T, StorageError>) -> T {
+        self.get(read).unwrap_or_default()
     }
 
     pub(crate) fn try_node(&self, id: NodeId) -> Result<Option<Node>, StorageError> {
@@ -268,7 +273,11 @@ impl LmpgGraphStore {
     }
 
     /// One property of a record, decoding only that property's occurrences.
-    fn try_node_property(&self, id: NodeId, name: &str) -> Result<Option<Value>, StorageError> {
+    pub(crate) fn try_node_property(
+        &self,
+        id: NodeId,
+        name: &str,
+    ) -> Result<Option<Value>, StorageError> {
         let selected = HashSet::from([name.to_owned()]);
         let Some(record) = self
             .with_session(|session| session.reconstruct_record_selected(id.as_u64(), &selected))?
@@ -361,26 +370,74 @@ impl LmpgGraphStore {
 
     /// Records matching every `conditions` equality, exactly as Grafeo
     /// compares values.
-    fn matching_nodes(&self, conditions: &[(&str, Value)]) -> Vec<NodeId> {
+    fn matching_nodes(&self, conditions: &[(&str, Value)]) -> Result<Vec<NodeId>, StorageError> {
         if conditions.iter().any(|(_, value)| value.is_null()) {
-            return Vec::new();
+            return Ok(Vec::new());
         }
-        let candidates = conditions
+        let candidates = match conditions
             .iter()
             .find_map(|(property, value)| self.indexed_candidates(property, value))
-            .map_or_else(
-                || self.node_ids(),
-                |owners| owners.into_iter().map(NodeId::new).collect(),
-            );
-        candidates
-            .into_iter()
-            .filter(|id| {
-                conditions.iter().all(|(property, expected)| {
-                    self.read(|| self.try_node_property(*id, property))
-                        .is_some_and(|actual| values_equal(&actual, expected))
-                })
-            })
-            .collect()
+        {
+            Some(owners) => owners.into_iter().map(NodeId::new).collect(),
+            None => self.try_node_ids()?,
+        };
+        let mut matching = Vec::new();
+        'candidates: for id in candidates {
+            for (property, expected) in conditions {
+                if !self
+                    .try_node_property(id, property)?
+                    .is_some_and(|actual| values_equal(&actual, expected))
+                {
+                    continue 'candidates;
+                }
+            }
+            matching.push(id);
+        }
+        Ok(matching)
+    }
+
+    /// The edges of `node` in `direction`, of one of `types` (any type when
+    /// empty), as `(other end, edge)` pairs.
+    pub(crate) fn try_edges(
+        &self,
+        node: NodeId,
+        direction: Direction,
+        types: &[ArcStr],
+    ) -> Result<Vec<(NodeId, EdgeId)>, StorageError> {
+        // One type is a key prefix of the adjacency rows; several are
+        // filtered.
+        let only = match types {
+            [single] => Some(single.as_str()),
+            _ => None,
+        };
+        let outgoing = || access::adj_out(&self.view, self.tenant, node.as_u64(), only);
+        let incoming = || access::adj_in(&self.view, self.tenant, node.as_u64(), only);
+        let rows = match direction {
+            Direction::Outgoing => outgoing()?,
+            Direction::Incoming => incoming()?,
+            Direction::Both => {
+                let mut result = outgoing()?;
+                result.extend(incoming()?);
+                result
+            }
+            _ => Vec::new(),
+        };
+        let mut edges = Vec::with_capacity(rows.len());
+        let mut known = self
+            .edge_types
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        for (rel_type, other, edge) in rows {
+            if types.len() > 1 && !types.iter().any(|ty| ty.as_str() == rel_type) {
+                continue;
+            }
+            known.entry(edge).or_insert_with(|| rel_type.into());
+            edges.push((NodeId::new(other), EdgeId::new(edge)));
+        }
+        drop(known);
+        edges.sort_unstable();
+        edges.dedup();
+        Ok(edges)
     }
 }
 
@@ -404,10 +461,6 @@ pub(crate) fn node_of(id: NodeId, record: &Json) -> Result<Option<Node>, Storage
 }
 
 impl LmpgGraphStore {
-    fn edge(&self, id: EdgeId) -> Option<Edge> {
-        self.read(|| self.try_edge(id))
-    }
-
     pub(crate) fn try_edge(&self, id: EdgeId) -> Result<Option<Edge>, StorageError> {
         let Some(header) = access::relationship_by_ord(&self.view, self.tenant, id.as_u64())?
         else {
@@ -432,10 +485,6 @@ impl LmpgGraphStore {
             }
         }
         Ok(Some(edge))
-    }
-
-    fn edge_ids(&self) -> Vec<EdgeId> {
-        self.read(|| self.try_edge_ids())
     }
 
     pub(crate) fn try_node_ids(&self) -> Result<Vec<NodeId>, StorageError> {
@@ -475,185 +524,143 @@ impl LmpgGraphStore {
             })
             .collect()
     }
-
-    pub(crate) fn property_matches_range(
-        value: &Value,
-        min: Option<&Value>,
-        max: Option<&Value>,
-        min_inclusive: bool,
-        max_inclusive: bool,
-    ) -> bool {
-        if let Some(minimum) = min {
-            match compare_values(value, minimum) {
-                Some(Ordering::Equal) if !min_inclusive => return false,
-                Some(Ordering::Less) | None => return false,
-                _ => {}
-            }
-        }
-        if let Some(maximum) = max {
-            match compare_values(value, maximum) {
-                Some(Ordering::Equal) if !max_inclusive => return false,
-                Some(Ordering::Greater) | None => return false,
-                _ => {}
-            }
-        }
-        true
-    }
 }
 
 impl GraphStore for LmpgGraphStore {
-    fn get_node(&self, id: NodeId) -> Option<Node> {
-        self.node(id)
+    fn node(&self, id: NodeId, _: GView) -> GResult<Option<Node>> {
+        self.get(|| self.try_node(id))
     }
 
-    fn get_edge(&self, id: EdgeId) -> Option<Edge> {
-        self.edge(id)
+    fn edge(&self, id: EdgeId, _: GView) -> GResult<Option<Edge>> {
+        self.get(|| self.try_edge(id))
     }
 
-    fn get_node_versioned(
-        &self,
-        id: NodeId,
-        _epoch: EpochId,
-        _transaction_id: TransactionId,
-    ) -> Option<Node> {
-        self.node(id)
+    fn node_property(&self, id: NodeId, key: &str, _: GView) -> GResult<Option<Value>> {
+        self.get(|| self.try_node_property(id, key))
     }
 
-    fn get_edge_versioned(
-        &self,
-        id: EdgeId,
-        _epoch: EpochId,
-        _transaction_id: TransactionId,
-    ) -> Option<Edge> {
-        self.edge(id)
+    fn edge_property(&self, id: EdgeId, key: &str, _: GView) -> GResult<Option<Value>> {
+        Ok(self
+            .get(|| self.try_edge(id))?
+            .and_then(|edge| edge.get_property(key).cloned()))
     }
 
-    fn get_node_at_epoch(&self, id: NodeId, _epoch: EpochId) -> Option<Node> {
-        self.node(id)
+    /// The label from the record's header, without reconstructing it.
+    fn node_labels(&self, id: NodeId, _: GView) -> GResult<Option<Labels>> {
+        Ok(self
+            .get(|| access::record_by_ord(&self.view, self.tenant, id.as_u64()))?
+            .map(|header| Labels::from_iter([header.label.into()])))
     }
 
-    fn get_edge_at_epoch(&self, id: EdgeId, _epoch: EpochId) -> Option<Edge> {
-        self.edge(id)
-    }
-
-    fn get_node_property(&self, id: NodeId, key: &PropertyKey) -> Option<Value> {
-        self.read(|| self.try_node_property(id, key.as_str()))
-    }
-
-    fn get_edge_property(&self, id: EdgeId, key: &PropertyKey) -> Option<Value> {
-        self.edge(id)?.get_property(key.as_str()).cloned()
-    }
-
-    fn get_node_property_batch(&self, ids: &[NodeId], key: &PropertyKey) -> Vec<Option<Value>> {
-        ids.iter()
-            .map(|id| self.get_node_property(*id, key))
-            .collect()
-    }
-
-    fn get_nodes_properties_batch(&self, ids: &[NodeId]) -> Vec<FxHashMap<PropertyKey, Value>> {
-        ids.iter()
-            .map(|id| {
-                self.node(*id)
-                    .map(|node| {
-                        node.properties
-                            .iter()
-                            .map(|(k, v)| (k.clone(), v.clone()))
-                            .collect()
-                    })
-                    .unwrap_or_default()
-            })
-            .collect()
-    }
-
-    fn get_nodes_properties_selective_batch(
-        &self,
-        ids: &[NodeId],
-        keys: &[PropertyKey],
-    ) -> Vec<FxHashMap<PropertyKey, Value>> {
-        ids.iter()
-            .map(|id| {
-                keys.iter()
-                    .filter_map(|key| {
-                        self.get_node_property(*id, key)
-                            .map(|value| (key.clone(), value))
-                    })
-                    .collect()
-            })
-            .collect()
-    }
-
-    fn get_edges_properties_selective_batch(
-        &self,
-        ids: &[EdgeId],
-        keys: &[PropertyKey],
-    ) -> Vec<FxHashMap<PropertyKey, Value>> {
-        ids.iter()
-            .map(|id| {
-                keys.iter()
-                    .filter_map(|key| {
-                        self.get_edge_property(*id, key)
-                            .map(|value| (key.clone(), value))
-                    })
-                    .collect()
-            })
-            .collect()
-    }
-
-    fn neighbors(&self, node: NodeId, direction: Direction) -> Vec<NodeId> {
-        self.edges_from(node, direction)
-            .into_iter()
-            .map(|(other, _)| other)
-            .collect()
-    }
-
-    fn edges_from(&self, node: NodeId, direction: Direction) -> Vec<(NodeId, EdgeId)> {
-        self.read(|| {
-            let outgoing = || access::adj_out(&self.view, self.tenant, node.as_u64(), None);
-            let incoming = || access::adj_in(&self.view, self.tenant, node.as_u64(), None);
-            let mut edges = match direction {
-                Direction::Outgoing => outgoing()?,
-                Direction::Incoming => incoming()?,
-                Direction::Both => {
-                    let mut result = outgoing()?;
-                    result.extend(incoming()?);
-                    result
-                }
-                _ => Vec::new(),
-            }
-            .into_iter()
-            .map(|(rel_type, other, edge)| {
-                self.edge_types
-                    .lock()
-                    .unwrap_or_else(std::sync::PoisonError::into_inner)
-                    .entry(edge)
-                    .or_insert_with(|| rel_type.into());
-                (NodeId::new(other), EdgeId::new(edge))
-            })
-            .collect::<Vec<_>>();
-            edges.sort_unstable();
-            edges.dedup();
-            Ok(edges)
+    fn edge_type(&self, id: EdgeId, _: GView) -> GResult<Option<ArcStr>> {
+        if let Some(known) = self
+            .edge_types
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .get(&id.as_u64())
+        {
+            return Ok(Some(known.clone()));
+        }
+        self.get(|| {
+            Ok(
+                access::relationship_by_ord(&self.view, self.tenant, id.as_u64())?
+                    .map(|header| header.rel_type.into()),
+            )
         })
     }
 
-    fn out_degree(&self, node: NodeId) -> usize {
-        self.read(|| Ok(access::adj_out(&self.view, self.tenant, node.as_u64(), None)?.len()))
+    fn node_property_batch(
+        &self,
+        ids: &[NodeId],
+        key: &PropertyKey,
+        _: GView,
+    ) -> GResult<Vec<Option<Value>>> {
+        ids.iter()
+            .map(|id| self.get(|| self.try_node_property(*id, key.as_str())))
+            .collect()
     }
 
-    fn in_degree(&self, node: NodeId) -> usize {
-        self.read(|| Ok(access::adj_in(&self.view, self.tenant, node.as_u64(), None)?.len()))
+    fn node_properties_batch(
+        &self,
+        ids: &[NodeId],
+        _: GView,
+    ) -> GResult<Vec<FxHashMap<PropertyKey, Value>>> {
+        ids.iter()
+            .map(|id| {
+                Ok(self.get(|| self.try_node(*id))?.map_or_default(|node| {
+                    node.properties
+                        .iter()
+                        .map(|(k, v)| (k.clone(), v.clone()))
+                        .collect()
+                }))
+            })
+            .collect()
+    }
+
+    fn node_properties_selective_batch(
+        &self,
+        ids: &[NodeId],
+        keys: &[PropertyKey],
+        _: GView,
+    ) -> GResult<Vec<FxHashMap<PropertyKey, Value>>> {
+        ids.iter()
+            .map(|id| {
+                let mut found = FxHashMap::default();
+                for key in keys {
+                    if let Some(value) = self.get(|| self.try_node_property(*id, key.as_str()))? {
+                        found.insert(key.clone(), value);
+                    }
+                }
+                Ok(found)
+            })
+            .collect()
+    }
+
+    fn edge_properties_selective_batch(
+        &self,
+        ids: &[EdgeId],
+        keys: &[PropertyKey],
+        _: GView,
+    ) -> GResult<Vec<FxHashMap<PropertyKey, Value>>> {
+        ids.iter()
+            .map(|id| {
+                let edge = self.get(|| self.try_edge(*id))?;
+                Ok(keys
+                    .iter()
+                    .filter_map(|key| {
+                        edge.as_ref()?
+                            .get_property(key.as_str())
+                            .map(|value| (key.clone(), value.clone()))
+                    })
+                    .collect())
+            })
+            .collect()
+    }
+
+    fn edges(
+        &self,
+        node: NodeId,
+        direction: Direction,
+        types: &[ArcStr],
+        _: GView,
+    ) -> GResult<Vec<(NodeId, EdgeId)>> {
+        self.get(|| self.try_edges(node, direction, types))
+    }
+
+    fn degree(&self, node: NodeId, direction: Direction, _: GView) -> GResult<usize> {
+        self.get(|| Ok(self.try_edges(node, direction, &[])?.len()))
     }
 
     fn has_backward_adjacency(&self) -> bool {
         true
     }
 
-    fn node_ids(&self) -> Vec<NodeId> {
-        self.read(|| self.try_node_ids())
+    fn node_ids(&self, _: GView) -> GResult<Vec<NodeId>> {
+        self.get(|| self.try_node_ids())
     }
 
-    fn nodes_by_label(&self, label: &str) -> Vec<NodeId> {
-        self.read(|| {
+    fn nodes_by_label(&self, label: &str, _: GView) -> GResult<Vec<NodeId>> {
+        self.get(|| {
             Ok(access::label_members(&self.view, self.tenant, label)?
                 .into_iter()
                 .map(NodeId::new)
@@ -663,84 +670,64 @@ impl GraphStore for LmpgGraphStore {
 
     // Counts come from the on-disk catalogs at the view's snapshot (one
     // counter row per label / relationship group), never an id walk.
-    fn node_count(&self) -> usize {
-        usize::try_from(self.catalog_totals().0).unwrap_or(usize::MAX)
+    fn node_count(&self, _: GView) -> GResult<usize> {
+        Ok(usize::try_from(self.catalog_totals()?.0).unwrap_or(usize::MAX))
     }
 
-    fn nodes_by_label_count(&self, label: &str) -> usize {
-        self.read(|| rushdb_lmpg::derived::label_count(&self.view, self.tenant, label))
+    fn nodes_by_label_count(&self, label: &str, _: GView) -> GResult<usize> {
+        Ok(self
+            .get(|| rushdb_lmpg::derived::label_count(&self.view, self.tenant, label))?
             .try_into()
-            .unwrap_or(usize::MAX)
+            .unwrap_or(usize::MAX))
     }
 
-    fn edge_count(&self) -> usize {
-        usize::try_from(self.catalog_totals().1).unwrap_or(usize::MAX)
+    fn label_count_is_kept(&self, _: &str, _: GView) -> bool {
+        true
     }
 
-    fn edge_type(&self, id: EdgeId) -> Option<grafeo_common::types::ArcStr> {
-        if let Some(known) = self
-            .edge_types
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner)
-            .get(&id.as_u64())
-        {
-            return Some(known.clone());
-        }
-        self.read(|| {
-            Ok(
-                access::relationship_by_ord(&self.view, self.tenant, id.as_u64())?
-                    .map(|header| header.rel_type.into()),
-            )
-        })
+    fn edge_count(&self, _: GView) -> GResult<usize> {
+        Ok(usize::try_from(self.catalog_totals()?.1).unwrap_or(usize::MAX))
     }
 
     fn has_property_index(&self, property: &str) -> bool {
         self.equality_indexes(property).is_some()
     }
 
-    fn find_nodes_by_property(&self, property: &str, value: &Value) -> Vec<NodeId> {
-        self.matching_nodes(&[(property, value.clone())])
+    fn find_nodes_by_property(
+        &self,
+        property: &str,
+        value: &Value,
+        _: GView,
+    ) -> GResult<Vec<NodeId>> {
+        self.get(|| self.matching_nodes(&[(property, value.clone())]))
     }
 
-    fn find_nodes_by_properties(&self, conditions: &[(&str, Value)]) -> Vec<NodeId> {
-        self.matching_nodes(conditions)
+    fn find_nodes_by_properties(
+        &self,
+        conditions: &[(&str, Value)],
+        _: GView,
+    ) -> GResult<Vec<NodeId>> {
+        self.get(|| self.matching_nodes(conditions))
     }
 
     fn find_nodes_in_range(
         &self,
         property: &str,
-        min: Option<&Value>,
-        max: Option<&Value>,
-        min_inclusive: bool,
-        max_inclusive: bool,
-    ) -> Vec<NodeId> {
-        let key = PropertyKey::new(property);
-        self.node_ids()
-            .into_iter()
-            .filter(|id| {
-                self.get_node_property(*id, &key).is_some_and(|value| {
-                    Self::property_matches_range(&value, min, max, min_inclusive, max_inclusive)
-                })
-            })
-            .collect()
-    }
-
-    fn node_property_might_match(
-        &self,
-        _property: &PropertyKey,
-        _op: CompareOp,
-        _value: &Value,
-    ) -> bool {
-        true
-    }
-
-    fn edge_property_might_match(
-        &self,
-        _property: &PropertyKey,
-        _op: CompareOp,
-        _value: &Value,
-    ) -> bool {
-        true
+        range: &ValueRange,
+        _: GView,
+    ) -> GResult<Vec<NodeId>> {
+        self.get(|| {
+            let mut found = Vec::new();
+            for id in self.try_node_ids()? {
+                if self
+                    .try_node_property(id, property)?
+                    .is_some_and(|value| range.contains(&value))
+                {
+                    found.push(id);
+                }
+            }
+            Ok(found)
+        })
     }
 
     #[expect(
@@ -767,6 +754,8 @@ impl GraphStore for LmpgGraphStore {
             *by_type.entry(rel_type).or_default() += count;
         }
         for (rel_type, count) in by_type {
+            // Every edge has one source and one target, so the average out-
+            // and in-degree over all nodes are both `edges of type / nodes`.
             let degree = if total_nodes == 0 {
                 0.0
             } else {
@@ -780,68 +769,49 @@ impl GraphStore for LmpgGraphStore {
         Arc::new(statistics)
     }
 
-    #[expect(
-        clippy::cast_precision_loss,
-        reason = "planner statistics are approximate cardinalities, not exact counts"
-    )]
-    fn estimate_label_cardinality(&self, label: &str) -> f64 {
-        self.nodes_by_label_count(label) as f64
+    fn label_node_estimate(&self, label: &str) -> u64 {
+        self.read(|| rushdb_lmpg::derived::label_count(&self.view, self.tenant, label))
     }
 
-    #[expect(
-        clippy::cast_precision_loss,
-        reason = "planner statistics are approximate average degrees, not exact counts"
-    )]
-    fn estimate_avg_degree(&self, edge_type: &str, _outgoing: bool) -> f64 {
-        // Every edge has one source and one target, so the average out- and
-        // in-degree over all nodes are both `edges of type / nodes`.
-        let nodes = self.catalog_totals().0;
-        if nodes == 0 {
-            return 0.0;
-        }
-        let edges: u64 = self
-            .read(|| access::relationship_catalog(&self.view, self.tenant))
-            .iter()
-            .filter(|(rel_type, _, _, _)| rel_type == edge_type)
-            .map(|(_, _, _, count)| count)
-            .sum();
-        edges as f64 / nodes as f64
+    fn node_estimate(&self) -> u64 {
+        self.catalog_totals().map_or(0, |(nodes, _)| nodes)
     }
 
-    fn current_epoch(&self) -> EpochId {
+    fn committed_epoch(&self) -> EpochId {
         EpochId::new(self.view.commit_index())
     }
 
-    fn all_labels(&self) -> Vec<String> {
-        self.read(|| access::labels(&self.view, self.tenant))
+    fn all_labels(&self) -> GResult<Vec<String>> {
+        self.get(|| access::labels(&self.view, self.tenant))
     }
 
-    fn all_edge_types(&self) -> Vec<String> {
-        self.read(|| access::relationship_catalog(&self.view, self.tenant))
+    fn all_edge_types(&self) -> GResult<Vec<String>> {
+        Ok(self
+            .get(|| access::relationship_catalog(&self.view, self.tenant))?
             .into_iter()
             .map(|(rel_type, _, _, _)| rel_type)
             .collect::<BTreeSet<_>>()
             .into_iter()
-            .collect()
+            .collect())
     }
 
-    fn all_property_keys(&self) -> Vec<String> {
-        let mut keys = BTreeSet::new();
-        for id in self.node_ids() {
-            if let Some(node) = self.node(id) {
-                keys.extend(node.properties.iter().map(|(key, _)| key.to_string()));
+    fn all_property_keys(&self) -> GResult<Vec<String>> {
+        self.get(|| {
+            let mut keys = BTreeSet::new();
+            for id in self.try_node_ids()? {
+                if let Some(node) = self.try_node(id)? {
+                    keys.extend(node.properties.iter().map(|(key, _)| key.to_string()));
+                }
             }
-        }
-        for id in self.edge_ids() {
-            if let Some(edge) = self.edge(id) {
-                keys.extend(edge.properties.iter().map(|(key, _)| key.to_string()));
+            for id in self.try_edge_ids()? {
+                if let Some(edge) = self.try_edge(id)? {
+                    keys.extend(edge.properties.iter().map(|(key, _)| key.to_string()));
+                }
             }
-        }
-        keys.into_iter().collect()
+            Ok(keys.into_iter().collect())
+        })
     }
-}
 
-impl GraphStoreSearch for LmpgGraphStore {
     fn has_text_index(&self, label: &str, property: &str) -> bool {
         self.text_index(label, property).is_some()
     }
@@ -849,21 +819,28 @@ impl GraphStoreSearch for LmpgGraphStore {
     /// Per-row scoring, used when the planner cannot push the search into
     /// a scan. A property no ready text index covers fails the statement
     /// rather than matching nothing.
-    fn score_text(&self, node_id: NodeId, label: &str, property: &str, query: &str) -> Option<f64> {
+    fn score_text(
+        &self,
+        node_id: NodeId,
+        label: &str,
+        property: &str,
+        query: &str,
+        _: GView,
+    ) -> GResult<Option<f64>> {
         let Some(index) = self.text_index(label, property) else {
             self.text_failed(if self.text.is_some() {
                 format!("no ready text index on :{label}({property})")
             } else {
                 "text search is unavailable here".to_owned()
             });
-            return None;
+            return Ok(None);
         };
-        Some(
+        Ok(Some(
             self.text_matches(&index, query)
                 .get(&node_id.as_u64())
                 .copied()
                 .unwrap_or(0.0),
-        )
+        ))
     }
 
     fn text_search(
@@ -872,14 +849,16 @@ impl GraphStoreSearch for LmpgGraphStore {
         property: &str,
         query: &str,
         k: usize,
-    ) -> Vec<(NodeId, f64)> {
+        _: GView,
+    ) -> GResult<Vec<(NodeId, f64)>> {
         let Some(index) = self.text_index(label, property) else {
-            return Vec::new();
+            return Ok(Vec::new());
         };
-        self.text_hits(&index, query, k)
+        Ok(self
+            .text_hits(&index, query, k)
             .into_iter()
             .map(|(owner, score)| (NodeId::new(owner), score))
-            .collect()
+            .collect())
     }
 
     fn text_search_with_threshold(
@@ -888,15 +867,17 @@ impl GraphStoreSearch for LmpgGraphStore {
         property: &str,
         query: &str,
         threshold: f64,
-    ) -> Vec<(NodeId, f64)> {
+        _: GView,
+    ) -> GResult<Vec<(NodeId, f64)>> {
         let Some(index) = self.text_index(label, property) else {
-            return Vec::new();
+            return Ok(Vec::new());
         };
-        self.text_hits(&index, query, rushdb_textsearch::ALL_HITS)
+        Ok(self
+            .text_hits(&index, query, rushdb_textsearch::ALL_HITS)
             .into_iter()
             .filter(|(_, score)| *score >= threshold)
             .map(|(owner, score)| (NodeId::new(owner), score))
-            .collect()
+            .collect())
     }
 }
 
@@ -970,28 +951,5 @@ pub(crate) fn values_equal(left: &Value, right: &Value) -> bool {
             (*a as f64 - b).abs() < f64::EPSILON
         }
         _ => left == right,
-    }
-}
-
-pub(crate) fn compare_values(left: &Value, right: &Value) -> Option<Ordering> {
-    match (left, right) {
-        (Value::Int64(left), Value::Int64(right)) => {
-            scalar_cmp(&Scalar::Int64(*left), &Scalar::Int64(*right))
-        }
-        (Value::Float64(left), Value::Float64(right)) => {
-            scalar_cmp(&Scalar::Float64(*left), &Scalar::Float64(*right))
-        }
-        (Value::Int64(left), Value::Float64(right)) => {
-            scalar_cmp(&Scalar::Int64(*left), &Scalar::Float64(*right))
-        }
-        (Value::Float64(left), Value::Int64(right)) => {
-            scalar_cmp(&Scalar::Float64(*left), &Scalar::Int64(*right))
-        }
-        (Value::String(left), Value::String(right)) => Some(left.cmp(right)),
-        (Value::Bool(left), Value::Bool(right)) => Some(left.cmp(right)),
-        (Value::Timestamp(left), Value::Timestamp(right)) => Some(left.cmp(right)),
-        (Value::Date(left), Value::Date(right)) => Some(left.cmp(right)),
-        (Value::Time(left), Value::Time(right)) => Some(left.cmp(right)),
-        _ => None,
     }
 }

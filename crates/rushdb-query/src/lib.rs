@@ -1123,8 +1123,7 @@ fn traverse_alias(
 /// The traversal aliases of a `where` clause as alias specs, each with its
 /// full path ([`document::alias_paths`]).
 fn related_specs_from_where(expr: Option<&Expr>) -> Vec<RelatedSpec> {
-    expr.map(document::alias_paths)
-        .unwrap_or_default()
+    expr.map_or_default(document::alias_paths)
         .into_iter()
         .filter_map(|(alias, steps)| {
             let last = steps.last()?.clone();

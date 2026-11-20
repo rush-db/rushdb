@@ -898,7 +898,7 @@ fn format_row<'a>(template: &str, value: impl Fn(usize) -> Option<&'a str>) -> D
             (other, _) => {
                 return Err(DataFusionError::Execution(format!(
                     "unrecognized format() type specifier \"{}\"",
-                    other.map(String::from).unwrap_or_default()
+                    other.map_or_default(String::from)
                 )))
             }
         }

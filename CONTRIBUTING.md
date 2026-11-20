@@ -44,11 +44,11 @@ distribution containers against archives you built, and
 ## Toolchain policy
 
 `rust-toolchain.toml` pins the toolchain used for development, linting, and
-tests to the current stable (`1.98.1`). CI runs `quality`/`test`/`release` on
+tests to the current stable (`1.100.0`). CI runs `quality`/`test`/`release` on
 that same pinned toolchain so the `missing_docs`/`pedantic` gate is
 deterministic and matches local runs. The declared MSRV
-(`[workspace.package] rust-version = "1.91"`) is guaranteed separately by the
-`msrv` CI job, which runs `cargo check --workspace --all-targets` on 1.91 —
+(`[workspace.package] rust-version = "1.100"`, the floor Grafeo 0.6 sets) is guaranteed separately by the
+`msrv` CI job, which runs `cargo check --workspace --all-targets` on 1.100 —
 clippy and rustfmt are deliberately **not** run on the MSRV toolchain. Build
 the full `make gate` on the pinned toolchain; use the MSRV check only to verify
 the compilation floor.

@@ -431,20 +431,17 @@ impl ImportOptions {
             relationship_types: v
                 .get("relationshipTypes")
                 .and_then(|x| x.as_object())
-                .map(|map| {
+                .map_or_default(|map| {
                     map.iter()
                         .filter_map(|(k, val)| val.as_str().map(|s| (k.clone(), s.to_string())))
                         .collect()
-                })
-                .unwrap_or_default(),
+                }),
             merge_by: v.get("mergeBy").map(|x| {
-                x.as_array()
-                    .map(|a| {
-                        a.iter()
-                            .filter_map(|e| e.as_str().map(std::string::ToString::to_string))
-                            .collect()
-                    })
-                    .unwrap_or_default()
+                x.as_array().map_or_default(|a| {
+                    a.iter()
+                        .filter_map(|e| e.as_str().map(std::string::ToString::to_string))
+                        .collect()
+                })
             }),
             merge_strategy: v
                 .get("mergeStrategy")
@@ -875,7 +872,7 @@ pub fn serialize_bfs_owned(data: Json, label: &str, options: &ImportOptions) -> 
                     key: if options.capitalize_labels {
                         capitalize(&key)
                     } else {
-                        key.clone()
+                        key
                     },
                     value,
                     parent_id: child_parent_id,
@@ -2222,13 +2219,12 @@ fn existing_field_deletes(
     let fields: Vec<String> = crate::reconstruct::reconstruct_record(snap, tenant, rr.ordinal)
         .map_err(|e| LmpgError::Conflict(e.to_string()))?
         .and_then(|r| r.as_object().cloned())
-        .map(|o| {
+        .map_or_default(|o| {
             o.keys()
                 .filter(|k| !rushdb_types::value::is_reserved_name(k))
                 .cloned()
                 .collect()
-        })
-        .unwrap_or_default();
+        });
     Ok(fields
         .into_iter()
         .map(|k| (k, FieldChange::Delete))

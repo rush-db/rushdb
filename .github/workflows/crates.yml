@@ -29,9 +29,9 @@ jobs:
           path: tooling
           sparse-checkout: scripts
       - run: mv tooling "$RUNNER_TEMP/tooling"
-      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # 1.98.1
+      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # 1.100.0
         with:
-          toolchain: 1.98.1
+          toolchain: 1.100.0
       - run: $RUNNER_TEMP/tooling/scripts/check-package-sources.sh
       - run: $RUNNER_TEMP/tooling/scripts/publish-crates.sh --dry-run
       - name: Publish

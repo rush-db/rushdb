@@ -19,9 +19,9 @@ Cypher database.
 
 > **Note:** Cypher is a release candidate, not full openCypher. The engine
 > reports `noFullOpenCypherTckConformance`. The full openCypher TCK runs in CI:
-> of 3,897 scenarios, 1,494 test features outside the supported profile (see
-> [Conformance](#conformance)), and 1,653 of the remaining 2,403 pass. The
-> other 750 hit known defects of the embedded Grafeo engine, listed below.
+> of 3,897 scenarios, 1,480 test features outside the supported profile (see
+> [Conformance](#conformance)), and 2,012 of the remaining 2,417 pass. The
+> other 405 hit known defects of the embedded Grafeo engine, listed below.
 > Do not rely on behavior this page does not list as supported.
 
 ## Data model mapping
@@ -201,35 +201,20 @@ one in `limitations`.
 
 ## Known defects
 
-RushDB runs the openCypher implementation of the embedded Grafeo engine
-unchanged. Grafeo deviates from openCypher in the ways below. Each class is
-measured by the TCK on every CI run. Every failure is also rerun on plain
-Grafeo, without RushDB's storage or adapter, and fails there too. They are to
-be reported upstream; RushDB does not patch Grafeo.
+RushDB runs the openCypher implementation of the embedded Grafeo engine,
+with no changes of its own: until Grafeo releases them, it builds two
+upstream fixes on top of Grafeo's release branch (listed in `Cargo.toml`).
+Grafeo deviates from openCypher in the ways below. Each class is measured by
+the TCK on every CI run. Every failure is also rerun on plain Grafeo, without
+RushDB's storage or adapter, and fails there too. They are to be reported upstream.
 
 | Defect | TCK scenarios | What you see |
 |---|---:|---|
-| Invalid statements accepted | 392 | A statement openCypher requires to fail (type errors such as `NOT 'a'`, undefined variables in some positions, invalid argument types) runs and returns a result. |
-| Different result | 102 | Wrong rows, values or null handling in some queries, for example some comparisons of lists or of null, and an empty variable-length interval (`*2..1`) that still expands. |
-| Quantifiers | 91 | `all`/`any`/`none`/`single` give different results when nested, over lists containing nulls, and over some list literals. |
-| Operator precedence | 52 | Some operator combinations evaluate in a different order. |
-| Valid statements refused by the binder | 36 | A `WITH ... WHERE` that reads a variable the `WITH` does not project, `DELETE` of an expression, some `ORDER BY` scopes. |
-| Syntax | 35 | openCypher syntax the parser does not accept, such as keywords as map keys (`{null: 1}`) and `[:T\|:T]`. |
-| Writes on null | 11 | `SET`, `REMOVE` or `DELETE` on a null from `OPTIONAL MATCH` fails with a type mismatch instead of doing nothing. |
-| Internal errors | 10 | Some path and variable-length patterns, and `nodes()`/`relationships()` of an expression, fail with an internal error. |
-| Lazy writes | 10 | `SKIP`/`LIMIT` after an updating clause also limits the updates. |
-| Column names | 9 | Some unaliased columns are named differently from their expression text. |
-| Non-termination | 2 | A variable-length match around a cycle does not end; the request deadline cancels it. |
-
-The anti-join `OPTIONAL MATCH (a)-[r]->(c) WITH c WHERE r IS NULL` is refused
-with `Undefined variable 'r'`. Project the variable the condition reads:
-
-```cypher
-MATCH (a:A)-[:KNOWS]->(b)-->(c)
-OPTIONAL MATCH (a)-[r:KNOWS]->(c)
-WITH c, r WHERE r IS NULL
-RETURN c.name
-```
+| Invalid statements accepted | 367 | A statement openCypher requires to fail (type errors such as `NOT 'a'`, undefined variables in some positions, invalid argument types, binding an already bound variable again in `CREATE` or `MERGE`, `length()` of a node) runs and returns a result. |
+| Syntax | 18 | openCypher syntax the parser does not accept: full `EXISTS { ... }` subqueries, pattern comprehensions (`[p = (n)-->() \| p]`), keywords as map keys (`{null: 1}`), `SET (n).name`, a relationship type named like a keyword (`[:IN]`), the smallest hexadecimal and octal integers. |
+| Column names | 11 | Some unaliased columns are named differently from their expression text (`labels(NULL)`, parenthesized arithmetic). |
+| Valid statements refused | 5 | `DELETE` of an expression other than a variable (an element of a map or list). |
+| Different result | 4 | A variable-length pattern after a fixed hop with mixed directions returns duplicate rows or none. |
 
 ## Conformance
 

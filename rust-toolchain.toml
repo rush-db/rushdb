@@ -3,5 +3,5 @@
 # `.github/workflows/ci.yml` separately checks the declared `rust-version`
 # (see `[workspace.package]` in Cargo.toml) with a `cargo check`.
 [toolchain]
-channel = "1.98.1"
+channel = "1.100.0"
 components = ["rustfmt", "clippy"]

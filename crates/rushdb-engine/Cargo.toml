@@ -15,12 +15,14 @@ categories.workspace = true
 rushdb-types = { workspace = true }
 rushdb-storage = { workspace = true }
 rushdb-lmpg = { workspace = true }
-rushdb-tx = { workspace = true }
 rushdb-query = { workspace = true }
 serde_json = { workspace = true }
 serde = { workspace = true }
 uuid = { workspace = true }
 thiserror = { workspace = true }
+
+[dev-dependencies]
+rushdb-tx = { workspace = true }
 
 [lints]
 workspace = true

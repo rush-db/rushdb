@@ -81,7 +81,7 @@ fn properties(map: &mut Map<String, Json>, db: &GrafeoDB, props: Vec<(String, Va
 }
 
 fn node_json(db: &GrafeoDB, id: NodeId) -> Json {
-    let Some(node) = db.get_node(id) else {
+    let Ok(Some(node)) = db.get_node(id) else {
         return Json::Null;
     };
     let mut map = Map::new();
@@ -107,7 +107,7 @@ fn node_json(db: &GrafeoDB, id: NodeId) -> Json {
 }
 
 fn edge_json(db: &GrafeoDB, id: EdgeId) -> Json {
-    let Some(edge) = db.get_edge(id) else {
+    let Ok(Some(edge)) = db.get_edge(id) else {
         return Json::Null;
     };
     let mut map = Map::new();

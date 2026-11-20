@@ -22,11 +22,13 @@ members = [
     "crates/rushdb-storage-integration",
     "crates/rushdb-authz-integration",
 ]
+# The local Grafeo checkout patched in below keeps its own workspace.
+exclude = ["third_party"]
 
 [workspace.package]
 version = "3.0.13"
 edition = "2021"
-rust-version = "1.91"
+rust-version = "1.100"
 license = "Apache-2.0"
 homepage = "https://rushdb.com"
 repository = "https://github.com/rush-db/rushdb"
@@ -49,6 +51,9 @@ needless_collect = { level = "deny", priority = 3 }
 # Large error enums are matched by value at the protocol/type boundary and are
 # never boxed; boxing would add an allocation to every error path.
 result_large_err = { level = "allow", priority = 4 }
+# `assert!(x.is_empty())` reads as well as `assert_eq!(x, [])` and needs no
+# type for the empty side (strings, maps, slices alike).
+assert_is_empty = { level = "allow", priority = 4 }
 
 [workspace.dependencies]
 roaring = "0.11"
@@ -60,7 +65,6 @@ rushdb-query = { path = "crates/rushdb-query", version = "=3.0.13" }
 rushdb-engine = { path = "crates/rushdb-engine", version = "=3.0.13" }
 rushdb-backup = { path = "crates/rushdb-backup", version = "=3.0.13" }
 rushdb-raft = { path = "crates/rushdb-raft", version = "=3.0.13" }
-rushdb-server = { path = "crates/rushdb-server", version = "=3.0.13" }
 rushdb-authz = { path = "crates/rushdb-authz", version = "=3.0.13" }
 rushdb-sql = { path = "crates/rushdb-sql", version = "=3.0.13" }
 rushdb-textsearch = { path = "crates/rushdb-textsearch", version = "=3.0.13" }
@@ -71,9 +75,9 @@ rushdb-mongodb = { path = "crates/rushdb-mongodb", version = "=3.0.13" }
 rushdb-grpc = { path = "crates/rushdb-grpc", version = "=3.0.13" }
 rushdb-bolt = { path = "crates/rushdb-bolt", version = "=3.0.13" }
 
-grafeo-common = { version = "=0.5.44", default-features = false }
-grafeo-core = { version = "=0.5.44", default-features = false, features = ["lpg", "regex", "text-index"] }
-grafeo-engine = { version = "=0.5.44", default-features = false, features = ["lpg", "gql", "cypher", "gremlin", "sql-pgq", "regex", "text-index"] }
+grafeo-common = { version = "=0.6.3", default-features = false }
+grafeo-core = { version = "=0.6.3", default-features = false, features = ["lpg", "regex", "text-index"] }
+grafeo-engine = { version = "=0.6.3", default-features = false, features = ["lpg", "gql", "cypher", "gremlin", "sql-pgq", "regex", "text-index"] }
 datafusion = { version = "=54.1.0", default-features = false, features = ["sql", "nested_expressions", "datetime_expressions", "encoding_expressions", "regex_expressions", "string_expressions", "unicode_expressions", "math_expressions", "crypto_expressions", "recursive_protection"] }
 arrow = { version = "=58.4.0", default-features = false }
 arrow-json = "=58.4.0"
@@ -94,8 +98,6 @@ clap = { version = "4.6", features = ["derive", "env"] }
 futures = "0.3"
 async-trait = "0.1"
 tempfile = "3"
-tonic = "0.12"
-prost = "0.13"
 
 [profile.dev]
 opt-level = 1
@@ -108,3 +110,14 @@ opt-level = 1
 [profile.release]
 lto = "thin"
 codegen-units = 1
+
+# Grafeo 0.6.4 is not released yet. Until it is, build the upstream
+# release/0.6.4 branch with GrafeoDB/grafeo#807 applied (named zero-length
+# paths, grouping keys inside maps, long CREATE chains) and one more fix: a
+# database on a store of its own may answer text_match and text_score from
+# its own text indexes. The checkout lives in third_party/grafeo (branch
+# rushdb-3.0.14, local). Drop this patch for a crates.io release with both.
+[patch.crates-io]
+grafeo-common = { path = "third_party/grafeo/crates/grafeo-common" }
+grafeo-core = { path = "third_party/grafeo/crates/grafeo-core" }
+grafeo-engine = { path = "third_party/grafeo/crates/grafeo-engine" }

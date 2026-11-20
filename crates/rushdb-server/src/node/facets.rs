@@ -703,8 +703,7 @@ impl RequestScope<'_> {
             }
             let label = access::record_by_ord(view, tenant, ord)
                 .map_err(|e| e.to_string())?
-                .map(|header| header.label)
-                .unwrap_or_default();
+                .map_or_default(|header| header.label);
             if labels.len() < ENDPOINT_LABEL_CACHE {
                 labels.insert(ord, label.clone());
             }

@@ -162,10 +162,6 @@ fn score_matches_independent_reference_across_dims_and_magnitudes() {
 }
 
 #[test]
-#[expect(
-    clippy::float_cmp,
-    reason = "exact comparison is the assertion: the zero-norm fallback returns exactly 0.0"
-)]
 fn cosine_invariants_and_scale_invariance_hold() {
     let a = [3.0f32, 4.0];
     let b = [4.0f32, 3.0];
@@ -187,10 +183,6 @@ fn cosine_invariants_and_scale_invariance_hold() {
 }
 
 #[test]
-#[expect(
-    clippy::float_cmp,
-    reason = "exact comparison is the assertion: identical vectors score exactly 1.0"
-)]
 fn euclidean_and_dot_invariants_hold() {
     let a = [1.0f32, 2.0, 3.0];
     let b = [4.0f32, 6.0, 3.0];
@@ -203,10 +195,6 @@ fn euclidean_and_dot_invariants_hold() {
 }
 
 #[test]
-#[expect(
-    clippy::float_cmp,
-    reason = "bit-identical equality is the assertion: same f32 inputs through the same formula"
-)]
 fn exact_search_returns_the_pairwise_score_for_every_hit() {
     // Calibration: a hit's score must equal the direct pairwise `score` against
     // the stored vector — no hidden normalization, no ingest-time transform.
