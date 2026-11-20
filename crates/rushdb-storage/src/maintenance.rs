@@ -606,6 +606,10 @@ impl Store {
         if batch.rows.is_empty() {
             return Ok(0);
         }
+        // The purge goes straight to the backends, so every receipt the view
+        // saw must be there first: one still in the gap would be written
+        // back after its purge.
+        self.wait_materialized()?;
         {
             let _guard = self.health.guard(self.publish_lock.lock())?;
             for backend in self.all_backends() {

@@ -1742,7 +1742,12 @@ impl Store {
             .collect();
         // Aborted-outcome idempotency markers are local metadata, not part of
         // the committed log sequence (they carry no commit index), so they are
-        // written to the materialization directly rather than the WAL.
+        // written to the materialization directly rather than the WAL. An
+        // expired receipt of the same key still in the gap would be written
+        // over this one, so it goes into the backend first.
+        if self.try_get(&receipt::receipt_key(commit_key))?.is_some() {
+            self.wait_materialized()?;
+        }
         self.persist_ops_local(&ops, ci)
     }
 

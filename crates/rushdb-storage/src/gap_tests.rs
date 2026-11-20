@@ -595,6 +595,45 @@ fn a_follower_with_its_gap_open_answers_like_its_leader() {
 }
 
 #[test]
+fn a_wal_replay_onto_a_store_with_its_gap_open_waits_for_it() {
+    let (source_path, source) = open("gap-replay-source");
+    let (target_path, target) = open("gap-replay-target");
+    let target = Arc::new(target);
+    let steps = crash_steps(40);
+    // Both stores share the first 20 commits; the target's are still in
+    // its gap when the source's later 20 are replayed onto it.
+    target.pause_materialization(true);
+    for (tenant, ops) in &steps[..20] {
+        commit(&source, *tenant, ops);
+        commit(&target, *tenant, ops);
+    }
+    for (tenant, ops) in &steps[20..] {
+        commit(&source, *tenant, ops);
+    }
+    let mut delta = Vec::new();
+    source.export_wal_segments(&mut delta, 21, 40).unwrap();
+    assert!(target.unmaterialized_bytes() > 0);
+    let release = {
+        let target = Arc::clone(&target);
+        std::thread::spawn(move || {
+            std::thread::sleep(std::time::Duration::from_millis(100));
+            target.pause_materialization(false);
+        })
+    };
+    assert_eq!(target.replay_wal_segments(&mut &delta[..]).unwrap(), 40);
+    release.join().unwrap();
+    target.wait_materialized().unwrap();
+    source.wait_materialized().unwrap();
+    assert_eq!(
+        answers(&target.read_view().unwrap()),
+        answers(&source.read_view().unwrap())
+    );
+    drop((source, target));
+    crate::remove_store(&source_path).unwrap();
+    crate::remove_store(&target_path).unwrap();
+}
+
+#[test]
 fn a_consistent_file_copy_waits_for_the_gap_to_drain() {
     let (path, store) = open("gap-backup");
     let store = Arc::new(store);

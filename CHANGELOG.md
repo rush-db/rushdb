@@ -55,7 +55,11 @@ in [`docs/manual/operations/upgrading-from-2x.md`](docs/manual/operations/upgrad
   1,000,000-row CSV import 22.0–22.9k → 23.0–23.6k rows/s, nested JSON
   documents in requests of 5,000 4.4–4.6k → 5.5k documents/s and of 500
   3.5–3.6k → 4.9–5.0k documents/s. The advice to send merge imports of
-  about 1,000 records on shared hosts is withdrawn. Metrics: the
+  about 1,000 records on shared hosts is withdrawn. Writes that go to the
+  store file directly instead of through that backlog wait for it to drain
+  first, so a backlogged commit is never written over them: the sweep of
+  expired retry receipts, the receipt of an aborted commit, and the WAL
+  replay of a point-in-time restore. Metrics: the
   writer-hold label `publish` is now `materialize`; new
   `rushdb_storage_unmaterialized_bytes` and commit phase `gap_push`;
   `backend_apply` now times the background writes.
