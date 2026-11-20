@@ -1,185 +1,430 @@
 <div align="center">
 
-![RushDB Logo](https://raw.githubusercontent.com/rush-db/rushdb/main/rushdb-logo.svg)
+<img src="https://raw.githubusercontent.com/rush-db/rushdb/main/rushdb-logo.svg" alt="RushDB logo" width="96">
 
-# RushDB — 面向 AI 的数据库
+# RushDB
 
-### 一个数据库，存放你的记录、它们之间的关系，并在其上进行搜索。
+<sub>面向 AI 的数据库</sub>
 
-写入 JSON。RushDB 自动推断类型，把嵌套对象连接成图，并让你用它的 JSON 查询语言、SQL、Cypher、Gremlin 或 Mongo 风格文档进行查询，还支持向量、全文和混合搜索。一个 Rust 二进制文件，一个数据目录，Apache-2.0 许可。
+**图、向量与分析都作用于同一批记录。每次写入都会维护一份由标签、字段和值构成的实时 schema，让智能体查询真实存在的字段，而不是靠猜。**
 
 [![CI](https://img.shields.io/github/actions/workflow/status/rush-db/rushdb/ci.yml?branch=main&label=CI)](https://github.com/rush-db/rushdb/actions/workflows/ci.yml)
-[![License](https://img.shields.io/badge/license-Apache%202.0-blue)](LICENSE)
+[![Release](https://img.shields.io/github/v/release/rush-db/rushdb?label=release)](https://github.com/rush-db/rushdb/releases)
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue)](https://github.com/rush-db/rushdb/blob/main/LICENSE)
 [![GitHub Stars](https://img.shields.io/github/stars/rush-db/rushdb?style=social)](https://github.com/rush-db/rushdb)
-[![Follow on X](https://img.shields.io/twitter/follow/RushDatabase?style=social)](https://x.com/RushDatabase)
 
-[官网](https://rushdb.com) • [文档](https://docs.rushdb.com) • [手册](docs/manual/README.md) • [RushDB Cloud](https://app.rushdb.com) • [部署](deploy/README.md)
+[文档](https://docs.rushdb.com) • [快速开始](https://docs.rushdb.com/engine/getting-started/quickstart/) • [讨论区](https://github.com/orgs/rush-db/discussions) • [X](https://x.com/RushDatabase) • [RushDB Cloud](https://app.rushdb.com)
 
-[English](README.md) • **中文** • [日本語](README_JA.md) • [한국어](README_KO.md) • [Deutsch](README_DE.md) • [Français](README_FR.md) • [Português](README_PT.md) • [Español](README_ES.md) • [हिन्दी](README_HI.md) • [العربية](README_AR.md) • [Bahasa Indonesia](README_ID.md) • [ไทย](README_TH.md)
+[English](https://github.com/rush-db/rushdb/blob/main/README.md) • **中文** • [日本語](https://github.com/rush-db/rushdb/blob/main/README_JA.md) • [한국어](https://github.com/rush-db/rushdb/blob/main/README_KO.md) • [Deutsch](https://github.com/rush-db/rushdb/blob/main/README_DE.md) • [Français](https://github.com/rush-db/rushdb/blob/main/README_FR.md) • [Português](https://github.com/rush-db/rushdb/blob/main/README_PT.md) • [Español](https://github.com/rush-db/rushdb/blob/main/README_ES.md) • [हिन्दी](https://github.com/rush-db/rushdb/blob/main/README_HI.md) • [العربية](https://github.com/rush-db/rushdb/blob/main/README_AR.md) • [Bahasa Indonesia](https://github.com/rush-db/rushdb/blob/main/README_ID.md) • [ไทย](https://github.com/rush-db/rushdb/blob/main/README_TH.md)
 
 </div>
 
 ---
 
+数据是什么样，就按什么样导入：嵌套 JSON、CSV、SQL `INSERT`、Cypher 或 Mongo 风格的写入，
+或者来自你的数据库的 change streams。RushDB 把它存储为带类型的记录，并连接成一张图；
+同一批记录既能回答关系查询，也能用于向量搜索、全文搜索和聚合，因此不需要
+再维护一个需要同步的第二存储。每次写入还会更新一份目录，记录当前存在的标签、
+字段、类型和值，因此智能体查询的是真实存在的字段。可以通过 HTTP、PostgreSQL 线协议、
+Bolt、gRPC 或 MCP 连接，使用 SDK 或任意 PostgreSQL 客户端均可。一个 Rust 二进制文件，Apache-2.0 许可。
+
+| 图 | 向量与全文搜索 | 分析 |
+|---|---|---|
+| 嵌套 JSON 会变成相互连接的记录。在一个查询里跨关系过滤，并沿带类型、有方向的关系遍历。 | 向量搜索（精确与 HNSW）、BM25 全文搜索和混合搜索，均可用同样的图谓词过滤。 | 用 `groupBy` 计算计数、求和、平均值、最小值和最大值，或通过 PostgreSQL 线协议直接用 SQL 的 `GROUP BY`。 |
+
 ## 快速开始
 
-```bash
-curl -fsSL https://raw.githubusercontent.com/rush-db/rushdb/main/install.sh | sh
-rushdb up
+![终端录屏：安装 RushDB，用 rushdb up 启动，然后在 Python 中导入嵌套 JSON，按部门筛选员工，统计每个部门的人数和平均薪资，并打印实时 schema](https://raw.githubusercontent.com/rush-db/rushdb/main/assets/quickstart.gif)
+
+**让你的编码智能体来完成设置。** 把这段提示词粘贴给它 ([rushdb.com/agent-setup](https://rushdb.com/agent-setup))：
+
+```text
+Set up RushDB as this project's database.
+
+1. Install the RushDB MCP server (@rushdb/mcp-server) and the RushDB agent skills (github.com/rush-db/skills).
+2. Use RushDB Cloud with an API key from app.rushdb.com, or a local engine:
+   curl -fsSL https://rushdb.com/install.sh | sh && rushdb up
+   (direct mode: engine URL http://127.0.0.1:3000, token local-token)
+3. Before writing any query, read the schema catalog (labels, properties, types, relationship shapes) and use only fields that exist.
+4. Docs: https://docs.rushdb.com/
 ```
 
-安装脚本会校验发布包的 SHA-256 校验和（安装了 `cosign` 时还会校验 Sigstore 签名），然后把 `rushdb` 二进制文件安装到 `~/.rushdb/bin`。`rushdb up` 会在 `http://127.0.0.1:3000` 启动一个持久化节点，数据保存在 `./.rushdb`，本地令牌为 `local-token`。
-
-写入一个嵌套的 JSON 文档。每个嵌套对象都会成为独立的记录，并与其父记录相连：
-
-```bash
-export RUSHDB_TOKEN=local-token
-curl -s http://127.0.0.1:3000/protocol/v1/execute \
-  -H "Authorization: Bearer $RUSHDB_TOKEN" -H 'Content-Type: application/json' \
-  -d '{"protocolVersion":1,"operation":{"kind":"ingest","ingest":{"kind":"documents","label":"COMPANY",
-       "documents":{"name":"Acme","DEPARTMENT":[
-         {"name":"Engineering","headcount":12,"EMPLOYEE":[{"name":"Ada","role":"Staff Engineer"},{"name":"Linus","role":"Engineer"}]},
-         {"name":"Sales","headcount":4,"EMPLOYEE":[{"name":"Grace","role":"Account Executive"}]}]}}}}'
-```
-
-然后查找 Acme 的工程师。过滤条件通过写出相关标签跨越关系：
+或者手动设置：
 
 ```bash
-curl -s http://127.0.0.1:3000/protocol/v1/execute \
-  -H "Authorization: Bearer $RUSHDB_TOKEN" -H 'Content-Type: application/json' \
-  -d '{"protocolVersion":1,"operation":{"kind":"query","query":{"kind":"records","query":{
-       "labels":["EMPLOYEE"],
-       "predicate":{"role":{"$contains":"Engineer"},"DEPARTMENT":{"COMPANY":{"name":"Acme"}}}}}}}'
+# or: brew install rush-db/tap/rushdb
+curl -fsSL https://rushdb.com/install.sh | sh
+export PATH="$HOME/.rushdb/bin:$PATH"   # only if rushdb is not found yet
+mkdir my-app && cd my-app && rushdb up
 ```
 
-接下来请阅读[快速入门](docs/manual/getting-started/quickstart.md)。
+`rushdb up` 在 `http://127.0.0.1:3000` 提供服务，数据保存在 `./.rushdb`，
+令牌为 `local-token`。在另一个终端中执行 `pip install rushdb`：
 
-## 用你习惯的方式查询
+```python
+from rushdb import RushDB
 
-同一批记录可以通过每一种接口访问。
+db = RushDB("local-token", direct=True, engine_url="http://127.0.0.1:3000")
 
-**SQL**：通过 PostgreSQL 线协议，使用 `psql` 或任意 PostgreSQL 驱动。标签就是表：
+# Nested JSON becomes linked records: COMPANY -> DEPARTMENT -> EMPLOYEE
+db.records.import_json(label="COMPANY", data={
+    "name": "Acme",
+    "DEPARTMENT": [
+        {
+            "name": "Engineering",
+            "EMPLOYEE": [
+                {"name": "Ada", "role": "Staff Engineer", "salary": 180000},
+                {"name": "Linus", "role": "Engineer", "salary": 140000},
+            ],
+        },
+        {
+            "name": "Sales",
+            "EMPLOYEE": [
+                {"name": "Grace", "role": "Account Executive",
+                 "salary": 120000},
+            ],
+        },
+    ],
+}, options={"relationshipType": "HAS"})
 
-```bash
-PGPASSWORD=$RUSHDB_TOKEN psql "host=127.0.0.1 port=5432 user=rushdb dbname=rushdb sslmode=disable" \
-  -c "SELECT name, headcount FROM department ORDER BY headcount DESC"
+# Graph: filter across relationships by naming the related labels
+engineers = db.records.find({
+    "labels": ["EMPLOYEE"],
+    "where": {
+        "role": {"$contains": "Engineer"},
+        "DEPARTMENT": {"COMPANY": {"name": "Acme"}},
+    },
+    "orderBy": {"name": "asc"},
+})
+print([employee.data["name"] for employee in engineers])  # ['Ada', 'Linus']
+
+# Analytics: headcount and average salary per department
+per_department = db.records.find({
+    "labels": ["EMPLOYEE"],
+    "where": {"DEPARTMENT": {"$alias": "$department"}},
+    "select": {
+        "people": {"$count": "*"},
+        "avgSalary": {"$avg": "$record.salary"},
+    },
+    "groupBy": ["$department.name"],
+})
+print([row.data for row in per_department])
+# [{'name': 'Engineering', 'people': 2, 'avgSalary': 160000.0},
+#  {'name': 'Sales', 'people': 1, 'avgSalary': 120000.0}]
+
+# The live schema an agent reads before it writes a query
+print(db.ai.get_schema_markdown().data)
 ```
 
-**Cypher**：通过 HTTP，或通过 Bolt 使用 Neo4j 驱动（`rushdb up --languages sql,cypher --bolt-port 7687`）：
+<details>
+<summary>TypeScript 版本</summary>
 
-```cypher
-MATCH (d:DEPARTMENT)-->(e:EMPLOYEE)
-RETURN d.name AS department, count(e) AS people ORDER BY people DESC
-```
-
-**SDK** 的直连模式（`npm install @rushdb/javascript-sdk`）：
+`npm install @rushdb/javascript-sdk`：
 
 ```typescript
 import RushDB from '@rushdb/javascript-sdk'
 
-const db = new RushDB(process.env.RUSHDB_TOKEN, { direct: true, engineUrl: 'http://127.0.0.1:3000' })
+const db = new RushDB('local-token', {
+  direct: true,
+  engineUrl: 'http://127.0.0.1:3000'
+})
 
+// Nested JSON becomes linked records: COMPANY -> DEPARTMENT -> EMPLOYEE
+await db.records.importJson({
+  label: 'COMPANY',
+  data: {
+    name: 'Acme',
+    DEPARTMENT: [
+      {
+        name: 'Engineering',
+        EMPLOYEE: [
+          { name: 'Ada', role: 'Staff Engineer', salary: 180000 },
+          { name: 'Linus', role: 'Engineer', salary: 140000 }
+        ]
+      },
+      {
+        name: 'Sales',
+        EMPLOYEE: [
+          { name: 'Grace', role: 'Account Executive', salary: 120000 }
+        ]
+      }
+    ]
+  },
+  options: { relationshipType: 'HAS' }
+})
+
+// Graph: filter across relationships by naming the related labels
 const engineers = await db.records.find({
   labels: ['EMPLOYEE'],
-  where: { role: { $contains: 'Engineer' }, DEPARTMENT: { COMPANY: { name: 'Acme' } } },
+  where: {
+    role: { $contains: 'Engineer' },
+    DEPARTMENT: { COMPANY: { name: 'Acme' } }
+  },
   orderBy: { name: 'asc' }
 })
-console.log(engineers.data.map((employee) => employee.data.name)) // [ 'Ada', 'Linus' ]
+console.log(engineers.data.map((employee) => employee.data.name))
+// [ 'Ada', 'Linus' ]
+
+// Analytics: headcount and average salary per department
+const perDepartment = await db.records.find({
+  labels: ['EMPLOYEE'],
+  where: { DEPARTMENT: { $alias: '$department' } },
+  select: {
+    people: { $count: '*' },
+    avgSalary: { $avg: '$record.salary' }
+  },
+  groupBy: ['$department.name']
+})
+console.log(perDepartment.data.map((row) => row.data))
+// [ { name: 'Engineering', people: 2, avgSalary: 160000 },
+//   { name: 'Sales', people: 1, avgSalary: 120000 } ]
+
+// The live schema an agent reads before it writes a query
+console.log((await db.ai.getSchemaMarkdown()).data)
 ```
 
-Gremlin、SQL/PGQ `GRAPH_TABLE`、Mongo 风格文档和 ISO GQL 使用同一个 HTTP 端点。参见[查询语言](docs/manual/languages/README.md)。
+</details>
 
-## 功能一览
+已经熟悉 SQL？标签就是表：
 
-| 能力 | 含义 |
-|---|---|
-| **无需设计 schema** | 写入任意形状的 JSON。类型按值推断，嵌套对象成为相互连接的记录，引擎维护一份精确的标签、属性和关系目录，并且可以查询。 |
-| **属性是一等公民** | 标签化元属性图（Labeled Meta-Property Graph，LMPG）把每个属性存储为一个带类型的定义，由使用它的记录共享，因此 schema 发现、取值范围和分面统计直接来自存储布局本身。 |
-| **多种查询语言** | 原生 JSON 查询语言、SQL、Gremlin、SQL/PGQ、Mongo 风格文档，以及处于候选发布阶段的 openCypher 和 ISO GQL。 |
-| **搜索** | 基于你提供的向量的向量索引（精确和 HNSW）、BM25 全文索引，以及融合两者的混合搜索。 |
-| **持久且支持事务** | 预写日志、MVCC 快照、多语句事务、支持时间点恢复的备份，以及到只读从节点的流式复制。 |
-| **标准协议** | 一个进程同时提供 HTTP、PostgreSQL 线协议、gRPC 和 Bolt。 |
-| **多租户** | 可选的故障即拒绝（fail-closed）租户模式，每个租户拥有独立的键空间。 |
-| **一个二进制文件** | `rushdb serve` 运行服务器；`rushdb up` 运行本地节点。无需运维其他服务。 |
+```bash
+PGPASSWORD=local-token psql \
+  "host=127.0.0.1 port=5432 user=rushdb dbname=rushdb sslmode=disable" \
+  -c "SELECT name, role, salary FROM employee ORDER BY salary DESC"
+```
+
+下一步：[完整的快速开始](https://docs.rushdb.com/engine/getting-started/quickstart/) ·
+[Docker 及其他安装方式](https://docs.rushdb.com/engine/getting-started/installation/)
+
+## 智能体查询前看到的内容
+
+快速入门的最后一行打印出智能体最先读取的 schema。它来自每次写入都会更新的目录，而不是对记录的扫描：
+
+```text
+# Graph Schema
+
+## Labels
+
+| Label | Count |
+|-------|------:|
+| `EMPLOYEE` | 3 |
+| `DEPARTMENT` | 2 |
+| `COMPANY` | 1 |
+
+---
+
+## `EMPLOYEE` (3 records)
+
+### Properties
+
+| Property | Type | Values / Range | Semantic Search |
+|----------|------|----------------|-----------------|
+| `name` | string | `Ada`, `Linus`, `Grace` | — |
+| `role` | string | `Staff Engineer`, `Engineer`, `Account Executive` | — |
+| `salary` | number | `120000`..`180000` | — |
+
+### Relationships
+
+| Traversal | Count | Edge Properties |
+|-----------|------:|-----------------|
+| `(EMPLOYEE)<-[:HAS]-(DEPARTMENT)` | 3 | — |
+
+---
+
+## `DEPARTMENT` (2 records)
+
+### Properties
+
+| Property | Type | Values / Range | Semantic Search |
+|----------|------|----------------|-----------------|
+| `name` | string | `Engineering`, `Sales` | — |
+
+### Relationships
+
+| Traversal | Count | Edge Properties |
+|-----------|------:|-----------------|
+| `(DEPARTMENT)<-[:HAS]-(COMPANY)` | 2 | — |
+| `(DEPARTMENT)-[:HAS]->(EMPLOYEE)` | 3 | — |
+
+---
+
+## `COMPANY` (1 record)
+
+### Properties
+
+| Property | Type | Values / Range | Semantic Search |
+|----------|------|----------------|-----------------|
+| `name` | string | `Acme` | — |
+
+### Relationships
+
+| Traversal | Count | Edge Properties |
+|-----------|------:|-----------------|
+| `(COMPANY)-[:HAS]->(DEPARTMENT)` | 2 | — |
+```
+
+在规模大、类型多的存储上，智能体不会一次加载全部内容。它从概览逐步收窄到精确的值，每次只做一次小的读取（与上面是同一次运行）：
+
+```python
+# 1. Labels and their record counts: a cheap first read on any store
+print(db.labels.find({})["data"])
+# {'COMPANY': 1, 'DEPARTMENT': 2, 'EMPLOYEE': 3}
+
+# 2. The real names behind the words in a question
+print(db.ai.resolve_names("employees.salaries").data)
+# [{'label': 'EMPLOYEE', 'property': 'salary', 'score': 1.0}]
+
+# 3. The schema of only the labels the question needs
+print(db.ai.get_schema_markdown({"labels": ["EMPLOYEE"]}).data)
+# the EMPLOYEE part of the schema above; the other labels are left out
+
+# 4. The fields of the records a filter keeps, with counts
+props = db.properties.find({
+    "labels": ["EMPLOYEE"],
+    "where": {"DEPARTMENT": {"name": "Sales"}},
+})["data"]
+print([(p["name"], p["recordsCount"]) for p in props])
+# [('name', 1), ('role', 1), ('salary', 1)]
+
+# 5. Where a value from the question is stored, even misspelled
+matches = db.ai.search_values("enginer", match="similar").data["matches"]
+print([(m["label"], m["property"], m["value"]) for m in matches])
+# [('EMPLOYEE', 'role', 'Engineer'), ('EMPLOYEE', 'role', 'Staff Engineer'),
+#  ('DEPARTMENT', 'name', 'Engineering')]
+
+# 6. The exact stored spellings of one field, with counts
+role = next(p["id"] for p in props if p["name"] == "role")
+print(db.properties.values(role, query="eng")["data"])
+# {'values': ['Engineer', 'Staff Engineer'], 'counts': [1, 1],
+#  'distinctCount': 2}
+```
+
+`get_schema_summary` 以 JSON 返回同一份目录，包含去重计数和小字段的取值。MCP 服务器把每种读取都提供为工具：`findLabels`, `resolveNames`, `getSchemaMarkdown`, `findProperties`, `searchValues`, `propertyValues` 和 `getSchemaSummary`。
 
 ## 部署
 
-| 环境 | 方式 |
+| 位置 | 方式 |
 |---|---|
-| Docker | `docker run -p 127.0.0.1:3000:3000 -v rushdb:/data -e RUSHDB_TOKEN=change-me rushdb/rushdb` |
-| Docker Compose | [`deploy/templates/docker-compose`](deploy/templates/docker-compose/)，另有通过 Caddy 提供 HTTPS 的版本 |
-| Kubernetes | [Helm chart](charts/rushdb/)：`helm install rushdb oci://ghcr.io/rush-db/charts/rushdb --set auth.token=...` |
-| Linux 虚拟机 | 适用于 DigitalOcean、Hetzner、AWS、GCP、Azure 的 [cloud-init](deploy/templates/cloud-init/)；[systemd 单元](deploy/templates/systemd/) |
-| 平台 | [Fly.io](deploy/templates/fly/)、[Render](deploy/templates/render/)、[Coolify](deploy/templates/coolify/)、[Dokploy](deploy/templates/dokploy/) |
+| Docker | `docker run -p 127.0.0.1:3000:3000 -v rushdb:/data -e RUSHDB_TOKEN=change-me rushdb/rushdb:3` |
+| Docker Compose | [`deploy/templates/docker-compose`](https://github.com/rush-db/rushdb/tree/main/deploy/templates/docker-compose)，另有经 Caddy 提供 HTTPS 的版本 |
+| Kubernetes | [Helm chart](https://github.com/rush-db/rushdb/tree/main/charts/rushdb): `helm install rushdb oci://ghcr.io/rush-db/charts/rushdb --set auth.token="$(openssl rand -hex 32)"` |
+| Linux 虚拟机 | [cloud-init](https://github.com/rush-db/rushdb/tree/main/deploy/templates/cloud-init) 适用于 DigitalOcean、Hetzner、AWS、Google Cloud 和 Azure; [systemd 单元](https://github.com/rush-db/rushdb/tree/main/deploy/templates/systemd) |
+| 平台 | [Fly.io](https://github.com/rush-db/rushdb/tree/main/deploy/templates/fly), [Render](https://github.com/rush-db/rushdb/tree/main/deploy/templates/render), [Coolify](https://github.com/rush-db/rushdb/tree/main/deploy/templates/coolify), [Dokploy](https://github.com/rush-db/rushdb/tree/main/deploy/templates/dokploy) |
 
 [![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/rush-db/rushdb)
+
+端口、探针、容量规划以及作为服务运行：参见 [部署运维](https://docs.rushdb.com/engine/operations/deployment/)。所有方式汇总在一页：
+[docs.rushdb.com/deploy](https://docs.rushdb.com/deploy/)。
 
 ### 其他安装方式
 
 | 方式 | 命令 | 说明 |
 |---|---|---|
-| 安装脚本 | `curl -fsSL https://raw.githubusercontent.com/rush-db/rushdb/main/install.sh \| sh` | Linux（glibc 2.28+）和 macOS，x86-64 与 arm64。`sh -s -- --version v3.0.0` 可固定版本。 |
-| Homebrew | `brew install rush-db/tap/rushdb` | macOS 和 Linux。`brew services start rushdb` 在后台运行。 |
-| Docker | `rushdb/rushdb` | `linux/amd64` 和 `linux/arm64`；也可用 `ghcr.io/rush-db/rushdb`。 |
-| Cargo | `cargo binstall rushdb-server` 或 `cargo install rushdb-server --locked` | `binstall` 下载发布的二进制；`install` 从源码编译（需要 C++ 编译器）。 |
-| 发布包 | [GitHub releases](https://github.com/rush-db/rushdb/releases) | 带 SHA-256 校验和、SBOM 和 Sigstore 签名的压缩包。 |
-| 源码 | `cargo build --release -p rushdb-server --bin rushdb` | 参见[安装](docs/manual/getting-started/installation.md)。 |
+| 安装脚本 | `curl -fsSL https://rushdb.com/install.sh \| sh` | Linux（glibc 2.28+）和 macOS 11+，x86-64 与 arm64。`sh -s -- --version v3.0.0` 可固定版本。 |
+| Homebrew | `brew install rush-db/tap/rushdb` | macOS 和 Linux。`brew services start rushdb` 让它在后台运行。 |
+| Docker | `rushdb/rushdb:3` | `linux/amd64` 和 `linux/arm64`，也可用 `ghcr.io/rush-db/rushdb`。标签有 `3`、`3.0` 和具体版本号。 |
+| Cargo | `cargo binstall rushdb-server` · `cargo install rushdb-server --locked` | `binstall` 下载发布的二进制文件；`install` 从源码编译，需要 C/C++ 编译器。 |
+| 发布压缩包 | [GitHub releases](https://github.com/rush-db/rushdb/releases) | 附带 SHA-256 校验和、SPDX SBOM 和 Sigstore 签名。 |
+| 源码 | `cargo build --release -p rushdb-server --bin rushdb` | 工具链固定在 `rust-toolchain.toml` 中。参见 [安装](https://docs.rushdb.com/engine/getting-started/installation/)。 |
 
-不原生支持 Windows；请使用 WSL 2 或 Docker。在把节点暴露到本机以外之前，请阅读[安全](docs/manual/operations/security.md)。
+不原生支持 Windows，请使用 WSL 2 或 Docker。在把节点暴露到回环地址之外之前，
+请先阅读 [安全](https://docs.rushdb.com/engine/operations/security/)。
 
-## 状态
+## 你可以构建什么
 
-| 领域 | 状态 |
-|---|---|
-| 原生协议、SQL、Gremlin 文本遍历、Mongo 风格文档 | 稳定 |
-| SQL/PGQ `GRAPH_TABLE` | 稳定，只读 |
-| openCypher、ISO GQL、Bolt | 候选发布，需手动启用：外部一致性测试套件尚未全部通过（[详情](docs/manual/languages/README.md)） |
-| PostgreSQL 线协议 | SQL 读取和单语句写入；已用 `psql`、node-postgres、psycopg 和 `tokio-postgres` 验证，并非所有客户端或 ORM |
-| 复制 | 到只读从节点的异步流式复制；需手动提升，没有自动故障转移 |
-| Raft、存储分片 | 预览，不适合生产：Raft 在单进程内运行且状态在内存中；跨分片提交不具备崩溃原子性 |
+- **智能体记忆。** 记忆是按用户、智能体或会话划分的记录，并与产生它的那一轮对话相连，因此召回时能看到记忆的来源。提供现成的 OpenClaw 和 Hermes 记忆提供程序。
+- **企业大脑与 RAG。** 文档、CRM、客服和账单数据以各自的形态写入，并通过它们本就共有的键相连，例如邮箱或账户 ID。检索先过滤到正确的账户或版本，再用向量和 BM25 一起排序，每条事实都引用其背后的记录。
+- **分面搜索。** 筛选栏的计数来自目录，按当前筛选条件计算且精确，混合搜索也在同一筛选条件下排序。无需另外同步一个搜索索引。
+- **应用内的 AI 搜索与助手。** 文本索引和向量索引就在数据库里，随应用写入保持最新；SDK、MCP 服务器和 SQL 客户端读取的是同一批记录。
+- **智能体驱动的数据分析。** 智能体先读取有哪些标签和字段、每个值是如何拼写的，再据此写 SQL、Cypher 或聚合查询。每个答案都附带任何人都能重跑的查询。给智能体一个[只读令牌](https://docs.rushdb.com/engine/connectivity/authentication/#capability-tokens)，引擎就会拒绝它的所有写入。
+- **schema 随时演进的应用。** 写入任意 JSON：类型自动推断，嵌套对象变成相互连接的记录，新字段随添加它的那次写入出现在目录中。无需迁移。
 
-[手册](docs/manual/README.md)记录了每个接口的确切限制。
+## 功能
+
+- **涌现式 schema。** 按每个值推断类型，嵌套对象变成相互连接的记录，目录保存精确的计数和值列表。[Schema 目录](https://docs.rushdb.com/engine/data-model/schema-catalog/)
+- **图查询。** 按标签跨关系过滤，按类型和方向限定关系，并绑定相关记录用于投影和聚合。[关系与遍历](https://docs.rushdb.com/engine/query/relationships-and-traversal/)
+- **内置搜索。** 基于你提供的向量建立向量索引，BM25 全文搜索，以及融合两者的混合搜索。[索引与搜索](https://docs.rushdb.com/engine/indexes-and-search/)
+- **聚合。** `select` 和 `groupBy`，支持计数、求和、平均值、时间分桶和嵌套集合。[聚合](https://docs.rushdb.com/engine/query/aggregations/)
+- **支持你在用的语言。** 基于 PostgreSQL 线协议的 SQL、Gremlin、SQL/PGQ、Mongo 风格文档，以及处于候选发布阶段的 openCypher 和 ISO GQL。[查询语言](https://docs.rushdb.com/engine/languages/)
+- **持久可靠。** 预写日志、事务、支持时间点恢复的备份，以及只读副本。[运维](https://docs.rushdb.com/engine/operations/)
+- **一个二进制文件。** 由同一个进程提供 HTTP、PostgreSQL 线协议、gRPC 和 Bolt，可选隔离的租户。[连接方式](https://docs.rushdb.com/engine/connectivity/)
 
 ## 连接
 
 | 接口 | 默认 | 启用方式 |
 |---|---|---|
-| HTTP 原生协议 | `127.0.0.1:3000`，`POST /protocol/v1/execute` | 始终开启 |
-| PostgreSQL 线协议 | `127.0.0.1:5432` | 启用 `sql` 时开启（默认） |
-| gRPC（`rushdb.v1.Database/Execute`） | 关闭 | `--grpc-port` |
-| Bolt 5.0 | 关闭 | `--bolt-port` 并启用 `cypher` |
+| [HTTP 原生协议](https://docs.rushdb.com/engine/connectivity/http-api/) | `127.0.0.1:3000`, `POST /protocol/v1/execute` | 始终开启；用 `--port` 改端口 |
+| [PostgreSQL 线协议](https://docs.rushdb.com/engine/connectivity/postgresql-wire/) | `127.0.0.1:5432` | 启用 `sql` 时开启（默认启用）；`--pgwire-port 0` 关闭它 |
+| [gRPC](https://docs.rushdb.com/engine/connectivity/grpc/) (`rushdb.v1.Database/Execute`) | 关闭 | `--grpc-port <port>` |
+| [Bolt 5.0](https://docs.rushdb.com/engine/connectivity/bolt/) | 关闭 | `--bolt-port <port>`，并在 `--languages` 中加入 `cypher` |
+| [本地 MCP](https://docs.rushdb.com/connect/mcp/) (`@rushdb/mcp-server`, [tools](https://docs.rushdb.com/learn/reference/mcp/tools/)) | stdio: `npx -y @rushdb/mcp-server` | 以直连模式连接自托管引擎： `RUSHDB_MODE=direct`, `RUSHDB_ENGINE_URL`, `RUSHDB_ENGINE_TOKEN` |
+| [托管 MCP](https://docs.rushdb.com/connect/mcp/) | `https://mcp.rushdb.com/mcp`, 面向 ChatGPT、Claude.ai 及其他 Web 客户端的 OAuth | RushDB Cloud 功能，无需安装 |
 
-[JavaScript](https://www.npmjs.com/package/@rushdb/javascript-sdk) 和 [Python](https://pypi.org/project/rushdb/) SDK、[MCP 服务器](https://www.npmjs.com/package/@rushdb/mcp-server)以及[智能体技能](https://github.com/rush-db/skills)都能以直连模式使用自托管引擎。
+所有监听器都绑定 `--listen` 地址（默认 `127.0.0.1`），共用一张 TLS 证书
+（`--tls-cert`、`--tls-key`）。详见 [连接方式](https://docs.rushdb.com/engine/connectivity/)、[认证](https://docs.rushdb.com/engine/connectivity/authentication/) 和
+[SQL 与 Cypher 客户端](https://docs.rushdb.com/connect/sql-and-cypher/)。SDK、MCP 服务器以及下表中的集成都以直连模式
+连接自托管引擎：参见 [Connect](https://docs.rushdb.com/connect/)。
 
-## 自托管引擎与 RushDB Cloud
+## 生态
 
-这个引擎是 RushDB 中可以自托管的部分。它不生成嵌入、不提供控制台，也不管理用户：这些由 [RushDB Cloud](https://app.rushdb.com) 提供，它是运行此引擎的托管服务，并增加了控制台、托管嵌入和 AI 功能（自然语言搜索、关系模式建议）。SDK 和 MCP 服务器两者都能使用：给它们一个 RushDB Cloud API 密钥，或者让它们直连你的引擎（`direct: true`、`engineUrl`），这时除 Cloud 专属功能外都可使用，Cloud 专属功能会以 `CloudOnlyError` 拒绝。
+| 项目 | 适用于 |
+|---|---|
+| [`@rushdb/javascript-sdk`](https://github.com/rush-db/javascript-sdk) · [`rushdb`](https://github.com/rush-db/rushdb-python) (PyPI) | TypeScript 和 Python 应用 |
+| [`@rushdb/mcp-server`](https://github.com/rush-db/mcp-server) | Claude、Cursor 及其他 MCP 客户端 |
+| [智能体技能](https://github.com/rush-db/skills) · [智能体插件](https://github.com/rush-db/agent-plugins) | 编程智能体 |
+| [LangChain 和 LangGraph](https://github.com/rush-db/langchain-rushdb) · [LlamaIndex](https://github.com/rush-db/llama-index-rushdb) | 检索、记忆和属性图存储 |
+| [OpenClaw](https://github.com/rush-db/rushdb-openclaw-memory) · [Hermes](https://github.com/rush-db/rushdb-hermes-memory) · [记忆契约](https://github.com/rush-db/agent-memory-contract) | 智能体记忆提供程序 |
+| [Debezium sink](https://github.com/rush-db/debezium-server-rushdb) · [Obsidian 插件](https://github.com/rush-db/obsidian-plugin) | 变更数据捕获、笔记 |
 
-## 文档
+以上项目都可以配合自托管引擎使用。想让编程智能体帮你配置
+RushDB，把 [rushdb.com/agent-setup](https://rushdb.com/agent-setup) 交给它即可。
 
-- [手册](docs/manual/README.md)：入门、数据模型、查询、语言、搜索、运维和参考表。
-- [docs.rushdb.com](https://docs.rushdb.com)：教程、SDK 和 MCP 服务器。
-- [从 RushDB 2.x 升级](docs/manual/operations/upgrading-from-2x.md)：2.x 是基于 Neo4j 的版本，现位于本仓库的 `2.x` 分支。
+## 自托管与 RushDB Cloud
 
-## 版本
+本仓库就是引擎本身，你可以完整地自托管。[RushDB Cloud](https://app.rushdb.com) 为你运行同一个引擎，并增加下表中标出的功能。SDK 和 MCP 服务器两者都支持；在自托管引擎上，SDK 会在发送任何内容之前以 `CloudOnlyError` 拒绝仅限 Cloud 的调用，MCP 服务器则不提供这些工具。
 
-- **RushDB 3.x**（`main`）：当前版本。
-- **RushDB 2.x（旧版）**：基于 Neo4j 的版本，位于 [`2.x` 分支](https://github.com/rush-db/rushdb/tree/2.x)，镜像为 `rushdb/platform`。仅提供安全修复，截至 2027-10-28。
+![使用合成示例数据的 RushDB 控制台：先是记录表格，然后是公司及其部门集群的图视图，再放大到一个部门，记录面板中列出该部门的员工](https://raw.githubusercontent.com/rush-db/rushdb/main/assets/dashboard.gif)
 
-## 参与贡献
+| 功能 | 自托管引擎 | RushDB Cloud |
+|---|---|---|
+| 引擎与 API：记录、图查询、搜索、聚合、实时 schema | ✓ | ✓ |
+| SDK 与 MCP 服务器 | ✓ 直连模式，MCP 走 stdio | ✓ 另有带 OAuth 的托管 MCP |
+| 导入 JSON 和 CSV | ✓ | ✓ |
+| [控制台](https://docs.rushdb.com/rushdb-cloud/)：记录、图视图和查询构建器 | 使用 SDK 或任意 PostgreSQL 客户端 | ✓ |
+| [托管嵌入](https://docs.rushdb.com/rushdb-cloud/capabilities/) | 使用你自己模型生成的向量 | ✓ 按月额度 |
+| [自然语言搜索](https://docs.rushdb.com/learn/search-query/smart-search/) | 自己编写查询，或交给智能体 | ✓ 按月额度 |
+| [关系建议](https://docs.rushdb.com/learn/relationships/suggested-patterns/) | 自己创建关系 | ✓ |
+| 指标与过滤条件的[定义](https://docs.rushdb.com/learn/search-query/definitions/) | 把规则写在你自己的提示词和 SQL 里 | ✓ |
+| 连接 SaaS 工具的[连接](https://docs.rushdb.com/learn/data-sources/connections/)，以及用于本地数据库的 RushDB Sync | 你自己的同步代码，或 Debezium sink | ✓ |
+| 项目与 API 密钥 | 租户和令牌由你自己管理 | ✓ |
+| 团队访问 | — | 付费套餐 |
+| 备份 | 由你负责：备份、时间点恢复、副本 | 付费套餐 |
 
-参见 [CONTRIBUTING.md](CONTRIBUTING.md)。质量门禁：
+RushDB Cloud 列中的 ✓ 表示 Free 套餐已包含。套餐与额度见 [rushdb.com/pricing](https://rushdb.com/pricing)。
 
-```bash
-cargo test --workspace --no-fail-fast --locked
-cargo clippy --workspace --all-targets --locked
-cargo fmt --all -- --check
-scripts/check-quality-bar.sh
-```
+## 常见问题
 
-- [安全策略](SECURITY.md)
-- [发布流程](RELEASING.md)
-- [行为准则](CODE_OF_CONDUCT.md)
-- [变更日志](CHANGELOG.md)
+**可以用于生产环境吗？** SQL、原生 JSON 查询语言、Gremlin 和
+Mongo 风格文档已经稳定。openCypher、ISO GQL 和 Bolt 处于候选发布阶段。
+复制是异步的，需要手动提升主节点。
+[状态页](https://docs.rushdb.com/engine/reference/status/) 列出了每个
+接口及其限制。
 
-采用 [Apache-2.0](LICENSE) 许可。
+**还需要单独的向量数据库吗？** 不需要。向量、文本索引和关系都在同一个引擎里，
+记录可以和它的向量在一次提交中一起写入。引擎搜索的是你提供的向量；RushDB
+Cloud 可以替你生成向量。
+
+**什么是实时 schema？** 一份包含所有标签、属性、类型、值和关系形态的目录，
+每次提交都会更新，并带有精确计数。一次调用即可返回，因此智能体和工具不必猜测字段名。
+[Schema 目录](https://docs.rushdb.com/engine/data-model/schema-catalog/)
+
+---
+
+[贡献](https://github.com/rush-db/rushdb/blob/main/CONTRIBUTING.md) •
+[安全](https://github.com/rush-db/rushdb/blob/main/SECURITY.md) •
+[更新日志](https://github.com/rush-db/rushdb/blob/main/CHANGELOG.md) •
+[Apache-2.0](https://github.com/rush-db/rushdb/blob/main/LICENSE)
+
+RushDB 2.x（旧版，基于 Neo4j）位于
+[`2.x` 分支](https://github.com/rush-db/rushdb/tree/2.x)，安全修复将持续
+到 2027-10-28。[从 2.x 升级](https://docs.rushdb.com/engine/operations/upgrading-from-2x/)
