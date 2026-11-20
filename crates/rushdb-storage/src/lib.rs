@@ -575,6 +575,8 @@ pub struct Store {
     logical_cache_resources: Option<resources::ByteBudget>,
     /// Shared reservation pool for in-flight query/adapter phases.
     phase_resources: Option<resources::ByteBudget>,
+    /// Queue for a request's phase token from `phase_resources`.
+    phase_admission: Option<Arc<resources::FairAdmission>>,
     /// Per-adapter attribution children of the two budgets above.
     adapter_budgets: adapter_budgets::AdapterBudgets,
     /// Resident layers and the version table every commit raises.
@@ -788,6 +790,9 @@ impl Store {
             resources,
             transaction_resources,
             logical_cache_resources,
+            phase_admission: phase_resources
+                .clone()
+                .map(|budget| Arc::new(resources::FairAdmission::new(budget))),
             phase_resources,
             adapter_budgets,
             residents,
@@ -1082,6 +1087,13 @@ impl Store {
     #[must_use]
     pub fn phase_budget(&self) -> Option<resources::ByteBudget> {
         self.phase_resources.clone()
+    }
+
+    /// FIFO admission to [`Self::phase_budget`]: a request waits here for
+    /// its phase token while the pool is full, instead of being refused.
+    #[must_use]
+    pub fn phase_admission(&self) -> Option<Arc<resources::FairAdmission>> {
+        self.phase_admission.clone()
     }
 
     /// All open shard backends, in shard order.

@@ -64,11 +64,27 @@ pub struct ExecutionContext {
 
 const PHASE_RESERVATION_BYTES: usize = 8 * 1024 * 1024;
 
+/// The longest a request without a deadline waits for its phase token.
+const PHASE_WAIT_WITHOUT_DEADLINE: Duration = Duration::from_secs(30);
+
+/// A cancellation flag no one sets: a queued request ends by its deadline.
+fn never_cancelled() -> Arc<std::sync::atomic::AtomicBool> {
+    static NEVER: std::sync::OnceLock<Arc<std::sync::atomic::AtomicBool>> =
+        std::sync::OnceLock::new();
+    NEVER.get_or_init(Arc::default).clone()
+}
+
 impl ExecutionContext {
     /// Create a context over a pinned view of the current committed state.
     ///
+    /// The request's phase token comes from the store's shared phase pool;
+    /// while the pool is full the request waits for one in arrival order,
+    /// until its deadline (30 seconds without one), rather than being
+    /// refused at once: a burst of slow requests queues instead of failing.
+    ///
     /// # Errors
-    /// Returns [`ExecutionError::Storage`] when the read view cannot be opened.
+    /// Returns [`ExecutionError::Storage`] when the read view cannot be opened,
+    /// and [`ExecutionError::Budget`] when no phase token frees up in time.
     pub fn new(
         store: &Arc<Store>,
         tenant: TenantId,
@@ -76,15 +92,24 @@ impl ExecutionContext {
         deadline: Option<Duration>,
         byte_budget: Option<usize>,
     ) -> Result<Self, ExecutionError> {
+        // The deadline runs from arrival: time spent queued for a token is
+        // the request's own.
+        let arrived = Instant::now();
         let phase_reservation = store
-            .phase_budget()
-            .map(|budget| {
-                let available = budget.available();
-                budget
-                    .try_reserve(PHASE_RESERVATION_BYTES)
+            .phase_admission()
+            .map(|admission| {
+                let wait = deadline.unwrap_or(PHASE_WAIT_WITHOUT_DEADLINE);
+                let wait_until = std::time::SystemTime::now()
+                    .checked_add(wait)
+                    .and_then(|at| at.duration_since(std::time::UNIX_EPOCH).ok())
+                    .map_or(u64::MAX, |at| {
+                        u64::try_from(at.as_millis()).unwrap_or(u64::MAX)
+                    });
+                admission
+                    .acquire(PHASE_RESERVATION_BYTES, wait_until, &never_cancelled())
                     .map_err(|_| ExecutionError::Budget {
                         requested: PHASE_RESERVATION_BYTES,
-                        remaining: available,
+                        remaining: store.phase_budget().map_or(0, |budget| budget.available()),
                     })
             })
             .transpose()?;
@@ -92,7 +117,7 @@ impl ExecutionContext {
             tenant,
             operation,
             read_view: Arc::new(store.read_view_for_tenant(&tenant)?),
-            deadline: deadline.map(|duration| Instant::now() + duration),
+            deadline: deadline.map(|duration| arrived + duration),
             byte_budget,
             charged_bytes: 0,
             policy_generation: 0,
@@ -278,16 +303,19 @@ mod tests {
             Some(1),
         )
         .unwrap();
+        // A second waits for the token until its deadline, then is refused.
+        let asked = Instant::now();
         assert!(matches!(
             ExecutionContext::new(
                 &store,
                 TenantId::single(),
                 OperationClass::Read,
-                None,
+                Some(Duration::from_millis(50)),
                 Some(1),
             ),
             Err(ExecutionError::Budget { .. })
         ));
+        assert!(asked.elapsed() >= Duration::from_millis(50));
         drop(first);
         ExecutionContext::new(
             &store,
@@ -331,12 +359,61 @@ mod tests {
         let first =
             ExecutionContext::new(&store, TenantId::single(), OperationClass::Read, None, None)
                 .unwrap();
+        let soon = Some(Duration::from_millis(20));
         assert!(matches!(
-            ExecutionContext::new(&store, TenantId::single(), OperationClass::Read, None, None,),
+            ExecutionContext::new(&store, TenantId::single(), OperationClass::Read, soon, None),
             Err(ExecutionError::Budget { .. })
         ));
         drop(first);
         ExecutionContext::new(&store, TenantId::single(), OperationClass::Read, None, None)
             .unwrap();
+    }
+
+    /// VEC-5: a burst of requests larger than the phase pool queues for
+    /// tokens instead of being refused (exact vector searches during an ANN
+    /// warm-up got 429), and each waits in arrival order until one frees.
+    #[test]
+    fn a_full_phase_pool_queues_requests_until_a_token_frees() {
+        let resources = StorageResources {
+            phase_budget_bytes: 2 * PHASE_RESERVATION_BYTES,
+            ..StorageResources::default()
+        };
+        let store = Arc::new(Store::new_with_resources(resources).unwrap());
+        let open = |deadline| {
+            ExecutionContext::new(
+                &store,
+                TenantId::single(),
+                OperationClass::Read,
+                deadline,
+                None,
+            )
+        };
+        let held: Vec<_> = (0..2).map(|_| open(None).unwrap()).collect();
+        let waiters: Vec<_> = (0..4)
+            .map(|_| {
+                let store = Arc::clone(&store);
+                std::thread::spawn(move || {
+                    let context = ExecutionContext::new(
+                        &store,
+                        TenantId::single(),
+                        OperationClass::Read,
+                        Some(Duration::from_secs(10)),
+                        None,
+                    )?;
+                    // Hold the token a moment, as a request does.
+                    std::thread::sleep(Duration::from_millis(20));
+                    drop(context);
+                    Ok::<_, ExecutionError>(())
+                })
+            })
+            .collect();
+        std::thread::sleep(Duration::from_millis(100));
+        drop(held);
+        for waiter in waiters {
+            waiter
+                .join()
+                .unwrap()
+                .expect("a queued request gets a token");
+        }
     }
 }
