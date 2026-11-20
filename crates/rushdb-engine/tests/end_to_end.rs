@@ -234,6 +234,7 @@ fn assert_exists_search(engine: &Engine, scope: &str) {
         order_by: Vec::new(),
         force_scan: false,
         projection: Vec::new(),
+        order_distance: std::collections::BTreeMap::new(),
     };
     let page = engine.search(Some(scope), &req).unwrap();
     assert_eq!(page.total_matched, 2);
@@ -287,6 +288,7 @@ fn assert_related_search(engine: &Engine, scope: &str) {
         order_by: Vec::new(),
         force_scan: false,
         projection: Vec::new(),
+        order_distance: std::collections::BTreeMap::new(),
     };
     let page2 = engine.search(Some(scope), &req_related).unwrap();
     assert_eq!(page2.total_matched, 1);

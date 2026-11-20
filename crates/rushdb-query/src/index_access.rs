@@ -191,6 +191,41 @@ fn starts_with<R: TryRead>(
     Ok(Some(owners))
 }
 
+/// Index cell ranges a `$within` reads: enough to keep the cover close to
+/// the region, few enough to keep the scans few.
+const WITHIN_RANGES: usize = 16;
+
+/// Owners holding a point in `region`: the Hilbert cell ranges covering
+/// its bounding box, each point checked exactly.
+fn within<R: TryRead>(
+    snap: &R,
+    tenant: TenantId,
+    defs: &[IndexDef],
+    region: &serde_json::Value,
+    owner_limit: usize,
+) -> Result<Option<OwnerSet>, QueryError> {
+    let region = crate::spatial::Region::parse(region).map_err(QueryError::InvalidPredicate)?;
+    let mut owners = OwnerSet::new();
+    for (start, end) in crate::spatial::entry_ranges(&region, WITHIN_RANGES) {
+        scan(
+            snap,
+            tenant,
+            defs,
+            (&start, &end),
+            &|entry| {
+                entry.split_first().is_some_and(|(&tag, payload)| {
+                    tag == LogicalType::Point.tag()
+                        && rushdb_types::types::point::decode(payload)
+                            .is_some_and(|at| region.contains(at))
+                })
+            },
+            &mut owners,
+            owner_limit,
+        )?;
+    }
+    Ok(Some(owners))
+}
+
 /// The leaf's property name when an ordered index can answer it.
 fn indexed_property(expr: &Expr) -> Option<&str> {
     match expr {
@@ -201,7 +236,8 @@ fn indexed_property(expr: &Expr) -> Option<&str> {
             | FieldPred::Gte(name, _)
             | FieldPred::Lt(name, _)
             | FieldPred::Lte(name, _)
-            | FieldPred::StartsWith(name, _),
+            | FieldPred::StartsWith(name, _)
+            | FieldPred::Within(name, _),
         ) => Some(name),
         _ => None,
     }
@@ -351,6 +387,9 @@ fn leaf_owners_uncached<R: TryRead>(
         }
         Expr::Field(FieldPred::StartsWith(_, prefix)) => {
             starts_with(snap, tenant, &defs, prefix, owner_limit)
+        }
+        Expr::Field(FieldPred::Within(_, region)) => {
+            within(snap, tenant, &defs, region, owner_limit)
         }
         _ => Ok(None),
     }

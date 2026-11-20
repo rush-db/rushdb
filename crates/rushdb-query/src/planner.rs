@@ -326,7 +326,9 @@ fn leaf_estimate<R: TryRead>(
         Expr::Or(items) if !items.is_empty() && items.iter().all(is_id_leaf) => {
             Some(items.len() as u64)
         }
-        Expr::Field(FieldPred::IsNull(_, true) | FieldPred::Exists(_, true)) => Some(u64::MAX),
+        Expr::Field(
+            FieldPred::IsNull(_, true) | FieldPred::Exists(_, true) | FieldPred::Within(..),
+        ) => Some(u64::MAX),
         // A bounded estimate from the on-demand value distribution
         // (never surfaced as EXPLAIN's exact field, see `is_range_leaf`).
         Expr::Field(FieldPred::Gt(name, bound)) => {
@@ -608,6 +610,9 @@ fn leaf_owners<R: TryRead + Sync>(
         Expr::Field(FieldPred::IsNull(name, true)) => {
             owners_with_presence(snap, tenant, name, true, labels, owner_limit)
         }
+        Expr::Field(FieldPred::Within(name, region)) => {
+            owners_within(snap, tenant, name, region, scope)
+        }
         Expr::Field(FieldPred::Gt(name, bound)) => {
             owners_with_range(snap, tenant, name, RangeOp::Gt, bound, scope)
         }
@@ -753,6 +758,41 @@ fn owners_with_range<R: TryRead + Sync>(
         if !owners_matching(snap, tenant, pid, scope, &mut owners, &keep)? {
             return Ok(None);
         }
+    }
+    Ok(Some(owners))
+}
+
+/// Owners holding a point in `region`, walking the point property's
+/// holders when no index answers it.
+fn owners_within<R: TryRead + Sync>(
+    snap: &R,
+    tenant: rushdb_types::ids::TenantId,
+    name: &str,
+    region: &Json,
+    scope: &LeafScope<'_>,
+) -> Result<Option<OwnerSet>, QueryError> {
+    let region = crate::spatial::Region::parse(region).map_err(QueryError::InvalidPredicate)?;
+    let norm = normalize(name);
+    if norm.is_empty() || rushdb_types::value::is_reserved_name(&norm) {
+        return Ok(None);
+    }
+    let Some(fid) = family_id(snap, tenant, &norm)? else {
+        return Ok(Some(OwnerSet::new()));
+    };
+    let mut owners = OwnerSet::new();
+    let Some(pid) = property_id(snap, tenant, fid, LogicalType::Point)? else {
+        return Ok(Some(owners));
+    };
+    let keep = |occ: &access::Occurrence| {
+        matches!(
+            occ.value,
+            rushdb_types::occurrence::OccurrenceValue::Stored {
+                ty: LogicalType::Point
+            }
+        ) && rushdb_types::types::point::decode(&occ.payload).is_some_and(|at| region.contains(at))
+    };
+    if !owners_matching(snap, tenant, pid, scope, &mut owners, &keep)? {
+        return Ok(None);
     }
     Ok(Some(owners))
 }

@@ -448,3 +448,70 @@ fn a_descending_index_page_streams_a_value_held_by_every_record() {
         .collect();
     assert_eq!(scores, (0..20).collect::<Vec<_>>());
 }
+
+/// `records` records of label `Place` with an indexed point `where`: the
+/// first 50 within a few kilometers of Berlin, every other one spread over
+/// the southern hemisphere.
+#[expect(
+    clippy::cast_precision_loss,
+    reason = "a small record number spread into coordinates"
+)]
+fn places(records: u64) -> Lmpg {
+    use rushdb_types::types::{point, to_doc_json};
+    let lmpg = Lmpg::new(Arc::new(Store::new_in_memory()), TenantId::from_ordinal(5));
+    for chunk in (0..records).collect::<Vec<_>>().chunks(2_000) {
+        let mut tx = lmpg.begin_batch();
+        for &n in chunk {
+            let (x, y) = if n < 50 {
+                (13.4 + (n % 10) as f64 * 0.01, 52.5 + (n / 10) as f64 * 0.01)
+            } else {
+                (
+                    (n * 37 % 3_600) as f64 / 10.0 - 180.0,
+                    -10.0 - (n * 13 % 500) as f64 / 10.0,
+                )
+            };
+            let at =
+                point::parse_geojson(&json!({"type": "Point", "coordinates": [x, y]})).unwrap();
+            tx.ops.push(BatchOp::CreateRecord {
+                label: "Place".into(),
+                explicit_id: None,
+                fields: vec![(
+                    "where".into(),
+                    FieldChange::Set(to_doc_json(&rushdb_types::value::Scalar::Point(at))),
+                )],
+            });
+        }
+        lmpg.run_batch(tx).unwrap();
+    }
+    let def = lmpg
+        .define_index("place_where", "Place", "where", IndexKind::Ordered)
+        .unwrap();
+    while !matches!(
+        lmpg.index_step(def.id, 10_000).unwrap(),
+        IndexStep::Finished | IndexStep::Idle
+    ) {}
+    lmpg
+}
+
+#[test]
+fn an_indexed_within_page_reads_its_region_only() {
+    let berlin = json!({"type": "Point", "coordinates": [13.42, 52.52]});
+    for region in [
+        json!({"center": berlin, "meters": 20_000}),
+        json!({"box": [
+            {"type": "Point", "coordinates": [13.3, 52.4]},
+            {"type": "Point", "coordinates": [13.6, 52.7]}]}),
+    ] {
+        assert_flat_with(
+            &format!("records where $within {region}"),
+            places,
+            |lmpg, _| {
+                let document =
+                    json!({"labels": ["Place"], "where": {"where": {"$within": region}}});
+                let search = parse_document(&document).unwrap().search;
+                assert_eq!(find_records(lmpg, &search).unwrap().total_matched, 50);
+                records_reads(lmpg, &document)
+            },
+        );
+    }
+}

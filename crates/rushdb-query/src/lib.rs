@@ -69,6 +69,8 @@ pub mod document;
 mod hex;
 mod index_access;
 mod scan;
+/// Spatial predicates: regions points are tested against.
+pub mod spatial;
 mod stats_cache;
 pub use document::{ParsedQuery, QueryDocumentError};
 
@@ -118,6 +120,11 @@ pub enum FieldPred {
     },
     /// `$type` operator: "string" | "number" | "boolean" | "array" | "object"
     Type(String, String),
+    /// `$within`: the point lies in a region, `{"center": <GeoJSON Point>,
+    /// "meters": m}` or `{"box": [<south-west>, <north-east>]}`; the
+    /// argument is checked by [`spatial::Region::parse`] when the query is
+    /// read.
+    Within(String, Json),
 }
 
 /// Boolean expression tree evaluated against a reconstructed record.
@@ -449,6 +456,12 @@ pub struct SearchRequest {
     /// ORDER BY (field, desc) applied after matching, before pagination.
     #[serde(default)]
     pub order_by: Vec<(String, bool)>,
+    /// Ordered fields that order by their distance from a point
+    /// (`orderBy: {"location": {"$distance": <GeoJSON Point>}}`), by
+    /// normalized field name: the `GeoJSON` point. A point of another CRS,
+    /// or a value that is no point, sorts after every distance.
+    #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+    pub order_distance: std::collections::BTreeMap<String, Json>,
     /// Test/oracle switch: when true, the index access path is bypassed and
     /// the executor performs a full scan, letting differential tests compare
     /// the two paths on identical input.
@@ -783,6 +796,36 @@ fn find_page(
 fn sort_ordered_rows<T>(sortable: &mut [(OrderRow, T)], req: &SearchRequest) {
     for (field, desc) in req.order_by.iter().rev() {
         let field = normalize(field);
+        if let Some(center) = req
+            .order_distance
+            .get(&field)
+            .and_then(rushdb_types::types::point::parse_geojson)
+        {
+            // By distance from `center`; a value with none sorts last.
+            let distance = |row: &OrderRow| {
+                row.1
+                    .iter()
+                    .find(|(k, _)| normalize(k) == field)
+                    .and_then(|(_, v)| match rushdb_types::types::tagged_scalar(v)? {
+                        Scalar::Point(at) => rushdb_types::types::point::distance(center, at),
+                        _ => None,
+                    })
+            };
+            sortable.sort_by(|(a, _), (b, _)| {
+                let ord = match (distance(a), distance(b)) {
+                    (Some(x), Some(y)) => x.total_cmp(&y),
+                    (Some(_), None) => std::cmp::Ordering::Less,
+                    (None, Some(_)) => std::cmp::Ordering::Greater,
+                    (None, None) => std::cmp::Ordering::Equal,
+                };
+                if *desc {
+                    ord.reverse()
+                } else {
+                    ord
+                }
+            });
+            continue;
+        }
         sortable.sort_by(|((_, a), _), ((_, b), _)| {
             let va = a
                 .iter()
@@ -1558,6 +1601,10 @@ pub(crate) fn eval_pred(
                     == Some(*value)
             })
         }),
+        FieldPred::Within(name, region) => {
+            let region = spatial::Region::parse(region).map_err(QueryError::InvalidPredicate)?;
+            raw_field(obj, name).is_some_and(|value| any_element(value, |el| region.holds(el)))
+        }
         FieldPred::Type(name, expected) => {
             let want = canonical_type_alias(&expected.to_lowercase());
             let (base_want, want_array) = match want.strip_suffix("[]") {

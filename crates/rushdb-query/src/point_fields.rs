@@ -215,6 +215,7 @@ pub(super) fn predicate_fields(expr: &Expr, out: &mut std::collections::BTreeSet
             | FieldPred::In(name, _)
             | FieldPred::Nin(name, _)
             | FieldPred::Type(name, _)
+            | FieldPred::Within(name, _)
             | FieldPred::DatetimeComponent { field: name, .. },
         ) => {
             out.insert(name.clone());

@@ -256,3 +256,124 @@ fn one_name_holding_integers_and_datetimes_renders_each_by_its_value() {
         ]
     );
 }
+
+/// `$within` (a radius and a box, one across the antimeridian) and
+/// `$distance` order find exactly what a brute-force check of every point
+/// finds, both by walking the property and through a declared index.
+#[test]
+#[expect(
+    clippy::too_many_lines,
+    reason = "one scatter checked by both access paths"
+)]
+fn spatial_filters_and_distance_order_match_a_brute_force_oracle() {
+    use rushdb_types::types::point;
+    let node = node();
+    // A fixed scatter over the globe, denser around the antimeridian.
+    let mut seed = 0x2545_f491_4f6c_dd1d_u64;
+    let mut next = || {
+        seed ^= seed << 13;
+        seed ^= seed >> 7;
+        seed ^= seed << 17;
+        f64::from(u32::try_from(seed >> 40).unwrap()) / f64::from(1u32 << 24)
+    };
+    let mut points = Vec::new();
+    for at in 0..400 {
+        let (x, y) = if at % 4 == 0 {
+            (
+                179.0 + next() * 2.0 - if next() < 0.5 { 360.0 } else { 0.0 },
+                next() * 20.0 - 10.0,
+            )
+        } else {
+            (next() * 360.0 - 180.0, next() * 170.0 - 85.0)
+        };
+        let x = (x + 540.0).rem_euclid(360.0) - 180.0;
+        let geojson = json!({"type": "Point", "coordinates": [x, y]});
+        node.scope()
+            .create_record(
+                "Place",
+                &json!({"n": at, "where": geojson}),
+                &[],
+                &json!({}),
+            )
+            .unwrap();
+        points.push((at, point::parse_geojson(&geojson).unwrap()));
+    }
+    let geo = |x: f64, y: f64| json!({"type": "Point", "coordinates": [x, y]});
+    let regions = [
+        json!({"center": geo(13.4, 52.5), "meters": 2_500_000}),
+        json!({"center": geo(179.5, 0.0), "meters": 300_000}),
+        json!({"center": geo(-60.0, -30.0), "meters": 0}),
+        json!({"box": [geo(-10.0, 30.0), geo(40.0, 60.0)]}),
+        json!({"box": [geo(178.0, -5.0), geo(-178.0, 5.0)]}),
+    ];
+    let found = |predicate: &Value| {
+        let mut found: Vec<i64> = query(
+            &node,
+            &json!({"labels": ["Place"], "predicate": predicate, "limit": 1000}),
+        )["records"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|record| record["properties"]["n"].as_i64().unwrap())
+            .collect();
+        found.sort_unstable();
+        found
+    };
+    let check = |pass: &str| {
+        for region in &regions {
+            let parsed = rushdb_query::spatial::Region::parse(region).unwrap();
+            let expected: Vec<i64> = points
+                .iter()
+                .filter(|(_, at)| parsed.contains(*at))
+                .map(|(n, _)| i64::from(*n))
+                .collect();
+            assert_eq!(
+                found(&json!({"where": {"$within": region}})),
+                expected,
+                "{pass}: {region}"
+            );
+        }
+        // The five nearest to Berlin, nearest first.
+        let berlin = point::parse_geojson(&geo(13.4, 52.5)).unwrap();
+        let mut nearest: Vec<(f64, i64)> = points
+            .iter()
+            .map(|(n, at)| (point::distance(berlin, *at).unwrap(), i64::from(*n)))
+            .collect();
+        nearest.sort_by(|a, b| a.0.total_cmp(&b.0));
+        let ordered: Vec<i64> = query(
+            &node,
+            &json!({"labels": ["Place"], "order": {"where": {"$distance": geo(13.4, 52.5)}},
+                "limit": 5}),
+        )["records"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|record| record["properties"]["n"].as_i64().unwrap())
+            .collect();
+        assert_eq!(
+            ordered,
+            nearest.iter().take(5).map(|(_, n)| *n).collect::<Vec<_>>(),
+            "{pass}"
+        );
+    };
+    check("walk");
+    node.scope()
+        .create_index(&rushdb_protocol::IndexDefinition {
+            name: "places".into(),
+            label: "Place".into(),
+            property: "where".into(),
+            kind: "ordered".into(),
+            consistency: None,
+            dimensions: None,
+        })
+        .unwrap();
+    while node.step_index_builds(std::time::Duration::from_secs(5)) > 0 {}
+    check("index");
+
+    let refused = run(
+        &node,
+        &json!({"kind": "query", "query": {"kind": "records", "query":
+            {"labels": ["Place"], "predicate": {"where": {"$within": {"meters": 5}}}}}}),
+    );
+    assert!(refused.is_err(), "{refused:?}");
+}

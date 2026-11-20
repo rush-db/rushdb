@@ -67,6 +67,7 @@ const OPS: &[&str] = &[
     "$millisecond",
     "$microsecond",
     "$nanosecond",
+    "$within",
 ];
 
 fn is_op_key(k: &str) -> bool {
@@ -337,6 +338,10 @@ fn parse_one_op(field: &str, op: &str, value: &Json) -> Result<Expr, QueryDocume
             Ok(Expr::Field(FieldPred::Exists(f, want)))
         }
         "$type" => Ok(Expr::Field(FieldPred::Type(f, str_of(value)?))),
+        "$within" => {
+            crate::spatial::Region::parse(value).map_err(QueryDocumentError::Parse)?;
+            Ok(Expr::Field(FieldPred::Within(f, value.clone())))
+        }
         "$id" => parse_id(value),
         "$year" => Ok(Expr::Field(FieldPred::DatetimeComponent {
             field: f,
@@ -1135,6 +1140,26 @@ fn projected_order(
         .collect()
 }
 
+/// The `orderBy` fields that order by distance
+/// (`{"location": {"$distance": <GeoJSON Point>}}`), by normalized name.
+fn parse_order_distance(
+    v: Option<&Json>,
+) -> Result<std::collections::BTreeMap<String, Json>, QueryDocumentError> {
+    let mut out = std::collections::BTreeMap::new();
+    for (field, order) in v.and_then(Json::as_object).into_iter().flatten() {
+        let Some(center) = order.get("$distance") else {
+            continue;
+        };
+        if rushdb_types::types::point::parse_geojson(center).is_none() {
+            return Err(QueryDocumentError::Parse(
+                "$distance takes a GeoJSON point".into(),
+            ));
+        }
+        out.insert(norm(field), center.clone());
+    }
+    Ok(out)
+}
+
 /// Parse an `orderBy` value (`"asc"|"desc"` or `{field:"asc"}`) into
 /// `(normalized_field, descending)` pairs.
 pub(crate) fn parse_order_by(v: Option<&Json>) -> Vec<(String, bool)> {
@@ -1375,8 +1400,9 @@ pub fn parse_document(document: &Json) -> Result<ParsedQuery, QueryDocumentError
         })?,
     };
 
-    // orderBy: "asc"|"desc" | {field:"asc"}
+    // orderBy: "asc"|"desc" | {field:"asc"} | {field: {"$distance": point}}
     let order_by = parse_order_by(obj.get("orderBy"));
+    let order_distance = parse_order_distance(obj.get("orderBy"))?;
 
     let select = obj.get("select").cloned();
     let group_by: Vec<String> = obj
@@ -1451,6 +1477,7 @@ pub fn parse_document(document: &Json) -> Result<ParsedQuery, QueryDocumentError
             projected_order(&order_by, &projection)
         },
         projection: if is_aggregate { Vec::new() } else { projection },
+        order_distance,
         force_scan: false,
     };
 
