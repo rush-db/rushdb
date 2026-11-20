@@ -2,22 +2,16 @@
 //! not bind a non-loopback `--listen` address unless the operator explicitly
 //! acknowledges it with `--allow-insecure-listen`.
 
-use std::sync::atomic::{AtomicU16, Ordering};
-
 use rushdb_server::{new_gateway, new_router, ServerConfig};
-
-static GRPC_PORT: AtomicU16 = AtomicU16::new(39040);
 
 fn cfg(listen: &str, cleartext: bool, allow: bool) -> ServerConfig {
     ServerConfig {
         port: 0,
         listen_addr: listen.to_string(),
         pgwire_port: 0,
-        grpc_port: if cleartext {
-            GRPC_PORT.fetch_add(1, Ordering::Relaxed)
-        } else {
-            0
-        },
+        // A port free now, not a fixed range: those collided with other
+        // listeners on a busy host.
+        grpc_port: if cleartext { free_port() } else { 0 },
         bolt_port: 0,
         token: "t".into(),
         data_dir: None,
