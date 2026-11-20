@@ -440,6 +440,10 @@ fn crash_child() {
     let store = Store::open(&path).unwrap();
     configure(&store);
     let acked = path.with_extension("acked");
+    // A kill can land mid-write: write a temporary file and rename it over
+    // the count, so the parent reads the previous count or the new one,
+    // never a truncated file.
+    let acked_next = path.with_extension("acked.next");
     let steps = crash_steps(40);
     let paused_from = match scenario.as_str() {
         "paused" => 0,
@@ -451,7 +455,8 @@ fn crash_child() {
             store.pause_materialization(true);
         }
         commit(&store, *tenant, ops);
-        std::fs::write(&acked, (step + 1).to_string()).unwrap();
+        std::fs::write(&acked_next, (step + 1).to_string()).unwrap();
+        std::fs::rename(&acked_next, &acked).unwrap();
     }
     if scenario == "checkpoint" {
         // The checkpoint finds 20 commits in the gap, waits for them, and
@@ -506,6 +511,7 @@ fn killed_at(scenario: &str, env: &[(&str, &str)]) -> (u64, u64) {
     reopened.wait_materialized().unwrap();
     drop((reopened, reference));
     let _ = std::fs::remove_file(path.path().with_extension("acked"));
+    let _ = std::fs::remove_file(path.path().with_extension("acked.next"));
     crate::remove_store(&path).unwrap();
     crate::remove_store(&reference_path).unwrap();
     (acked, recovered)
