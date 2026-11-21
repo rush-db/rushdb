@@ -122,6 +122,18 @@ in [`docs/manual/operations/upgrading-from-2x.md`](docs/manual/operations/upgrad
   Before, such a file was left to the offline `rushdb serve --compact`.
 - `scripts/prune-target.py` removes stale build output from a cargo target
   directory.
+- **Where a request waits.** `rushdb_request_stage_seconds{stage}` splits
+  each HTTP protocol request into reading its body, admission, the blocking
+  worker queue, its tenant's scheduler queue, execution and the handoff
+  back; `rushdb_phase_token_waits_total` and
+  `rushdb_phase_token_wait_seconds_total` count requests that queued for a
+  phase token and how long, by pool. See
+  [Metrics](docs/manual/reference/metrics.md).
+- `scripts/gate.sh fast|full|release` is the project's gate in tiers. Tests
+  run through `scripts/run-tests.py`, one process per test binary: a binary
+  killed for memory fails by name, and memory and time budgets apply. The
+  image smoke test (`scripts/smoke-image.sh`) also runs text and hybrid
+  searches over an index created after a load.
 
 ### Performance
 
@@ -133,6 +145,12 @@ in [`docs/manual/operations/upgrading-from-2x.md`](docs/manual/operations/upgrad
   26–36 ms (median, measured in both orders against 3.0.13). A filter over
   a property with very many distinct values (a numeric range over 100,000
   values) is answered as before.
+- **Grouped aggregates over resident columns fold without allocating per
+  row.** A `groupBy` with `$count`, `$sum`, `$avg`, `$min` or `$max` over
+  up to four keys reads each metric straight from its column. On 200,000
+  records, two-key and multi-metric groupings are 15–35% faster than
+  3.0.13 (median, measured in both orders); a single count and sum is
+  unchanged. Answers are bit-identical.
 
 ### Fixed
 
