@@ -25,6 +25,7 @@ use std::io::{Read, Write};
 use std::time::Instant;
 
 const K: usize = 10;
+/// The default search breadths (`--efs 16,32,...` overrides them).
 const EFS: [usize; 5] = [16, 32, 64, 128, 256];
 /// Vectors inserted on one thread before the rest go in parallel (as a
 /// segment build does).
@@ -55,6 +56,16 @@ fn main() {
         &format!("{query_path}.top{K}-{}", base.len() / dims),
     );
     let mut out = flag("--out").map(|path| std::fs::File::create(path).expect("--out"));
+    let efs: Vec<usize> = flag("--efs").map_or_else(
+        || EFS.to_vec(),
+        |list| {
+            list.split(',')
+                .map(|ef| ef.trim().parse().expect("--efs"))
+                .collect()
+        },
+    );
+    // `--only F16,I8` keeps the grid points of those scalars at the defaults.
+    let only = flag("--only");
     let grid = [
         (usearch::ScalarKind::F16, 0, 0),
         (usearch::ScalarKind::F32, 0, 0),
@@ -67,11 +78,17 @@ fn main() {
         (usearch::ScalarKind::F16, 32, 256),
     ];
     for (quantization, connectivity, expansion_add) in grid {
+        if let Some(only) = &only {
+            let name = format!("{quantization:?}");
+            if connectivity != 0 || expansion_add != 0 || !only.split(',').any(|q| q == name) {
+                continue;
+            }
+        }
         let line = measure(
             &base,
             &queries,
             &truth,
-            dims,
+            (dims, &efs),
             threads,
             (quantization, connectivity, expansion_add),
         );
@@ -86,7 +103,7 @@ fn measure(
     base: &[f32],
     queries: &[f32],
     truth: &[Vec<u64>],
-    dims: usize,
+    (dims, efs): (usize, &[usize]),
     threads: usize,
     (quantization, connectivity, expansion_add): (usearch::ScalarKind, usize, usize),
 ) -> String {
@@ -122,7 +139,7 @@ fn measure(
     });
     let build_s = started.elapsed().as_secs_f64();
     let mut per_ef = Vec::new();
-    for ef in EFS {
+    for &ef in efs {
         let mut latencies = Vec::with_capacity(truth.len());
         let mut hits = 0usize;
         for (q, want) in queries.chunks(dims).zip(truth) {
