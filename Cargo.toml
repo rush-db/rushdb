@@ -111,3 +111,13 @@ opt-level = 1
 lto = "thin"
 codegen-units = 1
 
+# Grafeo 0.6.4 is not released yet. Until it is, build the upstream
+# release/0.6.4 branch with GrafeoDB/grafeo#807 applied (named zero-length
+# paths, grouping keys inside maps, long CREATE chains) and one more fix: a
+# database on a store of its own may answer text_match and text_score from
+# its own text indexes. The checkout lives in third_party/grafeo (branch
+# rushdb-3.0.14, local). Drop this patch for a crates.io release with both.
+[patch.crates-io]
+grafeo-common = { path = "third_party/grafeo/crates/grafeo-common" }
+grafeo-core = { path = "third_party/grafeo/crates/grafeo-core" }
+grafeo-engine = { path = "third_party/grafeo/crates/grafeo-engine" }
