@@ -54,7 +54,8 @@ Treat the move as an application migration, in three tracks:
 2. Export your 2.x data as JSON documents (one export per project).
 3. Import each project into its tenant with the `ingest` operation, which
    turns nested JSON into records and relationships. Send batches of about
-   500 documents per request:
+   5,000 documents per request (larger batches load no faster and hold
+   more memory):
 
    ```bash
    curl -s -H "Authorization: Bearer $RUSHDB_TOKEN" \
