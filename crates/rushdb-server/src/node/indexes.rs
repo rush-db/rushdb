@@ -308,7 +308,7 @@ impl Node {
             };
             for def in &defs {
                 while started.elapsed() < budget {
-                    match engine.apply_structural(def) {
+                    match engine.apply_structural(def.id) {
                         Ok(0) => break,
                         Ok(count) => applied = applied.saturating_add(count),
                         Err(error) => {

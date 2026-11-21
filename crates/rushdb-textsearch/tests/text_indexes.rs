@@ -458,7 +458,9 @@ fn an_applier_holding_the_definition_from_before_the_build_indexes_its_records()
     // covered range in one commit: judged by the older (building) range,
     // those records were skipped, then cleared as applied, and the index
     // never held them. Writes waking the applier made this the usual
-    // interleaving after "ingest, then create the index".
+    // interleaving after "ingest, then create the index". The applier now
+    // takes the index id and reads the definition at its own snapshot, so
+    // it cannot be handed the older one; the sequence stays as a test.
     for property in ["body", "*"] {
         let (lmpg, text) = setup();
         article(&lmpg, "quantum world", "machines learn quantum mechanics");
@@ -474,12 +476,149 @@ fn an_applier_holding_the_definition_from_before_the_build_indexes_its_records()
             )
             .unwrap();
         while lmpg.index_step(building.id, 1_000).unwrap() != IndexStep::Finished {}
-        while text.apply(&lmpg, &building, 100).unwrap() > 0 {}
+        while text.apply(&lmpg, building.id, 100).unwrap() > 0 {}
         let (hits, pending) = search(&lmpg, &text, "articles", "quantum");
         assert_eq!(
             (hits.len(), pending),
             (1, 0),
             "{property}: the record is indexed, not cleared as applied"
+        );
+    }
+}
+
+#[test]
+#[expect(
+    clippy::too_many_lines,
+    reason = "one seeded interleaving of every kind of step, read as a whole"
+)]
+fn any_interleaving_of_writes_builds_applies_and_redefinitions_settles_to_the_store() {
+    // Background index work in every order the workers can take: writes,
+    // build steps, applier batches, and the index dropped and declared
+    // again. Whenever the index is ready with nothing pending, a search
+    // returns exactly the records that hold the term.
+    struct Rng(u64);
+    impl Rng {
+        fn below(&mut self, n: u64) -> u64 {
+            self.0 ^= self.0 << 13;
+            self.0 ^= self.0 >> 7;
+            self.0 ^= self.0 << 17;
+            self.0 % n
+        }
+    }
+    let define = |lmpg: &Lmpg| {
+        lmpg.define_index(
+            "articles",
+            "Article",
+            "body",
+            IndexKind::Text {
+                consistency: TextConsistency::Eventual,
+            },
+        )
+        .unwrap()
+        .id
+    };
+    // Until the build or drop is done (`Idle`: nothing left, or ready).
+    let settle = |lmpg: &Lmpg, id: u32| {
+        while matches!(lmpg.index_step(id, 7).unwrap(), IndexStep::Advanced(_)) {}
+    };
+    // Every hit, not the first ten.
+    let all_hits = |lmpg: &Lmpg, text: &TextIndexes| {
+        let view = lmpg.store.read_view().unwrap();
+        let hits = text
+            .search(
+                lmpg.tenant,
+                &view,
+                rushdb_textsearch::TextQuery {
+                    index: "articles",
+                    query: "quantum",
+                    opts: LexicalOptions::default(),
+                    top_k: 1_000,
+                    count: false,
+                },
+                None,
+            )
+            .unwrap();
+        let mut owners: Vec<u64> = hits.hits.iter().map(|h| h.owner_ord).collect();
+        owners.sort_unstable();
+        (owners, hits.pending)
+    };
+    for seed in 1..=12u64 {
+        let (lmpg, text) = setup();
+        let mut rng = Rng(seed.wrapping_mul(0x9E37_79B9_7F4A_7C15));
+        let mut holders: std::collections::BTreeMap<u64, rushdb_lmpg::RecordRef> =
+            std::collections::BTreeMap::new();
+        let mut id = None;
+        for step in 0..120 {
+            match rng.below(8) {
+                0..=2 => {
+                    let quantum = rng.below(2) == 0;
+                    let record = article(
+                        &lmpg,
+                        &format!("doc {step}"),
+                        if quantum {
+                            "quantum leap"
+                        } else {
+                            "plain words"
+                        },
+                    );
+                    if quantum {
+                        holders.insert(record.ordinal, record);
+                    }
+                }
+                3 => {
+                    if let Some((&ordinal, _)) = holders.iter().next() {
+                        let record = holders.remove(&ordinal).unwrap();
+                        lmpg.delete_record(record).unwrap();
+                    }
+                }
+                4 => {
+                    if let Some(current) = id {
+                        let batch = usize::try_from(1 + rng.below(4)).unwrap();
+                        let _ = lmpg.index_step(current, batch).unwrap();
+                    }
+                }
+                5 | 6 => {
+                    if let Some(current) = id {
+                        let batch = usize::try_from(1 + rng.below(3)).unwrap();
+                        text.apply(&lmpg, current, batch).unwrap();
+                    }
+                }
+                _ => match id {
+                    None => id = Some(define(&lmpg)),
+                    Some(current) if rng.below(3) == 0 => {
+                        lmpg.drop_index("articles").unwrap();
+                        settle(&lmpg, current);
+                        text.remove(TENANT, current).unwrap();
+                        id = Some(define(&lmpg));
+                    }
+                    Some(_) => {}
+                },
+            }
+            let Some(current) = id else { continue };
+            let view = lmpg.store.read_view().unwrap();
+            let ready = rushdb_lmpg::index::by_id(&view, TENANT, current)
+                .unwrap()
+                .is_some_and(|def| def.state == rushdb_types::index::IndexState::Ready);
+            drop(view);
+            if !ready {
+                continue;
+            }
+            let (hits, pending) = all_hits(&lmpg, &text);
+            if pending == 0 {
+                let want: Vec<u64> = holders.keys().copied().collect();
+                assert_eq!(hits, want, "seed {seed}, step {step}");
+            }
+        }
+        // Settled: build to the end, apply everything.
+        let current = id.unwrap_or_else(|| define(&lmpg));
+        settle(&lmpg, current);
+        while text.apply(&lmpg, current, 100).unwrap() > 0 {}
+        let (hits, pending) = all_hits(&lmpg, &text);
+        assert_eq!(pending, 0, "seed {seed}");
+        assert_eq!(
+            hits,
+            holders.keys().copied().collect::<Vec<_>>(),
+            "seed {seed}"
         );
     }
 }

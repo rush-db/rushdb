@@ -401,6 +401,24 @@ pub fn definitions<R: TryRead + ?Sized>(r: &R, t: TenantId) -> Result<Vec<IndexD
         .collect()
 }
 
+/// Index `id` as `r` holds it, if it exists there. Background work on an
+/// index (a build step, an applier batch) reads its definition with this
+/// from the same view it reads the index's pending rows and records from,
+/// never from a definition read earlier: a step committing in between
+/// changes both together.
+///
+/// # Errors
+/// Returns [`StorageError`] if the read fails or the definition is corrupt.
+pub fn by_id<R: TryRead + ?Sized>(
+    r: &R,
+    t: TenantId,
+    id: u32,
+) -> Result<Option<IndexDef>, StorageError> {
+    r.get(&k::index_def_key(t, id))?
+        .map(|raw| decode_def(&raw))
+        .transpose()
+}
+
 /// The index called `name`, if any.
 ///
 /// # Errors
