@@ -8,10 +8,18 @@
 
 CARGO ?= cargo
 
-.PHONY: gate fmt fmt-check lint test test-doc clean
+.PHONY: gate gate-fast gate-release fmt fmt-check lint test test-doc clean
 
-## Format, lint, and test the whole workspace.
-gate: fmt-check lint test
+## The gate in tiers (scripts/gate.sh): fast before each commit, full (the
+## default) before a pull request, release before an image is handed over.
+gate:
+	scripts/gate.sh full
+
+gate-fast:
+	scripts/gate.sh fast
+
+gate-release:
+	scripts/gate.sh release
 
 ## Apply rustfmt.
 fmt:
@@ -25,9 +33,10 @@ fmt-check:
 lint:
 	$(CARGO) clippy --workspace --all-targets --locked -- -D warnings
 
-## Full test suite (unit, integration, and doc tests).
+## Full test suite (unit, integration, and doc tests), one process per test
+## binary with memory and time budgets (scripts/run-tests.py).
 test:
-	$(CARGO) test --workspace --no-fail-fast --locked
+	python3 scripts/run-tests.py
 
 ## Doc tests only (nextest users must run this separately).
 test-doc:

@@ -120,9 +120,11 @@ jobs:
         with:
           toolchain: 1.100.0
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
-      # A hung test stops the step here; libtest names it in the log
-      # ("has been running for over 60 seconds").
-      - run: cargo test --workspace --no-fail-fast --locked
+      # The same runner as scripts/gate.sh: one process per test binary, so
+      # a binary killed for memory fails by name instead of reading as
+      # passed; a binary over its memory budget or a test over 60 s (not
+      # listed in scripts/slow-tests.txt) fails too.
+      - run: python3 scripts/run-tests.py --log-dir target/test-logs
         timeout-minutes: 90
 
   fault-matrix:
