@@ -1,0 +1,5 @@
+# Releases whose crates are not published to crates.io, one per line:
+# <version>  # why
+# .github/workflows/crates.yml reads this file from the branch it runs on and
+# stops before publishing a listed release.
+3.0.14  # built with a Grafeo revision that is not on crates.io (release/0.6.4 plus GrafeoDB/grafeo#807 and #809); publishing resumes with Grafeo 0.6.4

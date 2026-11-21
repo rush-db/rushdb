@@ -60,7 +60,13 @@ in [`docs/manual/operations/upgrading-from-2x.md`](docs/manual/operations/upgrad
   `release/0.6.4` branch with two fixes applied that are not released yet:
   GrafeoDB/grafeo#807 (named zero-length paths, grouping keys inside maps,
   long `CREATE` chains) and one that lets `text_match`/`text_score` run on
-  RushDB's text indexes outside a pushed-down `WHERE`. Results that change:
+  RushDB's text indexes outside a pushed-down `WHERE` (GrafeoDB/grafeo#809).
+  The revision is `546fe7e8`: Grafeo's `release/0.6.4` at `ab59235d` with
+  those two fixes. Because that revision is not on crates.io, **3.0.14's
+  crates are not published to crates.io**: this release ships as binaries,
+  Docker images, the Helm chart and the Homebrew formula. Publishing to
+  crates.io resumes with the first release on Grafeo 0.6.4. Results that
+  change:
   - GQL refuses an unbounded quantifier without a path mode or selector, as
     ISO GQL requires: `MATCH (a)-[:R]->{0,}(b)` (or `-[:R*0..]->`) needs
     `MATCH TRAIL`, `ACYCLIC`, `SIMPLE`, a selector such as `ANY SHORTEST`,
