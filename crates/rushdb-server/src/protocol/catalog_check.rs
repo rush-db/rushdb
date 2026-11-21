@@ -5,7 +5,7 @@
 
 use rushdb_protocol::{
     Operation, ProtocolError, Query, QueryWarning, QueryWarningKind, QueryWarningSuggestion,
-    StatementLanguage, ValueMatch, ValueSearch,
+    Response, StatementLanguage, ValueMatch, ValueSearch,
 };
 use rushdb_query::catalog_check::CatalogMiss;
 
@@ -17,50 +17,68 @@ use super::{execution_failed, ProtocolExecutor};
 const SUGGESTIONS: usize = 5;
 
 impl ProtocolExecutor<'_> {
-    /// [`Self::catalog_warnings`] under `check`: none when `off`, and a
-    /// refusal carrying them when `strict` finds any.
-    pub(super) fn checked_warnings(
+    /// `strict`: the request is refused, before it runs, when the check
+    /// finds a miss.
+    pub(super) fn refuse_strict(
         &self,
-        operation: &Operation,
+        input: Option<&CheckInput>,
         check: rushdb_protocol::CheckMode,
         context: &mut rushdb_engine::ExecutionContext,
         access: &CatalogAccess,
         is_cancelled: &dyn Fn() -> bool,
-    ) -> Result<Vec<QueryWarning>, ProtocolError> {
-        if check == rushdb_protocol::CheckMode::Off {
-            return Ok(Vec::new());
+    ) -> Result<(), ProtocolError> {
+        let Some(input) = input.filter(|_| check == rushdb_protocol::CheckMode::Strict) else {
+            return Ok(());
+        };
+        let warnings = self.catalog_warnings(input, context, access, is_cancelled)?;
+        if warnings.is_empty() {
+            return Ok(());
         }
-        let warnings = self.catalog_warnings(operation, context, access, is_cancelled)?;
-        if check == rushdb_protocol::CheckMode::Strict && !warnings.is_empty() {
-            return Err(ProtocolError::new(
-                rushdb_protocol::ErrorCode::InvalidRequest,
-                "the query names labels, properties or values that no record holds",
-            )
-            .with_details(serde_json::json!({ "warnings": warnings })));
-        }
-        Ok(warnings)
+        Err(ProtocolError::new(
+            rushdb_protocol::ErrorCode::InvalidRequest,
+            "the query names labels, properties or values that no record holds",
+        )
+        .with_details(serde_json::json!({ "warnings": warnings })))
     }
 
-    /// The warnings of `operation` (none for an operation that is not a
-    /// query this check reads).
+    /// `warn` (the default), once the request ran: its warnings, read at
+    /// the snapshot it answered from, unless its answer shows there can be
+    /// none ([`CheckInput::answered`]).
+    pub(super) fn answer_warnings(
+        &self,
+        input: Option<&CheckInput>,
+        check: rushdb_protocol::CheckMode,
+        response: &Response,
+        context: &mut rushdb_engine::ExecutionContext,
+        access: &CatalogAccess,
+        is_cancelled: &dyn Fn() -> bool,
+    ) -> Result<Vec<QueryWarning>, ProtocolError> {
+        match input {
+            Some(input)
+                if check == rushdb_protocol::CheckMode::Warn && !input.answered(response) =>
+            {
+                self.catalog_warnings(input, context, access, is_cancelled)
+            }
+            _ => Ok(Vec::new()),
+        }
+    }
+
+    /// The warnings of `input`.
     pub(super) fn catalog_warnings(
         &self,
-        operation: &Operation,
+        input: &CheckInput,
         context: &mut rushdb_engine::ExecutionContext,
         access: &CatalogAccess,
         is_cancelled: &dyn Fn() -> bool,
     ) -> Result<Vec<QueryWarning>, ProtocolError> {
         let view = std::sync::Arc::clone(context.read_view());
-        let checked = match operation {
-            Operation::Query {
-                query:
-                    Query::Statement {
-                        language: StatementLanguage::Sql,
-                        statement,
-                        ..
-                    },
-            } => sql_parts(&view, context.tenant(), statement)?,
-            _ => checked_parts(operation).into_iter().collect(),
+        let from_sql;
+        let checked = match input {
+            CheckInput::Sql(statement) => {
+                from_sql = sql_parts(&view, context.tenant(), statement)?;
+                &from_sql
+            }
+            CheckInput::Parts { parts, .. } => parts,
         };
         let mut misses = Vec::new();
         for (labels, clause) in checked {
@@ -68,7 +86,7 @@ impl ProtocolExecutor<'_> {
                 rushdb_query::catalog_check::check_search(
                     view.as_ref(),
                     context.tenant(),
-                    &labels,
+                    labels,
                     clause.as_ref(),
                 )
                 .map_err(|error| execution_failed(error.to_string()))?,
@@ -223,6 +241,124 @@ fn suggestion(
 
 /// Labels and the filter clause to check against them.
 type Checked = Vec<(Vec<String>, Option<serde_json::Value>)>;
+
+/// What the catalog check reads of a request, taken before it runs
+/// (running it consumes the operation).
+pub(super) enum CheckInput {
+    /// The labels and filter clauses of a native or Mongo query.
+    Parts {
+        parts: Checked,
+        /// A records query on at most one label, without a global aggregate,
+        /// whose filter is positive: if it finds anything, nothing it names
+        /// is missing ([`CheckInput::answered`]).
+        provable: bool,
+    },
+    /// A SQL statement.
+    Sql(String),
+}
+
+impl CheckInput {
+    /// The input of `operation`, when it is a query the check reads.
+    pub(super) fn of(operation: &Operation) -> Option<Self> {
+        if let Operation::Query {
+            query:
+                Query::Statement {
+                    language: StatementLanguage::Sql,
+                    statement,
+                    ..
+                },
+        } = operation
+        {
+            return Some(Self::Sql(statement.clone()));
+        }
+        let (labels, clause) = checked_parts(operation)?;
+        let provable = matches!(
+            operation,
+            Operation::Query { query: Query::Records { query, .. } }
+                if query.labels.len() <= 1 && !global_aggregate(query)
+        ) && clause.as_ref().is_none_or(positive);
+        Some(Self::Parts {
+            parts: vec![(labels, clause)],
+            provable,
+        })
+    }
+
+    /// Whether `response` shows that the check would find nothing: a
+    /// positive filter on one label that found a record holds that label,
+    /// every property it names and every literal it compares (a missing
+    /// one would have matched nothing). A filter that can match without
+    /// them (`$or`, `$in`, a negation, `$exists`, several labels) and a
+    /// global aggregate (one row even when nothing matched) are checked.
+    pub(super) fn answered(&self, response: &Response) -> bool {
+        let Self::Parts { provable: true, .. } = self else {
+            return false;
+        };
+        match response {
+            Response::Records { records, total, .. } => *total > 0 || !records.is_empty(),
+            Response::Rows { rows, .. } => !rows.is_empty(),
+            _ => false,
+        }
+    }
+}
+
+/// Operators every match of which holds the property with a value the
+/// condition names or bounds.
+const POSITIVE: [&str; 9] = [
+    "$eq",
+    "$gt",
+    "$gte",
+    "$lt",
+    "$lte",
+    "$contains",
+    "$startsWith",
+    "$endsWith",
+    "$within",
+];
+
+/// Whether every record a filter clause matches holds each label, property
+/// and literal it names: conditions joined by `$and` (or side by side),
+/// each a value, positive operators on one value, or a traversal block.
+fn positive(clause: &serde_json::Value) -> bool {
+    let serde_json::Value::Object(clause) = clause else {
+        return false;
+    };
+    clause.iter().all(|(key, value)| match key.as_str() {
+        "$and" => match value {
+            serde_json::Value::Array(operands) => operands.iter().all(positive),
+            operand => positive(operand),
+        },
+        key if key.starts_with('$') => false,
+        _ => positive_condition(value),
+    })
+}
+
+fn positive_condition(value: &serde_json::Value) -> bool {
+    match value {
+        // Any of several values.
+        serde_json::Value::Array(_) => false,
+        serde_json::Value::Object(operators)
+            if !operators.is_empty() && operators.keys().all(|op| op.starts_with('$')) =>
+        {
+            operators
+                .iter()
+                .all(|(op, operand)| POSITIVE.contains(&op.as_str()) && !operand.is_array())
+        }
+        // A traversal block.
+        block @ serde_json::Value::Object(_) => positive(block),
+        _ => true,
+    }
+}
+
+/// A `select` of aggregates without `groupBy`: one row even when nothing
+/// matched.
+fn global_aggregate(query: &rushdb_protocol::QueryDocument) -> bool {
+    query.group_by.is_empty()
+        && query
+            .select
+            .as_ref()
+            .and_then(serde_json::Value::as_object)
+            .is_some_and(|select| select.values().any(serde_json::Value::is_object))
+}
 
 /// The labels and texts a SQL statement compares by equality, one clause
 /// per table that names a stored label (a table that names none fails

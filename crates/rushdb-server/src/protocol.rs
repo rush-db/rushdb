@@ -506,9 +506,15 @@ impl<'a> ProtocolExecutor<'a> {
                 "this node is a streaming-replication follower; writes must go to the leader",
             ));
         }
-        let warnings = self.checked_warnings(
-            &request.operation,
-            request.context.check.unwrap_or_default(),
+        // CHK-1: `strict` refuses before anything runs; `warn` reads the
+        // check after the answer, which often shows there is nothing to warn.
+        let check = request.context.check.unwrap_or_default();
+        let check_input = (check != rushdb_protocol::CheckMode::Off)
+            .then(|| catalog_check::CheckInput::of(&request.operation))
+            .flatten();
+        self.refuse_strict(
+            check_input.as_ref(),
+            check,
             &mut execution_context,
             &catalog_access,
             is_cancelled,
@@ -825,6 +831,14 @@ impl<'a> ProtocolExecutor<'a> {
                 .check_deadline()
                 .map_err(|error| execution_failed(error.to_string()))?;
         }
+        let warnings = self.answer_warnings(
+            check_input.as_ref(),
+            check,
+            &response,
+            &mut execution_context,
+            &catalog_access,
+            is_cancelled,
+        )?;
         if !self.typed_rows {
             publish_rows(&mut response);
         }

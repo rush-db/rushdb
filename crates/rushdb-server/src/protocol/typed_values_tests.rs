@@ -434,6 +434,82 @@ fn sql_inserts_store_typed_literals_as_their_types() {
     assert_eq!(record["properties"]["starts"], json!("2023-01-02T08:00:00"));
 }
 
+/// CHK-1 reads the check after the answer, and skips it when a positive
+/// filter on one label found records (nothing it names can be missing).
+/// Every filter that can find records while naming something missing is
+/// still checked.
+#[test]
+fn a_found_answer_skips_the_check_only_when_it_proves_no_miss() {
+    let node = node();
+    for (name, city) in [("Ada", "Berlin"), ("Grace", "Paris")] {
+        node.scope()
+            .create_record(
+                "Person",
+                &json!({"name": name, "city": city}),
+                &[],
+                &json!({}),
+            )
+            .unwrap();
+    }
+    let warnings = |query: Value| {
+        let request = json!({"protocolVersion": 1,
+            "operation": {"kind": "query", "query": {"kind": "records", "query": query}}});
+        let envelope = crate::protocol::ProtocolExecutor::new(&node, None)
+            .execute(serde_json::from_value(request).unwrap())
+            .unwrap();
+        envelope
+            .warnings
+            .iter()
+            .map(|warning| {
+                warning
+                    .value
+                    .clone()
+                    .or_else(|| warning.property.clone())
+                    .or_else(|| warning.label.clone())
+                    .unwrap_or_default()
+            })
+            .collect::<Vec<_>>()
+    };
+    // Found, positive, one label: nothing to warn.
+    for clean in [
+        json!({"labels": ["Person"], "predicate": {"city": "Berlin"}}),
+        json!({"labels": ["Person"], "predicate": {"$and": [{"city": "Berlin"}, {"name": {"$gte": "A"}}]}}),
+        json!({"labels": ["Person"], "predicate": {}}),
+    ] {
+        assert!(warnings(clean.clone()).is_empty(), "{clean}");
+    }
+    // Found, but the filter could match while naming something missing.
+    for (query, missing) in [
+        (
+            json!({"labels": ["Person"], "predicate": {"city": {"$in": ["Berlin", "berlin"]}}}),
+            "berlin",
+        ),
+        (
+            json!({"labels": ["Person"], "predicate": {"city": ["Berlin", "berlin"]}}),
+            "berlin",
+        ),
+        (
+            json!({"labels": ["Person"], "predicate": {"$or": [{"city": "Berlin"}, {"nmae": "Ada"}]}}),
+            "nmae",
+        ),
+        (
+            json!({"labels": ["Person"], "predicate": {"city": {"$ne": "berlin"}}}),
+            "berlin",
+        ),
+        (json!({"labels": ["Person", "Persn"]}), "Persn"),
+        (
+            json!({"labels": ["Person"], "predicate": {"city": "berlin"},
+                "select": {"n": {"$count": "*"}}}),
+            "berlin",
+        ),
+    ] {
+        assert!(
+            warnings(query.clone()).iter().any(|w| w == missing),
+            "{query}: {missing} is warned"
+        );
+    }
+}
+
 /// CHK-1: a query naming a label, property or value no record holds runs
 /// and answers with warnings saying what it most likely meant; `strict`
 /// refuses it; `off` and a query without misses add nothing.
