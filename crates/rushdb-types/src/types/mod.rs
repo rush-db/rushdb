@@ -454,19 +454,24 @@ pub fn doc_scalar(value: &Json) -> Option<Scalar> {
 /// A document value in its public form: tagged values become their
 /// literals (ISO 8601 text, `GeoJSON`), in arrays and objects too.
 #[must_use]
-pub fn doc_to_public(value: Json) -> Json {
-    if let Some(scalar) = tagged_scalar(&value) {
-        return crate::value::scalar_to_json(&scalar);
+pub fn doc_to_public(mut value: Json) -> Json {
+    publish_in_place(&mut value);
+    value
+}
+
+/// [`doc_to_public`] in place: only tagged values are replaced, so a
+/// document without one is walked and left as it is (every response row
+/// passes here; rebuilding each object cost more than the query on small
+/// answers).
+pub fn publish_in_place(value: &mut Json) {
+    if let Some(scalar) = tagged_scalar(value) {
+        *value = crate::value::scalar_to_json(&scalar);
+        return;
     }
     match value {
-        Json::Array(items) => Json::Array(items.into_iter().map(doc_to_public).collect()),
-        Json::Object(object) => Json::Object(
-            object
-                .into_iter()
-                .map(|(key, value)| (key, doc_to_public(value)))
-                .collect(),
-        ),
-        other => other,
+        Json::Array(items) => items.iter_mut().for_each(publish_in_place),
+        Json::Object(object) => object.values_mut().for_each(publish_in_place),
+        _ => {}
     }
 }
 

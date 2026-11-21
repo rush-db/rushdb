@@ -14,7 +14,7 @@ pub(super) fn publish_rows(response: &mut Response) {
     | Response::StatementMutation { rows, .. } = response
     {
         for row in rows.iter_mut() {
-            *row = rushdb_types::types::doc_to_public(std::mem::take(row));
+            rushdb_types::types::publish_in_place(row);
         }
     }
 }
