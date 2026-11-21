@@ -344,6 +344,29 @@ pub struct FairAdmission {
     queue: Mutex<std::collections::VecDeque<Waiter>>,
     /// Broadcast when bytes are released or a waiter is removed.
     changed: std::sync::Condvar,
+    /// Callers that queued (did not get their bytes at once), and the
+    /// microseconds they spent queued, granted or not.
+    waits: std::sync::atomic::AtomicU64,
+    waited_micros: std::sync::atomic::AtomicU64,
+}
+
+/// Records one queued wait on its gate when the caller leaves the queue,
+/// by any path.
+struct QueuedWait<'a> {
+    gate: &'a FairAdmission,
+    since: std::time::Instant,
+}
+
+impl Drop for QueuedWait<'_> {
+    fn drop(&mut self) {
+        let micros = u64::try_from(self.since.elapsed().as_micros()).unwrap_or(u64::MAX);
+        self.gate
+            .waits
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        self.gate
+            .waited_micros
+            .fetch_add(micros, std::sync::atomic::Ordering::Relaxed);
+    }
 }
 
 struct Waiter {
@@ -360,7 +383,24 @@ impl FairAdmission {
             budget,
             queue: Mutex::new(std::collections::VecDeque::new()),
             changed: std::sync::Condvar::new(),
+            waits: std::sync::atomic::AtomicU64::new(0),
+            waited_micros: std::sync::atomic::AtomicU64::new(0),
         }
+    }
+
+    /// Callers that queued here so far, and the total seconds they spent
+    /// queued (granted, timed out or cancelled).
+    #[must_use]
+    pub fn queued_totals(&self) -> (u64, f64) {
+        let micros = self
+            .waited_micros
+            .load(std::sync::atomic::Ordering::Relaxed);
+        #[expect(clippy::cast_precision_loss, reason = "a metric in seconds")]
+        let seconds = micros as f64 / 1e6;
+        (
+            self.waits.load(std::sync::atomic::Ordering::Relaxed),
+            seconds,
+        )
     }
 
     /// Try to admit immediately without queueing (non-blocking).
@@ -408,6 +448,10 @@ impl FairAdmission {
         if now_ms() >= deadline_ms {
             return Err(AdmissionError::TimedOut);
         }
+        let _queued = QueuedWait {
+            gate: self,
+            since: std::time::Instant::now(),
+        };
 
         // Each waiter carries a unique ticket identity so position tracking is
         // robust to earlier waiters being purged.

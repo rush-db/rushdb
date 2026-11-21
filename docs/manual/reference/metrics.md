@@ -30,6 +30,7 @@ Histogram buckets (seconds) for every histogram below:
 |---|---|---|---|
 | `rushdb_requests_total` | counter | `route` | Requests executed, by route. |
 | `rushdb_request_duration_seconds` | histogram | `route` | Request latency, measured around execution. |
+| `rushdb_request_stage_seconds` | histogram | `stage` | Where an HTTP protocol request's time goes, one observation per stage it reached: `body` (reading and parsing the body), `admission` (its tenant's bulk share and the checks before the handoff), `blocking_queue` (waiting for a blocking worker), `tenant_queue` (waiting for its tenant's turn in the scheduler), `execute`, and `handoff` (the answer back to the handler). A request refused before a stage has no observation for it or the stages after. |
 | `rushdb_rows_returned_total` | counter | `route` | Rows/records returned by queries. |
 | `rushdb_operation_work_total` | counter | `operation`, `counter` | Bounded work units. `operation` is the protocol family (`query`, `mutate`, `describe`, `ingest`, `index`, `transaction`, `purge_tenant`, `backup`) with `counter` `response_rows` or `response_bytes`; or `operation="sql_scan"` with `counter` `candidate_rows`, `reconstructed_rows`, `filtered_rows`, `posting_bytes`. |
 | `rushdb_scheduler_inflight` | gauge | — | Jobs admitted to the bounded request scheduler. |
@@ -54,6 +55,8 @@ Bolt, and `pgwire.execute` for PostgreSQL wire.
 | `rushdb_conflict_window_bytes` | gauge | — | Memory held by the conflict-validation window. |
 | `rushdb_storage_admission_waits_total` | counter | — | Waits for the storage admission lock. |
 | `rushdb_storage_admission_wait_ms_total` | counter | — | Milliseconds spent waiting for storage admission. |
+| `rushdb_phase_token_waits_total` | counter | `pool` | Requests that queued for their phase token instead of getting it at once: `pool="phases"` when the phase pool was full, `pool="floor"` when retained caches had filled the managed budget and the request took one of the tokens reserved at open. |
+| `rushdb_phase_token_wait_seconds_total` | counter | `pool` | Seconds those requests spent queued, whether they got the token or timed out. |
 | `rushdb_storage_backend_mutex_wait_ms_total` | counter | — | Milliseconds spent waiting for the storage backend lock. |
 | `rushdb_storage_backend_mutex_hold_ms_total` | counter | — | Milliseconds the storage backend lock was held. |
 | `rushdb_storage_backend_mutex_hold_max_ms` | gauge | — | Longest single hold of the storage backend lock. |
