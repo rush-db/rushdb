@@ -644,9 +644,15 @@ fn long_statements_run_and_overlong_ones_are_refused_not_crashing() {
         }
         script
     };
-    // A long setup script (the TCK's movie graph is ~500 clauses).
-    let created = execute_mutation(&graph, QueryLanguage::Cypher, &script(2_000), None).unwrap();
-    assert_eq!(created.affected, 2_000);
+    let created = execute_mutation(&graph, QueryLanguage::Cypher, &script(100), None).unwrap();
+    assert_eq!(created.affected, 100);
+    // Grafeo 0.6.3 plans a chain of CREATE clauses one level deeper each and
+    // refuses past 128 levels, with a message to split the script; it never
+    // crashes. Grafeo 0.6.4 merges the chain (GrafeoDB/grafeo#807): then a
+    // long setup script (the TCK's movie graph is ~500 clauses) runs again,
+    // and this asserts that 2,000 clauses run.
+    let deep = execute_mutation(&graph, QueryLanguage::Cypher, &script(2_000), None).unwrap_err();
+    assert!(deep.to_string().contains("plan depth limit"), "{deep}");
     let refused = execute_mutation(
         &graph,
         QueryLanguage::Cypher,

@@ -34,7 +34,7 @@
   },
   "grafeo-semantic": {
    "kind": "defect",
-   "description": "Grafeo's binder refuses a valid statement (scope of variables, OPTIONAL MATCH without input, DELETE of expressions)."
+   "description": "Grafeo's binder refuses a valid statement (scope of variables, OPTIONAL MATCH without input, DELETE of expressions, nodes() or relationships() of an expression)."
   },
   "grafeo-internal": {
    "kind": "defect",
@@ -106,7 +106,7 @@
   },
   {
    "category": "grafeo-semantic",
-   "pattern": "DELETE only supports variable expressions"
+   "pattern": "DELETE only supports variable expressions|the argument of (nodes|relationships)\\(\\) must be a variable"
   },
   {
    "category": "grafeo-syntax",
@@ -122,7 +122,7 @@
   },
   {
    "category": "grafeo-null-writes",
-   "pattern": "GRAFEO-V006: Type mismatch: expected Int64 \\((node|edge|entity) ID\\), found Null"
+   "pattern": "GRAFEO-V006: Type mismatch: expected (Int64 \\((node|edge|entity) ID\\), found Null|a (node|edge|entity) for (node|edge|entity), found null)"
   },
   {
    "category": "grafeo-write-column-names",

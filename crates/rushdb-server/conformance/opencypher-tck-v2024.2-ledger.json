@@ -415,10 +415,11 @@
    "outcome": "fail"
   },
   "tck/features/clauses/create/Create4.feature::[1] Generate the movie graph": {
-   "outcome": "pass"
+   "category": "grafeo-semantic",
+   "outcome": "fail"
   },
   "tck/features/clauses/create/Create4.feature::[2] Many CREATE clauses": {
-   "category": "lmpg-single-label",
+   "category": "grafeo-semantic",
    "outcome": "fail"
   },
   "tck/features/clauses/create/Create5.feature::[1] Create a pattern with multiple hops": {
@@ -499,13 +500,16 @@
    "outcome": "fail"
   },
   "tck/features/clauses/delete/Delete1.feature::[4] Delete on null node": {
-   "outcome": "pass"
+   "category": "grafeo-null-writes",
+   "outcome": "fail"
   },
   "tck/features/clauses/delete/Delete1.feature::[5] Ignore null when deleting node": {
-   "outcome": "pass"
+   "category": "grafeo-null-writes",
+   "outcome": "fail"
   },
   "tck/features/clauses/delete/Delete1.feature::[6] Detach delete on null node": {
-   "outcome": "pass"
+   "category": "grafeo-null-writes",
+   "outcome": "fail"
   },
   "tck/features/clauses/delete/Delete1.feature::[7] Failing when deleting connected nodes": {
    "category": "lmpg-single-label",
@@ -527,7 +531,8 @@
    "outcome": "fail"
   },
   "tck/features/clauses/delete/Delete2.feature::[4] Ignore null when deleting relationship": {
-   "outcome": "pass"
+   "category": "grafeo-null-writes",
+   "outcome": "fail"
   },
   "tck/features/clauses/delete/Delete2.feature::[5] Failing when deleting a relationship type": {
    "category": "lmpg-single-label",
@@ -538,7 +543,8 @@
    "outcome": "fail"
   },
   "tck/features/clauses/delete/Delete3.feature::[2] Delete on null path": {
-   "outcome": "pass"
+   "category": "grafeo-null-writes",
+   "outcome": "fail"
   },
   "tck/features/clauses/delete/Delete4.feature::[1] Undirected expand followed by delete and count": {
    "category": "lmpg-single-label",
@@ -2098,7 +2104,7 @@
    "outcome": "fail"
   },
   "tck/features/clauses/merge/Merge1.feature::[13] Merge should bind a path": {
-   "category": "lmpg-single-label",
+   "category": "grafeo-semantic",
    "outcome": "fail"
   },
   "tck/features/clauses/merge/Merge1.feature::[14] Merges should not be able to match on deleted nodes": {
@@ -2299,7 +2305,8 @@
    "outcome": "pass"
   },
   "tck/features/clauses/merge/Merge6.feature::[6] Copying properties from node with ON CREATE": {
-   "outcome": "pass"
+   "category": "grafeo-lazy-writes",
+   "outcome": "fail"
   },
   "tck/features/clauses/merge/Merge6.feature::[7] Copying properties from literal map with ON CREATE": {
    "outcome": "pass"
@@ -2314,7 +2321,8 @@
    "outcome": "pass"
   },
   "tck/features/clauses/merge/Merge7.feature::[4] Copying properties from node with ON MATCH": {
-   "outcome": "pass"
+   "category": "grafeo-lazy-writes",
+   "outcome": "fail"
   },
   "tck/features/clauses/merge/Merge7.feature::[5] Copying properties from literal map with ON MATCH": {
    "outcome": "pass"
@@ -2350,7 +2358,8 @@
    "outcome": "fail"
   },
   "tck/features/clauses/remove/Remove1.feature::[5] Ignore null when removing property from a node": {
-   "outcome": "pass"
+   "category": "grafeo-null-writes",
+   "outcome": "fail"
   },
   "tck/features/clauses/remove/Remove1.feature::[6] Ignore null when removing property from a relationship": {
    "category": "lmpg-single-label",
@@ -2376,7 +2385,8 @@
    "outcome": "pass"
   },
   "tck/features/clauses/remove/Remove2.feature::[5] Ignore null when removing a node label": {
-   "outcome": "pass"
+   "category": "grafeo-null-writes",
+   "outcome": "fail"
   },
   "tck/features/clauses/remove/Remove3.feature::[10] Skipping and limiting to a few results after removing a label from nodes affects the result set but not the side effects": {
    "category": "lmpg-single-label",
@@ -2886,7 +2896,8 @@
    "outcome": "fail"
   },
   "tck/features/clauses/return/Return6.feature::[6] Handle aggregates inside non-aggregate expressions": {
-   "outcome": "pass"
+   "category": "grafeo-semantic",
+   "outcome": "fail"
   },
   "tck/features/clauses/return/Return6.feature::[7] Aggregate on property": {
    "category": "lmpg-single-label",
@@ -2944,7 +2955,8 @@
    "outcome": "fail"
   },
   "tck/features/clauses/set/Set1.feature::[8] Ignore null when setting property": {
-   "outcome": "pass"
+   "category": "grafeo-null-writes",
+   "outcome": "fail"
   },
   "tck/features/clauses/set/Set1.feature::[9] Failing when using undefined variable in SET": {
    "outcome": "pass"
@@ -2988,7 +3000,8 @@
    "outcome": "fail"
   },
   "tck/features/clauses/set/Set3.feature::[8] Ignore null when setting label": {
-   "outcome": "pass"
+   "category": "grafeo-null-writes",
+   "outcome": "fail"
   },
   "tck/features/clauses/set/Set4.feature::[1] Set multiple properties with a property map": {
    "outcome": "pass"
@@ -3003,10 +3016,12 @@
    "outcome": "pass"
   },
   "tck/features/clauses/set/Set4.feature::[5] Ignore null when setting properties using an overriding map": {
-   "outcome": "pass"
+   "category": "grafeo-null-writes",
+   "outcome": "fail"
   },
   "tck/features/clauses/set/Set5.feature::[1] Ignore null when setting properties using an appending map": {
-   "outcome": "pass"
+   "category": "grafeo-null-writes",
+   "outcome": "fail"
   },
   "tck/features/clauses/set/Set5.feature::[2] Overwrite values when using +=": {
    "outcome": "pass"
@@ -4183,10 +4198,12 @@
    "outcome": "fail"
   },
   "tck/features/clauses/with-where/WithWhere1.feature::[3] Filter for an unbound relationship variable": {
-   "outcome": "pass"
+   "category": "grafeo-semantic",
+   "outcome": "fail"
   },
   "tck/features/clauses/with-where/WithWhere1.feature::[4] Filter for an unbound node variable": {
-   "outcome": "pass"
+   "category": "grafeo-semantic",
+   "outcome": "fail"
   },
   "tck/features/clauses/with-where/WithWhere2.feature::[1] Filter nodes with conjunctive two-part property predicate on multi variables with multiple bindings": {
    "outcome": "pass"
@@ -5935,19 +5952,24 @@
    "outcome": "pass"
   },
   "tck/features/expressions/list/List2.feature::[9] List slice with null range #1": {
-   "outcome": "pass"
+   "category": "grafeo-result",
+   "outcome": "fail"
   },
   "tck/features/expressions/list/List2.feature::[9] List slice with null range #2": {
-   "outcome": "pass"
+   "category": "grafeo-result",
+   "outcome": "fail"
   },
   "tck/features/expressions/list/List2.feature::[9] List slice with null range #3": {
-   "outcome": "pass"
+   "category": "grafeo-result",
+   "outcome": "fail"
   },
   "tck/features/expressions/list/List2.feature::[9] List slice with null range #4": {
-   "outcome": "pass"
+   "category": "grafeo-result",
+   "outcome": "fail"
   },
   "tck/features/expressions/list/List2.feature::[9] List slice with null range #5": {
-   "outcome": "pass"
+   "category": "grafeo-result",
+   "outcome": "fail"
   },
   "tck/features/expressions/list/List3.feature::[1] Equality between list and literal should return false": {
    "outcome": "pass"
@@ -6876,7 +6898,8 @@
    "outcome": "pass"
   },
   "tck/features/expressions/null/Null3.feature::[4] Using null in IN #4": {
-   "outcome": "pass"
+   "category": "grafeo-result",
+   "outcome": "fail"
   },
   "tck/features/expressions/null/Null3.feature::[4] Using null in IN #5": {
    "outcome": "pass"
@@ -6888,7 +6911,7 @@
    "outcome": "pass"
   },
   "tck/features/expressions/path/Path1.feature::[1] `nodes()` on null path": {
-   "category": "grafeo-write-column-names",
+   "category": "grafeo-semantic",
    "outcome": "fail"
   },
   "tck/features/expressions/path/Path2.feature::[1] Return relationships by fetching them from the path": {
@@ -6898,7 +6921,7 @@
    "outcome": "pass"
   },
   "tck/features/expressions/path/Path2.feature::[3] `relationships()` on null path": {
-   "category": "grafeo-write-column-names",
+   "category": "grafeo-semantic",
    "outcome": "fail"
   },
   "tck/features/expressions/path/Path3.feature::[1] Return a var length path of length zero": {
@@ -7362,19 +7385,24 @@
    "outcome": "pass"
   },
   "tck/features/expressions/precedence/Precedence2.feature::[2] Exponentiation takes precedence over numeric multiplicative operations #1": {
-   "outcome": "pass"
+   "category": "grafeo-precedence",
+   "outcome": "fail"
   },
   "tck/features/expressions/precedence/Precedence2.feature::[2] Exponentiation takes precedence over numeric multiplicative operations #2": {
-   "outcome": "pass"
+   "category": "grafeo-precedence",
+   "outcome": "fail"
   },
   "tck/features/expressions/precedence/Precedence2.feature::[2] Exponentiation takes precedence over numeric multiplicative operations #3": {
-   "outcome": "pass"
+   "category": "grafeo-precedence",
+   "outcome": "fail"
   },
   "tck/features/expressions/precedence/Precedence2.feature::[3] Exponentiation takes precedence over numeric additive operations #1": {
-   "outcome": "pass"
+   "category": "grafeo-precedence",
+   "outcome": "fail"
   },
   "tck/features/expressions/precedence/Precedence2.feature::[3] Exponentiation takes precedence over numeric additive operations #2": {
-   "outcome": "pass"
+   "category": "grafeo-precedence",
+   "outcome": "fail"
   },
   "tck/features/expressions/precedence/Precedence2.feature::[4] Numeric unary negative takes precedence over exponentiation": {
    "outcome": "pass"
@@ -7455,13 +7483,16 @@
    "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier1.feature::[10] None quantifier on lists containing nulls #1": {
-   "outcome": "pass"
+   "category": "grafeo-quantifiers",
+   "outcome": "fail"
   },
   "tck/features/expressions/quantifier/Quantifier1.feature::[10] None quantifier on lists containing nulls #2": {
-   "outcome": "pass"
+   "category": "grafeo-quantifiers",
+   "outcome": "fail"
   },
   "tck/features/expressions/quantifier/Quantifier1.feature::[10] None quantifier on lists containing nulls #3": {
-   "outcome": "pass"
+   "category": "grafeo-quantifiers",
+   "outcome": "fail"
   },
   "tck/features/expressions/quantifier/Quantifier1.feature::[10] None quantifier on lists containing nulls #4": {
    "outcome": "pass"
@@ -7473,7 +7504,8 @@
    "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier1.feature::[10] None quantifier on lists containing nulls #7": {
-   "outcome": "pass"
+   "category": "grafeo-quantifiers",
+   "outcome": "fail"
   },
   "tck/features/expressions/quantifier/Quantifier1.feature::[10] None quantifier on lists containing nulls #8": {
    "outcome": "pass"
@@ -7911,25 +7943,31 @@
    "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier2.feature::[10] Single quantifier on lists containing nulls #1": {
-   "outcome": "pass"
+   "category": "grafeo-quantifiers",
+   "outcome": "fail"
   },
   "tck/features/expressions/quantifier/Quantifier2.feature::[10] Single quantifier on lists containing nulls #2": {
-   "outcome": "pass"
+   "category": "grafeo-quantifiers",
+   "outcome": "fail"
   },
   "tck/features/expressions/quantifier/Quantifier2.feature::[10] Single quantifier on lists containing nulls #3": {
-   "outcome": "pass"
+   "category": "grafeo-quantifiers",
+   "outcome": "fail"
   },
   "tck/features/expressions/quantifier/Quantifier2.feature::[10] Single quantifier on lists containing nulls #4": {
-   "outcome": "pass"
+   "category": "grafeo-quantifiers",
+   "outcome": "fail"
   },
   "tck/features/expressions/quantifier/Quantifier2.feature::[10] Single quantifier on lists containing nulls #5": {
-   "outcome": "pass"
+   "category": "grafeo-quantifiers",
+   "outcome": "fail"
   },
   "tck/features/expressions/quantifier/Quantifier2.feature::[10] Single quantifier on lists containing nulls #6": {
    "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier2.feature::[10] Single quantifier on lists containing nulls #7": {
-   "outcome": "pass"
+   "category": "grafeo-quantifiers",
+   "outcome": "fail"
   },
   "tck/features/expressions/quantifier/Quantifier2.feature::[10] Single quantifier on lists containing nulls #8": {
    "outcome": "pass"
@@ -8229,13 +8267,16 @@
    "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier3.feature::[10] Any quantifier on lists containing nulls #1": {
-   "outcome": "pass"
+   "category": "grafeo-quantifiers",
+   "outcome": "fail"
   },
   "tck/features/expressions/quantifier/Quantifier3.feature::[10] Any quantifier on lists containing nulls #2": {
-   "outcome": "pass"
+   "category": "grafeo-quantifiers",
+   "outcome": "fail"
   },
   "tck/features/expressions/quantifier/Quantifier3.feature::[10] Any quantifier on lists containing nulls #3": {
-   "outcome": "pass"
+   "category": "grafeo-quantifiers",
+   "outcome": "fail"
   },
   "tck/features/expressions/quantifier/Quantifier3.feature::[10] Any quantifier on lists containing nulls #4": {
    "outcome": "pass"
@@ -8247,7 +8288,8 @@
    "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier3.feature::[10] Any quantifier on lists containing nulls #7": {
-   "outcome": "pass"
+   "category": "grafeo-quantifiers",
+   "outcome": "fail"
   },
   "tck/features/expressions/quantifier/Quantifier3.feature::[10] Any quantifier on lists containing nulls #8": {
    "outcome": "pass"
@@ -8544,19 +8586,23 @@
    "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier4.feature::[10] All quantifier on lists containing nulls #1": {
-   "outcome": "pass"
+   "category": "grafeo-quantifiers",
+   "outcome": "fail"
   },
   "tck/features/expressions/quantifier/Quantifier4.feature::[10] All quantifier on lists containing nulls #2": {
-   "outcome": "pass"
+   "category": "grafeo-quantifiers",
+   "outcome": "fail"
   },
   "tck/features/expressions/quantifier/Quantifier4.feature::[10] All quantifier on lists containing nulls #3": {
    "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier4.feature::[10] All quantifier on lists containing nulls #4": {
-   "outcome": "pass"
+   "category": "grafeo-quantifiers",
+   "outcome": "fail"
   },
   "tck/features/expressions/quantifier/Quantifier4.feature::[10] All quantifier on lists containing nulls #5": {
-   "outcome": "pass"
+   "category": "grafeo-quantifiers",
+   "outcome": "fail"
   },
   "tck/features/expressions/quantifier/Quantifier4.feature::[10] All quantifier on lists containing nulls #6": {
    "outcome": "pass"
@@ -8565,7 +8611,8 @@
    "outcome": "pass"
   },
   "tck/features/expressions/quantifier/Quantifier4.feature::[10] All quantifier on lists containing nulls #8": {
-   "outcome": "pass"
+   "category": "grafeo-quantifiers",
+   "outcome": "fail"
   },
   "tck/features/expressions/quantifier/Quantifier4.feature::[11] All quantifier with IS NULL predicate #1": {
    "outcome": "pass"
@@ -13516,61 +13563,79 @@
    "outcome": "fail"
   },
   "tck/features/useCases/triadicSelection/TriadicSelection1.feature::[10] Handling triadic friend of a friend that is not a friend with implicit superset of labels": {
-   "outcome": "pass"
+   "category": "grafeo-semantic",
+   "outcome": "fail"
   },
   "tck/features/useCases/triadicSelection/TriadicSelection1.feature::[11] Handling triadic friend of a friend that is a friend": {
-   "outcome": "pass"
+   "category": "grafeo-semantic",
+   "outcome": "fail"
   },
   "tck/features/useCases/triadicSelection/TriadicSelection1.feature::[12] Handling triadic friend of a friend that is a friend with different relationship type": {
-   "outcome": "pass"
+   "category": "grafeo-semantic",
+   "outcome": "fail"
   },
   "tck/features/useCases/triadicSelection/TriadicSelection1.feature::[13] Handling triadic friend of a friend that is a friend with superset of relationship type": {
-   "outcome": "pass"
+   "category": "grafeo-semantic",
+   "outcome": "fail"
   },
   "tck/features/useCases/triadicSelection/TriadicSelection1.feature::[14] Handling triadic friend of a friend that is a friend with implicit subset of relationship type": {
-   "outcome": "pass"
+   "category": "grafeo-semantic",
+   "outcome": "fail"
   },
   "tck/features/useCases/triadicSelection/TriadicSelection1.feature::[15] Handling triadic friend of a friend that is a friend with explicit subset of relationship type": {
-   "outcome": "pass"
+   "category": "grafeo-semantic",
+   "outcome": "fail"
   },
   "tck/features/useCases/triadicSelection/TriadicSelection1.feature::[16] Handling triadic friend of a friend that is a friend with same labels": {
-   "outcome": "pass"
+   "category": "grafeo-semantic",
+   "outcome": "fail"
   },
   "tck/features/useCases/triadicSelection/TriadicSelection1.feature::[17] Handling triadic friend of a friend that is a friend with different labels": {
-   "outcome": "pass"
+   "category": "grafeo-semantic",
+   "outcome": "fail"
   },
   "tck/features/useCases/triadicSelection/TriadicSelection1.feature::[18] Handling triadic friend of a friend that is a friend with implicit subset of labels": {
-   "outcome": "pass"
+   "category": "grafeo-semantic",
+   "outcome": "fail"
   },
   "tck/features/useCases/triadicSelection/TriadicSelection1.feature::[19] Handling triadic friend of a friend that is a friend with implicit superset of labels": {
-   "outcome": "pass"
+   "category": "grafeo-semantic",
+   "outcome": "fail"
   },
   "tck/features/useCases/triadicSelection/TriadicSelection1.feature::[1] Handling triadic friend of a friend": {
    "outcome": "pass"
   },
   "tck/features/useCases/triadicSelection/TriadicSelection1.feature::[2] Handling triadic friend of a friend that is not a friend": {
-   "outcome": "pass"
+   "category": "grafeo-semantic",
+   "outcome": "fail"
   },
   "tck/features/useCases/triadicSelection/TriadicSelection1.feature::[3] Handling triadic friend of a friend that is not a friend with different relationship type": {
-   "outcome": "pass"
+   "category": "grafeo-semantic",
+   "outcome": "fail"
   },
   "tck/features/useCases/triadicSelection/TriadicSelection1.feature::[4] Handling triadic friend of a friend that is not a friend with superset of relationship type": {
-   "outcome": "pass"
+   "category": "grafeo-semantic",
+   "outcome": "fail"
   },
   "tck/features/useCases/triadicSelection/TriadicSelection1.feature::[5] Handling triadic friend of a friend that is not a friend with implicit subset of relationship type": {
-   "outcome": "pass"
+   "category": "grafeo-semantic",
+   "outcome": "fail"
   },
   "tck/features/useCases/triadicSelection/TriadicSelection1.feature::[6] Handling triadic friend of a friend that is not a friend with explicit subset of relationship type": {
-   "outcome": "pass"
+   "category": "grafeo-semantic",
+   "outcome": "fail"
   },
   "tck/features/useCases/triadicSelection/TriadicSelection1.feature::[7] Handling triadic friend of a friend that is not a friend with same labels": {
-   "outcome": "pass"
+   "category": "grafeo-semantic",
+   "outcome": "fail"
   },
   "tck/features/useCases/triadicSelection/TriadicSelection1.feature::[8] Handling triadic friend of a friend that is not a friend with different labels": {
-   "outcome": "pass"
+   "category": "grafeo-semantic",
+   "outcome": "fail"
   },
   "tck/features/useCases/triadicSelection/TriadicSelection1.feature::[9] Handling triadic friend of a friend that is not a friend with implicit subset of labels": {
-   "outcome": "pass"
+   "category": "grafeo-semantic",
+   "outcome": "fail"
   }
  },
  "schemaVersion": 1

@@ -461,10 +461,7 @@ fn execute_in_view_with_budget_cancellable_on_stack(
     // the cancelled reads it caused.
     adapter.text_check()?;
     adapter.check()?;
-    let result = executed.map_err(|error| LanguageError::Query {
-        language,
-        message: error.to_string(),
-    })?;
+    let result = executed.map_err(|error| query_error(language, &error))?;
 
     let columns = result.columns.clone();
     let column_types = result.column_types.clone();
@@ -694,10 +691,7 @@ fn execute_mutation_in_view_with_limits_on_stack(
     // complete statement succeeds.
     let result = session.execute_language(statement, language_name, params);
     store.check()?;
-    let result = result.map_err(|error| LanguageError::Query {
-        language,
-        message: error.to_string(),
-    })?;
+    let result = result.map_err(|error| query_error(language, &error))?;
 
     let delta = store.delta()?;
     let affected = delta.batch.ops.len() as u64;
@@ -878,11 +872,31 @@ fn stage_statement_mutation_in_overlay_on_stack(
     };
     let execution = session.execute_language(statement, language_name, params);
     store.check()?;
-    execution.map_err(|error| LanguageError::Query {
-        language,
-        message: error.to_string(),
-    })?;
+    execution.map_err(|error| query_error(language, &error))?;
     Ok(store.delta()?.batch)
+}
+
+/// The engine's refusal of a statement, as [`LanguageError::Query`]. The
+/// published Grafeo 0.6.3 answers `text_match` as a `WHERE` condition it
+/// pushes into the store's search, but refuses the text functions wherever
+/// it must evaluate them per row on a store of its own (`GrafeoDB/grafeo#809`,
+/// fixed for 0.6.4), and on a property without a text index: that refusal
+/// says which forms run.
+fn query_error(language: QueryLanguage, error: &impl std::fmt::Display) -> LanguageError {
+    let message = error.to_string();
+    if message.contains("which only the built-in store has") {
+        return LanguageError::Query {
+            language,
+            message: format!(
+                "{message}. This release runs text_match as a WHERE condition on a property \
+                 with a text index (MATCH (n:Label) WHERE text_match(n.property, 'words')); \
+                 text_score in RETURN or ORDER BY and text_match under OR or NOT need \
+                 Grafeo 0.6.4 (GrafeoDB/grafeo#809). For scores, use the text or hybrid \
+                 query kinds, SQL's text_search or Mongo's $text."
+            ),
+        };
+    }
+    LanguageError::Query { language, message }
 }
 
 pub(crate) fn all_fields(

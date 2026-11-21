@@ -164,6 +164,7 @@ fn sql_text_search_reports_bad_calls() {
 }
 
 #[test]
+#[ignore = "Grafeo 0.6.3 refuses text_match/text_score on a store of its own; returns with 0.6.4 (GrafeoDB/grafeo#809)"]
 fn cypher_and_gql_filter_and_rank_with_text_functions() {
     let node = articles();
     for language in [StatementLanguage::Cypher, StatementLanguage::Gql] {
@@ -191,6 +192,7 @@ fn cypher_and_gql_filter_and_rank_with_text_functions() {
 }
 
 #[test]
+#[ignore = "Grafeo 0.6.3 refuses text_match/text_score on a store of its own; returns with 0.6.4 (GrafeoDB/grafeo#809)"]
 fn a_text_function_needs_an_index_and_a_parsable_query() {
     let node = articles();
     // `body` has no index of its own (only the `*` one covers it).
@@ -217,6 +219,50 @@ fn a_text_function_needs_an_index_and_a_parsable_query() {
         .expect_err(statement);
         assert_eq!(error.code, ErrorCode::InvalidRequest, "{error:?}");
         assert!(error.message.contains(expected), "{statement}: {error:?}");
+    }
+}
+
+/// On Grafeo 0.6.3 Cypher and GQL run `text_match` as a `WHERE` condition
+/// (pushed into the store's search) but refuse the text functions where
+/// they are evaluated per row, and on a property without a text index
+/// (GrafeoDB/grafeo#809): the refusal says which forms run. When Grafeo
+/// 0.6.4 lands, the two ignored tests above replace this one.
+#[test]
+fn text_functions_run_in_where_and_otherwise_say_what_runs() {
+    let node = articles();
+    let statement = |language, statement: &str| {
+        run(
+            &node,
+            Operation::Query {
+                query: Query::Statement {
+                    language,
+                    statement: statement.into(),
+                    parameters: None,
+                },
+            },
+        )
+    };
+    for language in [StatementLanguage::Cypher, StatementLanguage::Gql] {
+        let found = statement(
+            language,
+            "MATCH (a:Article) WHERE text_match(a.`*`, 'graph') RETURN a.title AS title",
+        )
+        .unwrap();
+        assert!(
+            matches!(&found, Response::Rows { rows, .. } if !rows.is_empty()),
+            "{found:?}"
+        );
+    }
+    for query in [
+        "MATCH (a:Article) RETURN a.title AS title, text_score(a.`*`, 'graph') AS score",
+        "MATCH (a:Article) WHERE text_match(a.`*`, 'graph') OR a.title = 'x' RETURN a.title AS title",
+        "MATCH (a:Article) WHERE text_match(a.body, 'graph') RETURN a.title AS title",
+    ] {
+        let error = statement(StatementLanguage::Cypher, query).expect_err(query);
+        assert_eq!(error.code, ErrorCode::InvalidRequest, "{error:?}");
+        for hint in ["as a WHERE condition", "GrafeoDB/grafeo#809", "hybrid query kinds"] {
+            assert!(error.message.contains(hint), "{query}: {hint}: {error:?}");
+        }
     }
 }
 
