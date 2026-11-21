@@ -43,9 +43,10 @@ in [`docs/manual/operations/upgrading-from-2x.md`](docs/manual/operations/upgrad
     structures; they were strings and maps. A `Time` with an offset or a
     `DateTimeZoneId` parameter is refused with
     `Neo.ClientError.Statement.TypeError`.
-  - Cypher values keep their types across writes and reads. Values are kept
-    to the microsecond, so six openCypher TCK scenarios with nanosecond
-    literals fail.
+  - Cypher values keep their types across writes and reads. The openCypher
+    TCK passes 2,017 of 3,897 scenarios (2,012 on Grafeo 0.6 alone): eleven
+    more, and six nanosecond scenarios fewer, since values are kept to the
+    microsecond.
 
   Integers still compare with datetimes as epoch milliseconds, and `$sum`
   and `$avg` still add datetimes as epoch milliseconds.
@@ -54,21 +55,34 @@ in [`docs/manual/operations/upgrading-from-2x.md`](docs/manual/operations/upgrad
   as microsecond instants, once; a start interrupted part way finishes at
   the next one. A store opened by 3.0.14 is refused by earlier releases:
   back it up before upgrading if you may need to roll back.
-- **Breaking: Cypher, GQL, Gremlin and SQL/PGQ run on Grafeo 0.6.3** (was
-  0.5.44), the latest release on crates.io. Results that change:
+- **Breaking: Cypher, GQL, Gremlin and SQL/PGQ run on Grafeo 0.6** (was
+  0.5.44). Until Grafeo 0.6.4 is released, RushDB builds Grafeo's
+  `release/0.6.4` branch with two fixes applied that are not released yet:
+  GrafeoDB/grafeo#807 (named zero-length paths, grouping keys inside maps,
+  long `CREATE` chains) and one that lets `text_match`/`text_score` run on
+  RushDB's text indexes outside a pushed-down `WHERE`. Results that change:
   - GQL refuses an unbounded quantifier without a path mode or selector, as
     ISO GQL requires: `MATCH (a)-[:R]->{0,}(b)` (or `-[:R*0..]->`) needs
     `MATCH TRAIL`, `ACYCLIC`, `SIMPLE`, a selector such as `ANY SHORTEST`,
     or an upper bound.
+  - The anti-join `OPTIONAL MATCH (a)-[r]->(c) WITH c WHERE r IS NULL`,
+    refused since 3.0.13, works again.
+  - Long `CREATE` scripts run again: Grafeo 0.6 refused more than 128
+    clauses (its plan depth limit); the limit is RushDB's 8,192 clauses.
+  - `RETURN collect([1, 2])` without a `MATCH` runs.
+  - Fixed in Grafeo: `all`/`any`/`none`/`single` over nulls and nested
+    lists, operator precedence, `SKIP`/`LIMIT` after an updating clause no
+    longer limits the updates, `SET`/`REMOVE`/`DELETE` on a null from
+    `OPTIONAL MATCH` does nothing instead of failing, and a variable-length
+    match around a cycle ends.
   - Ten statements the openCypher TCK requires to fail now run instead of
-    being refused: binding a bound node again in `CREATE` or `MERGE`,
-    `length()` of a node or relationship, an aggregate inside a list
-    comprehension, `count(rand())`, and a pattern on the right-hand side of
-    `SET`.
-  - What Grafeo 0.6.3 does not run yet, including three things 3.0.13 ran,
-    is listed under Known limitations below.
+    being refused, as on plain Grafeo 0.6: binding a bound node again in
+    `CREATE` or `MERGE`, `length()` of a node or relationship, an aggregate
+    inside a list comprehension, `count(rand())`, and a pattern on the
+    right-hand side of `SET`.
 
-  The openCypher TCK passes 1,952 of 3,897 scenarios (was 1,653).
+  The openCypher TCK now passes 2,012 of 3,897 scenarios (was 1,653); of
+  the 2,417 in the supported profile, 2,012 pass (was 1,653 of 2,403).
 - **Breaking: building RushDB from source needs Rust 1.100** (was 1.91 as
   the minimum, 1.98.1 pinned), as Grafeo 0.6 does.
 
@@ -156,45 +170,6 @@ in [`docs/manual/operations/upgrading-from-2x.md`](docs/manual/operations/upgrad
   `rushdb`.** When it links `rushdb` into a directory already on `PATH`, it
   now says `rushdb` is ready in this shell; the `export PATH=...` hint is
   printed only when no link was made.
-
-### Known limitations
-
-Grafeo 0.6.3 is the latest Grafeo release. Fixes for the following are on
-Grafeo's `release/0.6.4` branch and return when Grafeo 0.6.4 ships and
-RushDB moves to it (see
-[Query language conformance](docs/QUERY_LANGUAGE_CONFORMANCE.md#known-limitations-on-grafeo-063)).
-
-Worked in 3.0.13:
-
-- **Cypher and GQL `text_score`, and `text_match` outside a plain `WHERE`
-  condition** ([GrafeoDB/grafeo#809](https://github.com/GrafeoDB/grafeo/pull/809)).
-  `WHERE text_match(n.p, 'words')` on a property with a text index runs.
-  `text_score` in `RETURN` or `ORDER BY`, and `text_match` under `OR` or
-  `NOT`, are refused with `invalid_request`; the message names the forms
-  that run. For scores, use the `text` or `hybrid` query kinds, SQL's
-  `text_search` or Mongo's `$text`.
-- **`CREATE` scripts of more than 128 clauses**
-  ([GrafeoDB/grafeo#807](https://github.com/GrafeoDB/grafeo/pull/807)) are
-  refused with a message to split them (or `UNWIND` a list parameter);
-  RushDB's own limit is 8,192 clauses.
-- **An aggregate inside a non-aggregate `RETURN` expression**, such as
-  `RETURN {name: a.name, kids: collect(c.name)}`, is refused
-  ([GrafeoDB/grafeo#807](https://github.com/GrafeoDB/grafeo/pull/807):
-  grouping keys inside maps).
-
-Not yet fixed in a Grafeo release (3.0.13 did not run them either):
-
-- Named zero-length paths
-  ([GrafeoDB/grafeo#807](https://github.com/GrafeoDB/grafeo/pull/807)).
-- The anti-join `OPTIONAL MATCH (a)-[r]->(c) WITH c WHERE r IS NULL` is
-  refused (`Undefined variable 'r'`).
-- `SET`, `REMOVE` and `DELETE` on a null from an `OPTIONAL MATCH` that found
-  nothing fail with a type mismatch instead of doing nothing.
-- `MERGE ... ON CREATE SET` / `ON MATCH SET` that copies a node's properties
-  (`SET n += m`) writes nothing.
-- `all`, `any`, `none` and `single` over lists holding nulls, exponent
-  precedence (`2 * 3 ^ 2`), list slices with a null bound, `null IN [...]`,
-  and `nodes()`/`relationships()` of an expression rather than a variable.
 
 ## 3.0.13 — 2026-11-20
 

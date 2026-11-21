@@ -181,8 +181,8 @@ A category is either an **exclusion**, a feature outside the supported
 Cypher profile that capability discovery reports in `limitations`
 (`query_languages.rs` checks every one is advertised), or a **defect**, a
 wrong result of the embedded Grafeo engine. RushDB carries no Grafeo changes
-of its own and builds the published Grafeo release (0.6.3): defects are
-documented and tracked for upstream reports.
+of its own (it builds upstream fixes awaiting a Grafeo release, listed in
+`Cargo.toml`): defects are documented and tracked for upstream reports.
 
 Attribution is checked, not asserted. CI also builds plain Grafeo as a
 reference (`crates/rushdb-language/examples/grafeo_reference.rs`: Grafeo's
@@ -197,31 +197,25 @@ join plan, while a single `MATCH` returns the same wrong rows there.
 The job fails when any scenario's outcome differs from the ledger (a
 regression, or an improvement not yet recorded with `--write-ledger`), when a
 failure matches no profile category, or when plain Grafeo passes a defect.
-Current result (2026-11-22, Grafeo 0.6.3 with typed temporal values):
-**1,952 of 3,897 scenarios pass** (1,653 on Grafeo 0.5.44). 1,473 scenarios
-test excluded features; of the 2,424 in the profile, 1,952 pass (81%) and
-472 fail on known defects:
+Current result (2026-11-21, Grafeo 0.6.4-pre with typed temporal values):
+**2,017 of 3,897 scenarios pass** (1,653 on Grafeo 0.5.44). 1,475 scenarios
+test excluded features; of the 2,422 in the profile, 2,017 pass (83%) and
+405 fail on known defects:
 
 | Category | Kind | Scenarios | Cause |
 | --- | --- | ---: | --- |
-| `temporal` | exclusion (`limitedTemporalTypes`) | 973 | The openCypher temporal type system beyond ISO `date`/`localtime`/`localdatetime`/`datetime`/`duration`, including nanosecond precision: values are kept to the microsecond, so six scenarios with nanosecond literals fail |
-| `lmpg-single-label` | exclusion (`singlePrimaryLabelPerRecord`, `statementLabelMutationUnavailable`) | 450 | LMPG records carry exactly one label |
+| `temporal` | exclusion (`limitedTemporalTypes`) | 973 | The openCypher temporal type system beyond ISO `date`/`localtime`/`localdatetime`/`datetime`/`duration`, including nanosecond precision: values are kept to the microsecond, so six scenarios with nanosecond literals that passed while Grafeo's own values were returned unconverted now fail |
+| `lmpg-single-label` | exclusion (`singlePrimaryLabelPerRecord`, `statementLabelMutationUnavailable`) | 452 | LMPG records carry exactly one label |
 | `procedures` | exclusion (`noProcedures`) | 50 | `CALL` procedures |
 | `grafeo-error-detection` | defect | 367 | Grafeo accepts statements the TCK requires to fail |
-| `grafeo-semantic` | defect | 31 | Variables bound in `OPTIONAL MATCH` out of scope after `WITH` (the triadic-selection anti-joins), `CREATE` chains past 128 clauses, an aggregate inside a map, `DELETE` of an expression, `nodes()`/`relationships()` of an expression |
-| `grafeo-quantifiers` | defect | 19 | `all`/`any`/`none`/`single` over lists holding nulls |
 | `grafeo-syntax` | defect | 18 | Syntax Grafeo's parser does not accept |
-| `grafeo-null-writes` | defect | 11 | `SET`/`REMOVE`/`DELETE` on a null from `OPTIONAL MATCH` fails instead of doing nothing |
-| `grafeo-result` | defect | 10 | List slices with a null bound, `null IN [...]`, variable-length patterns after a fixed hop with mixed directions |
-| `grafeo-write-column-names` | defect | 9 | Some unaliased columns are named differently from their expression text |
-| `grafeo-precedence` | defect | 5 | Exponentiation does not bind tighter than `*` and `+` |
-| `grafeo-lazy-writes` | defect | 2 | `MERGE ... ON CREATE`/`ON MATCH SET n += m` copies no properties |
+| `grafeo-write-column-names` | defect | 11 | Some unaliased columns are named differently from their expression text |
+| `grafeo-semantic` | defect | 5 | `DELETE` of an expression other than a variable |
+| `grafeo-result` | defect | 4 | Variable-length patterns after a fixed hop with mixed directions |
 
-Moving from Grafeo 0.5.44 to 0.6.3 gained 312 scenarios and lost 13: the
-two Grafeo 0.6.4 restores (`Create4` [1], `Return6` [6]; see Known
-limitations below), one nanosecond duration (`Temporal1` [12]; see typed
-temporal values below), and ten statements the TCK requires to fail that
-plain Grafeo 0.6 now runs (`grafeo-error-detection`): binding a bound node again (`Create1` [17],
+Moving from Grafeo 0.5.44 to 0.6 gained 369 scenarios and lost 10. Each lost
+one is a statement the TCK requires to fail that plain Grafeo 0.6 now runs
+(`grafeo-error-detection`): binding a bound node again (`Create1` [17],
 `Merge1` [15], `Merge5` [22]), a path variable bound in a preceding `MATCH`
 (`Match2` [10] #17 and #18), `count(rand())` (`Return6` [15]), an aggregate in
 a list comprehension (`List12` [7]), `length()` of a node or relationship
@@ -231,31 +225,6 @@ a list comprehension (`List12` [7]), `length()` of a node or relationship
 Typed temporal values (3.0.14) gained 11 scenarios (local date-times, date
 ordering and duration arithmetic now round-trip as their types) and lost the
 six nanosecond scenarios above.
-
-### Known limitations on Grafeo 0.6.3
-
-Grafeo's `release/0.6.4` branch fixes 65 of the defect scenarios above; with
-it RushDB passed 2,017. They return when Grafeo 0.6.4 is released and RushDB
-moves to it:
-
-| Area | Scenarios | Upstream | In 3.0.13 |
-| --- | ---: | --- | --- |
-| Anti-join on an `OPTIONAL MATCH` variable after `WITH` (`TriadicSelection1`, `WithWhere1` [3], [4]) | 20 | `release/0.6.4` | refused |
-| Quantifiers over nulls (`Quantifier1`–`Quantifier4`) | 19 | `release/0.6.4` | failed |
-| `SET`/`REMOVE`/`DELETE` on a null (`Set1`/`3`/`4`/`5`, `Remove1`/`2`, `Delete1`/`2`/`3`) | 11 | `release/0.6.4` | failed |
-| List slice with a null bound (`List2` [9]) | 5 | `release/0.6.4` | failed |
-| Exponent precedence (`Precedence2`) | 5 | `release/0.6.4` | failed |
-| `MERGE` copying properties (`Merge6` [6], `Merge7` [4]) | 2 | `release/0.6.4` | failed |
-| `null IN [...]` (`Null3` [4]) | 1 | `release/0.6.4` | failed |
-| `CREATE` chains past 128 clauses (`Create4` [1]) | 1 | [GrafeoDB/grafeo#807](https://github.com/GrafeoDB/grafeo/pull/807) | **ran** |
-| Aggregate inside a map (`Return6` [6]) | 1 | [GrafeoDB/grafeo#807](https://github.com/GrafeoDB/grafeo/pull/807) | **ran** |
-
-Outside the TCK, Cypher and GQL `text_score`, and `text_match` anywhere but a
-plain `WHERE` condition, are refused on RushDB's store
-([GrafeoDB/grafeo#809](https://github.com/GrafeoDB/grafeo/pull/809)); they
-ran in 3.0.13. `WHERE text_match(n.p, 'words')` on a property with a text
-index runs. The refusal names the forms that run, and the `text` and `hybrid`
-query kinds, SQL's `text_search` and Mongo's `$text` return scores.
 
 Running the full TCK found and fixed eight adapter defects on the RushDB side:
 a long statement (the TCK's 500-clause movie graph) overflowed the worker
