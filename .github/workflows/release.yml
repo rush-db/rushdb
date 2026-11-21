@@ -42,13 +42,9 @@ jobs:
           ref: ${{ inputs.tag || github.ref }}
       - run: mkdir -p dist
       - name: Generate source dependency SBOM
-        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0
-        with:
-          path: .
-          format: spdx-json
-          output-file: dist/rushdb-${{ matrix.target }}.spdx.json
-          upload-artifact: false
-          upload-release-assets: false
+        run: |
+          cargo install sbom-attest --version 0.4.0 --locked
+          sbom-attest generate -p rushdb-server --target ${{ matrix.target }} --locked --spdx dist/rushdb-${{ matrix.target }}.spdx.json
       - name: Build (manylinux_2_28)
         if: matrix.manylinux
         run: |
