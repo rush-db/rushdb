@@ -37,6 +37,21 @@ pub fn budget() -> usize {
     BUDGET.load(Ordering::SeqCst)
 }
 
+/// The threads helpers run on, started on first use. As many as the host has
+/// cores, or the budget if larger: the lease, not the pool, bounds how many
+/// helpers run at once.
+fn pool() -> &'static rayon::ThreadPool {
+    static POOL: std::sync::OnceLock<rayon::ThreadPool> = std::sync::OnceLock::new();
+    POOL.get_or_init(|| {
+        let cores = std::thread::available_parallelism().map_or(1, std::num::NonZero::get);
+        rayon::ThreadPoolBuilder::new()
+            .num_threads(cores.max(budget()).max(1))
+            .thread_name(|index| format!("rushdb-part-{index}"))
+            .build()
+            .expect("the part thread pool starts")
+    })
+}
+
 /// Helper threads lent to one call, returned when dropped.
 struct Lease(usize);
 
@@ -116,28 +131,28 @@ where
             .unwrap_or_else(std::sync::PoisonError::into_inner);
         guard[index] = Some(outcome);
     };
+    // Helpers run on a persistent pool (a thread per call cost more than a
+    // small part's work); the caller runs its own share on its own thread.
     // Reads a helper does count toward the caller's per-thread read
     // accounting, so a query's tally does not depend on which thread ran
     // which part.
-    let helper_reads = std::thread::scope(|scope| {
-        // Every helper starts before the caller takes its share.
-        let mut helpers = Vec::with_capacity(workers - 1);
+    let helper_reads = std::sync::Mutex::new(Vec::with_capacity(workers - 1));
+    pool().in_place_scope(|scope| {
         for _ in 1..workers {
-            helpers.push(scope.spawn(|| {
+            scope.spawn(|_| {
                 work();
-                crate::read_accounting::take_local()
-            }));
+                let reads = crate::read_accounting::take_local();
+                helper_reads
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner)
+                    .push(reads);
+            });
         }
         work();
-        helpers
-            .into_iter()
-            .map(|helper| {
-                helper
-                    .join()
-                    .unwrap_or_else(|panic| std::panic::resume_unwind(panic))
-            })
-            .collect::<Vec<_>>()
     });
+    let helper_reads = helper_reads
+        .into_inner()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     for reads in helper_reads {
         crate::read_accounting::add_local(reads);
     }

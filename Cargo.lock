@@ -4397,6 +4397,7 @@ version = "3.0.14"
 dependencies = [
  "crc32fast",
  "im",
+ "rayon",
  "redb",
  "rushdb-storage",
  "rushdb-types",
