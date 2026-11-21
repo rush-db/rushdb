@@ -430,11 +430,22 @@ fn fold_coded(
         return Ok(None);
     };
     coded.from = at;
-    let row_bytes = row.columns.iter().fold(0usize, |sum, column| {
+    // A row's bytes never exceed the columns' bound: when the bound fits,
+    // so does every row, and the check cannot fail.
+    let bound = row.columns.iter().fold(0usize, |sum, column| {
         sum.saturating_add(std::mem::size_of::<Option<Cell>>())
-            .saturating_add(column.heap_bytes(at))
+            .saturating_add(column.max_heap_bytes())
     });
-    Budget::WorkingSet.check(scan.budget, held.saturating_add(row_bytes))?;
+    if scan
+        .budget
+        .is_some_and(|limit| held.saturating_add(bound) > limit)
+    {
+        let row_bytes = row.columns.iter().fold(0usize, |sum, column| {
+            sum.saturating_add(std::mem::size_of::<Option<Cell>>())
+                .saturating_add(column.heap_bytes(at))
+        });
+        Budget::WorkingSet.check(scan.budget, held.saturating_add(row_bytes))?;
+    }
     groups
         .accumulate_coded(
             (scan.plan, plan_coded),

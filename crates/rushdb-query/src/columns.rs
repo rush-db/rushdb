@@ -112,6 +112,8 @@ pub(crate) struct Column {
     /// index into `dict`.
     vals: Vec<u64>,
     dict: Vec<String>,
+    /// The longest entry of `dict`: no cell's heap bytes exceed it.
+    longest: usize,
 }
 
 impl Column {
@@ -194,6 +196,11 @@ impl Column {
         }
     }
 
+    /// The most heap bytes any member's cell holds ([`Self::heap_bytes`]).
+    pub(crate) fn max_heap_bytes(&self) -> usize {
+        self.longest
+    }
+
     /// Whether this column holds the same members as `other`.
     pub(crate) fn same_members(&self, other: &Self) -> bool {
         self.ords == other.ords
@@ -244,6 +251,7 @@ impl Column {
     fn intern(&mut self, s: String, strings: &mut std::collections::HashMap<String, u64>) -> u64 {
         let next = self.dict.len() as u64;
         *strings.entry(s).or_insert_with_key(|s| {
+            self.longest = self.longest.max(s.len());
             self.dict.push(s.clone());
             next
         })
@@ -329,6 +337,7 @@ fn build(key: &ColumnKey, view: &ReadView, cx: &BuildCx) -> Result<Option<Column
         tags: Vec::new(),
         vals: Vec::new(),
         dict: Vec::new(),
+        longest: 0,
     };
     let mut strings = std::collections::HashMap::new();
     loop {
