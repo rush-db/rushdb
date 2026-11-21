@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Smoke-test a RushDB container image: it turns healthy, accepts a durable
-# write that survives a restart, and refuses to start without a token.
+# write that survives a restart, answers text and hybrid searches over an
+# index created after a load, and refuses to start without a token.
 #
 #   scripts/smoke-image.sh IMAGE [PLATFORM]
 set -euo pipefail
@@ -40,6 +41,10 @@ docker restart -t 60 "$NAME" >/dev/null
 wait_healthy
 execute '{"protocolVersion":1,"operation":{"kind":"query","query":{"kind":"records","query":{"labels":["SMOKE"]}}}}' |
   grep -q '"total":1' || { echo "the write did not survive a restart" >&2; exit 1; }
+
+# Text and hybrid search through the image's own background workers: an
+# index created after the load, as a bulk-loading client creates it.
+python3 -I "$(dirname "$0")/smoke-search.py" "http://127.0.0.1:$PORT" smoke 3
 
 if docker run --rm "${PLATFORM_ARGS[@]}" "$IMAGE" >/dev/null 2>&1; then
   echo "the image started with the default token" >&2
