@@ -108,6 +108,21 @@ indexes of the same name over the resident tenants. Each search also
 reports its index's backlog as `pending`. Text indexes never hold back WAL
 retention, and an index with nothing queued never commits.
 
+### Reading your own writes
+
+An `eventual` index never makes a write or a search wait, so a search sent
+right after a write may not see it yet. A client that needs its own writes
+in the results has two options:
+
+- declare the index `immediate`, so every search first applies what is
+  queued; or
+- keep it `eventual` and repeat the search while the response reports
+  `pending` greater than `0`.
+
+The same holds for an index created over existing records: once
+`describe indexes` reports it `ready`, its records are queued for the
+applier, and a search reports them in `pending` until they are applied.
+
 ## Search
 
 `query.text` returns the top BM25 matches of one text index.
