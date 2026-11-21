@@ -13,6 +13,8 @@ use std::collections::{BTreeSet, HashMap};
 
 use rushdb_types::occurrence::OccurrenceValue;
 
+mod coded;
+
 use crate::aggregate_catalog::too_many_groups;
 use crate::aggregation::{exact_f64, MAX_AGGREGATE_BUCKETS};
 use crate::{
@@ -268,10 +270,9 @@ pub(crate) struct RowPlan<'r> {
 }
 
 /// A plan folded from resident columns by code ([`Partial::accumulate_coded`]):
-/// the slots of its group keys and the slots its metrics read.
+/// the slots of its group keys (each metric reads its own slot's column).
 pub(crate) struct CodedPlan {
     key_slots: Vec<Option<usize>>,
-    metric_slots: Vec<usize>,
 }
 
 /// The cell at `slot` of `row`, when the record holds it.
@@ -443,8 +444,10 @@ impl<'r> RowPlan<'r> {
                 _ => None,
             })
             .collect::<Option<Vec<_>>>()?;
-        let mut metric_slots = BTreeSet::new();
-        let sources = self
+        if key_slots.len() > crate::columns::KEY_CODES {
+            return None;
+        }
+        let mut sources = self
             .counts
             .iter()
             .chain(&self.sums)
@@ -452,16 +455,10 @@ impl<'r> RowPlan<'r> {
             .chain(&self.maxs)
             .map(|(_, source)| source)
             .chain(self.avgs.iter().map(|(_, _, source)| source));
-        for source in sources {
-            match source {
-                Source::Slot(slot) => metric_slots.extend(*slot),
-                Source::Alias(_) => return None,
-            }
+        if sources.any(|source| matches!(source, Source::Alias(_))) {
+            return None;
         }
-        Some(CodedPlan {
-            key_slots,
-            metric_slots: metric_slots.into_iter().collect(),
-        })
+        Some(CodedPlan { key_slots })
     }
 
     pub(crate) fn per_row(&self) -> bool {
@@ -852,61 +849,6 @@ impl Partial {
             self.groups.push(group);
             self.groups.len() - 1
         };
-        let group = &mut self.groups[position];
-        added = added.saturating_add(apply(group, plan, row, ctx)?);
-        Ok(added)
-    }
-
-    /// Fold member `at` of resident `columns` (one per plan slot) in, as
-    /// [`Self::accumulate`] folds the row built from the same cells: the
-    /// group is found through `codes` (this part's cache from the key cells'
-    /// codes to groups) and only the metric slots of `row` are filled.
-    /// Returns the bytes the partial newly holds.
-    ///
-    /// # Errors
-    /// Returns the group cap and a lossy integer sum.
-    pub(crate) fn accumulate_coded(
-        &mut self,
-        (plan, coded): (&RowPlan<'_>, &CodedPlan),
-        (columns, at): (&[std::sync::Arc<crate::columns::Column>], usize),
-        group_of_code: &mut crate::columns::CodeMap<usize>,
-        row: &mut Vec<Option<Cell>>,
-        ctx: &RowCtx<'_>,
-    ) -> Result<usize, QueryError> {
-        let code: Vec<(u8, u64)> = coded
-            .key_slots
-            .iter()
-            .map(|slot| slot.map_or((u8::MAX, 0), |slot| columns[slot].code(at)))
-            .collect();
-        let mut added = 0usize;
-        let position = if let Some(position) = group_of_code.get(&code) {
-            *position
-        } else {
-            self.scratch.clear();
-            for slot in &coded.key_slots {
-                let cell = slot.and_then(|slot| columns[slot].cell(at));
-                self.scratch.push(Key::of_group(cell.as_ref()));
-            }
-            let position = if let Some(position) = self.index.get(self.scratch.as_slice()) {
-                *position
-            } else {
-                if self.groups.len() >= MAX_AGGREGATE_BUCKETS {
-                    return Err(too_many_groups());
-                }
-                let group = Group::new(plan, self.scratch.clone());
-                self.index.insert(self.scratch.clone(), self.groups.len());
-                added = group.bytes();
-                self.groups.push(group);
-                self.groups.len() - 1
-            };
-            group_of_code.insert(code, position);
-            position
-        };
-        row.clear();
-        row.resize(plan.names.len(), None);
-        for &slot in &coded.metric_slots {
-            row[slot] = columns[slot].cell(at);
-        }
         let group = &mut self.groups[position];
         added = added.saturating_add(apply(group, plan, row, ctx)?);
         Ok(added)

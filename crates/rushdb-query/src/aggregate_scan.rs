@@ -389,12 +389,11 @@ impl Shared<'_> {
 }
 
 /// One part's state for folding rows by code: the position in the
-/// columns, the cache from key codes to groups, and the row buffer.
+/// columns and the cache from key codes to groups.
 #[derive(Default)]
 struct Coded {
     from: usize,
-    groups: columns::CodeMap<usize>,
-    row: Vec<Option<Cell>>,
+    groups: columns::KeyCodeMap<usize>,
 }
 
 /// The context record `ord`'s row folds in: what its alias reads may hold
@@ -435,16 +434,12 @@ fn fold_coded(
         sum.saturating_add(std::mem::size_of::<Option<Cell>>())
             .saturating_add(column.heap_bytes(at))
     });
-    let held = held.saturating_add(row_bytes);
-    Budget::WorkingSet.check(scan.budget, held)?;
-    let row_ctx = row_context(scan, ord, held);
+    Budget::WorkingSet.check(scan.budget, held.saturating_add(row_bytes))?;
     groups
         .accumulate_coded(
             (scan.plan, plan_coded),
             (row.columns, at),
             &mut coded.groups,
-            &mut coded.row,
-            &row_ctx,
         )
         .map(Some)
 }

@@ -139,6 +139,17 @@ fn shapes() -> Vec<AggregateRequest> {
         json!({"labels": ["Row"], "groupBy": ["tags"], "select": {"n": {"$count": "*"}}}),
         // An integer sum that overflows: the same error either way.
         json!({"labels": ["Row"], "groupBy": ["b"], "select": {"i": {"$sum": "$record.i"}}}),
+        // Counts and sums over text and mixed cells (text is counted, never
+        // summed), extremes of text.
+        json!({"labels": ["Row"], "groupBy": ["b"],
+            "select": {"k": {"$count": "$record.k"}, "mixed": {"$count": "$record.mixed"},
+                       "mixed_sum": {"$sum": "$record.mixed"}, "k_lo": {"$min": "$record.k"},
+                       "k_hi": {"$max": "$record.k"}, "n": {"$count": "$record.n"}}}),
+        // Four keys fold by code; five fold built rows.
+        json!({"labels": ["Row"], "groupBy": ["b", "k", "n", "mixed"],
+            "select": {"c": {"$count": "*"}, "f": {"$sum": "$record.f"}}}),
+        json!({"labels": ["Row"], "groupBy": ["b", "k", "n", "mixed", "d"],
+            "select": {"c": {"$count": "*"}, "f": {"$avg": "$record.f"}}}),
     ]
     .iter()
     .map(request)
@@ -236,6 +247,17 @@ fn grouped_aggregates_answer_from_columns_like_storage() {
         ],
     });
     lmpg.run_batch(tx).unwrap();
+    let expected = reference(&lmpg);
+    assert_answers_like_storage(&lmpg, &expected);
+}
+
+#[test]
+fn grouped_aggregates_over_several_parts_answer_like_storage() {
+    // More members than one part holds (8,192): the parts fold by code on
+    // their own threads, each with its own code cache, and merge in part
+    // order, as storage's parts do.
+    let lmpg = Lmpg::new(store(256 << 20), TenantId::from_ordinal(176));
+    seed_rows(&lmpg, 20_000);
     let expected = reference(&lmpg);
     assert_answers_like_storage(&lmpg, &expected);
 }

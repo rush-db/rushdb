@@ -63,6 +63,17 @@ impl std::hash::Hasher for CodeHasher {
 pub(crate) type CodeMap<V> =
     std::collections::HashMap<Vec<(u8, u64)>, V, std::hash::BuildHasherDefault<CodeHasher>>;
 
+/// Group keys a pass folds by code without allocating per row; a grouping
+/// on more keys folds built rows.
+pub(crate) const KEY_CODES: usize = 4;
+
+/// The codes of a row's group keys (unused places stay `(0, 0)`).
+pub(crate) type KeyCodes = [(u8, u64); KEY_CODES];
+
+/// A map keyed by a row's group-key codes.
+pub(crate) type KeyCodeMap<V> =
+    std::collections::HashMap<KeyCodes, V, std::hash::BuildHasherDefault<CodeHasher>>;
+
 /// One property of one label of one tenant.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub(crate) struct ColumnKey {
@@ -114,6 +125,11 @@ impl Column {
     /// The members (ordinals, ascending) whose cells the column holds.
     pub(crate) fn members(&self) -> &[u64] {
         &self.ords
+    }
+
+    /// Whether member `at` holds a string (its cell would copy it).
+    pub(crate) fn is_text(&self, at: usize) -> bool {
+        self.tags[at] == STR
     }
 
     /// The raw code of member `at`'s cell: equal codes are equal cells.
