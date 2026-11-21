@@ -350,9 +350,14 @@ pub fn decode_value(
 ) -> Result<Json, StorageError> {
     match value {
         OccurrenceValue::ExplicitNull | OccurrenceValue::EmptyArray => Ok(Json::Null),
-        OccurrenceValue::Stored { ty } => Ok(to_doc_json(
-            &decode_stored(ty, &[payload, suffix].concat())
-                .map_err(|_| StorageError::CorruptLog)?,
-        )),
+        OccurrenceValue::Stored { ty } => {
+            // Most values have no suffix: decode the payload in place.
+            let decoded = if suffix.is_empty() {
+                decode_stored(ty, payload)
+            } else {
+                decode_stored(ty, &[payload, suffix].concat())
+            };
+            Ok(to_doc_json(&decoded.map_err(|_| StorageError::CorruptLog)?))
+        }
     }
 }
