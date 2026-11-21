@@ -14,6 +14,7 @@ use std::collections::{BTreeSet, HashMap};
 use rushdb_types::occurrence::OccurrenceValue;
 
 mod coded;
+pub(crate) use coded::GroupCache;
 
 use crate::aggregate_catalog::too_many_groups;
 use crate::aggregation::{exact_f64, MAX_AGGREGATE_BUCKETS};

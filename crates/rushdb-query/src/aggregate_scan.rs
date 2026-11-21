@@ -393,7 +393,7 @@ impl Shared<'_> {
 #[derive(Default)]
 struct Coded {
     from: usize,
-    groups: columns::KeyCodeMap<usize>,
+    groups: crate::aggregate_rows::GroupCache,
 }
 
 /// The context record `ord`'s row folds in: what its alias reads may hold

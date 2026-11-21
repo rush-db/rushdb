@@ -70,6 +70,17 @@ pub(crate) const KEY_CODES: usize = 4;
 /// The codes of a row's group keys (unused places stay `(0, 0)`).
 pub(crate) type KeyCodes = [(u8, u64); KEY_CODES];
 
+/// The bound on [`Column::dense_code`]: a group table indexed by dense
+/// codes stays small (a `u32` each, per part).
+pub(crate) const DENSE_CODES: usize = 1 << 16;
+
+/// A cell's number, read from a column without building the cell.
+#[derive(Clone, Copy)]
+pub(crate) enum Number {
+    Int(i64),
+    Float(f64),
+}
+
 /// A map keyed by a row's group-key codes.
 pub(crate) type KeyCodeMap<V> =
     std::collections::HashMap<KeyCodes, V, std::hash::BuildHasherDefault<CodeHasher>>;
@@ -127,9 +138,46 @@ impl Column {
         &self.ords
     }
 
-    /// Whether member `at` holds a string (its cell would copy it).
-    pub(crate) fn is_text(&self, at: usize) -> bool {
-        self.tags[at] == STR
+    /// Member `at`'s number, when it holds an integer or a float, without
+    /// building its cell.
+    pub(crate) fn number(&self, at: usize) -> Option<Number> {
+        let val = self.vals[at];
+        match self.tags[at] {
+            INT => Some(Number::Int(i64::from_ne_bytes(val.to_ne_bytes()))),
+            FLOAT => Some(Number::Float(f64::from_bits(val))),
+            _ => None,
+        }
+    }
+
+    /// Whether member `at`'s cell would be built from a value of another
+    /// type (it is decoded from its tagged form).
+    pub(crate) fn is_typed(&self, at: usize) -> bool {
+        self.tags[at] == TYPED
+    }
+
+    /// Whether member `at` has a cell (`self.cell(at).is_some()`), building
+    /// it only for a value of another type.
+    pub(crate) fn holds(&self, at: usize) -> bool {
+        match self.tags[at] {
+            NULL | BOOL | INT | FLOAT | STR => true,
+            TYPED => self.cell(at).is_some(),
+            _ => false,
+        }
+    }
+
+    /// A small dense code of member `at`'s cell, when it is absent, null, a
+    /// boolean or one of the column's first strings: equal dense codes are
+    /// equal codes ([`Self::code`]), and every one is below [`DENSE_CODES`].
+    pub(crate) fn dense_code(&self, at: usize) -> Option<usize> {
+        let val = usize::try_from(self.vals[at]).ok()?;
+        let dense = match self.tags[at] {
+            ABSENT => 0,
+            NULL => 1,
+            BOOL => 2 + val,
+            STR => 4usize.checked_add(val)?,
+            _ => return None,
+        };
+        (dense < DENSE_CODES).then_some(dense)
     }
 
     /// The raw code of member `at`'s cell: equal codes are equal cells.
@@ -154,6 +202,12 @@ impl Column {
     /// The position of `ord`, searching forward from `from` (candidates of
     /// a part ascend, so a cursor rarely moves far).
     pub(crate) fn seek(&self, ord: u64, from: usize) -> Option<usize> {
+        // A walk over the members asks for the next one, or the same.
+        for at in [from, from + 1] {
+            if self.ords.get(at) == Some(&ord) {
+                return Some(at);
+            }
+        }
         let rest = self.ords.get(from..)?;
         // Gallop: most steps are to the next member or a near one.
         let mut step = 1usize;
