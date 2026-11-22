@@ -9,7 +9,8 @@
 #                             tests in both resident modes, per test binary,
 #                             with memory and time budgets (scripts/run-tests.py)
 #   scripts/gate.sh release   before an image is handed over: the release
-#                             build, the upgrade matrix, the openCypher TCK,
+#                             build, the upgrade matrix and a 3.0.13 vector
+#                             index opened as built, the openCypher TCK,
 #                             the advisory check, the image and its smoke
 #                             (scripts/smoke-image.sh: restart, text, hybrid)
 #
@@ -69,6 +70,10 @@ heavy cargo build --release --locked -p rushdb-language --example grafeo_referen
 step "upgrade matrix"
 UPGRADE_FIXTURE_FLAGS="--disk-space-threshold-percent 0" ./scripts/upgrade-fixtures.py matrix ./target/release/rushdb > "$L/upgrade.log" 2>&1 || fail "upgrade matrix"
 echo "  $(grep -c 'reads match, write and restart work' "$L/upgrade.log") upgrade cases"
+step "vector upgrade (3.0.13 segments)"
+python3 -I scripts/vector-upgrade-check.py ./target/release/rushdb 3.0.13 > "$L/vector-upgrade.log" 2>&1 ||
+  { tail -5 "$L/vector-upgrade.log"; fail "vector upgrade"; }
+tail -1 "$L/vector-upgrade.log"
 
 step "openCypher TCK"
 TCK_SOURCE="$ROOT/target/gate-opencypher"
