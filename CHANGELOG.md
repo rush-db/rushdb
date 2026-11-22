@@ -4,7 +4,7 @@ This project follows [Semantic Versioning](https://semver.org/). Release notes
 describe observable engine and protocol changes; migration instructions belong
 in [`docs/manual/operations/upgrading-from-2x.md`](docs/manual/operations/upgrading-from-2x.md).
 
-## Unreleased
+## 3.0.14 — TBD
 
 ### Changed
 
@@ -176,6 +176,31 @@ in [`docs/manual/operations/upgrading-from-2x.md`](docs/manual/operations/upgrad
   `rushdb`.** When it links `rushdb` into a directory already on `PATH`, it
   now says `rushdb` is ready in this shell; the `export PATH=...` hint is
   printed only when no link was made.
+
+### Known limitations
+
+- **Small indexed pages are about 5% slower than in 3.0.13.** A page of a
+  few hundred records found through an ordered index takes about 30 µs
+  longer: typed values (741b9b22) made each point read of a record's
+  properties fetch more storage pages. A fix is planned for 3.0.15.
+- **Built with an unreleased Grafeo revision; no crates.io packages.** The
+  graph languages run on Grafeo `546fe7e8` (Grafeo's `release/0.6.4` at
+  `ab59235d` with GrafeoDB/grafeo#807 and the #809 fix), which is not on
+  crates.io, so 3.0.14's crates are not published there: it ships as
+  binaries, Docker images, the Helm chart and the Homebrew formula.
+  Publishing to crates.io resumes with the first release on Grafeo 0.6.4.
+- **Vector graphs stay 16-bit.** An 8-bit ANN graph was about a third
+  faster with half the graph memory on 100,000 OpenAI embeddings, but its
+  recall@10 was lower at small search breadths (0.822 against 0.853 at
+  `ef` 16), so it is not the default. Segments now record their graph's
+  precision, so a later release can change the default without touching
+  existing segments.
+- **An `eventual` text index may not show a write in a search sent at the
+  same moment.** The applier wakes on every write, so a write is
+  searchable within milliseconds, and a search reports what it has not
+  applied yet in `pending`. A client that needs its own writes uses an
+  `immediate` index or repeats the search while `pending` is above 0 (see
+  [Full-text search](docs/manual/indexes-and-search/full-text-search.md#reading-your-own-writes)).
 
 ## 3.0.13 — 2026-11-20
 

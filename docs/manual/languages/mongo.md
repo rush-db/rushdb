@@ -82,6 +82,11 @@ before `skip`/`limit` are applied, so you can page without a separate count.
 To fetch one document, use `"limit": 1`; there is no separate `findOne`
 command.
 
+A `find` or `count` whose collection or filter names a label, property or
+text no record holds still runs, and the response carries `warnings` with
+what it most likely meant; `context.check: "strict"` refuses it instead (see
+[Catalog check](../query/search-queries.md#catalog-check)).
+
 `$text` searches the collection's text index; `{"$meta": "textScore"}`
 projects or sorts by its BM25 score:
 

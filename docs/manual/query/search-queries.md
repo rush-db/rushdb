@@ -247,12 +247,12 @@ listings whose size you do not control.
 
 ## Catalog check
 
-Before a query runs, the server checks what it names against the data:
-every label in `labels` and in traversal blocks has records, every property
-in the predicate is carried by records of those labels, and every text
-compared by equality (a bare value, `$eq`, `$ne`, `$in`, `$nin`) is stored
-in that property. The query still runs; when something is missing, the
-response says so in `warnings`, with what the query most likely meant:
+The server checks what a query names against the data it reads: every
+label in `labels` and in traversal blocks has records, every property in the
+predicate is carried by records of those labels, and every text compared by
+equality (a bare value, `$eq`, `$ne`, `$in`, `$nin`) is stored in that
+property. The query still runs; when something is missing, the response says
+so in `warnings`, with what the query most likely meant:
 
 ```json
 {
@@ -280,12 +280,18 @@ checked. `context.check` chooses what happens:
 
 | `context.check` | Behaviour |
 |---|---|
-| `warn` (default) | Run the query and return `warnings`. |
+| `warn` (default) | Run the query and return `warnings`, checked at the snapshot the query answered from. |
 | `strict` | Refuse a query with a miss before it runs: `invalid_request`, with the warnings in `error.details.warnings`. |
 | `off` | No check. |
 
 The check reads one counter or dictionary row per name and text, and reads
-suggestions only for a miss. It covers records and property-values queries,
+suggestions only for a miss. Under `warn` it is skipped when the answer
+already shows nothing is missing: a records query on one label whose filter
+has only positive conditions (values, `$eq`, ranges, `$contains`-style
+operators, `$and`, traversal blocks) and that found records could not have
+matched anything if a name or text were missing. A filter with `$in`,
+`$or`, a negation or `$exists`, several labels, and an aggregate without
+`groupBy` are always checked. It covers records and property-values queries,
 Mongo statements (the collection and the filter) and SQL reads (texts
 compared with `=`, `<>`, `IN` or `NOT IN`, placed by table or alias;
 unknown tables and columns already fail with suggestions). Under an enforced
