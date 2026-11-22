@@ -61,8 +61,9 @@ in [`docs/manual/operations/upgrading-from-2x.md`](docs/manual/operations/upgrad
   GrafeoDB/grafeo#807 (named zero-length paths, grouping keys inside maps,
   long `CREATE` chains) and one that lets `text_match`/`text_score` run on
   RushDB's text indexes outside a pushed-down `WHERE` (GrafeoDB/grafeo#809).
-  The revision is `546fe7e8`: Grafeo's `release/0.6.4` at `ab59235d` with
-  those two fixes. Because that revision is not on crates.io, **3.0.14's
+  The revision is `546fe7e8` (tag `rushdb-3.0.14` on
+  [rush-db/grafeo](https://github.com/rush-db/grafeo)): Grafeo's
+  `release/0.6.4` at `ab59235d` with those two fixes. Because that revision is not on crates.io, **3.0.14's
   crates are not published to crates.io**: this release ships as binaries,
   Docker images, the Helm chart and the Homebrew formula. Publishing to
   crates.io resumes with the first release on Grafeo 0.6.4. Results that
@@ -184,8 +185,9 @@ in [`docs/manual/operations/upgrading-from-2x.md`](docs/manual/operations/upgrad
   longer: typed values (741b9b22) made each point read of a record's
   properties fetch more storage pages. A fix is planned for 3.0.15.
 - **Built with an unreleased Grafeo revision; no crates.io packages.** The
-  graph languages run on Grafeo `546fe7e8` (Grafeo's `release/0.6.4` at
-  `ab59235d` with GrafeoDB/grafeo#807 and the #809 fix), which is not on
+  graph languages run on Grafeo `546fe7e8` (tag `rushdb-3.0.14` on
+  rush-db/grafeo: Grafeo's `release/0.6.4` at `ab59235d` with
+  GrafeoDB/grafeo#807 and the #809 fix), which is not on
   crates.io, so 3.0.14's crates are not published there: it ships as
   binaries, Docker images, the Helm chart and the Homebrew formula.
   Publishing to crates.io resumes with the first release on Grafeo 0.6.4.

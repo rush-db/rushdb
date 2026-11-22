@@ -2245,6 +2245,7 @@ checksum = "e4eba85ea1d0a966a983acd07deee566e67395d2d96b6fb39e62b5a833f1eb0b"
 [[package]]
 name = "grafeo-adapters"
 version = "0.6.3"
+source = "git+https://github.com/rush-db/grafeo?rev=546fe7e8168d4e9f1766ba3372ea44b9b1350fa2#546fe7e8168d4e9f1766ba3372ea44b9b1350fa2"
 dependencies = [
  "grafeo-common",
  "grafeo-core",
@@ -2254,6 +2255,7 @@ dependencies = [
 [[package]]
 name = "grafeo-common"
 version = "0.6.3"
+source = "git+https://github.com/rush-db/grafeo?rev=546fe7e8168d4e9f1766ba3372ea44b9b1350fa2#546fe7e8168d4e9f1766ba3372ea44b9b1350fa2"
 dependencies = [
  "arcstr",
  "bincode",
@@ -2276,6 +2278,7 @@ dependencies = [
 [[package]]
 name = "grafeo-core"
 version = "0.6.3"
+source = "git+https://github.com/rush-db/grafeo?rev=546fe7e8168d4e9f1766ba3372ea44b9b1350fa2#546fe7e8168d4e9f1766ba3372ea44b9b1350fa2"
 dependencies = [
  "arcstr",
  "bincode",
@@ -2296,6 +2299,7 @@ dependencies = [
 [[package]]
 name = "grafeo-engine"
 version = "0.6.3"
+source = "git+https://github.com/rush-db/grafeo?rev=546fe7e8168d4e9f1766ba3372ea44b9b1350fa2#546fe7e8168d4e9f1766ba3372ea44b9b1350fa2"
 dependencies = [
  "arcstr",
  "bincode",

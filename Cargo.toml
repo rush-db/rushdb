@@ -112,12 +112,13 @@ lto = "thin"
 codegen-units = 1
 
 # Grafeo 0.6.4 is not released yet. Until it is, build the upstream
-# release/0.6.4 branch with GrafeoDB/grafeo#807 applied (named zero-length
-# paths, grouping keys inside maps, long CREATE chains) and one more fix: a
-# database on a store of its own may answer text_match and text_score from
-# its own text indexes. The checkout lives in third_party/grafeo (branch
-# rushdb-3.0.14, local). Drop this patch for a crates.io release with both.
+# release/0.6.4 branch at ab59235d with GrafeoDB/grafeo#807 applied (named
+# zero-length paths, grouping keys inside maps, long CREATE chains) and the
+# #809 fix (a database on a store of its own answers text_match and
+# text_score from its own text indexes): commit 546fe7e8 on the rush-db/grafeo
+# fork (branch and tag rushdb-3.0.14). Replace with the crates.io release once
+# Grafeo 0.6.4 ships with both.
 [patch.crates-io]
-grafeo-common = { path = "third_party/grafeo/crates/grafeo-common" }
-grafeo-core = { path = "third_party/grafeo/crates/grafeo-core" }
-grafeo-engine = { path = "third_party/grafeo/crates/grafeo-engine" }
+grafeo-common = { git = "https://github.com/rush-db/grafeo", rev = "546fe7e8168d4e9f1766ba3372ea44b9b1350fa2" }
+grafeo-core = { git = "https://github.com/rush-db/grafeo", rev = "546fe7e8168d4e9f1766ba3372ea44b9b1350fa2" }
+grafeo-engine = { git = "https://github.com/rush-db/grafeo", rev = "546fe7e8168d4e9f1766ba3372ea44b9b1350fa2" }

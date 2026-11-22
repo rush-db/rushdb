@@ -21,6 +21,7 @@ FROM rust:1.100.0-bookworm AS source
 WORKDIR /src
 COPY . .
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    --mount=type=cache,target=/usr/local/cargo/git \
     --mount=type=cache,target=/src/target \
     cargo build --release --locked -p rushdb-server --bin rushdb \
     && mkdir /out \
