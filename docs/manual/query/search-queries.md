@@ -274,7 +274,9 @@ so in `warnings`, with what the query most likely meant:
 | `unknownProperty` | No record of `labels` carries `property`. | Properties spelled alike, with their label (`spelling`). |
 | `unknownValue` | No record of `labels` stores the text `value` in `property`. | The stored spelling (`spelling`, case ignored), other properties that store the text (`storedIn`), stored values containing it (`contains`). |
 
-A query without misses has no `warnings` field. Values compared as other
+A warning's `suggestions` is omitted when there is nothing to suggest, and
+its `reason` is one of `spelling`, `storedIn` and `contains`. A query
+without misses has no `warnings` field. Values compared as other
 types (numbers, dates, datetimes), and texts longer than 96 bytes, are not
 checked. `context.check` chooses what happens:
 

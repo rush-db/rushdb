@@ -4714,6 +4714,16 @@ fn language_gating_enforces_enablement_and_searchquery_always_on() {
     };
     assert!(capabilities.contains(&"language:searchquery".to_string()));
     assert!(!capabilities.iter().any(|c| c.contains("language:mongo")));
+    // 3.0.14's client-visible features are negotiable by flag.
+    for flag in [
+        "typedTemporalValues",
+        "pointValues",
+        "spatialFilters",
+        "uniqueIndexes",
+        "catalogCheck",
+    ] {
+        assert!(capabilities.iter().any(|c| c == flag), "{flag} is advertised");
+    }
 
     // Enable mongodb on a fresh node -> it runs end-to-end (find).
     let mut cfg2 = config(false);

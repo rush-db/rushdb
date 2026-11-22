@@ -170,6 +170,22 @@ pub(crate) fn engine_capabilities(enabled: LanguageSet) -> Vec<String> {
         "describeNames".into(),
         "schemaSummary".into(),
         "valueOverlap".into(),
+        // 3.0.14. Values of the types date, localtime, localdatetime,
+        // datetime (with its offset, to the microsecond) and duration, as
+        // ISO 8601 literals, typed on ingest and in filters.
+        "typedTemporalValues".into(),
+        // GeoJSON points as values of their own type.
+        "pointValues".into(),
+        // `$within` (radius, box) and `$distance` (nearest first) filters
+        // and ordering over points.
+        "spatialFilters".into(),
+        // `kind: "unique"` indexes; a write a unique index refuses is a 409
+        // `conflict` with `error.details` naming the label, property and
+        // holding record.
+        "uniqueIndexes".into(),
+        // `warnings` on query responses for names and values no record
+        // holds, and `context.check` (`warn`, `strict`, `off`).
+        "catalogCheck".into(),
     ];
     // Language enablement is discoverable: only enabled languages are
     // advertised. `searchquery` is always enabled and implied.

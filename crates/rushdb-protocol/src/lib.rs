@@ -144,9 +144,8 @@ pub struct QueryWarningSuggestion {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub value: Option<String>,
     /// Why: `spelling` (a name or value spelled alike), `storedIn` (the
-    /// value is stored in this other property), `contains` (a stored value
-    /// containing the text), `frequent` (one of the property's most
-    /// frequent values).
+    /// value is stored in this other property) or `contains` (a stored value
+    /// containing the text).
     pub reason: String,
 }
 
