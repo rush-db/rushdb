@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Smoke-test a RushDB container image: it turns healthy, accepts a durable
-# write that survives a restart, answers text and hybrid searches over an
-# index created after a load, and refuses to start without a token.
+# write that survives a restart, advertises its feature flags, answers text
+# and hybrid searches over an index created after a load, and refuses to
+# start without a token.
 #
 #   scripts/smoke-image.sh IMAGE [PLATFORM]
 set -euo pipefail
@@ -41,6 +42,13 @@ docker restart -t 60 "$NAME" >/dev/null
 wait_healthy
 execute '{"protocolVersion":1,"operation":{"kind":"query","query":{"kind":"records","query":{"labels":["SMOKE"]}}}}' |
   grep -q '"total":1' || { echo "the write did not survive a restart" >&2; exit 1; }
+
+# The feature flags clients negotiate with (the SDKs gate direct-mode
+# features on them): every 3.0.14 flag is advertised.
+capabilities=$(execute '{"protocolVersion":1,"operation":{"kind":"describe","describe":{"kind":"capabilities"}}}')
+for flag in typedTemporalValues pointValues spatialFilters uniqueIndexes catalogCheck; do
+  grep -q "\"$flag\"" <<< "$capabilities" || { echo "describe.capabilities lacks $flag" >&2; exit 1; }
+done
 
 # Text and hybrid search through the image's own background workers: an
 # index created after the load, as a bulk-loading client creates it.
