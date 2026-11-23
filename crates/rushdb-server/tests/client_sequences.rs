@@ -82,7 +82,7 @@ fn documents_ingested_then_text_indexed_are_found() {
 
 #[test]
 fn hybrid_search_fuses_a_text_index_created_after_the_load() {
-    // The benchmark's order: a vector index, documents with vectors, the
+    // A common client order: a vector index, documents with vectors, the
     // text index after the load. The vector ranks documents 3, 2, 1 and the
     // text finds document 1 alone, so fused document 1 leads; without the
     // text side documents 3 and 2 would.
