@@ -1001,7 +1001,7 @@ fn is_transaction_control(sql: &str) -> bool {
 
 /// The command tag of a SQL statement that runs as a mutation: the DML
 /// subset backed by the native atomic SQL mutation path, and index DDL
-/// (`CREATE [VECTOR] INDEX`, `DROP INDEX`). More complicated SQL remains a
+/// (`CREATE [VECTOR | UNIQUE] INDEX`, `DROP INDEX`). More complicated SQL remains a
 /// typed engine error; this classifier only chooses the canonical protocol
 /// operation.
 fn mutation_tag(sql: &str) -> Option<&'static str> {
@@ -1016,7 +1016,7 @@ fn mutation_tag(sql: &str) -> Option<&'static str> {
         ("UPDATE", _) => Some("UPDATE"),
         ("DELETE", _) => Some("DELETE"),
         ("CREATE", Some("INDEX")) => Some("CREATE INDEX"),
-        ("CREATE", Some("VECTOR")) if words.next().as_deref() == Some("INDEX") => {
+        ("CREATE", Some("VECTOR" | "UNIQUE")) if words.next().as_deref() == Some("INDEX") => {
             Some("CREATE INDEX")
         }
         ("DROP", Some("INDEX")) => Some("DROP INDEX"),

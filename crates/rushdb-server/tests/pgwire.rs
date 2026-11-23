@@ -859,6 +859,55 @@ async fn statement_errors_carry_postgres_sqlstates() {
 }
 
 #[tokio::test]
+async fn create_unique_index_runs_as_a_write_and_refuses_duplicates() {
+    // `CREATE UNIQUE INDEX` was refused as "not read-only": the write
+    // classifier knew `CREATE INDEX` and `CREATE VECTOR INDEX` only.
+    let (http_port, port) = start_gateway(false, None, true);
+    put_record(http_port, None, "SKU", &serde_json::json!({ "code": "A" }));
+    let client = connect(port, "rushdb", "pgwire-token").await.unwrap();
+    client
+        .simple_query("CREATE UNIQUE INDEX sku_code ON SKU (code)")
+        .await
+        .unwrap();
+    client
+        .simple_query("SET disallow_full_table_scans = on")
+        .await
+        .unwrap();
+    // The index is built in the background; it serves the filter once ready.
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+    loop {
+        match client
+            .query("SELECT count(*) AS c FROM SKU WHERE code = 'A'", &[])
+            .await
+        {
+            Ok(_) => break,
+            Err(error) if std::time::Instant::now() < deadline => {
+                assert!(
+                    db_code(&error).contains("unindexed walk refused"),
+                    "{error}"
+                );
+                tokio::task::spawn_blocking(|| {
+                    std::thread::sleep(std::time::Duration::from_millis(50));
+                })
+                .await
+                .unwrap();
+            }
+            Err(error) => panic!("the index never served the filter: {}", db_code(&error)),
+        }
+    }
+    let duplicate = client
+        .simple_query("INSERT INTO SKU (code) VALUES ('A')")
+        .await
+        .unwrap_err();
+    assert_eq!(
+        duplicate.as_db_error().map(|error| error.code().code()),
+        Some("23505"),
+        "{}",
+        db_code(&duplicate)
+    );
+}
+
+#[tokio::test]
 async fn create_index_on_a_lowercase_table_name_indexes_the_label() {
     // PGW-1: `SELECT … FROM note` reads label NOTE, but `CREATE INDEX … ON
     // note (v)` declared an index on a label `note` that no record has.
