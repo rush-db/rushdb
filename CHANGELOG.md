@@ -149,18 +149,16 @@ in [`docs/manual/operations/upgrading-from-2x.md`](docs/manual/operations/upgrad
 - **Unindexed listing filters read resident columns** (L8). A listing
   filtered on properties no index covers is answered from the resident
   columns of those properties once they are built, instead of reading
-  every holder's values. On 100,000 records, a filter on a low-cardinality
-  property answers in 1.3–2.2 ms instead of 25–27 ms, and one matching
-  half the records in 29 ms instead of 100 ms (median, measured in both
-  orders against 3.0.13). A filter over a property with very many distinct
-  values (a numeric range) is answered as before.
+  every holder's values. On 100,000 records on a single host, compared
+  with 3.0.13, such filters are about 10x faster; filters an index covers
+  are on par. A filter over a property with very many distinct values (a
+  numeric range) is answered as before.
 - **Grouped aggregates over resident columns fold without allocating per
   row.** A `groupBy` with `$count`, `$sum`, `$avg`, `$min` or `$max` over
-  up to four keys reads each metric straight from its column. On 1,000,000
-  records, single-key, two-key and multi-metric groupings are 29–51%
-  faster than 3.0.13 (median, measured in both orders); a grouping behind
-  a filter is about 4% faster, and plain counts are unchanged. Answers are
-  bit-identical.
+  up to four keys reads each metric straight from its column, so single-
+  key, two-key and multi-metric groupings are faster than in 3.0.13; a
+  grouping behind a filter gains little, and plain counts are unchanged.
+  Answers are bit-identical.
 
 ### Fixed
 
