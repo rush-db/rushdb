@@ -4,7 +4,7 @@ This project follows [Semantic Versioning](https://semver.org/). Release notes
 describe observable engine and protocol changes; migration instructions belong
 in [`docs/manual/operations/upgrading-from-2x.md`](docs/manual/operations/upgrading-from-2x.md).
 
-## 3.0.14 — TBD
+## 3.0.14 — 2026-11-24
 
 ### Changed
 
