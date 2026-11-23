@@ -42,7 +42,7 @@ jobs:
             echo "::notice::$TAG is not published to crates.io: ${reason#*#}"
             echo "skip=true" >> "$GITHUB_OUTPUT"
           fi
-      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # 1.100.0
+      - uses: dtolnay/rust-toolchain@df2a88e9fe4098bad09cb42c3dec7187f15861fc # 1.100.0
         if: steps.skip.outputs.skip != 'true'
         with:
           toolchain: 1.100.0
