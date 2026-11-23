@@ -102,7 +102,7 @@ impl Fixture {
                     row.payments.iter().any(|p| values.contains(&json!(p)))
                 }
                 Expr::Field(FieldPred::Gte(_, bound)) => {
-                    f64::from(u32::try_from(row.passengers).unwrap()) >= *bound
+                    f64::from(u32::try_from(row.passengers).unwrap()) >= bound.as_f64().unwrap()
                 }
                 other => panic!("no oracle for {other:?}"),
             })
@@ -151,7 +151,7 @@ fn leaves() -> Vec<Expr> {
             "payment".into(),
             vec![json!("card"), json!("other")],
         )),
-        Expr::Field(FieldPred::Gte("passengers".into(), 2.0)),
+        Expr::Field(FieldPred::Gte("passengers".into(), json!(2.0))),
     ]
 }
 

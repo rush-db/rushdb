@@ -2,9 +2,10 @@
 //! remains only until its consumers migrate; do not adapt errors into nulls.
 use crate::reader::{try_access as access, TryRead};
 use rushdb_storage::StorageError;
-use rushdb_types::encoding::decode_order_preserving;
+use rushdb_types::encoding::decode_stored;
 use rushdb_types::ids::{OwnerKind, TenantId};
 use rushdb_types::occurrence::{OccurrenceValue, PropertyFamily};
+use rushdb_types::types::to_doc_json;
 use rushdb_types::value::{ID_FIELD, LABEL_FIELD, SOURCE_FIELD, TARGET_FIELD, TYPE_FIELD};
 use serde_json::{Map, Value as Json};
 use std::collections::{BTreeMap, HashSet};
@@ -213,7 +214,11 @@ impl<'a, R: TryRead> ReconstructSession<'a, R> {
             let empty_array = is_empty_array_marker(&rows);
             let values = rows
                 .iter()
-                .map(|row| decode_value(row.value, &row.payload))
+                .map(|row| {
+                    Ok(row
+                        .scalar()?
+                        .map_or(Json::Null, |scalar| to_doc_json(&scalar)))
+                })
                 .collect::<Result<Vec<_>, _>>()?;
             out.insert(
                 family.display_name,
@@ -332,25 +337,27 @@ pub fn reconstruct_record_limited<R: TryRead>(
     session.reconstruct_record_limited(ordinal, max_occurrences)
 }
 
-/// Decodes one occurrence value into JSON.
+/// Decodes one stored occurrence value (its payload and suffix, see
+/// [`rushdb_types::occurrence::OccValue`]) into a document value: JSON's own value, or the tagged form of
+/// the other types ([`to_doc_json`]).
 ///
 /// # Errors
 /// Returns [`StorageError::CorruptLog`] if a stored payload cannot be decoded.
-pub fn decode_value(value: OccurrenceValue, payload: &[u8]) -> Result<Json, StorageError> {
-    use rushdb_types::value::Scalar;
+pub fn decode_value(
+    value: OccurrenceValue,
+    payload: &[u8],
+    suffix: &[u8],
+) -> Result<Json, StorageError> {
     match value {
         OccurrenceValue::ExplicitNull | OccurrenceValue::EmptyArray => Ok(Json::Null),
         OccurrenceValue::Stored { ty } => {
-            let scalar =
-                decode_order_preserving(ty, payload).map_err(|_| StorageError::CorruptLog)?;
-            Ok(match scalar {
-                Scalar::Boolean(b) => Json::Bool(b),
-                Scalar::Int64(i) | Scalar::DateTime(i) => Json::Number(i.into()),
-                Scalar::Float64(f) => {
-                    serde_json::Number::from_f64(f).map_or(Json::Null, Json::Number)
-                }
-                Scalar::Utf8(s) => Json::String(s),
-            })
+            // Most values have no suffix: decode the payload in place.
+            let decoded = if suffix.is_empty() {
+                decode_stored(ty, payload)
+            } else {
+                decode_stored(ty, &[payload, suffix].concat())
+            };
+            Ok(to_doc_json(&decoded.map_err(|_| StorageError::CorruptLog)?))
         }
     }
 }

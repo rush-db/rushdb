@@ -155,8 +155,7 @@ See [Transactions](../query/transactions.md).
 
 ## Values
 
-Parameters and results use the Bolt PackStream encoding, limited to JSON-like
-values:
+Parameters and results use the Bolt PackStream encoding:
 
 | Bolt type | Support |
 |---|---|
@@ -164,7 +163,9 @@ values:
 | List, Map | yes (up to 1,000,000 items per container, nesting depth 64) |
 | Bytes | no: a message containing bytes is rejected |
 | Node, Relationship, Path structures | not sent: nodes and relationships are returned as **maps** |
-| Temporal and spatial structures | no |
+| `Date`, `LocalTime`, `LocalDateTime`, `DateTime` (offset), `Duration` | yes, both ways: stored as `date`, `localtime`, `localdatetime`, `datetime` and `duration`; nanoseconds are truncated to the microsecond |
+| `Point2D`, `Point3D` (SRID 4326, 4979, 7203, 9157) | yes, both ways: stored as `point` |
+| `Time` (a time of day with an offset), `DateTimeZoneId` (a named zone) | no: a parameter is refused with `Neo.ClientError.Statement.TypeError` |
 
 A returned node is a map of its properties plus `__id` (its dashed UUID) and
 `__label`; a relationship is a map of its properties plus `__id`, `__type`,
@@ -250,6 +251,10 @@ What to expect from a driver:
 | `Neo.ClientError.Request.Invalid` | `unsupported_version`, malformed `PULL`/`DISCARD` metadata, a `RUN` in a transaction naming another `db` |
 | `Neo.DatabaseError.Execution.Failed` | `execution_failed` |
 | `Neo.ClientError.Transaction.TransactionNotFound` | `COMMIT` or `ROLLBACK` without `BEGIN` |
+
+`Neo.ClientError.Statement.TypeError` is also returned for a parameter
+structure the engine has no type for (`Time`, `DateTimeZoneId`, or an
+unknown structure).
 
 After a failure, send `RESET` before continuing.
 

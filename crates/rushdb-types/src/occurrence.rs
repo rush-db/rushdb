@@ -300,7 +300,8 @@ pub const OCC_STATE_EMPTY_ARRAY: u8 = 0xFE;
 
 /// Encode an occurrence row value: `flags || state || payload`, where state is
 /// [`OCC_STATE_NULL`], [`OCC_STATE_EMPTY_ARRAY`], or the logical type tag of a
-/// stored scalar followed by its order-preserving payload.
+/// stored scalar followed by its stored form
+/// ([`crate::encoding::encode_stored`]).
 #[must_use]
 pub fn encode_occ_value(array: bool, value: OccurrenceValue, payload: Option<&[u8]>) -> Vec<u8> {
     let payload = payload.unwrap_or_default();
@@ -324,8 +325,11 @@ pub struct OccValue<'a> {
     pub array: bool,
     /// Value state.
     pub value: OccurrenceValue,
-    /// Order-preserving payload of a stored scalar (empty otherwise).
+    /// Order-preserving payload of a stored scalar (empty otherwise): what
+    /// equality, the value dictionary and indexes read.
     pub payload: &'a [u8],
+    /// What the stored form keeps after the payload (a datetime's offset).
+    pub suffix: &'a [u8],
     /// `tag || payload` of a stored scalar: the value-dictionary entry.
     pub entry: &'a [u8],
 }
@@ -356,11 +360,16 @@ pub fn decode_occ_value(raw: &[u8]) -> Result<OccValue<'_>, crate::error::TypesE
     if !matches!(value, OccurrenceValue::Stored { .. }) && !payload.is_empty() {
         return Err(malformed);
     }
+    let (payload, suffix) = match value {
+        OccurrenceValue::Stored { ty } => crate::encoding::split_stored(ty, payload),
+        _ => (payload, &payload[..0]),
+    };
     Ok(OccValue {
         array: flags & OCC_FLAG_ARRAY != 0,
         value,
         payload,
-        entry: rest,
+        suffix,
+        entry: &rest[..=payload.len()],
     })
 }
 
@@ -432,7 +441,9 @@ mod codec_tests {
             }
             3 => (
                 LogicalType::DateTime,
-                Scalar::DateTime((bits >> 2).cast_signed()),
+                Scalar::DateTime(crate::types::temporal::Instant::utc(
+                    (bits >> 2).cast_signed(),
+                )),
             ),
             _ => {
                 // Up to 1 MiB, including multi-byte UTF-8.

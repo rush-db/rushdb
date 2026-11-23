@@ -9,7 +9,7 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::sync::Arc;
 
 use grafeo_common::types::{EdgeId, LogicalType, NodeId, PropertyKey, Value};
-use grafeo_core::graph::{GraphStore, GraphStoreMut, GraphStoreSearch};
+use grafeo_core::graph::{GraphBackend, GraphStore};
 use grafeo_engine::{Config, GrafeoDB};
 use rushdb_lmpg::reconstruct::{reconstruct_record, reconstruct_relationship};
 use rushdb_lmpg::Lmpg;
@@ -30,6 +30,7 @@ mod lmpg_store;
 mod mutation_budget;
 mod overlay;
 mod sql_pgq;
+mod values;
 use lmpg_store::LmpgGraphStore;
 use overlay::OverlayStore;
 
@@ -208,7 +209,11 @@ pub enum QueryLanguage {
 pub struct LanguageResult {
     /// Projected column names, in projection order.
     pub columns: Vec<String>,
-    /// One JSON object per result row, keyed by column name.
+    /// One JSON object per result row, keyed by column name. A temporal
+    /// value, duration or point is in its tagged form
+    /// (`rushdb_types::types::to_doc_json`): a transport publishes it
+    /// (`rushdb_types::types::doc_to_public`) or sends it as a type of its
+    /// own.
     pub rows: Vec<Json>,
     /// Optional engine status message (for example, a server-side notice).
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -432,7 +437,7 @@ fn execute_in_view_with_budget_cancellable_on_stack(
         tenant,
         text.cloned(),
     ));
-    let store: Arc<dyn GraphStoreSearch> = adapter.clone();
+    let store: Arc<dyn GraphStore> = adapter.clone();
     let initialized = GrafeoDB::with_read_store(store, Config::in_memory());
     // A failed text search cancels the statement's reads: report it, not
     // the cancelled reads it caused.
@@ -673,7 +678,7 @@ fn execute_mutation_in_view_with_limits_on_stack(
         max_nodes,
         max_bytes,
     ));
-    let graph_store: Arc<dyn GraphStoreMut> = store.clone();
+    let graph_store: Arc<dyn GraphBackend> = store.clone();
     let db = GrafeoDB::with_store(graph_store, Config::in_memory())
         .map_err(|error| LanguageError::Initialization(error.to_string()))?;
     let params = parameters.map(parameters_from_json).transpose()?;
@@ -860,7 +865,7 @@ fn stage_statement_mutation_in_overlay_on_stack(
         max_nodes,
         MUTATION_MAX_BYTES,
     ));
-    let graph_store: Arc<dyn GraphStoreMut> = store.clone();
+    let graph_store: Arc<dyn GraphBackend> = store.clone();
     let db = GrafeoDB::with_store(graph_store, Config::in_memory())
         .map_err(|error| LanguageError::Initialization(error.to_string()))?;
     let params = parameters.map(parameters_from_json).transpose()?;
@@ -953,7 +958,12 @@ fn mutable_result_value_to_json(
     }
     match (logical_type, &value) {
         (Some(LogicalType::Node), Value::Int64(id)) if *id >= 0 => store
-            .get_node(NodeId::new(u64::try_from(*id).unwrap_or_default()))
+            .node(
+                NodeId::new(u64::try_from(*id).unwrap_or_default()),
+                grafeo_common::types::ReadView::latest(),
+            )
+            .ok()
+            .flatten()
             .map_or(Json::Null, |node| {
                 let mut object = node
                     .properties
@@ -975,7 +985,12 @@ fn mutable_result_value_to_json(
                 Json::Object(object)
             }),
         (Some(LogicalType::Edge), Value::Int64(id)) if *id >= 0 => store
-            .get_edge(EdgeId::new(u64::try_from(*id).unwrap_or_default()))
+            .edge(
+                EdgeId::new(u64::try_from(*id).unwrap_or_default()),
+                grafeo_common::types::ReadView::latest(),
+            )
+            .ok()
+            .flatten()
             .map_or(Json::Null, |edge| {
                 let mut object = edge
                     .properties
@@ -1039,7 +1054,7 @@ fn mutable_result_value_to_json(
                 })
                 .collect(),
         ),
-        (_, Value::Map(map)) => Json::Object(
+        (_, Value::Map(map)) => geojson_point_or(Json::Object(
             map.iter()
                 .map(|(key, item)| {
                     (
@@ -1054,7 +1069,7 @@ fn mutable_result_value_to_json(
                     )
                 })
                 .collect(),
-        ),
+        )),
         _ => value_to_json(value),
     }
 }
@@ -1138,7 +1153,7 @@ fn result_value_to_json(
                     .map(|item| (key.to_string(), item))
             })
             .collect::<Result<JsonMap<_, _>, _>>()
-            .map(Json::Object),
+            .map(|object| geojson_point_or(Json::Object(object))),
         _ => Ok(value_to_json(value)),
     }
 }
@@ -1184,6 +1199,9 @@ fn public_ids(mut entity: Json) -> Json {
 }
 
 fn json_to_value(value: &Json) -> Value {
+    if let Some(value) = typed_value(value) {
+        return value;
+    }
     match value {
         Json::Null => Value::Null,
         Json::Bool(value) => Value::Bool(*value),
@@ -1206,6 +1224,9 @@ fn json_to_value(value: &Json) -> Value {
 }
 
 pub(crate) fn json_to_value_checked(value: &Json) -> Result<Value, ()> {
+    if let Some(value) = typed_value(value) {
+        return Ok(value);
+    }
     match value {
         Json::Null => Ok(Value::Null),
         Json::Bool(value) => Ok(Value::Bool(*value)),
@@ -1234,7 +1255,31 @@ pub(crate) fn json_to_value_checked(value: &Json) -> Result<Value, ()> {
     }
 }
 
+/// The Grafeo value of a document value in its tagged form (a point as its
+/// `GeoJSON` map); `None` for any other JSON value.
+fn typed_value(value: &Json) -> Option<Value> {
+    let scalar = rushdb_types::types::tagged_scalar(value)?;
+    values::to_grafeo(&scalar).or_else(|| {
+        // A point is its GeoJSON map.
+        Some(json_to_value(&rushdb_types::value::scalar_to_json(&scalar)))
+    })
+}
+
+/// A map that is exactly a `GeoJSON` point as a point (Grafeo has no point
+/// type of its own); any other map as it is.
+fn geojson_point_or(object: Json) -> Json {
+    match rushdb_types::types::point::parse_geojson(&object) {
+        Some(point) => rushdb_types::types::to_doc_json(&rushdb_types::value::Scalar::Point(point)),
+        None => object,
+    }
+}
+
+/// A Grafeo value as a document value: JSON's own values, and the tagged
+/// form of `RushDB`'s typed values, so a write stores a date as a date.
 fn value_to_json(value: Value) -> Json {
+    if let Some(scalar) = values::from_grafeo(&value) {
+        return rushdb_types::types::to_doc_json(&scalar);
+    }
     match value {
         Value::Null => Json::Null,
         Value::Bool(value) => Json::Bool(value),
@@ -1245,12 +1290,15 @@ fn value_to_json(value: Value) -> Json {
         Value::String(value) => Json::String(value.to_string()),
         Value::Bytes(value) => Json::Array(value.iter().copied().map(Json::from).collect()),
         Value::List(values) => Json::Array(values.iter().cloned().map(value_to_json).collect()),
-        Value::Map(values) => Json::Object(
-            values
-                .iter()
-                .map(|(key, value)| (key.to_string(), value_to_json(value.clone())))
-                .collect(),
-        ),
+        Value::Map(values) => {
+            let object = Json::Object(
+                values
+                    .iter()
+                    .map(|(key, value)| (key.to_string(), value_to_json(value.clone())))
+                    .collect(),
+            );
+            geojson_point_or(object)
+        }
         Value::Vector(values) => Json::Array(
             values
                 .iter()
@@ -1296,11 +1344,9 @@ fn value_to_json(value: Value) -> Json {
 #[cfg(test)]
 mod mutation_budget_tests {
     use super::*;
-    use crate::lmpg_store::compare_values;
     use rushdb_lmpg::Lmpg;
     use rushdb_storage::Store;
     use rushdb_types::ids::TenantId;
-    use std::cmp::Ordering;
 
     #[test]
     fn oversized_mutation_working_set_is_refused() {
@@ -1337,11 +1383,15 @@ mod mutation_budget_tests {
     }
 
     #[test]
-    fn mixed_numeric_comparison_preserves_large_integer_order() {
+    fn mixed_numeric_range_preserves_large_integer_order() {
+        use grafeo_core::execution::operators::value_utils::AcrossKinds;
+        use grafeo_core::graph::traits::ValueRange;
         let integer = Value::Int64(9_007_199_254_740_993);
         let rounded = Value::Float64(9_007_199_254_740_992.0);
-        assert_eq!(compare_values(&integer, &rounded), Some(Ordering::Greater));
-        assert_eq!(compare_values(&rounded, &integer), Some(Ordering::Less));
+        let at_most = ValueRange::new(None, Some(&rounded), false, true, AcrossKinds::Apart);
+        let at_least = ValueRange::new(Some(&rounded), None, false, true, AcrossKinds::Apart);
+        assert!(!at_most.contains(&integer));
+        assert!(at_least.contains(&integer));
     }
 
     #[test]

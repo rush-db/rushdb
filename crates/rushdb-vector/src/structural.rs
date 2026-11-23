@@ -20,7 +20,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use rushdb_lmpg::reader::try_access as access;
 use rushdb_lmpg::reader::TryRead;
 use rushdb_types::ids::{OwnerKind, TenantId};
-use rushdb_types::index::{IndexDef, IndexKind};
+use rushdb_types::index::{IndexKind, IndexState};
 
 use crate::{SourceRef, VectorEngine, VectorError};
 
@@ -163,7 +163,7 @@ pub fn embed<R: TryRead + ?Sized>(
 }
 
 impl VectorEngine {
-    /// One step of the structural applier for index `def`: embed up to
+    /// One step of the structural applier for index `index`: embed up to
     /// [`APPLY_BATCH`] pending records at the current snapshot, bind their
     /// vectors into the space named after the index, retire the bindings of
     /// records that left it, and clear their pending rows (a record marked
@@ -174,12 +174,19 @@ impl VectorEngine {
     /// Returns [`VectorError::AnnBudget`] when the vector budget cannot hold
     /// the working set (nothing is bound or cleared), and storage or commit
     /// errors otherwise.
-    pub fn apply_structural(&self, def: &IndexDef) -> Result<usize, VectorError> {
+    pub fn apply_structural(&self, index: u32) -> Result<usize, VectorError> {
+        let snap = self.snapshot()?;
+        let tenant = self.tenant();
+        // The definition at this snapshot, like the pending rows: never one
+        // read before it (`rushdb_lmpg::index::by_id`).
+        let Some(def) = rushdb_lmpg::index::by_id(&snap, tenant, index)?
+            .filter(|def| !matches!(def.state, IndexState::Dropping { .. }))
+        else {
+            return Ok(0);
+        };
         let IndexKind::Structural { dimensions } = def.kind else {
             return Ok(0);
         };
-        let snap = self.snapshot()?;
-        let tenant = self.tenant();
         let owners = rushdb_lmpg::index::pending(&snap, tenant, def.id, APPLY_BATCH)?;
         if owners.is_empty() {
             return Ok(0);

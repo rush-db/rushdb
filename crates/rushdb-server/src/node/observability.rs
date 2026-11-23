@@ -16,6 +16,12 @@ impl Node {
         self.metrics.observe(route, seconds);
     }
 
+    /// Record the seconds one request spent in `stage`
+    /// (`rushdb_request_stage_seconds`).
+    pub(crate) fn observe_stage(&self, stage: &str, seconds: f64) {
+        self.metrics.observe_stage(stage, seconds);
+    }
+
     /// Record rows returned by a query route (pure data-queried metric).
     pub fn observe_rows(&self, route: &str, rows: u64) {
         self.metrics.observe_rows(route, rows);

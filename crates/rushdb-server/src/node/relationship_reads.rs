@@ -476,24 +476,22 @@ impl PropertyNames {
 }
 
 /// Render a relationship's properties for a protocol client, as records
-/// are: a scalar datetime (stored as epoch milliseconds) becomes its ISO
-/// 8601 string. Returns the `propertyTypes` map (name -> type name).
+/// are: each value in its public form and typed by itself, the catalog type
+/// of its name answering for a null or an empty array. Returns the
+/// `propertyTypes` map (name -> type name).
 pub(super) fn render_typed_properties(
     properties: &mut serde_json::Map<String, serde_json::Value>,
     types: &BTreeMap<String, (rushdb_types::model::LogicalType, bool)>,
 ) -> serde_json::Map<String, serde_json::Value> {
     let mut property_types = serde_json::Map::new();
-    for (name, (ty, array)) in types {
-        let Some(value) = properties.get_mut(name) else {
-            continue;
-        };
-        if *ty == rushdb_types::model::LogicalType::DateTime && !array {
-            if let Some(ms) = value.as_i64() {
-                *value =
-                    serde_json::Value::String(rushdb_types::datetime::ms_to_datetime_string(ms));
-            }
+    for (name, value) in properties.iter_mut() {
+        let ty = super::queries::value_type_name(value)
+            .map(str::to_owned)
+            .or_else(|| types.get(name).map(|(ty, _)| type_name_str(*ty)));
+        if let Some(ty) = ty {
+            property_types.insert(name.clone(), serde_json::Value::String(ty));
         }
-        property_types.insert(name.clone(), serde_json::Value::String(type_name_str(*ty)));
+        *value = rushdb_types::types::doc_to_public(std::mem::take(value));
     }
     property_types
 }

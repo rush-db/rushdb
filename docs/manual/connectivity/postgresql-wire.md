@@ -157,10 +157,9 @@ and the token (or a capability) as the password. Metabase syncs the label
 tables of `public` and the relationship tables of `rushdb_edges`, and its
 questions, filters, groupings and native SQL run as SQL reads.
 
-Datetime properties are epoch milliseconds in SQL (see
-[SQL](../languages/sql.md)). To group or filter them by date in Metabase, set
-the field's **Cast to a specific data type** to *UNIX timestamp
-(milliseconds)* in the table metadata.
+Date, time and datetime properties are `date`, `time`, `timestamp` and
+`timestamptz` columns, so Metabase groups and filters them by date without
+a cast (see [SQL](../languages/sql.md#value-types)).
 
 ## Selecting a tenant
 
@@ -194,8 +193,8 @@ let tenant_b = connect(port, "tenant-b", &token).await?;   // dbname = tenant-b
 - Extended query flow (Parse, Bind, Describe, Execute, Close, Flush, Sync),
   with parameter and result types derived from the SQL plan.
 - Text and binary encodings for `bool`, `int2`/`int4`/`int8`,
-  `float4`/`float8`, `text`, `bytea`, `date`, `time`, `timestamp`, and
-  `json`/`jsonb`.
+  `float4`/`float8`, `text`, `bytea`, `date`, `time`, `timestamp`,
+  `timestamptz`, `interval`, `point`, and `json`/`jsonb`.
 - `CommandComplete` tags with affected-row counts in PostgreSQL's form
   (`INSERT 0 n`, `UPDATE n`, `DELETE n`), and `CREATE INDEX` / `DROP INDEX`
   tags for index DDL.
@@ -265,7 +264,7 @@ recorded, so `SHOW` answers them, but they change nothing the server does:
 | `application_name` | any | empty |
 | `client_encoding` (also `SET NAMES`) | `UTF8` only | `UTF8` |
 | `DateStyle` | any style with `ISO` (output is always ISO) | `ISO, MDY` |
-| `TimeZone` (also `SET TIME ZONE`) | any; recorded, not applied: timestamps are written without a time zone | `UTC` |
+| `TimeZone` (also `SET TIME ZONE`) | any; `timestamptz` values are written at its offset when it is `UTC` or a fixed offset, read as PostgreSQL reads it (`'UTC+3'` and `'+3'` are POSIX, three hours **behind** UTC; `SET TIME ZONE 3` is three hours ahead). A named zone (`Europe/Berlin`) is recorded but written as UTC: there is no time zone database | `UTC` |
 | `extra_float_digits` | -15 to 3 | `1` |
 | `search_path` | a path that includes `public`, where the record tables are | `"$user", public` |
 | `IntervalStyle`, `client_min_messages` | any | `postgres`, `notice` |

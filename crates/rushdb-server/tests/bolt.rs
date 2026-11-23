@@ -1074,3 +1074,95 @@ fn bolt_run_db_on_a_single_tenant_server() {
     assert_eq!(tag_of(&client.begin_db("neo4j")), SUCCESS);
     assert_eq!(tag_of(&client.commit()), SUCCESS);
 }
+
+/// Temporal values, durations and points cross Bolt as its structures:
+/// parameters sent as `Date`, `DateTime`, `Duration` and `Point2D` are
+/// stored as their types and read back as the same structures; a `Time`
+/// with an offset, which the engine has no type for, is refused.
+#[test]
+fn bolt_sends_and_reads_temporal_and_spatial_structures() {
+    use rushdb_bolt::value::tags;
+    let port = boot("bolt-token", true);
+    let mut client = Client::connect(port);
+    assert_eq!(tag_of(&client.hello("bolt-token")), SUCCESS);
+    let mut params = Map::new();
+    // The client's encoder sends the engine's tagged form as structures.
+    params.insert("day".into(), serde_json::json!({"__date": "2024-05-01"}));
+    params.insert(
+        "at".into(),
+        serde_json::json!({"__datetime": "2024-05-01T09:30:00.25+02:00"}),
+    );
+    params.insert("lasts".into(), serde_json::json!({"__duration": "P1DT2H"}));
+    params.insert(
+        "place".into(),
+        serde_json::json!({"__point": {"type": "Point", "coordinates": [13.4, 52.5]}}),
+    );
+    let run = client.call(
+        0x10,
+        vec![
+            Value::String(
+                "CREATE (e:Event {day: $day, at: $at, lasts: $lasts, place: $place}) \
+                 RETURN e.day AS day, e.at AS at, e.lasts AS lasts, e.place AS place"
+                    .into(),
+            ),
+            Value::Object(params),
+        ],
+    );
+    assert_eq!(tag_of(&run), SUCCESS, "{run}");
+    let records: Vec<Value> = client
+        .pull()
+        .into_iter()
+        .filter(|message| tag_of(message) == RECORD)
+        .collect();
+    let row = value::struct_fields(&records[0])[0].clone();
+    let field = |at: usize| row[at].clone();
+    assert_eq!(value::struct_tag(&field(0)), Some(tags::DATE));
+    assert_eq!(value::struct_fields(&field(0)), [serde_json::json!(19_844)]);
+    assert_eq!(value::struct_tag(&field(1)), Some(tags::DATE_TIME));
+    // 07:30:00.25 UTC, at +02:00.
+    assert_eq!(
+        value::struct_fields(&field(1)),
+        [
+            serde_json::json!(1_714_548_600),
+            serde_json::json!(250_000_000),
+            serde_json::json!(7_200)
+        ]
+    );
+    assert_eq!(value::struct_tag(&field(2)), Some(tags::DURATION));
+    assert_eq!(
+        value::struct_fields(&field(2)),
+        [
+            serde_json::json!(0),
+            serde_json::json!(1),
+            serde_json::json!(7_200),
+            serde_json::json!(0)
+        ]
+    );
+    assert_eq!(value::struct_tag(&field(3)), Some(tags::POINT_2D));
+    assert_eq!(
+        value::struct_fields(&field(3)),
+        [
+            serde_json::json!(4_326),
+            serde_json::json!(13.4),
+            serde_json::json!(52.5)
+        ]
+    );
+
+    // A zoned time of day has no type here.
+    let mut time = Map::new();
+    time.insert("__bolt_tag".into(), serde_json::json!(tags::TIME));
+    time.insert(
+        "__bolt_fields".into(),
+        serde_json::json!([36_000_000_000_000i64, 3_600]),
+    );
+    let mut params = Map::new();
+    params.insert("t".into(), Value::Object(time));
+    let refused = client.call(
+        0x10,
+        vec![
+            Value::String("RETURN $t AS t".into()),
+            Value::Object(params),
+        ],
+    );
+    assert_eq!(code_of(&refused), "Neo.ClientError.Statement.TypeError");
+}

@@ -53,7 +53,7 @@ pub(crate) fn query_language_capabilities(enabled: LanguageSet) -> Vec<QueryLang
             language: Gql,
             status: LanguageStatus::ReleaseCandidate,
             profile: "RushDB GQL property-graph profile v1 (ISO/IEC 39075 syntax subset)".into(),
-            implementation: "Grafeo 0.5.44".into(),
+            implementation: "Grafeo 0.6.4-pre".into(),
             access: ReadWrite,
             parameter_styles: vec![Named],
             transports: vec![ProtocolJson],
@@ -65,7 +65,7 @@ pub(crate) fn query_language_capabilities(enabled: LanguageSet) -> Vec<QueryLang
             language: Cypher,
             status: LanguageStatus::ReleaseCandidate,
             profile: "openCypher property-graph profile".into(),
-            implementation: "Grafeo 0.5.44".into(),
+            implementation: "Grafeo 0.6.4-pre".into(),
             access: ReadWrite,
             parameter_styles: vec![Named],
             transports: vec![ProtocolJson],
@@ -78,7 +78,7 @@ pub(crate) fn query_language_capabilities(enabled: LanguageSet) -> Vec<QueryLang
             status: LanguageStatus::Stable,
             profile: "Apache TinkerPop Gremlin traversal profile (text and GraphSON 3 bytecode)"
                 .into(),
-            implementation: "Grafeo 0.5.44 / gremlin-rs grammar".into(),
+            implementation: "Grafeo 0.6.4-pre / gremlin-rs grammar".into(),
             access: ReadWrite,
             parameter_styles: vec![Named],
             transports: vec![ProtocolJson],
@@ -98,7 +98,7 @@ pub(crate) fn query_language_capabilities(enabled: LanguageSet) -> Vec<QueryLang
             language: SqlPgq,
             status: LanguageStatus::Stable,
             profile: "SQL:2023 GRAPH_TABLE read profile".into(),
-            implementation: "Grafeo 0.5.44".into(),
+            implementation: "Grafeo 0.6.4-pre".into(),
             access: ReadOnly,
             parameter_styles: vec![Named],
             transports: vec![ProtocolJson],
@@ -170,6 +170,22 @@ pub(crate) fn engine_capabilities(enabled: LanguageSet) -> Vec<String> {
         "describeNames".into(),
         "schemaSummary".into(),
         "valueOverlap".into(),
+        // 3.0.14. Values of the types date, localtime, localdatetime,
+        // datetime (with its offset, to the microsecond) and duration, as
+        // ISO 8601 literals, typed on ingest and in filters.
+        "typedTemporalValues".into(),
+        // GeoJSON points as values of their own type.
+        "pointValues".into(),
+        // `$within` (radius, box) and `$distance` (nearest first) filters
+        // and ordering over points.
+        "spatialFilters".into(),
+        // `kind: "unique"` indexes; a write a unique index refuses is a 409
+        // `conflict` with `error.details` naming the label, property and
+        // holding record.
+        "uniqueIndexes".into(),
+        // `warnings` on query responses for names and values no record
+        // holds, and `context.check` (`warn`, `strict`, `off`).
+        "catalogCheck".into(),
     ];
     // Language enablement is discoverable: only enabled languages are
     // advertised. `searchquery` is always enabled and implied.

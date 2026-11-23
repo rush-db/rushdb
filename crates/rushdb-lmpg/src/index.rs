@@ -128,7 +128,7 @@ fn define(
     txn: &mut Txn,
 ) -> Result<(), StorageError> {
     let property = if property == TEXT_ALL_PROPERTIES {
-        if kind == IndexKind::Ordered {
+        if kind.ordered() {
             return Err(builder("an ordered index covers one named property"));
         }
         property.to_owned()
@@ -193,6 +193,14 @@ fn backfill(
         },
         None => IndexState::Ready,
     };
+    if def.kind == IndexKind::Unique {
+        // The covered records claim their values; two holding one value
+        // mean the index cannot hold: it is dropped instead.
+        let owners = label_members_after(txn, t, &def.label, cursor, through)?;
+        if !crate::unique::backfill_claims(txn, t, &def, &owners)? {
+            def.state = IndexState::Dropping { cursor: 0 };
+        }
+    }
     if def.kind.applied() {
         // Text documents and structural vectors live outside the store: the
         // newly covered members become pending for the applier.
@@ -234,6 +242,9 @@ fn drop_step(
         };
         txn.put(k::index_def_key(t, id), encode_def(&def));
     } else {
+        if def.kind == IndexKind::Unique {
+            crate::unique::drop_claims(txn, t, id)?;
+        }
         txn.del(k::index_def_key(t, id));
         txn.del(k::index_name_key(t, &def.name));
     }
@@ -390,6 +401,24 @@ pub fn definitions<R: TryRead + ?Sized>(r: &R, t: TenantId) -> Result<Vec<IndexD
         .collect()
 }
 
+/// Index `id` as `r` holds it, if it exists there. Background work on an
+/// index (a build step, an applier batch) reads its definition with this
+/// from the same view it reads the index's pending rows and records from,
+/// never from a definition read earlier: a step committing in between
+/// changes both together.
+///
+/// # Errors
+/// Returns [`StorageError`] if the read fails or the definition is corrupt.
+pub fn by_id<R: TryRead + ?Sized>(
+    r: &R,
+    t: TenantId,
+    id: u32,
+) -> Result<Option<IndexDef>, StorageError> {
+    r.get(&k::index_def_key(t, id))?
+        .map(|raw| decode_def(&raw))
+        .transpose()
+}
+
 /// The index called `name`, if any.
 ///
 /// # Errors
@@ -421,7 +450,7 @@ pub fn ready_ordered<R: TryRead + ?Sized>(
     property: &str,
 ) -> Result<Option<IndexDef>, StorageError> {
     Ok(definitions(r, t)?.into_iter().find(|def| {
-        def.kind == IndexKind::Ordered
+        def.kind.ordered()
             && def.state == IndexState::Ready
             && def.label == label
             && def.property == property
@@ -514,6 +543,18 @@ impl IndexWork {
 }
 
 /// Typed definition ids of property `norm` (record scope), read from `r`.
+/// The definitions of record property `norm`, read in a commit.
+pub(crate) fn record_property_pids(
+    txn: &Txn,
+    t: TenantId,
+    norm: &str,
+) -> Result<BTreeSet<u64>, StorageError> {
+    Ok(typed_pids(&|key| txn.get(key), t, norm)?
+        .into_iter()
+        .map(|(_, pid)| pid)
+        .collect())
+}
+
 fn property_pids(
     r: &dyn DeriveRead,
     t: TenantId,
@@ -561,13 +602,7 @@ fn typed_pids(
         .map(u64::from_be_bytes)
         .map_err(|_| StorageError::CorruptLog)?;
     let mut pids = Vec::new();
-    for ty in [
-        LogicalType::Boolean,
-        LogicalType::Int64,
-        LogicalType::Float64,
-        LogicalType::Utf8,
-        LogicalType::DateTime,
-    ] {
+    for ty in LogicalType::ALL {
         if let Some(raw) = get(&keys_ext::definition_key(t, fid, TypeState::Known(ty)))? {
             let pid = <[u8; 8]>::try_from(raw.as_slice())
                 .map(u64::from_be_bytes)
@@ -670,7 +705,7 @@ pub(crate) fn rederive_label(
     let members = members_in(view, view, t, label, (0, u64::MAX))?;
     for (_, raw) in view.range_prefix(&k::index_def_prefix(t))? {
         let def = decode_def(&raw)?;
-        if def.kind != IndexKind::Ordered || def.label != label {
+        if !def.kind.ordered() || def.label != label {
             continue;
         }
         let pids = property_pids(view, t, &def.property)?;
@@ -732,7 +767,7 @@ pub(crate) fn derive(
         for id in ids {
             let (old_def, new_def) = (defs_before.get(&id), defs_after.get(&id));
             let def = new_def.or(old_def).ok_or(StorageError::CorruptLog)?;
-            if def.kind != IndexKind::Ordered {
+            if !def.kind.ordered() {
                 continue;
             }
             let pids_before = property_pids(before, t, &def.property)?;
@@ -841,6 +876,9 @@ impl crate::Lmpg {
         property: &str,
         kind: IndexKind,
     ) -> crate::LmpgResult<IndexDef> {
+        if kind == IndexKind::Unique {
+            self.check_values_unique(label, property)?;
+        }
         self.index_commit(Mutation::DefineIndex {
             name: name.to_owned(),
             label: label.to_owned(),
@@ -854,6 +892,68 @@ impl crate::Lmpg {
         by_name(&view, self.tenant, name)
             .map_err(|e| crate::LmpgError::Conflict(e.to_string()))?
             .ok_or_else(|| crate::LmpgError::Conflict(format!("index {name} vanished")))
+    }
+
+    /// Refuse a unique index on data that already holds a value twice under
+    /// the label, naming (some of) the records that hold it. The value
+    /// dictionary counts the owners of each short value; a long value held
+    /// twice is found by the build, which then drops the index.
+    fn check_values_unique(&self, label: &str, property: &str) -> crate::LmpgResult<()> {
+        let storage = |e: StorageError| crate::LmpgError::Conflict(e.to_string());
+        let view = self.store.read_view().map_err(storage)?;
+        let t = self.tenant;
+        let norm = rushdb_types::value::normalize_name(property);
+        let pids = property_pids(&view, t, &norm).map_err(storage)?;
+        let mut repeated: BTreeSet<(u64, Vec<u8>)> = BTreeSet::new();
+        for &pid in &pids {
+            for (entry, owners) in
+                crate::derived::dictionary(&view, t, OwnerKind::Record, pid, &[label.to_owned()])
+                    .map_err(storage)?
+            {
+                if owners > 1 {
+                    repeated.insert((pid, entry));
+                }
+            }
+        }
+        if repeated.is_empty() {
+            return Ok(());
+        }
+        let mut holders = Vec::new();
+        'members: for (key, _) in view
+            .range_prefix(&k::label_member_prefix(t, label))
+            .map_err(storage)?
+        {
+            let Some((_, owner)) = k::parse_label_member_key(&key) else {
+                continue;
+            };
+            for &pid in &pids {
+                for (_, raw) in view
+                    .range_prefix(&k::occ_pid_prefix(t, OwnerKind::Record, owner, pid))
+                    .map_err(storage)?
+                {
+                    let occ =
+                        decode_occ_value(&raw).map_err(|_| storage(StorageError::CorruptLog))?;
+                    if repeated.contains(&(pid, occ.entry.to_vec())) {
+                        if let Some((id, _)) = view
+                            .get(&k::record_hdr_key(t, owner))
+                            .map_err(storage)?
+                            .as_deref()
+                            .and_then(k::decode_record_hdr)
+                        {
+                            holders.push(uuid::Uuid::from_bytes(id).to_string());
+                        }
+                        if holders.len() >= 10 {
+                            break 'members;
+                        }
+                    }
+                }
+            }
+        }
+        Err(crate::LmpgError::Conflict(format!(
+            "{} on `{label}`.`{norm}`: records {} hold values another record of the label holds",
+            crate::unique::UNIQUE_CONFLICT,
+            holders.join(", ")
+        )))
     }
 
     /// Start dropping index `name`; [`Self::index_step`] removes its entries

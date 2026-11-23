@@ -128,9 +128,9 @@ multiple-label sets.
       SearchQuery and relational SQL as well.
 - [ ] SearchQuery lowers to the shared IR without response regressions.
 - [ ] Cypher passes the openCypher TCK with no unexplained skips. *Every
-      scenario runs and every failure is attributed (below): 1,494 test
-      features outside the Cypher profile, 1,653 of the other 2,403 pass,
-      and 750 are known Grafeo defects. Cypher stays release candidate
+      scenario runs and every failure is attributed (below): 1,475 test
+      features outside the Cypher profile, 2,017 of the other 2,422 pass,
+      and 405 are known Grafeo defects. Cypher stays release candidate
       while defects remain.*
 - [x] GQL's supported ISO profile is advertised explicitly and passes its
       public conformance corpus. *Profile v1 (`gql-profile-v1.json`, its
@@ -180,8 +180,9 @@ and every failure is attributed to a category of the profile
 A category is either an **exclusion**, a feature outside the supported
 Cypher profile that capability discovery reports in `limitations`
 (`query_languages.rs` checks every one is advertised), or a **defect**, a
-wrong result of the embedded Grafeo engine. RushDB does not patch Grafeo:
-defects are documented and tracked for upstream reports.
+wrong result of the embedded Grafeo engine. RushDB carries no Grafeo changes
+of its own (it builds upstream fixes awaiting a Grafeo release, listed in
+`Cargo.toml`): defects are documented and tracked for upstream reports.
 
 Attribution is checked, not asserted. CI also builds plain Grafeo as a
 reference (`crates/rushdb-language/examples/grafeo_reference.rs`: Grafeo's
@@ -196,26 +197,34 @@ join plan, while a single `MATCH` returns the same wrong rows there.
 The job fails when any scenario's outcome differs from the ledger (a
 regression, or an improvement not yet recorded with `--write-ledger`), when a
 failure matches no profile category, or when plain Grafeo passes a defect.
-Current result (2026-11-18, Grafeo 0.5.44): **1,653 of 3,897 scenarios
-pass**. 1,494 scenarios test excluded features; of the 2,403 in the profile,
-1,653 pass (69%) and 750 fail on known defects:
+Current result (2026-11-21, Grafeo 0.6.4-pre with typed temporal values):
+**2,017 of 3,897 scenarios pass** (1,653 on Grafeo 0.5.44). 1,475 scenarios
+test excluded features; of the 2,422 in the profile, 2,017 pass (83%) and
+405 fail on known defects:
 
 | Category | Kind | Scenarios | Cause |
 | --- | --- | ---: | --- |
-| `temporal` | exclusion (`limitedTemporalTypes`) | 1,000 | The openCypher temporal type system beyond ISO `date`/`time`/`datetime`/`duration` |
-| `lmpg-single-label` | exclusion (`singlePrimaryLabelPerRecord`, `statementLabelMutationUnavailable`) | 444 | LMPG records carry exactly one label: 429 create nodes without exactly one label, 15 change labels |
+| `temporal` | exclusion (`limitedTemporalTypes`) | 973 | The openCypher temporal type system beyond ISO `date`/`localtime`/`localdatetime`/`datetime`/`duration`, including nanosecond precision: values are kept to the microsecond, so six scenarios with nanosecond literals that passed while Grafeo's own values were returned unconverted now fail |
+| `lmpg-single-label` | exclusion (`singlePrimaryLabelPerRecord`, `statementLabelMutationUnavailable`) | 452 | LMPG records carry exactly one label |
 | `procedures` | exclusion (`noProcedures`) | 50 | `CALL` procedures |
-| `grafeo-error-detection` | defect | 392 | Grafeo accepts statements the TCK requires to fail |
-| `grafeo-result` | defect | 102 | Grafeo returns a different result |
-| `grafeo-quantifiers` | defect | 91 | `all`/`any`/`none`/`single` results |
-| `grafeo-precedence` | defect | 52 | Operator precedence |
-| `grafeo-semantic` | defect | 36 | Grafeo's binder refuses a valid statement (18 are the triadic anti-join `WITH c WHERE r IS NULL`) |
-| `grafeo-syntax` | defect | 35 | Syntax Grafeo's parser does not accept |
-| `grafeo-null-writes` | defect | 11 | A write on a null from `OPTIONAL MATCH` fails instead of doing nothing |
-| `grafeo-internal` | defect | 10 | Grafeo internal errors (path and variable-length patterns) |
-| `grafeo-lazy-writes` | defect | 10 | `LIMIT` after an updating clause limits the updates |
-| `grafeo-write-column-names` | defect | 9 | Some unaliased columns are named differently from their expression text |
-| `grafeo-nontermination` | defect | 2 | A variable-length match around a cycle never ends; the deadline cancels it |
+| `grafeo-error-detection` | defect | 367 | Grafeo accepts statements the TCK requires to fail |
+| `grafeo-syntax` | defect | 18 | Syntax Grafeo's parser does not accept |
+| `grafeo-write-column-names` | defect | 11 | Some unaliased columns are named differently from their expression text |
+| `grafeo-semantic` | defect | 5 | `DELETE` of an expression other than a variable |
+| `grafeo-result` | defect | 4 | Variable-length patterns after a fixed hop with mixed directions |
+
+Moving from Grafeo 0.5.44 to 0.6 gained 369 scenarios and lost 10. Each lost
+one is a statement the TCK requires to fail that plain Grafeo 0.6 now runs
+(`grafeo-error-detection`): binding a bound node again (`Create1` [17],
+`Merge1` [15], `Merge5` [22]), a path variable bound in a preceding `MATCH`
+(`Match2` [10] #17 and #18), `count(rand())` (`Return6` [15]), an aggregate in
+a list comprehension (`List12` [7]), `length()` of a node or relationship
+(`Path3` [2], [3]) and a pattern on the right-hand side of `SET` (`Pattern1`
+[24]). They are tracked for upstream reports with the other detection defects.
+
+Typed temporal values (3.0.14) gained 11 scenarios (local date-times, date
+ordering and duration arithmetic now round-trip as their types) and lost the
+six nanosecond scenarios above.
 
 Running the full TCK found and fixed eight adapter defects on the RushDB side:
 a long statement (the TCK's 500-clause movie graph) overflowed the worker
@@ -233,7 +242,7 @@ The curated in-repo corpus
 (`crates/rushdb-server/tests/cypher_conformance.rs`) classifies 22 statements —
 core reads/writes plus `WITH`, `UNWIND`, aggregation, `DISTINCT`, `OPTIONAL
 MATCH`, `UNION`, `MERGE`, list/map literals, `STARTS WITH`,
-`size(collect(...))`, and a standalone-`collect` gap — as supported or
+`size(collect(...))` and a standalone `collect` — as supported or
 explicitly unsupported with a reason, and fails if any classification diverges.
 It is a regression guard, not the TCK, and does not change Cypher's
 release-candidate status. Multi-hop patterns and the standard functions

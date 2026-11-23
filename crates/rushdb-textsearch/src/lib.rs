@@ -25,7 +25,7 @@ use std::sync::{Arc, Mutex};
 use rushdb_lmpg::index::{self, pending};
 use rushdb_storage::ReadView;
 use rushdb_types::ids::TenantId;
-use rushdb_types::index::{IndexDef, IndexKind, IndexState, TextConsistency, TEXT_ALL_PROPERTIES};
+use rushdb_types::index::{IndexKind, IndexState, TextConsistency, TEXT_ALL_PROPERTIES};
 
 /// Owners applied per [`TextIndexes::apply`] step.
 pub const APPLY_BATCH: usize = 512;
@@ -284,10 +284,10 @@ impl TextIndexes {
     pub fn apply(
         &self,
         lmpg: &rushdb_lmpg::Lmpg,
-        def: &IndexDef,
+        index: u32,
         max_owners: usize,
     ) -> Result<usize, String> {
-        self.apply_batch(lmpg, def, max_owners, false)
+        self.apply_batch(lmpg, index, max_owners, false)
     }
 
     /// [`Self::apply`]; with `settle_merges`, also wait for the segment
@@ -300,14 +300,25 @@ impl TextIndexes {
     fn apply_batch(
         &self,
         lmpg: &rushdb_lmpg::Lmpg,
-        def: &IndexDef,
+        index: u32,
         max_owners: usize,
         settle_merges: bool,
     ) -> Result<usize, String> {
         let tenant = lmpg.tenant;
-        let opened = self.open_index(tenant, def.id)?;
+        let opened = self.open_index(tenant, index)?;
         let _single = opened.apply.lock().map_err(|_| "text applier poisoned")?;
         let snap = lmpg.store.read_view().map_err(err)?;
+        // Coverage is judged by the definition at this snapshot
+        // (`index::by_id`): a build step that commits in between marks its
+        // records pending and widens the covered range in one commit, and an
+        // older range would skip those records, then clear them as applied.
+        let Some(def) = index::by_id(&snap, tenant, index)
+            .map_err(err)?
+            .filter(|current| !matches!(current.state, IndexState::Dropping { .. }))
+        else {
+            return Ok(0);
+        };
+        let def = &def;
         let owners = pending(&snap, tenant, def.id, max_owners).map_err(err)?;
         if owners.is_empty() {
             return Ok(0);
@@ -385,7 +396,7 @@ impl TextIndexes {
                 continue;
             }
             loop {
-                let step = self.apply_batch(lmpg, &def, APPLY_BATCH, true)?;
+                let step = self.apply_batch(lmpg, def.id, APPLY_BATCH, true)?;
                 applied += step;
                 if step < APPLY_BATCH || started.elapsed() >= budget {
                     break;
@@ -439,7 +450,7 @@ impl TextIndexes {
         if consistency == TextConsistency::Immediate {
             let mut applied = 0;
             while applied < IMMEDIATE_APPLY_LIMIT {
-                let step = self.apply(&lmpg, &def, APPLY_BATCH)?;
+                let step = self.apply(&lmpg, def.id, APPLY_BATCH)?;
                 if step == 0 {
                     break;
                 }

@@ -86,19 +86,18 @@ fn derived_numeric_literals_reject_lossy_integer_widening() {
 #[test]
 fn range_index_comparison_preserves_large_integer_ordering() {
     let value = Scalar::Int64(9_007_199_254_740_993);
-    let bound = 9_007_199_254_740_992.0;
-    assert!(range_scalar_matches(&value, RangeOp::Gt, bound));
-    assert!(!range_scalar_matches(&value, RangeOp::Lte, bound));
+    let bound = RangeBound::Numeric(9_007_199_254_740_992.0);
+    assert!(bound.matches(&value, RangeOp::Gt));
+    assert!(!bound.matches(&value, RangeOp::Lte));
 }
 
 #[test]
 fn scan_numeric_comparison_preserves_large_integer_ordering() {
     let value = serde_json::json!(9_007_199_254_740_993i64);
-    assert!(numeric_cmp(
-        Some(&value),
-        9_007_199_254_740_992.0,
-        |ordering| { ordering == std::cmp::Ordering::Greater }
-    ));
+    assert_eq!(
+        rushdb_types::types::doc_cmp_literal(&value, &serde_json::json!(9_007_199_254_740_992.0)),
+        Some(std::cmp::Ordering::Greater)
+    );
 }
 
 fn lmpg() -> Lmpg {

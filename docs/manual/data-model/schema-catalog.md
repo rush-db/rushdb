@@ -91,10 +91,10 @@ Each entry has:
 |---|---|
 | `id` | A stable property id (`p` followed by 16 hex digits), usable in place of the name in `propertyValues`. Ids are local to the tenant. |
 | `name` | The normalised property name (see [Property names](properties-and-types.md#property-names)). |
-| `type` | Display type: `string`, `number`, `boolean` or `datetime`. |
+| `type` | Display type: `string`, `number`, `boolean`, `datetime`, `date`, `localtime`, `localdatetime`, `duration` or `point`. |
 | `recordsCount` | Exact number of records carrying the property with a value of this entry's type (for the `null` entry: holding `null`). The entries of one name add up to the records that carry it. |
 | `isArray` | `true` when the property holds arrays. |
-| `siblingTypes` | Present when the property also holds other display types on the same label; lists those types by logical name (`int64`, `float64`, `utf8`, `boolean`, `datetime`). Integers and floats are both `number`, so they are never each other's sibling. |
+| `siblingTypes` | Present when the property also holds other display types on the same label; lists those types by logical name (`int64`, `float64`, `utf8`, `boolean`, and the temporal, duration and point names as in `type`). Integers and floats are both `number`, so they are never each other's sibling. |
 | `label` | The label the entry was observed on, when the response is broken down per label. |
 | `sampleValues`, `min`, `max` | With `detail: "full"`: a bounded set of distinct values, and the exact range over every record. Unfiltered requests sample up to 10,000 records for `sampleValues` only; the range comes from the value dictionary and is left out where it does not hold every value (array properties, strings over 96 bytes). |
 

@@ -403,6 +403,9 @@ pub const F_USAGE_BYTES: u8 = 0x18;
 /// deriver to recompute the label's derived rows from its base rows, on
 /// every node that applies the commit.
 pub const F_REDERIVE: u8 = 0x19;
+/// Typed family: `(unique index id, tag, payload)` → the ordinal of the
+/// record holding that value (#148).
+pub const F_UNIQUE_CLAIM: u8 = 0x1A;
 
 /// Coarse family name of any store key, for accounting and diagnostics:
 /// tenant families by their family byte, legacy segment keys by their first
@@ -425,6 +428,7 @@ pub fn family_label(key: &[u8]) -> String {
                 F_INDEX_DEF => "index-def".into(),
                 F_INDEX_NAME => "index-name".into(),
                 F_INDEX_ENTRY => "index-entry".into(),
+                F_UNIQUE_CLAIM => "unique-claim".into(),
                 F_INDEX_PENDING => "index-pending".into(),
                 F_USAGE_BYTES => "usage-bytes".into(),
                 b'/' => {
@@ -464,6 +468,7 @@ pub fn describe_key(key: &[u8]) -> String {
         Some(&F_INDEX_DEF) => "index-def",
         Some(&F_INDEX_NAME) => "index-name",
         Some(&F_INDEX_ENTRY) => "index-entry",
+        Some(&F_UNIQUE_CLAIM) => "unique-claim",
         Some(&F_INDEX_PENDING) => "index-pending",
         Some(&F_USAGE_BYTES) => "usage-bytes",
         _ => return format!("tenant {tenant} {}", rest.escape_ascii()),
@@ -1147,6 +1152,23 @@ pub fn index_def_prefix(tenant: TenantId) -> Vec<u8> {
 pub fn index_name_key(tenant: TenantId, name: &str) -> Vec<u8> {
     let mut out = typed(tenant, F_INDEX_NAME, name.len());
     out.extend_from_slice(name.as_bytes());
+    out
+}
+
+/// Prefix of one unique index's claims.
+#[must_use]
+pub fn unique_claim_prefix(tenant: TenantId, id: u32) -> Vec<u8> {
+    let mut out = typed(tenant, F_UNIQUE_CLAIM, 4 + 16);
+    out.extend_from_slice(&id.to_be_bytes());
+    out
+}
+
+/// The claim of value `entry` (`tag || order-preserving payload`) in unique
+/// index `id`.
+#[must_use]
+pub fn unique_claim_key(tenant: TenantId, id: u32, entry: &[u8]) -> Vec<u8> {
+    let mut out = unique_claim_prefix(tenant, id);
+    out.extend_from_slice(entry);
     out
 }
 

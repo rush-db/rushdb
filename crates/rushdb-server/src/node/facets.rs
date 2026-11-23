@@ -189,9 +189,10 @@ impl RequestScope<'_> {
                 }
                 entry.is_array |= rows.iter().all(|row| row.array);
                 for row in rows {
-                    entry.observe(
-                        &decode_value(row.value, &row.payload).map_err(|e| e.to_string())?,
-                    );
+                    entry.observe(&rushdb_types::types::doc_to_public(
+                        decode_value(row.value, &row.payload, &row.suffix)
+                            .map_err(|e| e.to_string())?,
+                    ));
                 }
             }
         }
@@ -258,8 +259,10 @@ impl RequestScope<'_> {
                         .map_err(|e| e.to_string())
                         .and_then(|rows| {
                             rows.iter().try_for_each(|row| {
-                                decode_value(row.value, &row.payload)
-                                    .map(|value| entry.observe(&value))
+                                decode_value(row.value, &row.payload, &row.suffix)
+                                    .map(|value| {
+                                        entry.observe(&rushdb_types::types::doc_to_public(value));
+                                    })
                                     .map_err(|e| e.to_string())
                             })
                         });
@@ -515,6 +518,8 @@ impl RequestScope<'_> {
         let TypeState::Known(ty) = definition.type_state else {
             return Ok(None);
         };
+        // Index entries keep no datetime offset: a scan answers, so each
+        // value shows the offset it was written with.
         if ty == LogicalType::DateTime {
             return Ok(None);
         }
@@ -583,7 +588,6 @@ impl RequestScope<'_> {
         // `CreationDate` on one label, a datetime on another), so values
         // render by the definition they were read from, not by the
         // tenant-wide type of the name.
-        let mut datetime_pids: Vec<u64> = Vec::new();
         let mut display = property.to_string();
         if let Some(raw) = view.get(&sig).map_err(|e| e.to_string())? {
             let fid = u64::from_be_bytes(
@@ -596,13 +600,6 @@ impl RequestScope<'_> {
                 for def in
                     access::definitions_of_family(view, tenant, fid).map_err(|e| e.to_string())?
                 {
-                    if def.type_state
-                        == rushdb_types::model::TypeState::Known(
-                            rushdb_types::model::LogicalType::DateTime,
-                        )
-                    {
-                        datetime_pids.push(def.property_id);
-                    }
                     pids.push(def.property_id);
                 }
                 pids.sort_unstable();
@@ -618,7 +615,7 @@ impl RequestScope<'_> {
                     found = Some((pid, rows));
                 }
             }
-            let Some((pid, rows)) = found else {
+            let Some((_, rows)) = found else {
                 continue;
             };
             let Some(header) =
@@ -634,20 +631,15 @@ impl RequestScope<'_> {
             } else if rows.iter().all(|row| row.array) {
                 serde_json::Value::Array(
                     rows.iter()
-                        .map(|row| decode_value(row.value, &row.payload))
+                        .map(|row| decode_value(row.value, &row.payload, &row.suffix))
                         .collect::<Result<_, _>>()
                         .map_err(|e| e.to_string())?,
                 )
             } else {
-                let value =
-                    decode_value(rows[0].value, &rows[0].payload).map_err(|e| e.to_string())?;
-                match value.as_i64() {
-                    Some(ms) if datetime_pids.contains(&pid) => {
-                        serde_json::Value::String(rushdb_types::datetime::ms_to_datetime_string(ms))
-                    }
-                    _ => value,
-                }
+                decode_value(rows[0].value, &rows[0].payload, &rows[0].suffix)
+                    .map_err(|e| e.to_string())?
             };
+            let value = rushdb_types::types::doc_to_public(value);
             visit(ord, value, meter)?;
         }
         Ok(())
@@ -703,8 +695,7 @@ impl RequestScope<'_> {
             }
             let label = access::record_by_ord(view, tenant, ord)
                 .map_err(|e| e.to_string())?
-                .map(|header| header.label)
-                .unwrap_or_default();
+                .map_or_default(|header| header.label);
             if labels.len() < ENDPOINT_LABEL_CACHE {
                 labels.insert(ord, label.clone());
             }

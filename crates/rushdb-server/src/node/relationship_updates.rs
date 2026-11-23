@@ -85,11 +85,9 @@ impl RequestScope<'_> {
 
 /// The writes of a relationship mutation's properties (`field`, `set` or
 /// `properties`) under its declared `types`. Every typed name must be in
-/// `properties`, and a typed non-null value must match its type: `string`,
-/// `number` and `boolean` take that scalar or an array of them; `datetime`
-/// takes a scalar ISO 8601 date or datetime string, written as a datetime.
-/// A `null` is an explicit null whatever its type; an untyped value is
-/// written as given.
+/// `properties`, and a typed non-null value (or each element of an array)
+/// must be a value of its type ([`typed_value`]). A `null` is an explicit
+/// null whatever its type; an untyped value is written as given.
 ///
 /// # Errors
 ///
@@ -115,52 +113,94 @@ pub(super) fn typed_property_changes(
             let change = match (declared, value) {
                 (_, serde_json::Value::Null) => FieldChange::ExplicitNull,
                 (None, _) => FieldChange::Set(value.clone()),
-                (Some(PropertyType::Datetime), serde_json::Value::Array(_)) => {
-                    return Err(format!(
-                        "invalid {operation}: property `{name}` is typed datetime but holds an \
-                         array; datetime arrays are not supported"
-                    ));
-                }
-                (Some(PropertyType::Datetime), serde_json::Value::String(text)) => {
-                    FieldChange::SetDatetime(
-                        rushdb_types::datetime::parse_datetime(text).ok_or_else(|| {
-                            format!(
-                                "invalid {operation}: property `{name}` is typed datetime but \
-                                 its string is not an ISO 8601 date or datetime"
-                            )
-                        })?,
-                    )
-                }
                 (Some(ty), value) => {
-                    let matches = |item: &serde_json::Value| match ty {
-                        PropertyType::String => item.is_string(),
-                        PropertyType::Number => item.is_number(),
-                        PropertyType::Boolean => item.is_boolean(),
-                        PropertyType::Datetime => false,
-                    };
-                    let mismatch = match value {
-                        serde_json::Value::Array(items) => {
-                            items.iter().find(|item| !matches(item)).map(|item| {
+                    let as_typed = |item: &serde_json::Value| typed_value(ty, item);
+                    let changed = match value {
+                        serde_json::Value::Array(items) => items
+                            .iter()
+                            .map(|item| as_typed(item).ok_or(item))
+                            .collect::<Result<Vec<_>, _>>()
+                            .map(serde_json::Value::Array)
+                            .map_err(|item| {
                                 format!(
-                                    "an array with a {} element",
+                                    "holds an array with a {} element",
                                     rushdb_types::value::json_type_name(item)
                                 )
-                            })
+                            }),
+                        serde_json::Value::String(_)
+                            if !matches!(
+                                ty,
+                                PropertyType::String | PropertyType::Number | PropertyType::Boolean
+                            ) =>
+                        {
+                            as_typed(value)
+                                .ok_or_else(|| format!("its string is not {}", literal_form(ty)))
                         }
-                        scalar => (!matches(scalar)).then(|| {
-                            format!("a {} value", rushdb_types::value::json_type_name(scalar))
+                        scalar => as_typed(scalar).ok_or_else(|| {
+                            format!(
+                                "holds a {} value",
+                                rushdb_types::value::json_type_name(scalar)
+                            )
                         }),
                     };
-                    if let Some(held) = mismatch {
-                        return Err(format!(
-                            "invalid {operation}: property `{name}` is typed {} but holds {held}",
-                            ty.as_str()
-                        ));
+                    match changed {
+                        Ok(changed) => FieldChange::Set(changed),
+                        Err(held) => {
+                            return Err(format!(
+                                "invalid {operation}: property `{name}` is typed {} but {held}",
+                                ty.as_str()
+                            ))
+                        }
                     }
-                    FieldChange::Set(value.clone())
                 }
             };
             Ok((name.clone(), change))
         })
         .collect()
+}
+
+/// A value written under a declared type, in the form the write path
+/// stores (JSON's own value, or the tagged form of the other types);
+/// `None` when it is not a value of that type.
+fn typed_value(
+    ty: rushdb_protocol::PropertyType,
+    value: &serde_json::Value,
+) -> Option<serde_json::Value> {
+    use rushdb_protocol::PropertyType;
+    use rushdb_types::model::LogicalType;
+    let logical = match ty {
+        PropertyType::String => return value.is_string().then(|| value.clone()),
+        PropertyType::Number => return value.is_number().then(|| value.clone()),
+        PropertyType::Boolean => return value.is_boolean().then(|| value.clone()),
+        PropertyType::Datetime => LogicalType::DateTime,
+        PropertyType::Date => LogicalType::Date,
+        PropertyType::Localtime => LogicalType::LocalTime,
+        PropertyType::Localdatetime => LogicalType::LocalDateTime,
+        PropertyType::Duration => LogicalType::Duration,
+        PropertyType::Point => LogicalType::Point,
+    };
+    // A datetime reads a date or a zone-less date-time in UTC, as the hint
+    // always has; the other types take their own form only.
+    let scalar = if logical == LogicalType::DateTime && value.is_string() {
+        rushdb_types::types::coerce_literal(logical, value)
+    } else {
+        rushdb_types::types::parse_literal(logical, value)
+    }?;
+    Some(rushdb_types::types::to_doc_json(&scalar))
+}
+
+/// The literal form a declared type takes from a string, for refusals.
+fn literal_form(ty: rushdb_protocol::PropertyType) -> &'static str {
+    use rushdb_protocol::PropertyType;
+    match ty {
+        PropertyType::Datetime => "an ISO 8601 date or datetime",
+        PropertyType::Date => "an ISO 8601 date",
+        PropertyType::Localtime => "an ISO 8601 time of day",
+        PropertyType::Localdatetime => "an ISO 8601 date and time",
+        PropertyType::Duration => "an ISO 8601 duration",
+        PropertyType::Point => "a GeoJSON point",
+        PropertyType::Number => "a number",
+        PropertyType::Boolean => "a boolean",
+        PropertyType::String => "a string",
+    }
 }

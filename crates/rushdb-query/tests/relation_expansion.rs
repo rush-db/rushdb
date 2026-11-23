@@ -33,12 +33,15 @@ fn setup_without_graphs() -> Lmpg {
 }
 
 /// Search until a run reads no adjacency rows (the graph is resident);
-/// fails rather than spinning when it never becomes resident.
+/// fails rather than spinning when it never becomes resident. A build runs
+/// on a thread of its own: each search waits for one it started, so the
+/// count does not depend on how fast that thread is scheduled.
 fn until_resident(lmpg: &Lmpg, req: &SearchRequest) {
     for _ in 0..50 {
         if adjacency_reads(lmpg, req).1 == 0 {
             return;
         }
+        lmpg.store.residents().wait_idle();
     }
     panic!("the graph never became resident in 50 searches");
 }
@@ -392,6 +395,8 @@ fn traversals_build_a_resident_graph_once_their_reads_pay_for_it() {
             break;
         }
         spent += reads;
+        // A build the reads paid for runs on its own thread.
+        lmpg.store.residents().wait_idle();
     }
     assert!(queries <= 20, "never built a resident graph");
     assert!(

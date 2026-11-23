@@ -250,6 +250,7 @@ fn edge_columns(
     }
     let mut first = serde_json::Map::new();
     let mut extra: Vec<Json> = Vec::new();
+    let mut types = crate::ColumnTypes::default();
     for pid in pids {
         let definition =
             access::definition(snapshot, tenant, pid)?.ok_or(StorageError::CorruptLog)?;
@@ -258,16 +259,18 @@ fn edge_columns(
         let sample = match definition.type_state {
             TypeState::Unresolved => Json::Null,
             TypeState::Known(LogicalType::Boolean) => Json::Bool(true),
-            // Datetimes read back as epoch milliseconds.
-            TypeState::Known(LogicalType::Int64 | LogicalType::DateTime) => Json::from(0),
+            TypeState::Known(LogicalType::Int64) => Json::from(0),
             TypeState::Known(LogicalType::Float64) => Json::from(0.5),
-            TypeState::Known(LogicalType::Utf8) => Json::String(String::new()),
+            // Text columns: strings, and the SQL text of the other types
+            // (`crate::sql_values`).
+            TypeState::Known(_) => Json::String(String::new()),
         };
         let array =
             rushdb_lmpg::derived::array_markers(snapshot, tenant, OwnerKind::Relationship, pid)?
                 .1
                 .iter()
                 .any(|marked| marked == rel_type);
+        types.add(&family.display_name, definition.type_state, array);
         let value = if array {
             Json::Array(vec![sample])
         } else {
@@ -288,7 +291,7 @@ fn edge_columns(
     let schema =
         infer_json_schema_from_iterator(std::iter::once(Json::Object(first)).chain(extra).map(Ok))
             .map_err(|error| SqlError::Engine(error.to_string()))?;
-    Ok((schema, rows))
+    Ok((crate::typed_schema(&schema, &types), rows))
 }
 
 #[async_trait::async_trait]

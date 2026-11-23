@@ -272,6 +272,7 @@ fn pred_field(pred: &FieldPred) -> Option<&str> {
         | FieldPred::In(f, _)
         | FieldPred::Nin(f, _)
         | FieldPred::Type(f, _)
+        | FieldPred::Within(f, _)
         | FieldPred::DatetimeComponent { field: f, .. } => Some(f),
         FieldPred::Id(_) => None,
     }

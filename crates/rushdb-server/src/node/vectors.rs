@@ -843,8 +843,7 @@ impl RequestScope<'_> {
         let labels = if labels.is_empty() {
             row.get("label")
                 .and_then(serde_json::Value::as_str)
-                .map(|label| vec![label.to_string()])
-                .unwrap_or_default()
+                .map_or_default(|label| vec![label.to_string()])
         } else {
             labels
         };

@@ -1,6 +1,9 @@
 //! Transport-independent execution of `rushdb-protocol` operations.
 
 mod capabilities;
+mod catalog_check;
+mod public_values;
+use public_values::{publish_rows, values_range};
 mod csv;
 mod errors;
 mod index_ddl;
@@ -228,64 +231,9 @@ pub(crate) fn operation_kind(operation: &Operation) -> &'static str {
 /// itself; nothing reads an ambient thread-local scope anymore.
 pub struct ProtocolExecutor<'a> {
     node: crate::node::scope::RequestScope<'a>,
-}
-
-/// E3 `Range` mode extrema: numeric order for numbers, lexical order for
-/// strings/ISO datetimes (the same ordering `describe` uses for its
-/// per-property min/max). Non-comparable values (bool/null/array/object)
-/// never become extrema; with no comparable scalars both are `None`.
-/// Min and max of one ordered class of `values`: the numbers if there are
-/// any, else the texts that are datetimes (by instant), else the texts.
-/// Classes never mix (a text `min` beside a datetime `max` was returned for
-/// a property stored both ways).
-fn values_range(
-    values: &[serde_json::Value],
-) -> (Option<serde_json::Value>, Option<serde_json::Value>) {
-    if !values.iter().any(serde_json::Value::is_number) {
-        let dated: Vec<(i64, &serde_json::Value)> = values
-            .iter()
-            .filter_map(|v| Some((rushdb_types::datetime::parse_datetime(v.as_str()?)?, v)))
-            .collect();
-        if !dated.is_empty() {
-            let min = dated
-                .iter()
-                .min_by_key(|(ms, _)| *ms)
-                .map(|(_, v)| (*v).clone());
-            let max = dated
-                .iter()
-                .max_by_key(|(ms, _)| *ms)
-                .map(|(_, v)| (*v).clone());
-            return (min, max);
-        }
-    }
-    let numbers = values.iter().any(serde_json::Value::is_number);
-    let comparable = |v: &serde_json::Value| {
-        if numbers {
-            v.is_number()
-        } else {
-            v.is_string()
-        }
-    };
-    let cmp = |a: &serde_json::Value, b: &serde_json::Value| -> std::cmp::Ordering {
-        match (a, b) {
-            (serde_json::Value::Number(_), serde_json::Value::Number(_)) => {
-                rushdb_types::value::json_scalar_cmp(a, b).unwrap_or(std::cmp::Ordering::Equal)
-            }
-            (serde_json::Value::String(x), serde_json::Value::String(y)) => x.cmp(y),
-            _ => std::cmp::Ordering::Equal,
-        }
-    };
-    let mut min: Option<&serde_json::Value> = None;
-    let mut max: Option<&serde_json::Value> = None;
-    for v in values.iter().filter(|v| comparable(v)) {
-        if min.is_none_or(|m| cmp(v, m) == std::cmp::Ordering::Less) {
-            min = Some(v);
-        }
-        if max.is_none_or(|m| cmp(v, m) == std::cmp::Ordering::Greater) {
-            max = Some(v);
-        }
-    }
-    (min.cloned(), max.cloned())
+    /// Leave typed values in rows in their tagged form (see
+    /// [`Self::with_typed_rows`]).
+    typed_rows: bool,
 }
 
 fn operation_label(operation: &Operation) -> &'static str {
@@ -336,7 +284,18 @@ impl<'a> ProtocolExecutor<'a> {
     pub fn new(node: &'a Node, scope: Option<String>) -> Self {
         Self {
             node: crate::node::scope::RequestScope::new(node, scope),
+            typed_rows: false,
         }
+    }
+
+    /// Leave temporal values, durations and points in the rows a response
+    /// returns in the engine's tagged form, for a transport that sends them
+    /// as types of its own (Bolt); otherwise they are published as their
+    /// literals.
+    #[must_use]
+    pub fn with_typed_rows(mut self, typed: bool) -> Self {
+        self.typed_rows = typed;
+        self
     }
 
     /// Execute one request to completion, without cancellation.
@@ -381,6 +340,7 @@ impl<'a> ProtocolExecutor<'a> {
         let is_cancelled = || is_cancelled() || store.maintenance_aborted();
         ProtocolExecutor {
             node: self.node.clone().with_request_limits(limits),
+            typed_rows: self.typed_rows,
         }
         .execute_scoped(request, &is_cancelled)
     }
@@ -416,6 +376,7 @@ impl<'a> ProtocolExecutor<'a> {
         // without a second measurement channel.
         let started = std::time::Instant::now();
         let operation = operation_label(&request.operation);
+        let wakes_appliers = is_write(&request.operation);
         self.validate_scope(request.context.scope.as_deref())?;
         // Rollback is cleanup. It must remain available when the ordinary
         // query phase pool is exhausted, so do not admit it through an
@@ -461,6 +422,7 @@ impl<'a> ProtocolExecutor<'a> {
                         started.elapsed().as_millis().min(u128::from(u64::MAX)) as u64
                     ),
                     response,
+                    warnings: Vec::new(),
                 },
                 response_json: encoded_bytes,
             });
@@ -544,6 +506,19 @@ impl<'a> ProtocolExecutor<'a> {
                 "this node is a streaming-replication follower; writes must go to the leader",
             ));
         }
+        // CHK-1: `strict` refuses before anything runs; `warn` reads the
+        // check after the answer, which often shows there is nothing to warn.
+        let check = request.context.check.unwrap_or_default();
+        let check_input = (check != rushdb_protocol::CheckMode::Off)
+            .then(|| catalog_check::CheckInput::of(&request.operation))
+            .flatten();
+        self.refuse_strict(
+            check_input.as_ref(),
+            check,
+            &mut execution_context,
+            &catalog_access,
+            is_cancelled,
+        )?;
         let cancellable = matches!(
             &request.operation,
             Operation::Query { .. } | Operation::Describe { .. }
@@ -856,6 +831,17 @@ impl<'a> ProtocolExecutor<'a> {
                 .check_deadline()
                 .map_err(|error| execution_failed(error.to_string()))?;
         }
+        let warnings = self.answer_warnings(
+            check_input.as_ref(),
+            check,
+            &response,
+            &mut execution_context,
+            &catalog_access,
+            is_cancelled,
+        )?;
+        if !self.typed_rows {
+            publish_rows(&mut response);
+        }
         let mut encoded_bytes = serde_json::to_vec(&response).map_err(|error| {
             ProtocolError::new(
                 ErrorCode::ExecutionFailed,
@@ -906,6 +892,9 @@ impl<'a> ProtocolExecutor<'a> {
                 .map_err(|error| execution_failed(error.to_string()))?;
         }
         observe_response_work(&self.node, operation, &response, encoded_bytes.len());
+        if wakes_appliers {
+            self.node.index_apply_wake().notify_one();
+        }
         Ok(Encoded {
             envelope: ResponseEnvelope {
                 protocol_version: PROTOCOL_VERSION,
@@ -914,6 +903,7 @@ impl<'a> ProtocolExecutor<'a> {
                     started.elapsed().as_millis().min(u128::from(u64::MAX)) as u64
                 ),
                 response,
+                warnings,
             },
             response_json: encoded_bytes,
         })
@@ -1014,6 +1004,10 @@ mod bytecode;
 
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod typed_values_tests;
+#[cfg(test)]
+mod unique_tests;
 
 #[cfg(test)]
 mod facet_tests;

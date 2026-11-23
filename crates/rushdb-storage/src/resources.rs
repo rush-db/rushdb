@@ -63,6 +63,10 @@ static NEXT_TICKET: AtomicU64 = AtomicU64::new(1);
 struct Node {
     name: &'static str,
     limit: usize,
+    /// Bytes this budget's growth must leave free in the root: a retained
+    /// cache never takes the last of the managed budget, which commits and
+    /// request tokens need. Inherited by children; 0 for work budgets.
+    headroom: usize,
     used: AtomicUsize,
     peak: AtomicUsize,
     depth: usize,
@@ -89,6 +93,7 @@ impl ByteBudget {
         Ok(Self(Arc::new(Node {
             name,
             limit,
+            headroom: 0,
             used: AtomicUsize::new(0),
             peak: AtomicUsize::new(0),
             depth: 0,
@@ -103,6 +108,21 @@ impl ByteBudget {
     /// Returns [`ResourceError::Invalid`] if `limit` is zero or exceeds the
     /// parent limit, or if nesting would exceed 32 levels.
     pub fn child(&self, name: &'static str, limit: usize) -> Result<Self, ResourceError> {
+        self.child_leaving(name, limit, self.0.headroom)
+    }
+
+    /// A child budget whose growth also leaves `headroom` bytes free in the
+    /// root, for retained caches: they may fill the managed budget only up
+    /// to that headroom, which work (commits, request tokens) can still use.
+    ///
+    /// # Errors
+    /// As [`Self::child`].
+    pub fn child_leaving(
+        &self,
+        name: &'static str,
+        limit: usize,
+        headroom: usize,
+    ) -> Result<Self, ResourceError> {
         if limit == 0 || limit > self.0.limit {
             return Err(ResourceError::Invalid(
                 "child limit must be positive and no greater than parent",
@@ -114,6 +134,7 @@ impl ByteBudget {
         Ok(Self(Arc::new(Node {
             name,
             limit,
+            headroom,
             used: AtomicUsize::new(0),
             peak: AtomicUsize::new(0),
             depth: self.0.depth + 1,
@@ -138,6 +159,7 @@ impl ByteBudget {
     }
 
     fn validate_add(&self, bytes: usize) -> Result<(), ResourceError> {
+        let mut root = None;
         for node in self.ancestors() {
             let used = node.used.load(Ordering::Acquire);
             if bytes > node.limit - used {
@@ -146,6 +168,18 @@ impl ByteBudget {
                     requested: bytes,
                     used,
                     limit: node.limit,
+                });
+            }
+            root = Some(node);
+        }
+        if let Some(root) = root.filter(|_| self.0.headroom > 0) {
+            let used = root.used.load(Ordering::Acquire);
+            if bytes.saturating_add(self.0.headroom) > root.limit - used {
+                return Err(ResourceError::Exhausted {
+                    budget: root.name,
+                    requested: bytes,
+                    used,
+                    limit: root.limit - self.0.headroom.min(root.limit),
                 });
             }
         }
@@ -178,17 +212,22 @@ impl ByteBudget {
         }
     }
 
-    /// Available in this budget AND every parent at one accounting instant.
+    /// Available in this budget AND every parent at one accounting instant,
+    /// less the headroom this budget leaves in the root.
     ///
     /// # Panics
     /// Panics if the ancestor chain is empty, which cannot happen because a
     /// budget always has at least itself.
     #[must_use]
     pub fn available(&self) -> usize {
-        self.ancestors()
-            .map(|node| node.limit - node.used.load(Ordering::Acquire))
-            .min()
-            .unwrap()
+        let free = |node: &Node| node.limit - node.used.load(Ordering::Acquire);
+        let available = self.ancestors().map(free).min().unwrap();
+        match self.ancestors().last() {
+            Some(root) if self.0.headroom > 0 => {
+                available.min(free(root).saturating_sub(self.0.headroom))
+            }
+            _ => available,
+        }
     }
 
     /// Immediate admission, before allocation. Queueing, deadlines and fair
@@ -305,6 +344,29 @@ pub struct FairAdmission {
     queue: Mutex<std::collections::VecDeque<Waiter>>,
     /// Broadcast when bytes are released or a waiter is removed.
     changed: std::sync::Condvar,
+    /// Callers that queued (did not get their bytes at once), and the
+    /// microseconds they spent queued, granted or not.
+    waits: std::sync::atomic::AtomicU64,
+    waited_micros: std::sync::atomic::AtomicU64,
+}
+
+/// Records one queued wait on its gate when the caller leaves the queue,
+/// by any path.
+struct QueuedWait<'a> {
+    gate: &'a FairAdmission,
+    since: std::time::Instant,
+}
+
+impl Drop for QueuedWait<'_> {
+    fn drop(&mut self) {
+        let micros = u64::try_from(self.since.elapsed().as_micros()).unwrap_or(u64::MAX);
+        self.gate
+            .waits
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        self.gate
+            .waited_micros
+            .fetch_add(micros, std::sync::atomic::Ordering::Relaxed);
+    }
 }
 
 struct Waiter {
@@ -321,7 +383,24 @@ impl FairAdmission {
             budget,
             queue: Mutex::new(std::collections::VecDeque::new()),
             changed: std::sync::Condvar::new(),
+            waits: std::sync::atomic::AtomicU64::new(0),
+            waited_micros: std::sync::atomic::AtomicU64::new(0),
         }
+    }
+
+    /// Callers that queued here so far, and the total seconds they spent
+    /// queued (granted, timed out or cancelled).
+    #[must_use]
+    pub fn queued_totals(&self) -> (u64, f64) {
+        let micros = self
+            .waited_micros
+            .load(std::sync::atomic::Ordering::Relaxed);
+        #[expect(clippy::cast_precision_loss, reason = "a metric in seconds")]
+        let seconds = micros as f64 / 1e6;
+        (
+            self.waits.load(std::sync::atomic::Ordering::Relaxed),
+            seconds,
+        )
     }
 
     /// Try to admit immediately without queueing (non-blocking).
@@ -350,12 +429,18 @@ impl FairAdmission {
         deadline_ms: u64,
         cancelled: &std::sync::Arc<std::sync::atomic::AtomicBool>,
     ) -> Result<ByteReservation, AdmissionError> {
-        // Fast path: enough capacity now.
-        if self.budget.available() >= bytes {
-            return self
-                .budget
-                .try_reserve(bytes)
-                .map_err(|_| AdmissionError::Exhausted);
+        // Fast path: enough capacity now and nobody waiting ahead (a newcomer
+        // that took freed bytes past the queue could starve its head).
+        if self.budget.available() >= bytes
+            && self
+                .queue
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .is_empty()
+        {
+            if let Ok(reservation) = self.budget.try_reserve(bytes) {
+                return Ok(reservation);
+            }
         }
         if cancelled.load(std::sync::atomic::Ordering::Relaxed) {
             return Err(AdmissionError::Cancelled);
@@ -363,6 +448,10 @@ impl FairAdmission {
         if now_ms() >= deadline_ms {
             return Err(AdmissionError::TimedOut);
         }
+        let _queued = QueuedWait {
+            gate: self,
+            since: std::time::Instant::now(),
+        };
 
         // Each waiter carries a unique ticket identity so position tracking is
         // robust to earlier waiters being purged.
@@ -976,5 +1065,43 @@ mod shard_tests {
         );
         resources.experimental_multi_shard = true;
         assert!(resources.validate().is_ok());
+    }
+
+    /// A newcomer does not take freed bytes past a queued waiter: the
+    /// head is served first, in arrival order.
+    #[test]
+    fn freed_bytes_go_to_the_queue_head_before_a_newcomer() {
+        let budget = ByteBudget::new("fifo", 10).unwrap();
+        let gate = std::sync::Arc::new(FairAdmission::new(budget.clone()));
+        let held = budget.try_reserve(10).unwrap();
+        let never = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let far = now_ms() + 5_000;
+        let waiter = {
+            let gate = std::sync::Arc::clone(&gate);
+            let never = std::sync::Arc::clone(&never);
+            let (sender, receiver) = std::sync::mpsc::channel::<()>();
+            let thread = std::thread::spawn(move || {
+                let reservation = gate.acquire(10, far, &never);
+                // Hold the bytes until the newcomer has tried.
+                let _ = receiver.recv();
+                reservation.map(|r| r.bytes())
+            });
+            (thread, sender)
+        };
+        while gate.queue.lock().unwrap().is_empty() {
+            std::thread::yield_now();
+        }
+        drop(held);
+        // The waiter is queued: a newcomer queues behind it, and times out
+        // while the waiter holds the bytes.
+        let newcomer = gate.acquire(10, now_ms() + 50, &never);
+        assert!(
+            matches!(newcomer, Err(AdmissionError::TimedOut)),
+            "{:?}",
+            newcomer.map(|r| r.bytes())
+        );
+        let (thread, sender) = waiter;
+        sender.send(()).unwrap();
+        assert_eq!(thread.join().unwrap().unwrap(), 10);
     }
 }

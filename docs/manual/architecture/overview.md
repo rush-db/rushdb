@@ -86,7 +86,7 @@ flowchart TB
 | Transaction reaper | Expires interactive transactions whose TTL lapsed. | Every 1 s. |
 | Maintenance tick | Expires abandoned read leases, evicts idle planner statistics, advances online index builds, freezes and merges vector segments, reclaims MVCC history, advances WAL retention, sweeps expired retry receipts, and checkpoints. | Every `checkpoint-interval-seconds` (default 5 s). |
 | Compaction worker | Gated idle-time compaction of the redb file. | Every `compact-interval-seconds` (default 300 s). |
-| Text applier | Applies pending full-text index changes. | Every 250 ms. |
+| Text applier | Applies pending full-text index changes. | After each write, and every 250 ms. |
 | Storage statistics | Refreshes per-family byte accounting for `/metrics`. | Every 15 min. |
 | WAL archiver | Ships WAL segments to `wal-archive-dir` (when configured). | Every 5 s. |
 | Replication follower | Tails a leader's WAL (when `replica-of` is set). | Polls every 200 ms when caught up. |

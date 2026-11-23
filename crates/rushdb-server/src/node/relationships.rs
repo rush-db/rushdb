@@ -247,10 +247,8 @@ impl RequestScope<'_> {
         let rel_type = command.relation_type.clone();
         let direction = command.direction;
         let many_to_many = command.allow_cartesian;
-        let props: Vec<(String, rushdb_lmpg::plan::FieldChange)> = command
-            .properties
-            .as_object()
-            .map(|o| {
+        let props: Vec<(String, rushdb_lmpg::plan::FieldChange)> =
+            command.properties.as_object().map_or_default(|o| {
                 o.iter()
                     .map(|(k, v)| {
                         (
@@ -263,8 +261,7 @@ impl RequestScope<'_> {
                         )
                     })
                     .collect()
-            })
-            .unwrap_or_default();
+            });
 
         let source_label = command.source.label.clone();
         let target_label = command.target.label.clone();
@@ -1105,8 +1102,8 @@ fn merge_fields(
 }
 
 /// A relationship's properties as `(name, value, write)`, the write
-/// re-creating the value on another relationship: a scalar datetime stays a
-/// datetime (its JSON form is a number), and a null stays an explicit null.
+/// re-creating the value on another relationship: each value keeps its type
+/// (its tagged form), and a null stays an explicit null.
 fn relationship_fields(
     snap: &rushdb_storage::ReadView,
     tenant: rushdb_types::ids::TenantId,
@@ -1119,22 +1116,13 @@ fn relationship_fields(
     else {
         return Ok(Vec::new());
     };
-    let datetimes: std::collections::BTreeSet<String> =
-        super::relationship_reads::PropertyNames::default()
-            .of(snap, tenant, ordinal)?
-            .into_iter()
-            .filter(|(_, (ty, array))| *ty == rushdb_types::model::LogicalType::DateTime && !array)
-            .map(|(name, _)| name)
-            .collect();
     Ok(document
         .into_iter()
         .filter(|(name, _)| !rushdb_types::value::is_reserved_name(name))
         .map(|(name, value)| {
+            // The rebuilt document keeps each value's type (the tagged form).
             let change = match &value {
                 serde_json::Value::Null => FieldChange::ExplicitNull,
-                serde_json::Value::Number(n) if datetimes.contains(&name) => n
-                    .as_i64()
-                    .map_or_else(|| FieldChange::Set(value.clone()), FieldChange::SetDatetime),
                 _ => FieldChange::Set(value.clone()),
             };
             (name, value, change)

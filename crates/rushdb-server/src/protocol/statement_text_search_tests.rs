@@ -197,7 +197,7 @@ fn a_text_function_needs_an_index_and_a_parsable_query() {
     for (statement, expected) in [
         (
             "MATCH (a:Article) WHERE text_match(a.body, 'graph') RETURN a.title AS title",
-            "no ready text index on :Article(body)",
+            "needs a text index on 'body'",
         ),
         (
             "MATCH (a:Article) WHERE text_match(a.title, 'title:(') RETURN a",

@@ -244,7 +244,7 @@ fn id_filter(filter: &Value) -> Value {
             .iter()
             .map(|(key, value)| {
                 let key = if key == "_id" { "$id" } else { key.as_str() };
-                (key.to_owned(), value.clone())
+                (key.to_owned(), filter_literals(value))
             })
             .collect(),
     )
@@ -845,11 +845,57 @@ fn fields_from_object(obj: &Map<String, Value>) -> Vec<(String, FieldChange)> {
             if v.is_null() {
                 FieldChange::ExplicitNull
             } else {
-                FieldChange::Set(v.clone())
+                FieldChange::Set(stored_value(v))
             },
         ));
     }
     out
+}
+
+/// A filter with every Extended JSON `{"$date": ...}` as the ISO 8601
+/// instant it names, which the native query compares as a datetime.
+fn filter_literals(value: &Value) -> Value {
+    match stored_value(value) {
+        Value::Object(object) => {
+            match rushdb_types::types::tagged_scalar(&Value::Object(object.clone())) {
+                Some(scalar) => rushdb_types::value::scalar_to_json(&scalar),
+                None => Value::Object(
+                    object
+                        .iter()
+                        .map(|(key, value)| (key.clone(), filter_literals(value)))
+                        .collect(),
+                ),
+            }
+        }
+        Value::Array(items) => Value::Array(items.iter().map(filter_literals).collect()),
+        other => other,
+    }
+}
+
+/// A Mongo document value as the write path stores it: Extended JSON
+/// `{"$date": ...}` (ISO 8601 text, `{"$numberLong": "<ms>"}` or epoch
+/// milliseconds) is a datetime, in arrays too; everything else is stored
+/// as given (text stays text, as in MongoDB).
+fn stored_value(value: &Value) -> Value {
+    use rushdb_types::types::{coerce_literal, to_doc_json};
+    use rushdb_types::value::Scalar;
+    match value {
+        Value::Object(object) if object.len() == 1 && object.contains_key("$date") => {
+            let date = &object["$date"];
+            let millis = date
+                .get("$numberLong")
+                .and_then(Value::as_str)
+                .and_then(|ms| ms.parse::<i64>().ok())
+                .map(Value::from);
+            let literal = millis.as_ref().unwrap_or(date);
+            match coerce_literal(rushdb_types::model::LogicalType::DateTime, literal) {
+                Some(scalar @ Scalar::DateTime(_)) => to_doc_json(&scalar),
+                _ => value.clone(),
+            }
+        }
+        Value::Array(items) => Value::Array(items.iter().map(stored_value).collect()),
+        other => other.clone(),
+    }
 }
 
 /// Expand a Mongo update against an optional current document.
@@ -863,7 +909,7 @@ fn extract_update_fields(
             "$set" => {
                 let spec = spec.as_object().ok_or("mongo: $set must be an object")?;
                 for (k, v) in spec {
-                    out.push((k.clone(), FieldChange::Set(v.clone())));
+                    out.push((k.clone(), FieldChange::Set(stored_value(v))));
                 }
             }
             "$inc" => {
@@ -960,7 +1006,7 @@ fn matching_records(
 ) -> Result<Vec<(rushdb_lmpg::RecordRef, String)>, String> {
     let query = json!({
         "labels": [label],
-        "where": filter.clone(),
+        "where": filter_literals(filter),
         "limit": 1_000_000,
     });
     let parsed = rushdb_query::document::parse_document(&query).map_err(|e| e.to_string())?;

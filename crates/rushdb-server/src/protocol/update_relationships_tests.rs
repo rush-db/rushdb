@@ -413,7 +413,7 @@ fn typed_set_writes_datetimes_read_back_as_iso_strings_with_property_types() {
     let affected = update(
         &node,
         &serde_json::json!({"relationType": "PLACES", "sourceIds": [ada], "targetIds": [order],
-            "set": {"placedAt": "2024-03-01T09:30:00.250+02:00", "day": "2024-03-01",
+            "set": {"placedAt": "2024-03-01T09:30:00.25+02:00", "day": "2024-03-01",
                 "untyped": "2024-03-01", "count": 3, "tags": ["a", "b"], "cleared": null},
             "types": {"placedAt": "datetime", "day": "datetime", "count": "number",
                 "tags": "string", "cleared": "datetime"}}),
@@ -424,10 +424,11 @@ fn typed_set_writes_datetimes_read_back_as_iso_strings_with_property_types() {
     let (properties, types) = typed_relationships(&node)[&format!("PLACES:{ada}->{order}")].clone();
     assert_eq!(
         properties,
-        serde_json::json!({"channel": "store", "placedAt": "2024-03-01T07:30:00.250Z",
-            "day": "2024-03-01", "untyped": "2024-03-01", "count": 3, "tags": ["a", "b"],
-            "cleared": null}),
-        "datetimes render as ISO strings; an untyped date string stays a string"
+        serde_json::json!({"channel": "store", "placedAt": "2024-03-01T09:30:00.25+02:00",
+            "day": "2024-03-01T00:00:00Z", "untyped": "2024-03-01", "count": 3,
+            "tags": ["a", "b"], "cleared": null}),
+        "datetimes render as ISO strings at the offset they were written with (a date in \
+         UTC); an untyped date string stays a string"
     );
     assert_eq!(
         types,
@@ -475,14 +476,14 @@ fn by_id_links_take_types_too() {
     assert_eq!(
         rels[&format!("PLACES:{ada}->{first}")],
         (
-            serde_json::json!({"at": "2024-03-01T10:00:00.000Z", "note": "2024-03-01"}),
+            serde_json::json!({"at": "2024-03-01T10:00:00Z", "note": "2024-03-01"}),
             serde_json::json!({"at": "datetime", "note": "string"})
         )
     );
     assert_eq!(
         rels[&format!("PLACES:{ada}->{second}")],
         (
-            serde_json::json!({"at": "2024-03-02"}),
+            serde_json::json!({"at": "2024-03-02T00:00:00Z"}),
             serde_json::json!({"at": "datetime"})
         )
     );
@@ -569,10 +570,10 @@ fn mistyped_values_and_undeclared_names_are_invalid_and_write_nothing() {
              number value",
         ),
         (
-            serde_json::json!({"at": ["2024-03-01", "2024-03-02"]}),
+            serde_json::json!({"at": ["2024-03-01", 2]}),
             serde_json::json!({"at": "datetime"}),
             "invalid updateRelationshipsById: property `at` is typed datetime but holds an \
-             array; datetime arrays are not supported",
+             array with a number element",
         ),
     ];
     for (set, types, message) in cases {
@@ -637,14 +638,14 @@ fn a_typed_datetime_survives_retype_into_a_new_and_an_existing_relationship() {
     assert_eq!(
         rels[&format!("ORDERED:{ada}->{first}")],
         (
-            serde_json::json!({"at": "2024-03-01T10:00:00.000Z"}),
+            serde_json::json!({"at": "2024-03-01T10:00:00Z"}),
             serde_json::json!({"at": "datetime"})
         )
     );
     assert_eq!(
         rels[&format!("ORDERED:{ada}->{second}")],
         (
-            serde_json::json!({"channel": "web", "at": "2024-03-01T10:00:00.000Z"}),
+            serde_json::json!({"channel": "web", "at": "2024-03-01T10:00:00Z"}),
             serde_json::json!({"channel": "string", "at": "datetime"})
         )
     );

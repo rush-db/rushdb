@@ -17,10 +17,11 @@ ARG BINARIES=source
 FROM --platform=$BUILDPLATFORM busybox:1.37 AS data
 RUN mkdir -p /data && chown 65532:65532 /data
 
-FROM rust:1.98.1-bookworm AS source
+FROM rust:1.100.0-bookworm AS source
 WORKDIR /src
 COPY . .
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    --mount=type=cache,target=/usr/local/cargo/git \
     --mount=type=cache,target=/src/target \
     cargo build --release --locked -p rushdb-server --bin rushdb \
     && mkdir /out \

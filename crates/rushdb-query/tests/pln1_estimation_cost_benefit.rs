@@ -52,7 +52,6 @@
 //! single pass/fail accuracy bound.
 
 use std::sync::Arc;
-use std::time::Instant;
 
 use rushdb_lmpg::derived;
 use rushdb_lmpg::plan::FieldChange;
@@ -478,37 +477,46 @@ fn mixed_predicate_query_stays_fast_regardless_of_range_estimate_coarseness() {
          nearly fully selective, got {selectivity}"
     );
 
-    let start = Instant::now();
     let parsed = rushdb_query::document::parse_document(&json!({
         "where": {"cat": "needle", "score": {"$gte": 0}}
     }))
     .unwrap();
-    let page = rushdb_query::find_records(&eng, &parsed.search).unwrap();
-    let indexed_elapsed = start.elapsed();
-    assert_eq!(page.records.len(), 1, "exactly one needle record");
-
-    let mut forced = parsed;
-    forced.search.force_scan = true;
-    let start = Instant::now();
-    let scan_page = rushdb_query::find_records(&eng, &forced.search).unwrap();
-    let scan_elapsed = start.elapsed();
-    assert_eq!(scan_page.records.len(), 1);
-
+    let mut forced = parsed.search.clone();
+    forced.force_scan = true;
+    // Backend reads, not wall-clock time (which failed under CI load): one
+    // warm-up run loads planner statistics, the second is counted.
+    let reads = |search: &rushdb_query::SearchRequest| {
+        let page = rushdb_query::find_records(&eng, search).unwrap();
+        assert_eq!(page.records.len(), 1, "exactly one needle record");
+        rushdb_storage::read_accounting::enable(true);
+        let _ = rushdb_storage::read_accounting::take_local();
+        rushdb_query::find_records(&eng, search).unwrap();
+        rushdb_storage::read_accounting::take_local()
+            .values()
+            .sum::<u64>()
+    };
+    let indexed_reads = reads(&parsed.search);
+    let scan_reads = reads(&forced);
     eprintln!(
-        "mixed-predicate query: indexed path {indexed_elapsed:?}, forced full scan \
-         {scan_elapsed:?} over {total} records"
+        "mixed-predicate query: indexed path {indexed_reads} reads, forced full scan \
+         {scan_reads} over {total} records"
     );
-    // Not a tight timing assertion (wall-clock is inherently noisy) — the
-    // qualitative claim this guards is that the index path is not SLOWER
-    // than a full scan despite the range leaf's coarse estimate; a real
-    // regression (e.g. the planner materializing the range leaf's ~20,000
-    // owners before intersecting) would show up as the indexed path taking
-    // a large multiple of the scan's time, not a noisy tie.
+    // The planned path must not read more than a full scan despite the
+    // range leaf's coarse estimate (it reads three quarters: the equality
+    // leaf walks the property's holders); a regression that materializes
+    // the range leaf's ~20,000 owners before intersecting reads more. With
+    // resident layers off the planner walks the range's value distribution
+    // again on every query: about one read per record more.
+    let stats_reads = if rushdb_storage::resident::residents_enabled() {
+        0
+    } else {
+        total + total / 10
+    };
     assert!(
-        indexed_elapsed <= scan_elapsed.saturating_mul(4) + std::time::Duration::from_millis(5),
-        "indexed path ({indexed_elapsed:?}) should not be dramatically slower than \
-         a full scan ({scan_elapsed:?}) — suggests the coarse range estimate \
-         caused the planner to materialize the wrong leaf first"
+        indexed_reads <= scan_reads + stats_reads,
+        "planned path ({indexed_reads} reads) should not read more than a full \
+         scan ({scan_reads}) — suggests the coarse range estimate caused the \
+         planner to materialize the wrong leaf first"
     );
 }
 

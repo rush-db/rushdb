@@ -79,7 +79,14 @@ fn row(i: u64) -> Vec<(String, FieldChange)> {
     }
     fields.push((
         "d".to_owned(),
-        FieldChange::SetDatetime(1_700_000_000_000 + (i as i64) * 86_400_000),
+        FieldChange::Set(rushdb_types::types::to_doc_json(
+            &rushdb_types::value::Scalar::DateTime(
+                rushdb_types::types::temporal::Instant::from_millis(
+                    1_700_000_000_000 + (i as i64) * 86_400_000,
+                )
+                .unwrap(),
+            ),
+        )),
     ));
     if i.is_multiple_of(9) {
         fields.push(set("tags", json!(["x", "y"])));
@@ -132,6 +139,17 @@ fn shapes() -> Vec<AggregateRequest> {
         json!({"labels": ["Row"], "groupBy": ["tags"], "select": {"n": {"$count": "*"}}}),
         // An integer sum that overflows: the same error either way.
         json!({"labels": ["Row"], "groupBy": ["b"], "select": {"i": {"$sum": "$record.i"}}}),
+        // Counts and sums over text and mixed cells (text is counted, never
+        // summed), extremes of text.
+        json!({"labels": ["Row"], "groupBy": ["b"],
+            "select": {"k": {"$count": "$record.k"}, "mixed": {"$count": "$record.mixed"},
+                       "mixed_sum": {"$sum": "$record.mixed"}, "k_lo": {"$min": "$record.k"},
+                       "k_hi": {"$max": "$record.k"}, "n": {"$count": "$record.n"}}}),
+        // Four keys fold by code; five fold built rows.
+        json!({"labels": ["Row"], "groupBy": ["b", "k", "n", "mixed"],
+            "select": {"c": {"$count": "*"}, "f": {"$sum": "$record.f"}}}),
+        json!({"labels": ["Row"], "groupBy": ["b", "k", "n", "mixed", "d"],
+            "select": {"c": {"$count": "*"}, "f": {"$avg": "$record.f"}}}),
     ]
     .iter()
     .map(request)
@@ -229,6 +247,17 @@ fn grouped_aggregates_answer_from_columns_like_storage() {
         ],
     });
     lmpg.run_batch(tx).unwrap();
+    let expected = reference(&lmpg);
+    assert_answers_like_storage(&lmpg, &expected);
+}
+
+#[test]
+fn grouped_aggregates_over_several_parts_answer_like_storage() {
+    // More members than one part holds (8,192): the parts fold by code on
+    // their own threads, each with its own code cache, and merge in part
+    // order, as storage's parts do.
+    let lmpg = Lmpg::new(store(256 << 20), TenantId::from_ordinal(176));
+    seed_rows(&lmpg, 20_000);
     let expected = reference(&lmpg);
     assert_answers_like_storage(&lmpg, &expected);
 }
@@ -364,4 +393,67 @@ fn tight_query_budgets_never_refuse_what_storage_answers() {
         }
     }
     assert!(refused > 0, "some budget refuses an aggregate");
+}
+
+/// L8: a listing whose filter no declared index answers reads the matches
+/// from the resident columns of the properties it filters on, once its
+/// walks have paid for them, and lists what storage lists: the same
+/// records, total and order, page by page.
+#[test]
+fn unindexed_listing_filters_answer_from_columns_like_storage() {
+    rushdb_storage::parallel::set_threads(1);
+    let lmpg = Lmpg::new(store(256 << 20), TenantId::from_ordinal(176));
+    seed(&lmpg);
+    let filters = [
+        json!({"k": "c"}),
+        json!({"k": {"$in": ["a", "g"]}, "b": true}),
+        json!({"i": {"$gt": 1000}, "f": {"$lt": 0}}),
+        json!({"mixed": {"$gte": 10}}),
+        json!({"mixed": "s2"}),
+        json!({"n": null}),
+        json!({"n": {"$exists": true}, "k": {"$nin": ["a"]}}),
+        json!({"$or": [{"k": "b"}, {"i": {"$lt": 0}}]}),
+        json!({"k": {"$not": {"$in": ["a", "b", "c"]}}}),
+        json!({"mixed": {"$type": "string"}}),
+        json!({"k": {"$contains": "e"}}),
+        json!({"k": {"$exists": false}}),
+        json!({"d": {"$gte": "2024-01-01T00:00:00Z"}}),
+    ];
+    let documents: Vec<Value> = filters
+        .iter()
+        .flat_map(|filter| {
+            [
+                json!({"labels": ["Row"], "where": filter, "limit": 40}),
+                json!({"labels": ["Row"], "where": filter, "orderBy": {"i": "desc"},
+                    "skip": 10, "limit": 25}),
+            ]
+        })
+        .collect();
+    let list = |doc: &Value| {
+        let page = rushdb_query::find_records(&lmpg, &parse_document(doc).unwrap().search).unwrap();
+        let ids: Vec<Value> = page.records.iter().map(|r| r["__id"].clone()).collect();
+        (page.total_matched, ids)
+    };
+    let residents = lmpg.store.residents();
+    residents.set_enabled(false);
+    let expected: Vec<_> = documents.iter().map(list).collect();
+    let from_storage = reads(|| {
+        list(&documents[0]);
+    });
+    residents.set_enabled(rushdb_storage::resident::residents_enabled());
+    for _ in 0..4 {
+        for (doc, want) in documents.iter().zip(&expected) {
+            assert_eq!(&list(doc), want, "{doc}");
+        }
+        residents.wait_idle();
+    }
+    let from_columns = reads(|| {
+        assert_eq!(list(&documents[0]), expected[0]);
+    });
+    if rushdb_storage::resident::residents_enabled() {
+        assert!(
+            from_columns * 2 < from_storage,
+            "{from_columns} reads with columns, {from_storage} from storage"
+        );
+    }
 }

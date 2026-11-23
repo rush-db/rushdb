@@ -12,7 +12,7 @@ use rushdb_types::index::IndexDef;
 use rushdb_types::model::LogicalType;
 use rushdb_types::value::{normalize_name, Scalar};
 
-use crate::planner::{range_scalar_matches, scalar_variants, BoundedOwners, OwnerSet, RangeOp};
+use crate::planner::{scalar_variants, BoundedOwners, OwnerSet, RangeBound, RangeOp};
 use crate::{Expr, FieldPred, QueryError};
 
 type Json = serde_json::Value;
@@ -118,31 +118,25 @@ fn equal<R: TryRead>(
     Ok(Some(owners))
 }
 
-/// Owners holding a numeric value satisfying `op bound`.
+/// Owners holding a value of an ordered type satisfying `op bound`.
 fn range<R: TryRead>(
     snap: &R,
     tenant: TenantId,
     defs: &[IndexDef],
     op: RangeOp,
-    bound: f64,
+    bound: &serde_json::Value,
     owner_limit: usize,
 ) -> Result<Option<OwnerSet>, QueryError> {
     let mut owners = OwnerSet::new();
     let above = matches!(op, RangeOp::Gt | RangeOp::Gte);
-    for ty in [
-        LogicalType::Int64,
-        LogicalType::Float64,
-        LogicalType::DateTime,
-    ] {
+    for ty in LogicalType::ALL.into_iter().filter(|ty| ty.rangeable()) {
+        let Some(range_bound) = RangeBound::of(ty, bound) else {
+            continue;
+        };
         let tag = logical_tag(ty);
         // Bound the scan at the bound's encoding, rounded outward for the
-        // integer domains; the exact comparison happens on each entry.
-        let edge = match ty {
-            LogicalType::Float64 => Scalar::Float64(bound),
-            LogicalType::Int64 => Scalar::Int64(outward(bound, above)),
-            _ => Scalar::DateTime(outward(bound, above)),
-        };
-        let Some(edge) = entry_of(ty, &edge) else {
+        // integer domain; the exact comparison happens on each entry.
+        let Some(edge) = entry_of(ty, &range_bound.edge(ty, above)) else {
             continue;
         };
         let (start, end) = if above {
@@ -159,7 +153,7 @@ fn range<R: TryRead>(
                 entry.split_first().is_some_and(|(&found, payload)| {
                     found == tag
                         && decode_order_preserving(ty, payload)
-                            .is_ok_and(|scalar| range_scalar_matches(&scalar, op, bound))
+                            .is_ok_and(|scalar| range_bound.matches(&scalar, op))
                 })
             },
             &mut owners,
@@ -167,18 +161,6 @@ fn range<R: TryRead>(
         )?;
     }
     Ok(Some(owners))
-}
-
-#[expect(
-    clippy::cast_possible_truncation,
-    reason = "floor/ceil made the bound integral; `as` saturates at the i64 edges"
-)]
-fn outward(bound: f64, above: bool) -> i64 {
-    if above {
-        bound.floor() as i64
-    } else {
-        bound.ceil() as i64
-    }
 }
 
 /// Owners holding a string starting with `prefix`.
@@ -209,6 +191,41 @@ fn starts_with<R: TryRead>(
     Ok(Some(owners))
 }
 
+/// Index cell ranges a `$within` reads: enough to keep the cover close to
+/// the region, few enough to keep the scans few.
+const WITHIN_RANGES: usize = 16;
+
+/// Owners holding a point in `region`: the Hilbert cell ranges covering
+/// its bounding box, each point checked exactly.
+fn within<R: TryRead>(
+    snap: &R,
+    tenant: TenantId,
+    defs: &[IndexDef],
+    region: &serde_json::Value,
+    owner_limit: usize,
+) -> Result<Option<OwnerSet>, QueryError> {
+    let region = crate::spatial::Region::parse(region).map_err(QueryError::InvalidPredicate)?;
+    let mut owners = OwnerSet::new();
+    for (start, end) in crate::spatial::entry_ranges(&region, WITHIN_RANGES) {
+        scan(
+            snap,
+            tenant,
+            defs,
+            (&start, &end),
+            &|entry| {
+                entry.split_first().is_some_and(|(&tag, payload)| {
+                    tag == LogicalType::Point.tag()
+                        && rushdb_types::types::point::decode(payload)
+                            .is_some_and(|at| region.contains(at))
+                })
+            },
+            &mut owners,
+            owner_limit,
+        )?;
+    }
+    Ok(Some(owners))
+}
+
 /// The leaf's property name when an ordered index can answer it.
 fn indexed_property(expr: &Expr) -> Option<&str> {
     match expr {
@@ -219,7 +236,8 @@ fn indexed_property(expr: &Expr) -> Option<&str> {
             | FieldPred::Gte(name, _)
             | FieldPred::Lt(name, _)
             | FieldPred::Lte(name, _)
-            | FieldPred::StartsWith(name, _),
+            | FieldPred::StartsWith(name, _)
+            | FieldPred::Within(name, _),
         ) => Some(name),
         _ => None,
     }
@@ -356,19 +374,22 @@ fn leaf_owners_uncached<R: TryRead>(
             equal(snap, tenant, &defs, values, owner_limit)
         }
         Expr::Field(FieldPred::Gt(_, bound)) => {
-            range(snap, tenant, &defs, RangeOp::Gt, *bound, owner_limit)
+            range(snap, tenant, &defs, RangeOp::Gt, bound, owner_limit)
         }
         Expr::Field(FieldPred::Gte(_, bound)) => {
-            range(snap, tenant, &defs, RangeOp::Gte, *bound, owner_limit)
+            range(snap, tenant, &defs, RangeOp::Gte, bound, owner_limit)
         }
         Expr::Field(FieldPred::Lt(_, bound)) => {
-            range(snap, tenant, &defs, RangeOp::Lt, *bound, owner_limit)
+            range(snap, tenant, &defs, RangeOp::Lt, bound, owner_limit)
         }
         Expr::Field(FieldPred::Lte(_, bound)) => {
-            range(snap, tenant, &defs, RangeOp::Lte, *bound, owner_limit)
+            range(snap, tenant, &defs, RangeOp::Lte, bound, owner_limit)
         }
         Expr::Field(FieldPred::StartsWith(_, prefix)) => {
             starts_with(snap, tenant, &defs, prefix, owner_limit)
+        }
+        Expr::Field(FieldPred::Within(_, region)) => {
+            within(snap, tenant, &defs, region, owner_limit)
         }
         _ => Ok(None),
     }

@@ -260,6 +260,10 @@ pub struct Node {
     maintenance_work: crate::lifecycle::MaintenanceWork,
     /// Wakes the index builder when an index is declared or dropped.
     index_build_wake: std::sync::Arc<tokio::sync::Notify>,
+    /// Wakes the text and structural appliers after a write, so an
+    /// `eventual` index takes it in milliseconds rather than at the next
+    /// tick.
+    index_apply_wake: std::sync::Arc<tokio::sync::Notify>,
 }
 
 impl Drop for Node {
@@ -447,6 +451,11 @@ impl Node {
     /// The index builder's wake-up signal (see `http::spawn_index_builder`).
     pub(crate) fn index_build_wake(&self) -> std::sync::Arc<tokio::sync::Notify> {
         std::sync::Arc::clone(&self.index_build_wake)
+    }
+
+    /// The index appliers' wake-up signal (see `http::spawn_index_applier`).
+    pub(crate) fn index_apply_wake(&self) -> std::sync::Arc<tokio::sync::Notify> {
+        std::sync::Arc::clone(&self.index_apply_wake)
     }
 
     /// Request this follower stop replicating and accept local writes.
@@ -662,6 +671,7 @@ impl Node {
             follower_stop_requested: std::sync::atomic::AtomicBool::new(false),
             maintenance_work: crate::lifecycle::MaintenanceWork::default(),
             index_build_wake: std::sync::Arc::default(),
+            index_apply_wake: std::sync::Arc::default(),
         };
         // Rewrite rows earlier releases stored in an older form before any
         // reader sees them. A follower receives the leader's rewrites.
@@ -1542,27 +1552,14 @@ fn bytes_from_hex(hex: &str) -> Result<[u8; 16], String> {
 }
 
 fn type_name_str(ty: rushdb_types::model::LogicalType) -> String {
-    match ty {
-        rushdb_types::model::LogicalType::Boolean => "boolean".to_string(),
-        rushdb_types::model::LogicalType::Int64 | rushdb_types::model::LogicalType::Float64 => {
-            "number".to_string()
-        }
-        rushdb_types::model::LogicalType::Utf8 => "string".to_string(),
-        rushdb_types::model::LogicalType::DateTime => "datetime".to_string(),
-    }
+    ty.api_name().to_string()
 }
 
 /// Canonical logical type name for E8 sibling flags. Unlike `type_name_str`
 /// (the display vocabulary, where int and float collapse to `number`), this
 /// preserves the exact split so an int/float coexistence is detectable.
 fn logical_type_name(ty: rushdb_types::model::LogicalType) -> String {
-    match ty {
-        rushdb_types::model::LogicalType::Boolean => "boolean".to_string(),
-        rushdb_types::model::LogicalType::Int64 => "int64".to_string(),
-        rushdb_types::model::LogicalType::Float64 => "float64".to_string(),
-        rushdb_types::model::LogicalType::Utf8 => "utf8".to_string(),
-        rushdb_types::model::LogicalType::DateTime => "datetime".to_string(),
-    }
+    ty.name().to_string()
 }
 
 fn schema_json_type(value: &serde_json::Value) -> String {

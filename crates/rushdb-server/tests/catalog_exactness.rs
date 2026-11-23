@@ -88,7 +88,7 @@ fn describe_ranges_cover_every_record_not_a_sample() {
     let mut documents: Vec<Value> = (0..12_000)
         .map(|i| json!({ "zip": 1000 + (i % 500), "at": "2020-01-02" }))
         .collect();
-    documents.push(json!({ "zip": 99_950, "at": "2031-05-06T07:08:09Z" }));
+    documents.push(json!({ "zip": 99_950, "at": "2031-05-06" }));
     documents.push(json!({ "zip": 501, "at": "1999-12-31" }));
     ingest(&handler, "zip_code", &documents);
     let properties = properties(&handler, "zip_code");
@@ -99,7 +99,7 @@ fn describe_ranges_cover_every_record_not_a_sample() {
     );
     let at = property(&properties, "at");
     assert_eq!(at["min"], json!("1999-12-31"));
-    assert_eq!(at["max"], json!("2031-05-06T07:08:09.000Z"));
+    assert_eq!(at["max"], json!("2031-05-06"));
 }
 
 #[test]
@@ -419,8 +419,8 @@ fn a_type_split_in_one_label_reports_each_type_on_its_own() {
     );
     let dates = summary_entry(&summary, "battle", "ended", "datetime");
     assert_eq!(dates["distinctCount"], json!(2), "{dates}");
-    assert_eq!(dates["min"], json!("2004-01-01T18:00:00.000Z"));
-    assert_eq!(dates["max"], json!("2019-12-20T10:00:00.000Z"));
+    assert_eq!(dates["min"], json!("2004-01-01T18:00:00Z"));
+    assert_eq!(dates["max"], json!("2019-12-20T10:00:00Z"));
     let texts = summary_entry(&summary, "battle", "ended", "string");
     assert_eq!(texts["distinctCount"], json!(2), "{texts}");
     assert_eq!(
@@ -431,10 +431,7 @@ fn a_type_split_in_one_label_reports_each_type_on_its_own() {
     let range = values(&handler, "battle", "ended", "range");
     assert_eq!(
         (range["min"].clone(), range["max"].clone()),
-        (
-            json!("2004-01-01T18:00:00.000Z"),
-            json!("2019-12-20T10:00:00.000Z")
-        ),
+        (json!("2004-01-01T18:00:00Z"), json!("2019-12-20T10:00:00Z")),
         "{range}"
     );
 }
@@ -460,14 +457,14 @@ fn signed_years_are_one_datetime_property_ordered_by_instant() {
     assert_eq!(started.len(), 1, "{started:?}");
     assert_eq!(started[0]["type"], json!("datetime"));
     assert_eq!(started[0]["recordsCount"], json!(4));
-    assert_eq!(started[0]["min"], json!("-0032-01-01T08:00:00.000Z"));
-    assert_eq!(started[0]["max"], json!("0035-01-01T16:00:00.000Z"));
+    assert_eq!(started[0]["min"], json!("-0032-01-01T08:00:00Z"));
+    assert_eq!(started[0]["max"], json!("0035-01-01T16:00:00Z"));
     let summary = call(
         &handler,
         &json!({ "kind": "describe", "describe": { "kind": "schemaSummary", "fewValues": 10 } }),
     );
     let entry = summary_entry(&summary, "battle", "started", "datetime");
-    assert_eq!(entry["min"], json!("-0032-01-01T08:00:00.000Z"), "{entry}");
+    assert_eq!(entry["min"], json!("-0032-01-01T08:00:00Z"), "{entry}");
     assert_eq!(
         matching(
             &handler,
@@ -688,7 +685,7 @@ fn ranges_move_when_the_extremes_are_deleted_or_changed() {
     let docs: Vec<Value> = (0..50)
         .map(|i| {
             json!({ "n": i, "code": format!("c{i:02}"),
-                    "day": format!("2001-01-{:02}T00:00:00.000Z", 1 + i % 28) })
+                    "day": format!("2001-01-{:02}", 1 + i % 28) })
         })
         .collect();
     ingest(&handler, "t", &docs);

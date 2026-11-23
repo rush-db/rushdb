@@ -186,8 +186,7 @@ impl ConfigFile {
         let data_dir = cfg
             .data_dir
             .as_ref()
-            .map(|d| d.display().to_string())
-            .unwrap_or_default();
+            .map_or_default(|d| d.display().to_string());
         let data_dir_line = if data_dir.is_empty() {
             "  # data-dir: (in-memory node)".to_string()
         } else {

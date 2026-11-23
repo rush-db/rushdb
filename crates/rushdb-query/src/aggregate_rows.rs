@@ -11,8 +11,10 @@
 
 use std::collections::{BTreeSet, HashMap};
 
-use rushdb_types::encoding::decode_order_preserving;
 use rushdb_types::occurrence::OccurrenceValue;
+
+mod coded;
+pub(crate) use coded::GroupCache;
 
 use crate::aggregate_catalog::too_many_groups;
 use crate::aggregation::{exact_f64, MAX_AGGREGATE_BUCKETS};
@@ -30,26 +32,38 @@ pub(crate) enum Cell {
     Int(i64),
     Float(f64),
     Str(String),
+    /// A value of another type (a temporal value, a duration, a point).
+    Typed(Scalar),
     /// What else a rebuilt record carries: an array, an object.
     Json(Json),
 }
 
 impl Cell {
-    /// The value of a stored occurrence, as a rebuilt record carries it
-    /// (`DateTime` as its epoch milliseconds; a non-finite float as null).
-    pub(crate) fn decode(value: OccurrenceValue, payload: &[u8]) -> Result<Self, QueryError> {
+    /// The value of a stored occurrence (its payload and suffix), as a
+    /// rebuilt record carries it (a non-finite float as null).
+    pub(crate) fn decode(
+        value: OccurrenceValue,
+        payload: &[u8],
+        suffix: &[u8],
+    ) -> Result<Self, QueryError> {
         Ok(match value {
             OccurrenceValue::ExplicitNull | OccurrenceValue::EmptyArray => Self::Null,
-            OccurrenceValue::Stored { ty } => match decode_order_preserving(ty, payload)
-                .map_err(|_| rushdb_storage::StorageError::CorruptLog)?
-            {
-                Scalar::Boolean(b) => Self::Bool(b),
-                Scalar::Int64(i) | Scalar::DateTime(i) => Self::Int(i),
-                Scalar::Float64(f) if f.is_finite() => Self::Float(f),
-                Scalar::Float64(_) => Self::Null,
-                Scalar::Utf8(s) => Self::Str(s),
-            },
+            OccurrenceValue::Stored { ty } => Self::of_scalar(
+                rushdb_types::encoding::decode_stored(ty, &[payload, suffix].concat())
+                    .map_err(|_| rushdb_storage::StorageError::CorruptLog)?,
+            ),
         })
+    }
+
+    pub(crate) fn of_scalar(scalar: Scalar) -> Self {
+        match scalar {
+            Scalar::Boolean(b) => Self::Bool(b),
+            Scalar::Int64(i) => Self::Int(i),
+            Scalar::Float64(f) if f.is_finite() => Self::Float(f),
+            Scalar::Float64(_) => Self::Null,
+            Scalar::Utf8(s) => Self::Str(s),
+            other => Self::Typed(other),
+        }
     }
 
     pub(crate) fn from_json(value: Json) -> Self {
@@ -62,7 +76,10 @@ impl Cell {
                 (None, false) => Self::Json(Json::Number(n)),
             },
             Json::String(s) => Self::Str(s),
-            other => Self::Json(other),
+            other => match rushdb_types::types::tagged_scalar(&other) {
+                Some(scalar) => Self::Typed(scalar),
+                None => Self::Json(other),
+            },
         }
     }
 
@@ -73,15 +90,19 @@ impl Cell {
             Self::Int(i) => Json::Number((*i).into()),
             Self::Float(f) => serde_json::Number::from_f64(*f).map_or(Json::Null, Json::Number),
             Self::Str(s) => Json::String(s.clone()),
+            Self::Typed(scalar) => rushdb_types::types::to_doc_json(scalar),
             Self::Json(v) => v.clone(),
         }
     }
 
-    /// The canonical number, for `$min`/`$max` (`None`: not a number).
-    fn numeric(&self) -> Option<Scalar> {
+    /// The value `$min`/`$max` compare (`None`: a value without an order):
+    /// a number, or a value of another ordered type, which compares with
+    /// its own type only.
+    fn ordered(&self) -> Option<Scalar> {
         match self {
             Self::Int(i) => Some(Scalar::Int64(*i)),
             Self::Float(f) => Some(Scalar::Float64(*f)),
+            Self::Typed(scalar) if scalar.logical_type().rangeable() => Some(scalar.clone()),
             _ => None,
         }
     }
@@ -95,11 +116,15 @@ impl Cell {
     )]
     fn number(&self) -> Option<Result<f64, QueryError>> {
         let exact = |float: Option<f64>| float.ok_or_else(lossy);
+        let int = |i: i64| {
+            let float = i as f64;
+            exact(((float as i128) == i128::from(i)).then_some(float))
+        };
         match self {
-            Self::Int(i) => {
-                let float = *i as f64;
-                Some(exact(((float as i128) == i128::from(*i)).then_some(float)))
-            }
+            Self::Int(i) => Some(int(*i)),
+            // A datetime adds as its epoch milliseconds, as it did when it
+            // was stored as them (an integer filter on it means them too).
+            Self::Typed(Scalar::DateTime(instant)) => Some(int(instant.micros.div_euclid(1_000))),
             Self::Float(f) => Some(Ok(*f)),
             Self::Json(value @ Json::Number(_)) => Some(exact(exact_f64(value))),
             _ => None,
@@ -162,6 +187,9 @@ impl Key {
             Cell::Int(i) => u64::try_from(*i).map_or(Self::Int(*i), Self::UInt),
             Cell::Float(f) => Self::Float(f.to_bits()),
             Cell::Str(s) => Self::Str(s.clone()),
+            Cell::Typed(scalar) => {
+                Self::Other(rushdb_types::types::to_doc_json(scalar).to_string())
+            }
             Cell::Json(value) => Self::Other(value.to_string()),
         }
     }
@@ -243,10 +271,9 @@ pub(crate) struct RowPlan<'r> {
 }
 
 /// A plan folded from resident columns by code ([`Partial::accumulate_coded`]):
-/// the slots of its group keys and the slots its metrics read.
+/// the slots of its group keys (each metric reads its own slot's column).
 pub(crate) struct CodedPlan {
     key_slots: Vec<Option<usize>>,
-    metric_slots: Vec<usize>,
 }
 
 /// The cell at `slot` of `row`, when the record holds it.
@@ -418,8 +445,10 @@ impl<'r> RowPlan<'r> {
                 _ => None,
             })
             .collect::<Option<Vec<_>>>()?;
-        let mut metric_slots = BTreeSet::new();
-        let sources = self
+        if key_slots.len() > crate::columns::KEY_CODES {
+            return None;
+        }
+        let mut sources = self
             .counts
             .iter()
             .chain(&self.sums)
@@ -427,16 +456,10 @@ impl<'r> RowPlan<'r> {
             .chain(&self.maxs)
             .map(|(_, source)| source)
             .chain(self.avgs.iter().map(|(_, _, source)| source));
-        for source in sources {
-            match source {
-                Source::Slot(slot) => metric_slots.extend(*slot),
-                Source::Alias(_) => return None,
-            }
+        if sources.any(|source| matches!(source, Source::Alias(_))) {
+            return None;
         }
-        Some(CodedPlan {
-            key_slots,
-            metric_slots: metric_slots.into_iter().collect(),
-        })
+        Some(CodedPlan { key_slots })
     }
 
     pub(crate) fn per_row(&self) -> bool {
@@ -565,10 +588,10 @@ impl Extreme {
     }
 
     fn beats(next: Option<&Cell>, current: Option<&Cell>, is_min: bool) -> bool {
-        let Some(next) = next.and_then(Cell::numeric) else {
+        let Some(next) = next.and_then(Cell::ordered) else {
             return false;
         };
-        let Some(current) = current.and_then(Cell::numeric) else {
+        let Some(current) = current.and_then(Cell::ordered) else {
             return true;
         };
         let wanted = if is_min {
@@ -597,7 +620,7 @@ impl Extreme {
     )]
     pub(crate) fn render(&self) -> Option<Json> {
         let first = self.first.as_ref()?;
-        if first.numeric().is_none() {
+        if first.ordered().is_none() {
             return Some(first.to_json());
         }
         Some(match self.best.as_ref()? {
@@ -722,9 +745,11 @@ fn lossy() -> QueryError {
 fn sum_numbers(values: &[Json], start: f64) -> Result<(f64, u64), QueryError> {
     let mut sum = start;
     let mut n = 0u64;
-    for value in values.iter().filter(|v| v.is_number()) {
-        sum += exact_f64(value).ok_or_else(lossy)?;
-        n += 1;
+    for value in values {
+        if let Some(number) = Cell::from_json(value.clone()).number() {
+            sum += number?;
+            n += 1;
+        }
     }
     Ok((sum, n))
 }
@@ -782,8 +807,19 @@ impl Partial {
                 KeySource::Plain(slot) => cell(row, *slot).map_or(Key::Absent, Key::of),
                 KeySource::TimeBucket(slot) => {
                     let tb = plan.req.time_bucket.as_ref();
-                    match (tb, cell(row, *slot).and_then(Cell::as_f64)) {
-                        (Some(tb), Some(ms)) => Key::UInt(bucket_key(tb.floor_millis(ms))),
+                    match (tb, cell(row, *slot)) {
+                        // A temporal value buckets in its own type; a number
+                        // as epoch milliseconds.
+                        (Some(tb), Some(Cell::Typed(scalar))) => {
+                            tb.floor_scalar(scalar).map_or_else(
+                                || Key::Str(MISSING_SENTINEL.into()),
+                                |bucket| Key::of(&Cell::Typed(bucket)),
+                            )
+                        }
+                        (Some(tb), Some(value)) => match value.as_f64() {
+                            Some(ms) => Key::UInt(bucket_key(tb.floor_millis(ms))),
+                            None => Key::Str(MISSING_SENTINEL.into()),
+                        },
                         _ => Key::Str(MISSING_SENTINEL.into()),
                     }
                 }
@@ -814,61 +850,6 @@ impl Partial {
             self.groups.push(group);
             self.groups.len() - 1
         };
-        let group = &mut self.groups[position];
-        added = added.saturating_add(apply(group, plan, row, ctx)?);
-        Ok(added)
-    }
-
-    /// Fold member `at` of resident `columns` (one per plan slot) in, as
-    /// [`Self::accumulate`] folds the row built from the same cells: the
-    /// group is found through `codes` (this part's cache from the key cells'
-    /// codes to groups) and only the metric slots of `row` are filled.
-    /// Returns the bytes the partial newly holds.
-    ///
-    /// # Errors
-    /// Returns the group cap and a lossy integer sum.
-    pub(crate) fn accumulate_coded(
-        &mut self,
-        (plan, coded): (&RowPlan<'_>, &CodedPlan),
-        (columns, at): (&[std::sync::Arc<crate::columns::Column>], usize),
-        group_of_code: &mut crate::columns::CodeMap<usize>,
-        row: &mut Vec<Option<Cell>>,
-        ctx: &RowCtx<'_>,
-    ) -> Result<usize, QueryError> {
-        let code: Vec<(u8, u64)> = coded
-            .key_slots
-            .iter()
-            .map(|slot| slot.map_or((u8::MAX, 0), |slot| columns[slot].code(at)))
-            .collect();
-        let mut added = 0usize;
-        let position = if let Some(position) = group_of_code.get(&code) {
-            *position
-        } else {
-            self.scratch.clear();
-            for slot in &coded.key_slots {
-                let cell = slot.and_then(|slot| columns[slot].cell(at));
-                self.scratch.push(Key::of_group(cell.as_ref()));
-            }
-            let position = if let Some(position) = self.index.get(self.scratch.as_slice()) {
-                *position
-            } else {
-                if self.groups.len() >= MAX_AGGREGATE_BUCKETS {
-                    return Err(too_many_groups());
-                }
-                let group = Group::new(plan, self.scratch.clone());
-                self.index.insert(self.scratch.clone(), self.groups.len());
-                added = group.bytes();
-                self.groups.push(group);
-                self.groups.len() - 1
-            };
-            group_of_code.insert(code, position);
-            position
-        };
-        row.clear();
-        row.resize(plan.names.len(), None);
-        for &slot in &coded.metric_slots {
-            row[slot] = columns[slot].cell(at);
-        }
         let group = &mut self.groups[position];
         added = added.saturating_add(apply(group, plan, row, ctx)?);
         Ok(added)

@@ -75,14 +75,17 @@ in `select` is rejected with `invalid_request`.
 
 Value rules:
 
-- `$sum` and `$avg` consider only numeric values; other values are skipped.
-  Sums and averages are returned as floating-point numbers (`150.0`).
+- `$sum` and `$avg` consider only numeric values, and datetimes as their
+  epoch milliseconds; other values are skipped. Sums and averages are
+  returned as floating-point numbers (`150.0`).
 - An `$avg` over no numeric values is `0`.
 - Integers above 2^53 that cannot be represented exactly are rejected rather
   than rounded.
-- `$min` and `$max` compare numbers numerically. The first value seen (in
-  record order) sets the metric; when it is not a number it stays, and
-  values that are not numbers never replace a number.
+- `$min` and `$max` compare numbers numerically, and dates, times,
+  datetimes and durations in their own type; the result is a value of that
+  type, in the form records show it (`"2024-05-01T09:30:00+02:00"`,
+  `"P1DT2H"`). The first value seen (in record order) sets the metric; a
+  value of another type never replaces it.
 - Group keys are the stored values: an integer `15` and a float `15.0` are
   different groups, as are a missing property (`"__missing__"`) and an
   explicit `null`.
@@ -197,7 +200,8 @@ and string operands there are field references:
 
 ## Time buckets
 
-`$timeBucket` groups records by a calendar interval of a datetime property.
+`$timeBucket` groups records by a calendar interval of a datetime, local
+date-time or date property.
 Name the bucket in `select` and list that name in `groupBy`:
 
 ```json
@@ -214,11 +218,15 @@ Name the bucket in `select` and list that name in `groupBy`:
 
 | Option | Default | Values |
 |---|---|---|
-| `field` | — | Datetime property reference. |
+| `field` | — | Datetime, local date-time or date property reference. |
 | `unit` | `month` | `second`/`seconds`, `minute`/`minutes`, `hour`/`hours`, `day`/`days`, `week`/`weeks`, `month`/`months`, `quarter`, `year`/`years` |
 | `size` | `1` | Units per bucket, at least 1. |
 
-- The bucket value is the bucket's start as epoch milliseconds (UTC).
+- The bucket value is the bucket's start, in the property's type: a
+  datetime bucket in UTC (`"2024-05-01T00:00:00Z"`), a local date-time
+  bucket as wall-clock time (`"2024-05-01T00:00:00"`), a date bucket as a
+  date (`"2024-05-01"`). A time of day has no calendar bucket: its records
+  land in `"__missing__"`.
 - `month`, `quarter` and `year` buckets align to calendar boundaries and
   always span one unit; `size` applies to the fixed-width units (`second`
   through `week`), which align to multiples of their width since the Unix

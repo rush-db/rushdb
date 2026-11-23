@@ -43,6 +43,8 @@ pub mod reader;
 pub mod scrub;
 /// Tenant directory resolution and registration.
 pub mod tenancy;
+/// Unique indexes: value claims checked at commit (#148).
+pub mod unique;
 
 /// Fallible rebuilds that surface storage errors instead of panicking.
 pub mod reconstruct;
@@ -1114,7 +1116,6 @@ pub(crate) fn plan_field_write(
             plan::ValuePayload::Array(v.as_array().expect("array").clone())
         }
         FieldChange::Set(v) => plan::ValuePayload::Single(v),
-        FieldChange::SetDatetime(ms) => plan::ValuePayload::DateTime(ms),
         FieldChange::Delete => unreachable!("handled above"),
     };
     pl.stage_put_values(kind, owner_ord, &family, &def, display_name, &payload)
@@ -1175,7 +1176,7 @@ pub(crate) fn cascade_record_delete(pl: &mut Planner<'_>, own_ord: u64) -> Resul
             continue;
         };
         stage_all_owner_occurrences(pl, OwnerKind::Relationship, rel_ord)?;
-        pl.txn_stage_rel_header_delete(hdr.clone());
+        pl.txn_stage_rel_header_delete(hdr);
     }
 
     stage_all_owner_occurrences(pl, OwnerKind::Record, own_ord)?;
@@ -1596,7 +1597,7 @@ impl Lmpg {
                         pl.mutations.push(Mutation::CreateRelationshipHeader {
                             relationship_id: rid,
                             ordinal,
-                            rel_type: rel_type.clone(),
+                            rel_type,
                             source_ord: source.ordinal,
                             target_ord: target.ordinal,
                             source_id: source.record_id,
@@ -1653,7 +1654,7 @@ impl Lmpg {
                         pl.mutations.push(Mutation::CreateRelationshipHeader {
                             relationship_id,
                             ordinal,
-                            rel_type: rel_type.clone(),
+                            rel_type,
                             source_ord,
                             target_ord,
                             source_id,

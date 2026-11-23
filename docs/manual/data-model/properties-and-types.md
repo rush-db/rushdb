@@ -9,7 +9,7 @@ defined in the [Quickstart](../getting-started/quickstart.md#1-install-and-start
 
 ## Supported value types
 
-Every stored value has one of five types. JSON input is mapped onto them as
+Every stored value has one of ten types. JSON input is mapped onto them as
 follows.
 
 | JSON input | Stored type | `propertyTypes` name | Notes |
@@ -18,37 +18,86 @@ follows.
 | Integer, e.g. `42` | 64-bit signed integer | `number` | Integers outside the signed 64-bit range are rejected. |
 | Non-integer number, e.g. `4.5` | 64-bit float | `number` | |
 | String, e.g. `"Ada"` | UTF-8 string | `string` | |
-| ISO-8601 date or datetime string, e.g. `"1815-12-10"` | datetime | `datetime` | Only while type inference is on (the default); see below. |
+| `"2024-05-01T10:30:00Z"`, `"2024-05-01T12:30:00+02:00"` | datetime | `datetime` | An instant with its UTC offset. Only while type inference is on (the default). |
+| `"2024-05-01T10:30:00"` | local date-time | `localdatetime` | A wall-clock date and time without a zone. Inference only. |
+| `"2024-05-01"` | date | `date` | A calendar date. Inference only. |
+| `"10:30:00"`, `"10:30"` | local time | `localtime` | A time of day without a zone. Inference only. |
+| `"P1DT2H"`, `"PT90M"` | duration | `duration` | Months, days and seconds, kept apart. Inference only. |
+| `{"type": "Point", "coordinates": [13.4, 52.5]}` | point | `point` | A GeoJSON point, always (an object has no other meaning as a value). |
 | `null` | explicit null | — | Present but empty; see [Explicit null](#explicit-null). |
 | Array of the above | the element type, several values | element type | See [Multi-value properties](#multi-value-properties). |
 | Empty array `[]` | empty array marker | — | Read back as `[]`. |
-| Object `{...}` | not a property value | — | Use [nested import](nested-import.md) to turn objects into linked records. |
+| Any other object `{...}` | not a property value | — | Use [nested import](nested-import.md) to turn objects into linked records. |
 
 `propertyTypes` uses display names in which integers and floats are both
 `number`. The schema catalog also reports the precise logical types `int64`
 and `float64` where the distinction matters; see
 [Schema catalog](schema-catalog.md#properties).
 
-## Datetimes
+## Temporal values
 
-Datetimes are stored as UTC instants with millisecond precision. These string
-forms are recognised:
+Dates, times and datetimes are kept to the microsecond. Each has its own
+type, so a filter or a sort compares like with like: a date with dates, an
+instant with instants.
 
-| Input | Interpreted as |
-|---|---|
-| `2024-05-01` | Midnight UTC on that date |
-| `2024-05-01T10:30:00Z`, `2024-05-01T10:30:00.250Z` | That UTC instant (a lowercase `z` is accepted too) |
-| `2024-05-01T12:30:00+02:00` | Converted to UTC (`10:30:00Z`); the original offset is not kept |
-| `2024-05-01T10:30:00` (no zone) | Treated as UTC |
-| `-0032-01-01T08:00:00Z`, `-0600-01-01` | A signed year: ISO 8601 astronomical numbering, so `0000` is 1 BC and `-0032` is 33 BC (proleptic Gregorian), in any of the layouts above |
+| Type | Input | Read back as |
+|---|---|---|
+| `datetime` | `2024-05-01T10:30:00Z`, `2024-05-01T12:30:00.25+02:00` (RFC 3339 also allows `t`, a space and `z`) | As written, at its own offset: `2024-05-01T12:30:00.25+02:00` |
+| `localdatetime` | `2024-05-01T10:30:00`, `2024-05-01T10:30:00.000001` | `2024-05-01T10:30:00`, `2024-05-01T10:30:00.000001` |
+| `date` | `2024-05-01` | `2024-05-01` |
+| `localtime` | `10:30`, `10:30:00.5` | `10:30:00`, `10:30:00.5` |
 
-On output, a datetime that falls exactly on midnight UTC is rendered as a
-date (`2024-05-01`); any other instant is rendered as an RFC 3339 timestamp
-with milliseconds (`2024-05-01T10:30:00.000Z`). A year before `0000` keeps its
-sign (`-0032-01-01T08:00:00.000Z`); RFC 3339 has no signed years, and
-JavaScript's `Date` reads them only in the six-digit form (`-000032`). Datetime properties support
-range filters and calendar-component filters such as `$year` and `$month`;
-see [Filtering](../query/filtering.md).
+- **A datetime keeps its offset.** Two datetimes are equal when they are the
+  same instant, whatever their offsets: `{"at": "2024-05-01T10:30:00Z"}`
+  finds the record holding `2024-05-01T12:30:00+02:00`. Ranges and sorting
+  order datetimes by instant. A named zone (`[Europe/Berlin]`) is not
+  accepted; send the offset.
+- **Fractions are as short as they can be.** A whole second has no fraction
+  (`10:30:00`, never `10:30:00.000`); otherwise as many digits as the value
+  needs, down to the microsecond. A datetime at midnight prints in full
+  (`2024-05-01T00:00:00Z`).
+- **Signed years** are accepted in every layout: ISO 8601 astronomical
+  numbering, so `0000` is 1 BC and `-0032` is 33 BC (proleptic Gregorian).
+- **Comparing across types.** A filter value is read as the type of the
+  values it is compared with: against datetimes, a date means midnight UTC
+  that day, a date-time without a zone means UTC, and an integer means epoch
+  milliseconds; against local date-times, a date means midnight. Other
+  types do not mix: a date never equals a local date-time.
+
+Calendar-component filters (`$year`, `$month`, … `$microsecond`) read a
+datetime in UTC and a local value as it is; see
+[Filtering](../query/filtering.md).
+
+## Durations
+
+A duration is an ISO 8601 duration: `P1Y2M3DT4H5M6.5S`, `P2W`, `PT0S`, with a
+leading `-` or signed components (`PT-1.5S`). It keeps months, days and
+seconds apart, as ISO 8601 and Cypher do: `P1M` is not `P30D`, because a
+month has no fixed length. Two durations are equal when their components
+are equal. Ranges and sorting compare their length with a month counted as
+30 days (components break ties), so `{"lasts": {"$gt": "PT25H"}}` matches
+`P1DT2H`. A duration reads back in the same form, years and months first
+(`P14M` reads as `P1Y2M`).
+
+## Points
+
+A point is a GeoJSON point. Without a `crs` member it is a WGS-84 position,
+longitude first: `{"type": "Point", "coordinates": [13.405, 52.52]}`, or
+`[lon, lat, height]` in 3D. `"crs": "cartesian"` (or `"cartesian-3d"`, or
+`"EPSG:7203"`) makes it a point in a Cartesian plane. These are the four
+coordinate reference systems Cypher uses:
+
+| `crs` | SRID | Coordinates |
+|---|---|---|
+| absent, `wgs-84` | 4326 | longitude, latitude |
+| absent with three coordinates, `wgs-84-3d` | 4979 | longitude, latitude, height in meters |
+| `cartesian` | 7203 | x, y |
+| `cartesian-3d` | 9157 | x, y, z |
+
+An object with any other member is not a point. Points are filtered by
+region and sorted by distance; see [Spatial queries](../query/spatial.md).
+Equality compares the CRS and the coordinates; a point has no order of its
+own.
 
 ## Type inference
 
@@ -58,7 +107,7 @@ values are interpreted:
 
 | Option | Default | Effect |
 |---|---|---|
-| `suggestTypes` | `true` | Strings that parse as an ISO date or datetime are stored as datetimes. |
+| `suggestTypes` | `true` | Strings in an ISO 8601 temporal or duration form are stored as that type (table above). |
 | `convertNumericValuesToNumbers` | `false` | With `suggestTypes` on, numeric strings such as `"42"` or `"4.5"` are stored as numbers. |
 | `skipEmptyValues` | `false` | Empty strings are not stored, and empty strings are removed from arrays (an array left empty is not stored). |
 
@@ -72,11 +121,12 @@ rdb '{"protocolVersion":1,"operation":{"kind":"mutate","mutation":{
 ```
 
 Inference only reads strings: with it off, numbers, booleans and arrays keep
-their JSON types (`42` stays a number, `[1, 2]` an array of numbers).
+their JSON types (`42` stays a number, `[1, 2]` an array of numbers). A
+GeoJSON point is a point either way.
 
 `putRecord` in `merge` and `replace` mode always uses the defaults. Values on
 relationships are never inferred: a date string on a relationship stays a
-string.
+string unless the write names its type (`types: {"since": "date"}`).
 
 ## Multi-value properties
 

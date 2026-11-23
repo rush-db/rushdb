@@ -279,9 +279,7 @@ fn put_record_over<S: Read + Write>(
         }
     })
     .to_string();
-    let scope_header = scope
-        .map(|scope| format!("X-RushDB-Tenant: {scope}\r\n"))
-        .unwrap_or_default();
+    let scope_header = scope.map_or_default(|scope| format!("X-RushDB-Tenant: {scope}\r\n"));
     let request = format!(
         "POST /protocol/v1/execute HTTP/1.1\r\nHost: localhost\r\nX-RushDB-Token: pgwire-token\r\nContent-Type: application/json\r\n{scope_header}Content-Length: {}\r\nConnection: close\r\n\r\n{body}",
         body.len()
@@ -861,6 +859,55 @@ async fn statement_errors_carry_postgres_sqlstates() {
 }
 
 #[tokio::test]
+async fn create_unique_index_runs_as_a_write_and_refuses_duplicates() {
+    // `CREATE UNIQUE INDEX` was refused as "not read-only": the write
+    // classifier knew `CREATE INDEX` and `CREATE VECTOR INDEX` only.
+    let (http_port, port) = start_gateway(false, None, true);
+    put_record(http_port, None, "SKU", &serde_json::json!({ "code": "A" }));
+    let client = connect(port, "rushdb", "pgwire-token").await.unwrap();
+    client
+        .simple_query("CREATE UNIQUE INDEX sku_code ON SKU (code)")
+        .await
+        .unwrap();
+    client
+        .simple_query("SET disallow_full_table_scans = on")
+        .await
+        .unwrap();
+    // The index is built in the background; it serves the filter once ready.
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+    loop {
+        match client
+            .query("SELECT count(*) AS c FROM SKU WHERE code = 'A'", &[])
+            .await
+        {
+            Ok(_) => break,
+            Err(error) if std::time::Instant::now() < deadline => {
+                assert!(
+                    db_code(&error).contains("unindexed walk refused"),
+                    "{error}"
+                );
+                tokio::task::spawn_blocking(|| {
+                    std::thread::sleep(std::time::Duration::from_millis(50));
+                })
+                .await
+                .unwrap();
+            }
+            Err(error) => panic!("the index never served the filter: {}", db_code(&error)),
+        }
+    }
+    let duplicate = client
+        .simple_query("INSERT INTO SKU (code) VALUES ('A')")
+        .await
+        .unwrap_err();
+    assert_eq!(
+        duplicate.as_db_error().map(|error| error.code().code()),
+        Some("23505"),
+        "{}",
+        db_code(&duplicate)
+    );
+}
+
+#[tokio::test]
 async fn create_index_on_a_lowercase_table_name_indexes_the_label() {
     // PGW-1: `SELECT … FROM note` reads label NOTE, but `CREATE INDEX … ON
     // note (v)` declared an index on a label `note` that no record has.
@@ -1262,4 +1309,165 @@ async fn describing_a_statement_shows_only_what_the_policy_shows() {
         .await
         .unwrap_err();
     assert!(db_code(&error).starts_with("42501"), "{}", db_code(&error));
+}
+
+/// Typed values reach a PostgreSQL client as PostgreSQL's own types: a
+/// date as `date`, a time of day as `time`, a local date-time as
+/// `timestamp`, a datetime as `timestamptz` (in UTC), a duration as
+/// `interval` and a point as `point`, in both the text and binary formats.
+#[tokio::test]
+async fn typed_values_are_postgresql_types() {
+    let (http_port, port) = start_gateway(false, None, true);
+    put_record(
+        http_port,
+        None,
+        "EVENT",
+        &serde_json::json!({
+            "day": "2024-05-01",
+            "opens": "09:30:00.5",
+            "local": "2024-05-01T09:30:00",
+            "at": "2024-05-01T09:30:00+02:00",
+            "lasts": "P1DT2H",
+            "place": {"type": "Point", "coordinates": [13.4, 52.5]},
+        }),
+    );
+    let client = connect(port, "rushdb", "pgwire-token").await.unwrap();
+    let sql = "SELECT day, opens, local, at, lasts, place FROM \"EVENT\"";
+    let statement = client.prepare(sql).await.unwrap();
+    let types: Vec<&str> = statement
+        .columns()
+        .iter()
+        .map(|column| column.type_().name())
+        .collect();
+    assert_eq!(
+        types,
+        [
+            "date",
+            "time",
+            "timestamp",
+            "timestamptz",
+            "interval",
+            "point"
+        ]
+    );
+    // Binary: the client decodes each into its own type.
+    let row = client.query_one(&statement, &[]).await.unwrap();
+    assert_eq!(
+        row.get::<_, chrono::NaiveDate>("day"),
+        chrono::NaiveDate::from_ymd_opt(2024, 5, 1).unwrap()
+    );
+    assert_eq!(
+        row.get::<_, chrono::NaiveTime>("opens"),
+        chrono::NaiveTime::from_hms_milli_opt(9, 30, 0, 500).unwrap()
+    );
+    assert_eq!(
+        row.get::<_, chrono::NaiveDateTime>("local").to_string(),
+        "2024-05-01 09:30:00"
+    );
+    assert_eq!(
+        row.get::<_, chrono::DateTime<chrono::Utc>>("at")
+            .to_rfc3339(),
+        "2024-05-01T07:30:00+00:00"
+    );
+    // Text: PostgreSQL's own forms.
+    let messages = client.simple_query(sql).await.unwrap();
+    let row = messages
+        .iter()
+        .find_map(|message| match message {
+            SimpleQueryMessage::Row(row) => Some(row),
+            _ => None,
+        })
+        .unwrap();
+    assert_eq!(row.get("day"), Some("2024-05-01"));
+    assert_eq!(row.get("lasts"), Some("1 day 02:00:00"));
+    assert_eq!(row.get("place"), Some("(13.4,52.5)"));
+    assert_eq!(row.get("at"), Some("2024-05-01 07:30:00+00"));
+    // The session's time zone writes timestamptz values at its offset, read
+    // as PostgreSQL reads it: a number is hours east, text POSIX hours west.
+    for (zone, expected) in [
+        ("2", "2024-05-01 09:30:00+02"),
+        ("'+02'", "2024-05-01 05:30:00-02"),
+    ] {
+        client
+            .batch_execute(&format!("SET TIME ZONE {zone}"))
+            .await
+            .unwrap();
+        let messages = client.simple_query(sql).await.unwrap();
+        let at = messages.iter().find_map(|message| match message {
+            SimpleQueryMessage::Row(row) => row.get("at").map(str::to_owned),
+            _ => None,
+        });
+        assert_eq!(at.as_deref(), Some(expected), "{zone}");
+    }
+    // Binary parameters of these types bind as their values.
+    let day = chrono::NaiveDate::from_ymd_opt(2024, 5, 1).unwrap();
+    let rows = client
+        .query(
+            "SELECT count(*) AS c FROM \"EVENT\" WHERE day = $1",
+            &[&day],
+        )
+        .await
+        .unwrap();
+    assert_eq!(rows[0].get::<_, i64>("c"), 1);
+    let before = chrono::DateTime::parse_from_rfc3339("2024-05-01T07:00:00Z")
+        .unwrap()
+        .with_timezone(&chrono::Utc);
+    let rows = client
+        .query(
+            "SELECT count(*) AS c FROM \"EVENT\" WHERE at > $1",
+            &[&before],
+        )
+        .await
+        .unwrap();
+    assert_eq!(rows[0].get::<_, i64>("c"), 1);
+}
+
+/// Dates and datetimes before year 1 (signed ISO 8601 years) read over the
+/// wire as the dates they are, in both formats; a datetime one failed the
+/// whole statement.
+#[tokio::test]
+async fn signed_years_read_as_their_dates() {
+    let (http_port, port) = start_gateway(false, None, true);
+    put_record(
+        http_port,
+        None,
+        "ANCIENT",
+        &serde_json::json!({
+            "day": "-0043-03-15",
+            "local": "-0043-03-15T12:00:00",
+            "at": "-0043-03-15T12:00:00Z",
+        }),
+    );
+    let client = connect(port, "rushdb", "pgwire-token").await.unwrap();
+    let sql = "SELECT day, local, at FROM \"ANCIENT\"";
+    let row = client.query_one(sql, &[]).await.unwrap();
+    let ides = chrono::NaiveDate::from_ymd_opt(-43, 3, 15).unwrap();
+    assert_eq!(row.get::<_, chrono::NaiveDate>("day"), ides);
+    let noon = ides.and_hms_opt(12, 0, 0).unwrap();
+    assert_eq!(row.get::<_, chrono::NaiveDateTime>("local"), noon);
+    assert_eq!(
+        row.get::<_, chrono::DateTime<chrono::Utc>>("at"),
+        noon.and_utc()
+    );
+    let messages = client.simple_query(sql).await.unwrap();
+    let text = messages
+        .iter()
+        .find_map(|message| match message {
+            tokio_postgres::SimpleQueryMessage::Row(row) => Some(
+                (0..3)
+                    .map(|at| row.get(at).map(str::to_owned))
+                    .collect::<Vec<_>>(),
+            ),
+            _ => None,
+        })
+        .unwrap();
+    // Text writes the signed ISO 8601 year (PostgreSQL writes `0044 BC`).
+    assert_eq!(
+        text,
+        [
+            Some("-0043-03-15".to_owned()),
+            Some("-0043-03-15 12:00:00".to_owned()),
+            Some("-0043-03-15 12:00:00+00".to_owned()),
+        ]
+    );
 }

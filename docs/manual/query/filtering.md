@@ -4,7 +4,7 @@ The `predicate` field of a [search query](search-queries.md) selects which
 records match. This page is the complete reference for predicate syntax:
 field conditions, comparison and string operators, logical combinators,
 identity filters, and the exact semantics for types, missing values, nulls,
-arrays, and datetimes. Filtering by related records is covered separately in
+arrays, and temporal values. Filtering by related records is covered separately in
 [Relationships and traversal](relationships-and-traversal.md).
 
 The same predicate syntax is used everywhere a query document appears:
@@ -45,9 +45,9 @@ the misspelled `{ "name": { "$regx": "a" } }`, is refused with
 
 | Operator | Value | Matches when | Missing property |
 |---|---|---|---|
-| `$eq` | scalar, `null`, ISO datetime string, or datetime component object | The value (or any array element) equals the operand. Strings compare case-sensitively; numbers compare numerically (`1` equals `1.0`). | No match |
+| `$eq` | scalar, `null`, ISO 8601 temporal or duration string, GeoJSON point, or component object | The value (or any array element) equals the operand, read as the value's type. Strings compare case-sensitively; numbers compare numerically (`1` equals `1.0`); datetimes compare by instant. | No match |
 | `$ne` | as `$eq` | The property is present and neither the value nor any array element equals the operand. | No match |
-| `$gt`, `$gte`, `$lt`, `$lte` | number, ISO datetime string, or datetime component object | The numeric (or datetime) value, or any numeric array element, satisfies the bound. Strings and booleans never satisfy a range. | No match |
+| `$gt`, `$gte`, `$lt`, `$lte` | number, ISO 8601 temporal or duration string, or component object | A number, temporal value or duration (or any such array element) satisfies the bound. Strings, booleans and points never satisfy a range. | No match |
 | `$in` | array of scalars | The value, or any array element, equals one of the operands. | No match |
 | `$nin` | array of scalars | The property is present and neither the value nor any array element equals an operand. | No match |
 | `$contains` | string | A string value (or string element) contains the operand. **Case-insensitive.** | No match |
@@ -55,7 +55,8 @@ the misspelled `{ "name": { "$regx": "a" } }`, is refused with
 | `$endsWith` | string | A string value (or element) ends with the operand. **Case-insensitive.** | No match |
 | `$exists` | boolean | `true`: the property is present (even if `null`). `false`: it is absent. | `$exists: false` matches |
 | `$type` | type name | The property has that type (see [Type tests](#type-tests)). | See [Type tests](#type-tests) |
-| `$year`, `$month`, `$day`, `$hour`, `$minute`, `$second`, `$millisecond`, `$microsecond`, `$nanosecond` | integer | The datetime value's UTC calendar component equals the operand (see [Datetimes](#datetimes)). | No match |
+| `$year`, `$month`, `$day`, `$hour`, `$minute`, `$second`, `$millisecond`, `$microsecond`, `$nanosecond` | integer | The temporal value's component equals the operand (see [Component operators](#component-operators)). | No match |
+| `$within` | `{center, meters}` or `{box: [south-west, north-east]}` | The point lies in the region (see [Spatial queries](spatial.md)). | No match |
 | `$not` | operator object | The inner operators do not all hold. `{ "age": { "$not": { "$gte": 4 } } }` | Matches (the inner condition is false) |
 | `$and`, `$or`, `$nor` | array of operator objects | Field-scoped logic, see [Field-scoped logic](#field-scoped-logic). | — |
 | `$xor` | array of exactly two | Exactly one of the two holds. | — |
@@ -202,8 +203,8 @@ Range operators apply to numeric elements the same way.
 
 | `$type` value | Matches |
 |---|---|
-| `"string"`, `"number"`, `"boolean"`, `"datetime"` | The property's stored type. A property stored as an array of that type also matches. |
-| `"string[]"`, `"number[]"`, `"boolean[]"`, `"datetime[]"` | An array whose elements have that type. |
+| `"string"`, `"number"`, `"boolean"`, `"datetime"`, `"date"`, `"localtime"`, `"localdatetime"`, `"duration"`, `"point"` | The property's stored type. A property stored as an array of that type also matches. |
+| The same names with `[]`, e.g. `"date[]"` | An array whose elements have that type. |
 | `"array"` | Any array value. |
 | `"object"` | An object value. |
 | `"null"` | A `null` value or an absent property. |
@@ -213,45 +214,49 @@ Range operators apply to numeric elements the same way.
 > `datetime` property matches `"datetime"`. A record that does not carry the
 > property matches only `"null"`.
 
-## Datetimes
+## Temporal values
 
-RushDB stores datetimes as UTC instants with millisecond precision. When a
-record is written with default options, string values that parse as one of
-the following are stored as datetimes (see
-[Properties and types](../data-model/properties-and-types.md)):
+Dates, times of day, local date-times, datetimes and durations each have
+their own type (see
+[Properties and types](../data-model/properties-and-types.md#temporal-values)).
+An ISO 8601 operand is read as the type of the values it is compared with,
+so the same filter works however the operand is spelled:
 
-- RFC 3339 timestamps, for example `2023-06-15T12:00:00Z` or
-  `2023-06-15T14:00:00+02:00` (a lower-case `z` is accepted);
-- local timestamps without an offset, `2023-06-15T12:00:00` or
-  `2023-06-15T12:00:00.250`, interpreted as UTC;
-- dates, `2023-06-15`, interpreted as midnight UTC.
+| Stored type | Operand forms |
+|---|---|
+| `datetime` | A datetime with `Z` or an offset (equal when the same instant); a date (midnight UTC); a date-time without a zone (UTC); epoch milliseconds |
+| `localdatetime` | A date-time without a zone; a date (midnight) |
+| `date` | A date |
+| `localtime` | A time of day, `10:30` or `10:30:00.5` |
+| `duration` | An ISO 8601 duration |
 
-In a predicate you can write a datetime operand three ways:
-
-| Operand form | Example | Where accepted |
-|---|---|---|
-| ISO string (any of the formats above) | `"2023-06-15T00:00:00Z"` | `$eq`, `$ne`, `$gt`, `$gte`, `$lt`, `$lte` |
-| Component object (`$year` required; `$month`, `$day` default to 1; `$hour`, `$minute`, `$second`, `$millisecond` default to 0) | `{ "$year": 2024, "$month": 1, "$day": 1 }` | `$eq`, `$ne`, `$gt`, `$gte`, `$lt`, `$lte` |
-| Epoch milliseconds | `1686787200000` | every numeric operator |
+Every comparison operator takes them, `$in` and `$nin` and flat equality
+included:
 
 ```json
 { "labels": ["EVENT"], "predicate": { "created": { "$gte": "2023-06-15T00:00:00Z" } } }
 ```
 
 ```json
+{ "labels": ["EVENT"], "predicate": { "day": "2023-06-15" } }
+```
+
+A component object is accepted wherever an ISO string is: `$year` is
+required, `$month` and `$day` default to 1, and the time components to 0.
+
+```json
 { "labels": ["EVENT"], "predicate": { "created": { "$lt": { "$year": 2024, "$month": 1, "$day": 1 } } } }
 ```
 
-> **Note:** Only the explicit operators convert ISO strings. A flat equality
-> such as `{ "created": "2023-06-15" }` compares against the literal string
-> and does not match a datetime property; write
-> `{ "created": { "$eq": "2023-06-15" } }` instead. Values inside `$in` and
-> `$nin` are not converted either.
+Durations are equal when their months, days and seconds are equal (`P1M` is
+not `P30D`); ranges compare their length with a month as 30 days.
 
 ### Component operators
 
-The component operators test one UTC calendar field of a datetime. Several
-components in one operator object must all match:
+The component operators test one field of a temporal value: a datetime in
+UTC, a local value as it is. A date has no time fields and a time of day no
+date fields; asking for one matches nothing. Several components in one
+operator object must all match:
 
 ```json
 { "labels": ["EVENT"], "predicate": { "created": { "$year": 2023, "$month": 6 } } }
@@ -266,8 +271,8 @@ components in one operator object must all match:
 | `$minute` | Minute, 0–59 |
 | `$second` | Second, 0–59 |
 | `$millisecond` | Sub-second milliseconds, 0–999 |
-| `$microsecond` | Sub-second microseconds (a multiple of 1,000, since storage is millisecond-precise) |
-| `$nanosecond` | Sub-second nanoseconds (a multiple of 1,000,000) |
+| `$microsecond` | Sub-second microseconds, 0–999,999 |
+| `$nanosecond` | Sub-second nanoseconds (a multiple of 1,000, since values are kept to the microsecond) |
 
 Component values must be integers; anything else is `invalid_request`.
 

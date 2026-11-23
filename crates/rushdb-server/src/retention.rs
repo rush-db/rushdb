@@ -306,9 +306,9 @@ pub struct MaintenanceConfig {
     /// Compact only when the file has grown by at least this percent since the
     /// last compaction (`RUSHDB_COMPACT_GROWTH_PERCENT`, default 150).
     pub compact_growth_percent: u32,
-    /// Largest store file automatic compaction rewrites
+    /// Largest store file automatic compaction rewrites in place
     /// (`RUSHDB_COMPACT_MAX_FILE_BYTES`, default 1 GiB; none = no cap). A
-    /// larger file is compacted offline.
+    /// larger file is compacted online, while requests are served.
     pub compact_max_file_bytes: Option<u64>,
     /// RSS watchdog threshold in bytes (`RUSHDB_RSS_MAX_BYTES`; none =
     /// disabled). Policy, not a hard allocation cap.

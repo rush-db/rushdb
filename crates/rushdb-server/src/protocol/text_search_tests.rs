@@ -290,3 +290,37 @@ fn a_text_search_names_what_is_wrong_with_it() {
     assert!(error.retryable, "{error:?}");
     assert!(error.message.contains("`docs`"), "{error:?}");
 }
+
+/// ri-bd97fd: a search right after a write on a fresh store found nothing,
+/// the `eventual` applier ran only every 250 ms. A write now wakes it (a
+/// read does not), so the write is applied within milliseconds.
+#[test]
+fn a_write_wakes_the_index_appliers_and_a_read_does_not() {
+    let node = Node::bootstrap(&mut super::tests::config(false)).unwrap();
+    let wake = node.index_apply_wake();
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_time()
+        .build()
+        .unwrap();
+    let woken = |wake: &std::sync::Arc<tokio::sync::Notify>| {
+        runtime.block_on(async {
+            tokio::time::timeout(std::time::Duration::from_millis(50), wake.notified())
+                .await
+                .is_ok()
+        })
+    };
+    super::transaction_reference_tests::run(
+        &node,
+        &serde_json::json!({"kind": "query", "query": {"kind": "records",
+            "query": {"labels": ["Doc"]}}}),
+    )
+    .unwrap();
+    assert!(!woken(&wake), "a read does not wake the appliers");
+    super::transaction_reference_tests::run(
+        &node,
+        &serde_json::json!({"kind": "mutate", "mutation": {"kind": "putRecord",
+            "mode": "create", "label": "Doc", "properties": {"title": "alpha"}}}),
+    )
+    .unwrap();
+    assert!(woken(&wake), "a write wakes the appliers");
+}

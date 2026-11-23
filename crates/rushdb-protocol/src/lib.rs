@@ -71,6 +71,82 @@ pub struct RequestContext {
     /// `disallow_full_table_scans` with `large_full_scan_rows`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub unindexed_walk_max_owners: Option<u64>,
+    /// How a query's labels, properties and equality literals are checked
+    /// against the catalog (CHK-1): `warn` (default) answers with
+    /// `warnings`, `strict` refuses a query with a miss, `off` checks
+    /// nothing.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub check: Option<CheckMode>,
+}
+
+/// How a query is checked against the catalog (`context.check`).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum CheckMode {
+    /// Run the query; return what it names that does not exist as
+    /// `warnings`.
+    #[default]
+    Warn,
+    /// Refuse a query that names something that does not exist
+    /// (`invalid_request`, the warnings in `details`).
+    Strict,
+    /// No check.
+    Off,
+}
+
+/// Something a query names that the catalog does not hold, with what it
+/// most likely meant.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct QueryWarning {
+    /// What is missing.
+    pub kind: QueryWarningKind,
+    /// The labels it was looked for under (none: every label).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub labels: Vec<String>,
+    /// The label, for `unknownLabel`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub label: Option<String>,
+    /// The property, for `unknownProperty` and `unknownValue`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub property: Option<String>,
+    /// The literal, for `unknownValue`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub value: Option<String>,
+    /// What it most likely meant, best first.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub suggestions: Vec<QueryWarningSuggestion>,
+}
+
+/// What a [`QueryWarning`] is about.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum QueryWarningKind {
+    /// No record carries the label.
+    UnknownLabel,
+    /// No record of the labels carries the property.
+    UnknownProperty,
+    /// No record of the labels stores the text in the property.
+    UnknownValue,
+}
+
+/// One alternative to what a query named.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct QueryWarningSuggestion {
+    /// A label.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub label: Option<String>,
+    /// A property.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub property: Option<String>,
+    /// A stored value.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub value: Option<String>,
+    /// Why: `spelling` (a name or value spelled alike), `storedIn` (the
+    /// value is stored in this other property) or `contains` (a stored value
+    /// containing the text).
+    pub reason: String,
 }
 
 /// A single protocol operation.
@@ -959,9 +1035,11 @@ pub struct UpdateRelationshipsMutation {
     #[serde(default)]
     pub unset: Vec<String>,
     /// Declared types of named `set` properties. Every name must be in
-    /// `set`; a non-null value must match its type, and a `datetime` takes
-    /// an ISO 8601 date or datetime string, stored as a datetime. A `null`
-    /// stays an explicit null; an untyped value is stored as given.
+    /// `set`; a non-null value (or each element of an array) must be a value
+    /// of its type: ISO 8601 text for the temporal types and durations (a
+    /// `datetime` also takes a date or a date-time without an offset, read
+    /// in UTC), a `GeoJSON` point for `point`. A `null` stays an explicit
+    /// null; an untyped value is stored as given.
     #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
     pub types: std::collections::BTreeMap<String, PropertyType>,
 }
@@ -976,8 +1054,19 @@ pub enum PropertyType {
     Number,
     /// A boolean (or an array of booleans).
     Boolean,
-    /// A scalar ISO 8601 date or datetime string, stored as a datetime.
+    /// An instant: ISO 8601 text with `Z` or an offset (a date or a
+    /// date-time without one reads in UTC).
     Datetime,
+    /// A calendar date: `2024-05-01`.
+    Date,
+    /// A time of day without an offset: `10:15:00`.
+    Localtime,
+    /// A date and time without an offset: `2024-05-01T10:15:00`.
+    Localdatetime,
+    /// An ISO 8601 duration: `P1DT2H`.
+    Duration,
+    /// A `GeoJSON` point.
+    Point,
 }
 
 impl PropertyType {
@@ -989,6 +1078,11 @@ impl PropertyType {
             Self::Number => "number",
             Self::Boolean => "boolean",
             Self::Datetime => "datetime",
+            Self::Date => "date",
+            Self::Localtime => "localtime",
+            Self::Localdatetime => "localdatetime",
+            Self::Duration => "duration",
+            Self::Point => "point",
         }
     }
 }
@@ -1526,7 +1620,7 @@ pub struct IndexDefinition {
     #[serde(default = "IndexDefinition::default_kind")]
     pub kind: String,
     /// Text indexes only: `eventual` (default; searches see what the applier
-    /// has indexed, typically within 250 ms) or `immediate` (read-your-writes).
+    /// has indexed, within milliseconds of a write) or `immediate` (read-your-writes).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub consistency: Option<String>,
     /// Structural indexes only: vector dimensions (8..=4096).
@@ -1910,6 +2004,10 @@ pub struct ResponseEnvelope {
     pub server_timing_ms: Option<u64>,
     /// The operation result.
     pub response: Response,
+    /// What the query names that the catalog does not hold (CHK-1); absent
+    /// when nothing.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub warnings: Vec<QueryWarning>,
 }
 
 impl ResponseEnvelope {
@@ -1945,6 +2043,11 @@ impl ResponseEnvelope {
         out.pop();
         out.extend_from_slice(b",\"response\":");
         out.extend_from_slice(response_json);
+        // The fields after `response`.
+        if !self.warnings.is_empty() {
+            out.extend_from_slice(b",\"warnings\":");
+            serde_json::to_writer(&mut out, &self.warnings)?;
+        }
         out.push(b'}');
         Ok(out)
     }
@@ -2897,6 +3000,10 @@ pub struct ProtocolError {
     pub message: String,
     /// Whether the caller may safely retry.
     pub retryable: bool,
+    /// Structured detail of the error, when it has some (the warnings of
+    /// a query `context.check: "strict"` refused).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub details: Option<serde_json::Value>,
 }
 
 /// Executes a canonical envelope under an optional tenant scope. Implemented
@@ -2914,6 +3021,22 @@ pub trait EnvelopeHandler: Send + Sync + 'static {
         envelope: RequestEnvelope,
         scope: Option<String>,
     ) -> Result<ResponseEnvelope, ProtocolError>;
+
+    /// [`Self::execute`], with temporal values, durations and points left
+    /// in the engine's tagged form (`{"__date": "2024-05-01"}`) inside the
+    /// rows, for a transport that sends them as types of its own (Bolt's
+    /// structures). The default publishes them like [`Self::execute`].
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::execute`].
+    fn execute_typed(
+        &self,
+        envelope: RequestEnvelope,
+        scope: Option<String>,
+    ) -> Result<ResponseEnvelope, ProtocolError> {
+        self.execute(envelope, scope)
+    }
 
     /// The principal `credential` (a bearer token, a password) grants for
     /// `scope`, the tenant the caller asks for. Every transport asks here,
@@ -2971,7 +3094,15 @@ impl ProtocolError {
             code,
             message: message.into(),
             retryable,
+            details: None,
         }
+    }
+
+    /// Attach structured detail.
+    #[must_use]
+    pub fn with_details(mut self, details: serde_json::Value) -> Self {
+        self.details = Some(details);
+        self
     }
 
     /// Override the derived `retryable` flag.
@@ -3016,14 +3147,32 @@ mod tests {
             Response::Count { value: 7 },
             Response::mutation(1),
         ];
+        let warned = vec![QueryWarning {
+            kind: QueryWarningKind::UnknownValue,
+            labels: vec!["Person".into()],
+            label: None,
+            property: Some("city".into()),
+            value: Some("ber\"lin".into()),
+            suggestions: vec![QueryWarningSuggestion {
+                label: None,
+                property: None,
+                value: Some("Berlin".into()),
+                reason: "spelling".into(),
+            }],
+        }];
         for response in responses {
-            for request_id in [None, Some("req-\"1\"".to_string())] {
+            for (request_id, warnings) in [
+                (None, Vec::new()),
+                (Some("req-\"1\"".to_string()), Vec::new()),
+                (None, warned.clone()),
+            ] {
                 for server_timing_ms in [None, Some(12)] {
                     let envelope = ResponseEnvelope {
                         protocol_version: PROTOCOL_VERSION,
                         request_id: request_id.clone(),
                         server_timing_ms,
                         response: response.clone(),
+                        warnings: warnings.clone(),
                     };
                     let spliced = envelope
                         .encode_with(&serde_json::to_vec(&envelope.response).unwrap())
@@ -3113,7 +3262,7 @@ mod tests {
         assert!(
             serde_json::from_value::<UpdateRelationshipsMutation>(serde_json::json!({
                 "relationType": "PLACES", "sourceIds": [], "targetIds": [],
-                "set": {"at": 1}, "types": {"at": "date"}
+                "set": {"at": 1}, "types": {"at": "timestamp"}
             }))
             .is_err()
         );
@@ -3234,6 +3383,7 @@ mod tests {
     #[test]
     fn query_language_capabilities_are_versioned_protocol_data() {
         let response = ResponseEnvelope {
+            warnings: Vec::new(),
             protocol_version: PROTOCOL_VERSION,
             request_id: Some("languages".into()),
             server_timing_ms: None,

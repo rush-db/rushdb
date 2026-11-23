@@ -166,8 +166,7 @@ impl LazyRelationshipSchema {
 impl SchemaProvider for LazyRelationshipSchema {
     fn table_names(&self) -> Vec<String> {
         self.canonical_types()
-            .map(|types| types.iter().map(|t| t.to_ascii_lowercase()).collect())
-            .unwrap_or_default()
+            .map_or_default(|types| types.iter().map(|t| t.to_ascii_lowercase()).collect())
     }
 
     fn table_exist(&self, name: &str) -> bool {

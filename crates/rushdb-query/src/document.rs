@@ -67,6 +67,7 @@ const OPS: &[&str] = &[
     "$millisecond",
     "$microsecond",
     "$nanosecond",
+    "$within",
 ];
 
 fn is_op_key(k: &str) -> bool {
@@ -321,10 +322,10 @@ fn parse_one_op(field: &str, op: &str, value: &Json) -> Result<Expr, QueryDocume
     match op {
         "$eq" => Ok(Expr::Field(FieldPred::Eq(f, dt_lit(value)))),
         "$ne" => Ok(Expr::Field(FieldPred::Ne(f, dt_lit(value)))),
-        "$gt" => Ok(Expr::Field(FieldPred::Gt(f, dt_num(value)?))),
-        "$gte" => Ok(Expr::Field(FieldPred::Gte(f, dt_num(value)?))),
-        "$lt" => Ok(Expr::Field(FieldPred::Lt(f, dt_num(value)?))),
-        "$lte" => Ok(Expr::Field(FieldPred::Lte(f, dt_num(value)?))),
+        "$gt" => Ok(Expr::Field(FieldPred::Gt(f, range_lit(value)?))),
+        "$gte" => Ok(Expr::Field(FieldPred::Gte(f, range_lit(value)?))),
+        "$lt" => Ok(Expr::Field(FieldPred::Lt(f, range_lit(value)?))),
+        "$lte" => Ok(Expr::Field(FieldPred::Lte(f, range_lit(value)?))),
         "$in" => Ok(Expr::Field(FieldPred::In(f, array_of(value)?))),
         "$nin" => Ok(Expr::Field(FieldPred::Nin(f, array_of(value)?))),
         "$contains" => Ok(Expr::Field(FieldPred::Contains(f, str_of(value)?))),
@@ -337,6 +338,10 @@ fn parse_one_op(field: &str, op: &str, value: &Json) -> Result<Expr, QueryDocume
             Ok(Expr::Field(FieldPred::Exists(f, want)))
         }
         "$type" => Ok(Expr::Field(FieldPred::Type(f, str_of(value)?))),
+        "$within" => {
+            crate::spatial::Region::parse(value).map_err(QueryDocumentError::Parse)?;
+            Ok(Expr::Field(FieldPred::Within(f, value.clone())))
+        }
         "$id" => parse_id(value),
         "$year" => Ok(Expr::Field(FieldPred::DatetimeComponent {
             field: f,
@@ -631,39 +636,56 @@ fn comp_int(v: &Json) -> Result<i64, QueryDocumentError> {
         .ok_or_else(|| QueryDocumentError::Parse("expected integer".into()))
 }
 
-/// Datetime-aware literal for equality: ISO strings / component objects
-/// lower to epoch-ms numbers (matching the engine `DateTime` type).
-/// An equality literal. ISO-8601 text stays text: it equals a string holding
-/// that text and a datetime at that instant, which the index probes and the
-/// evaluator both resolve. A component object names one instant.
+/// An equality literal. ISO 8601 text stays text: it equals a string
+/// holding that text and a temporal value it names (the evaluator and the
+/// index coerce it per type). A component object names a date or a
+/// date-time.
 fn dt_lit(v: &Json) -> Json {
-    if let Some(m) = v.as_object() {
-        if m.contains_key("$year") {
-            if let Some(ms) = crate::datetime::parse_components(m) {
-                return serde_json::json!(ms);
-            }
-        }
-    }
-    lit_json(v)
+    components_literal(v).unwrap_or_else(|| lit_json(v))
 }
 
-#[expect(
-    clippy::cast_precision_loss,
-    reason = "epoch-millisecond bounds are compared as f64 throughout the evaluator, matching its numeric comparison semantics"
-)]
-fn dt_num(v: &Json) -> Result<f64, QueryDocumentError> {
-    // numeric compares accept ISO strings / component objects as epoch ms
-    if let Some(s) = v.as_str() {
-        if let Some(ms) = crate::datetime::parse_iso_8601(s) {
-            return Ok(ms as f64);
-        }
+/// A `{$year, $month, ...}` object as the ISO 8601 text it names: a date
+/// without time components, else a date-time without an offset (compared
+/// with a datetime in UTC, as before).
+fn components_literal(v: &Json) -> Option<Json> {
+    let m = v.as_object()?;
+    if !m.contains_key("$year") {
+        return None;
     }
-    if let Some(m) = v.as_object() {
-        if let Some(ms) = crate::datetime::parse_components(m) {
-            return Ok(ms as f64);
-        }
+    let micros = crate::datetime::parse_components(m)?;
+    let timed = [
+        "$hour",
+        "$minute",
+        "$second",
+        "$millisecond",
+        "$microsecond",
+    ]
+    .iter()
+    .any(|key| m.contains_key(*key));
+    let local = rushdb_types::types::temporal::format_local_datetime(micros);
+    Some(Json::String(if timed {
+        local
+    } else {
+        local.split('T').next().unwrap_or_default().to_owned()
+    }))
+}
+
+/// A range bound (`$gt` … `$lte`): a number, ISO 8601 text, a component
+/// object, or a value in its tagged form. Each property type reads it as
+/// one of its values ([`rushdb_types::types::coerce_literal`]); numbers are
+/// checked here to be exact.
+fn range_lit(v: &Json) -> Result<Json, QueryDocumentError> {
+    if let Some(literal) = components_literal(v) {
+        return Ok(literal);
     }
-    num(v)
+    match v {
+        Json::Number(_) => num(v).map(|_| v.clone()),
+        Json::String(_) => Ok(v.clone()),
+        Json::Object(_) if rushdb_types::types::tagged_scalar(v).is_some() => Ok(v.clone()),
+        _ => Err(QueryDocumentError::Parse(
+            "a range bound is a number, ISO 8601 text or a {$year, ...} object".into(),
+        )),
+    }
 }
 
 #[expect(
@@ -1059,8 +1081,7 @@ fn check_aggregate_order(
 ) -> Result<(), QueryDocumentError> {
     let mut outputs: Vec<String> = select
         .and_then(Json::as_object)
-        .map(|map| map.keys().cloned().collect())
-        .unwrap_or_default();
+        .map_or_default(|map| map.keys().cloned().collect());
     outputs.extend(
         group_by
             .iter()
@@ -1119,26 +1140,43 @@ fn projected_order(
         .collect()
 }
 
+/// The `orderBy` fields that order by distance
+/// (`{"location": {"$distance": <GeoJSON Point>}}`), by normalized name.
+fn parse_order_distance(
+    v: Option<&Json>,
+) -> Result<std::collections::BTreeMap<String, Json>, QueryDocumentError> {
+    let mut out = std::collections::BTreeMap::new();
+    for (field, order) in v.and_then(Json::as_object).into_iter().flatten() {
+        let Some(center) = order.get("$distance") else {
+            continue;
+        };
+        if rushdb_types::types::point::parse_geojson(center).is_none() {
+            return Err(QueryDocumentError::Parse(
+                "$distance takes a GeoJSON point".into(),
+            ));
+        }
+        out.insert(norm(field), center.clone());
+    }
+    Ok(out)
+}
+
 /// Parse an `orderBy` value (`"asc"|"desc"` or `{field:"asc"}`) into
 /// `(normalized_field, descending)` pairs.
 pub(crate) fn parse_order_by(v: Option<&Json>) -> Vec<(String, bool)> {
     match v {
         Some(v) if v.is_string() => vec![(ID_FIELD.into(), v.as_str().unwrap() == "desc")],
-        Some(v) => v
-            .as_object()
-            .map(|m| {
-                m.iter()
-                    .map(|(k, d)| {
-                        let field = if k == "id" {
-                            ID_FIELD.to_string()
-                        } else {
-                            norm(k)
-                        };
-                        (field, d.as_str().unwrap_or("asc") == "desc")
-                    })
-                    .collect()
-            })
-            .unwrap_or_default(),
+        Some(v) => v.as_object().map_or_default(|m| {
+            m.iter()
+                .map(|(k, d)| {
+                    let field = if k == "id" {
+                        ID_FIELD.to_string()
+                    } else {
+                        norm(k)
+                    };
+                    (field, d.as_str().unwrap_or("asc") == "desc")
+                })
+                .collect()
+        }),
         None => Vec::new(),
     }
 }
@@ -1362,14 +1400,15 @@ pub fn parse_document(document: &Json) -> Result<ParsedQuery, QueryDocumentError
         })?,
     };
 
-    // orderBy: "asc"|"desc" | {field:"asc"}
+    // orderBy: "asc"|"desc" | {field:"asc"} | {field: {"$distance": point}}
     let order_by = parse_order_by(obj.get("orderBy"));
+    let order_distance = parse_order_distance(obj.get("orderBy"))?;
 
     let select = obj.get("select").cloned();
     let group_by: Vec<String> = obj
         .get("groupBy")
         .and_then(|x| x.as_array())
-        .map(|a| {
+        .map_or_default(|a| {
             a.iter()
                 .filter_map(|v| v.as_str())
                 .map(|s| {
@@ -1378,8 +1417,7 @@ pub fn parse_document(document: &Json) -> Result<ParsedQuery, QueryDocumentError
                         .to_string()
                 })
                 .collect()
-        })
-        .unwrap_or_default();
+        });
 
     // `$collect` is a per-record output shape: extract every `$collect` from
     // `select` onto the search request so the listing path attaches them.
@@ -1439,6 +1477,7 @@ pub fn parse_document(document: &Json) -> Result<ParsedQuery, QueryDocumentError
             projected_order(&order_by, &projection)
         },
         projection: if is_aggregate { Vec::new() } else { projection },
+        order_distance,
         force_scan: false,
     };
 
@@ -1462,8 +1501,7 @@ pub fn parse_document(document: &Json) -> Result<ParsedQuery, QueryDocumentError
             let select_names: Vec<String> = select
                 .as_ref()
                 .and_then(|s| s.as_object())
-                .map(|m| m.keys().map(|k| norm(k)).collect())
-                .unwrap_or_default();
+                .map_or_default(|m| m.keys().map(|k| norm(k)).collect());
             let all_self = group_by.iter().all(|g| select_names.contains(&norm(g)));
             if all_self {
                 agg.group_by.clear(); // single global group

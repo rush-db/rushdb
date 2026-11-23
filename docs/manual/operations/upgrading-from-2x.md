@@ -54,7 +54,8 @@ Treat the move as an application migration, in three tracks:
 2. Export your 2.x data as JSON documents (one export per project).
 3. Import each project into its tenant with the `ingest` operation, which
    turns nested JSON into records and relationships. Send batches of about
-   500 documents per request:
+   5,000 documents per request (larger batches load no faster and hold
+   more memory):
 
    ```bash
    curl -s -H "Authorization: Bearer $RUSHDB_TOKEN" \
@@ -77,12 +78,18 @@ Treat the move as an application migration, in three tracks:
 
 - **Binary upgrade.** Stop the server cleanly, replace the `rushdb`
   binary, and start again. Take a base backup first.
-- **Storage format.** Each release reads one storage format version, recorded
-  in `rushdb.redb.layout.json`. A store written in a different format is
-  refused at startup with `unsupported storage format version N; this build
-  uses version M`. In that case, use the **old** binary to write a graph
-  snapshot (`--export`), then the **new** binary to restore it into a new
-  data directory (`--restore`), and re-declare indexes and vectors. See
+- **Storage format.** The storage format version is recorded in
+  `rushdb.redb.layout.json`. A release opens stores of its own format and
+  migrates the earlier 3.x formats it knows at its first start, once: 3.0.14
+  (format 7) rewrites the datetimes of a 3.0.13 or earlier store from epoch
+  milliseconds to microsecond instants, and a start interrupted part way
+  finishes at the next one. Once migrated, a store is refused by earlier
+  releases, so take the base backup before upgrading if you may roll back.
+  A store in a format the binary does not know is refused at startup with
+  `unsupported storage format version N; this build uses version M`. In
+  that case, use the **old** binary to write a graph snapshot (`--export`),
+  then the **new** binary to restore it into a new data directory
+  (`--restore`), and re-declare indexes and vectors. See
   [Backup and restore](backup-and-restore.md#graph-snapshot-export-and-restore).
 - **Configuration.** `config.yml` carries a schema `version`; a mismatch is
   refused with `config version mismatch`. New settings that are absent from

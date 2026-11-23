@@ -78,6 +78,7 @@ pub fn expand_commit(ci: u64, batch: &CommitBatch, txn: &mut Txn) -> Result<(), 
     // Records touched by this commit, with the labels named by its header
     // mutations (a retype or delete leaves the old label's text indexes).
     let mut text_owners: BTreeMap<u64, BTreeSet<String>> = BTreeMap::new();
+    let mut unique = crate::unique::UniqueRules::default();
     // Records whose place in the graph this commit changed (structural
     // indexes): created, deleted or retyped records, and the endpoints of
     // created or deleted relationships.
@@ -224,8 +225,7 @@ pub fn expand_commit(ci: u64, batch: &CommitBatch, txn: &mut Txn) -> Result<(), 
                     record_label(txn, t, *source_ord)?,
                     record_label(txn, t, *target_ord)?,
                 ) {
-                    let captured = serde_json::to_vec(&(src_label.clone(), tgt_label.clone()))
-                        .map_err(ser_err)?;
+                    let captured = serde_json::to_vec(&(src_label, tgt_label)).map_err(ser_err)?;
                     // The relationship catalog keys on these creation-time
                     // labels, live and on replay alike; the deriver
                     // counts it from this row.
@@ -389,12 +389,24 @@ pub fn expand_commit(ci: u64, batch: &CommitBatch, txn: &mut Txn) -> Result<(), 
                     text_owners.entry(row.owner_ord).or_default();
                 }
                 put_occurrence(txn, t, row, canonical_value_bytes.as_deref())?;
+                if let Some(bytes) = canonical_value_bytes {
+                    let encoded = encode_occ_value(
+                        row.elem_ordinal.is_some(),
+                        row.occurrence_value,
+                        Some(bytes),
+                    );
+                    unique.claim(txn, t, row, &encoded)?;
+                }
             }
             Mutation::DeleteOccurrence { row } => {
                 if row.owner_kind == OwnerKind::Record {
                     text_owners.entry(row.owner_ord).or_default();
                 }
+                let old = unique.before_delete(txn, t, row)?;
                 delete_occurrence(txn, t, row);
+                if let Some(old) = old {
+                    unique.release(txn, t, row, &old)?;
+                }
             }
             Mutation::ClearEmbeddingSpace { alias, space_id } => {
                 let alias_key = emb_alias_key(t, alias);
@@ -533,7 +545,10 @@ pub fn expand_commit(ci: u64, batch: &CommitBatch, txn: &mut Txn) -> Result<(), 
             | Mutation::IndexBackfill { .. }
             | Mutation::DropIndex { .. }
             | Mutation::IndexDrop { .. }
-            | Mutation::IndexApplied { .. } => crate::index::expand(t, ci, m, txn)?,
+            | Mutation::IndexApplied { .. } => {
+                crate::index::expand(t, ci, m, txn)?;
+                unique.reset();
+            }
             Mutation::RetireTenant => {
                 use rushdb_storage::tenant_dir::{self, TenantState};
                 let by_ord = rushdb_types::keys::tenant_by_ord_key(t);

@@ -1,6 +1,6 @@
 {
  "schemaVersion": 2,
- "description": "The supported openCypher profile (v1) and why each openCypher TCK 2024.2 scenario that does not pass fails. `scripts/run-opencypher-tck.py` assigns every failure the first matching rule's category; a failure no rule matches keeps a runner category that is not listed here, which fails the run. An `exclusion` is a feature outside the supported profile, reported by capability discovery (its `limitations`). A `defect` is a wrong result of the Grafeo openCypher implementation RushDB embeds; RushDB does not patch Grafeo, and CI reruns every defect on plain Grafeo so a failure RushDB causes cannot hide here. Cypher stays release candidate while any defect remains.",
+ "description": "The supported openCypher profile (v1) and why each openCypher TCK 2024.2 scenario that does not pass fails. `scripts/run-opencypher-tck.py` assigns every failure the first matching rule's category; a failure no rule matches keeps a runner category that is not listed here, which fails the run. An `exclusion` is a feature outside the supported profile, reported by capability discovery (its `limitations`). A `defect` is a wrong result of the Grafeo openCypher implementation RushDB embeds; RushDB carries no Grafeo changes of its own, only upstream fixes awaiting a Grafeo release (listed in Cargo.toml), and CI reruns every defect on plain Grafeo so a failure RushDB causes cannot hide here. Cypher stays release candidate while any defect remains.",
  "categories": {
   "lmpg-single-label": {
    "kind": "exclusion",
@@ -103,6 +103,10 @@
   {
    "category": "grafeo-error-detection",
    "when": "error-not-raised"
+  },
+  {
+   "category": "grafeo-semantic",
+   "pattern": "DELETE only supports variable expressions"
   },
   {
    "category": "grafeo-syntax",

@@ -43,8 +43,8 @@ name is the label name; lookups are case-insensitive, so the label `Person` is
 | one column per property | from the catalog | Every property any record of that label has. |
 
 Column types come from the label's property catalog at the snapshot: the
-types its records store under each property (integers, floats, strings,
-booleans, datetimes as epoch milliseconds, arrays). Mixed types widen the way
+types its records store under each property (see
+[Value types](#value-types)). Mixed types widen the way
 JSON values do: integers and floats read as floats, any other mix as text.
 Comparing such a text column with a number casts every value to a number, so
 a value that is not one fails the statement with `invalid_request` (`22P02`
@@ -78,6 +78,41 @@ so its cost grows with the graph, not only with the type; a join on
 > **Note:** Labels that differ only in letter case (`Person` and `PERSON`)
 > resolve to the same SQL table name. Keep label names case-distinct if you
 > plan to query them from SQL.
+
+### Value types
+
+| Stored type | SQL type | PostgreSQL wire type | Value |
+|---|---|---|---|
+| integer | `BIGINT` | `int8` | |
+| float | `DOUBLE` | `float8` | |
+| string | `VARCHAR` | `text` | |
+| boolean | `BOOLEAN` | `bool` | |
+| `datetime` | `TIMESTAMP WITH TIME ZONE` (microseconds, UTC) | `timestamptz` | The instant; over the wire at the session's `TimeZone` |
+| `localdatetime` | `TIMESTAMP` (microseconds) | `timestamp` | |
+| `date` | `DATE` | `date` | |
+| `localtime` | `TIME` | `time` | |
+| `duration` | `VARCHAR` holding ISO 8601 (`P1DT2H`) | `interval` (`1 day 02:00:00`) | |
+| `point` | `VARCHAR` holding PostgreSQL point text (`(13.4,52.5)`) | `point` | A 3D point has no PostgreSQL type: as text it is GeoJSON, and over the wire it fails the statement (`22P02`) |
+| array | `LIST` of the element type | the element type's array | |
+
+Compare temporal columns with literals of their type, or with ISO strings,
+which DataFusion casts to the column's type; both are pushed down to the
+store like other comparisons:
+
+```sql
+SELECT name FROM "Event" WHERE day >= DATE '2024-05-01' AND at < '2024-06-01T00:00:00Z'
+```
+
+`INSERT` and `UPDATE` store a `DATE`, `TIME`, `TIMESTAMP` or
+`TIMESTAMP WITH TIME ZONE` value as the matching type. Over the PostgreSQL
+wire, a date before year 1 is written in text as a signed ISO 8601 year
+(`-0043-03-15`) where PostgreSQL writes `0044-03-15 BC`; binary results
+carry the exact value.
+
+A read that compares a column with a text no row of that table holds
+(`WHERE city = 'berlin'` when the stored value is `Berlin`) still runs, and
+the response carries `warnings` with the stored spelling and the columns
+that do hold the text; see [Catalog check](../query/search-queries.md#catalog-check).
 
 ## Reading data
 
@@ -288,6 +323,9 @@ them with `mutate.statement` over Protocol v1:
 ```sql
 -- Ordered index: equality, IN, ranges, and prefix filters on one property
 CREATE INDEX item_price ON Item(price);
+
+-- Unique index: a second record of the label with the same value is refused
+CREATE UNIQUE INDEX user_email ON "User"(email);
 
 -- Full-text (BM25) index; IMMEDIATE makes searches read their own writes
 CREATE INDEX note_body ON Note(body) USING TEXT IMMEDIATE;

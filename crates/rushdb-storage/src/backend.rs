@@ -251,6 +251,19 @@ pub(crate) trait StorageBackend: Send + Sync {
     /// when a read transaction is open; it never waits for one.
     fn compact(&self) -> Result<(), String>;
 
+    /// Compact the backend while it serves reads and writes (#427): copy a
+    /// snapshot into a new file, bring it up to date with `catch_up` (the
+    /// WAL's commits of a shard in a range), and swap it in under a short
+    /// hold. `Ok(false)`: not supported here, or `abandon` asked to give
+    /// the copy up.
+    fn compact_online(
+        &self,
+        _catch_up: &mut crate::redb_backend::CatchUp<'_>,
+        _abandon: &dyn Fn() -> bool,
+    ) -> Result<bool, String> {
+        Ok(false)
+    }
+
     /// Durable byte accounting by key family. Default implementations return
     /// an explicit error (unavailable); file-backed backends override it.
     fn storage_stats(&self) -> Result<StorageStatistics, String> {
@@ -274,6 +287,17 @@ pub(crate) trait StorageBackend: Send + Sync {
 
 /// Open the redb backend as a [`StorageBackend`] handle.
 pub(crate) fn open_backend(path: &Path, cache: ByteReservation) -> Result<BackendHandle, String> {
+    // An online compaction killed before its swap leaves its copy behind;
+    // the file itself is whole.
+    let copy = crate::redb_backend::compact_copy_path(path);
+    match std::fs::remove_file(&copy) {
+        Ok(()) => tracing::info!(
+            file = %copy.display(),
+            "removed the copy an interrupted online compaction left"
+        ),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+        Err(error) => return Err(format!("remove {}: {error}", copy.display())),
+    }
     Ok(Arc::new(crate::redb_backend::RedbBackend::open(
         path, cache,
     )?))

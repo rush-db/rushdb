@@ -7,10 +7,10 @@
 //! `RushDB`'s storage representation to Arrow.
 
 use std::cell::RefCell;
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, HashMap};
 use std::sync::Arc;
 
-use arrow::datatypes::DataType;
+use arrow::datatypes::{DataType, Schema};
 use arrow::record_batch::RecordBatch;
 use arrow_json::writer::{JsonArray, WriterBuilder};
 use datafusion::common::ScalarValue;
@@ -26,6 +26,7 @@ use rushdb_lmpg::{CatalogAccess, Lmpg};
 use rushdb_storage::{resources::ByteReservation, ReadView, StorageError};
 use rushdb_textsearch::TextIndexes;
 use rushdb_types::keys::{key, P_REL_BY_ORD};
+use rushdb_types::model::{LogicalType, TypeState};
 use rushdb_types::value::{ID_FIELD, LABEL_FIELD};
 use serde_json::Value as Json;
 
@@ -34,6 +35,8 @@ use serde_json::Value as Json;
 pub type Row = serde_json::Map<String, Json>;
 
 mod checked_sum;
+/// CHK-1: the texts a statement compares columns with by equality.
+pub mod compared_texts;
 mod distinct_topk;
 mod dml;
 mod edge_provider;
@@ -409,8 +412,14 @@ pub enum SqlType {
     Date,
     /// Time of day or duration.
     Time,
-    /// Date and time with optional time zone.
+    /// Date and time without a time zone.
     Timestamp,
+    /// An instant (a date and time with a time zone).
+    Timestamptz,
+    /// A duration of months, days and time.
+    Interval,
+    /// A 2D point.
+    Point,
     /// Nested list, struct, map, or union value.
     Json,
     /// Type could not be mapped to a supported logical SQL type.
@@ -433,6 +442,9 @@ impl SqlType {
             SqlType::Date => 1082,
             SqlType::Time => 1083,
             SqlType::Timestamp => 1114,
+            SqlType::Timestamptz => 1184,
+            SqlType::Interval => 1186,
+            SqlType::Point => 600,
             SqlType::Json => 3802,
             SqlType::Unknown => 705,
         }
@@ -453,6 +465,9 @@ impl SqlType {
             SqlType::Date => "date",
             SqlType::Time => "time without time zone",
             SqlType::Timestamp => "timestamp without time zone",
+            SqlType::Timestamptz => "timestamp with time zone",
+            SqlType::Interval => "interval",
+            SqlType::Point => "point",
             SqlType::Json => "jsonb",
             SqlType::Unknown => "unknown",
         }
@@ -473,6 +488,9 @@ impl SqlType {
             SqlType::Date => "date",
             SqlType::Time => "time",
             SqlType::Timestamp => "timestamp",
+            SqlType::Timestamptz => "timestamptz",
+            SqlType::Interval => "interval",
+            SqlType::Point => "point",
             SqlType::Json => "jsonb",
             SqlType::Unknown => "unknown",
         }
@@ -864,15 +882,13 @@ fn statement_error(error: &datafusion::error::DataFusionError) -> Option<SqlErro
         DataFusionError::ArrowError(arrow, _) => match arrow.as_ref() {
             // Text compared with a number is cast to the number's type: the
             // values of a property stored as both text and number (it reads
-            // as text), or a date literal against a datetime column (it
-            // reads as epoch milliseconds).
+            // as text).
             ArrowError::CastError(message) if message.starts_with("Cannot cast string") => {
                 SqlError::InvalidValue(format!(
                     "{message}; text compared with a number is cast to a number. A column \
                      whose values have more than one type reads as text: compare it with \
                      text, or skip the values that are not numbers with \
-                     TRY_CAST(column AS BIGINT). A datetime column reads as epoch \
-                     milliseconds: compare to_timestamp_millis(column) with a TIMESTAMP"
+                     TRY_CAST(column AS BIGINT)"
                 ))
             }
             ArrowError::CastError(message)
@@ -1128,7 +1144,7 @@ pub async fn describe_sql_mutation_async(
                 }) else {
                     continue;
                 };
-                *data_type = sql_type_from_arrow(field.data_type());
+                *data_type = sql_type_of_field(field);
             }
         }
     }
@@ -1180,7 +1196,7 @@ pub async fn describe_sql_async(
         .iter()
         .map(|(_, field)| SqlColumn {
             name: field.name().clone(),
-            data_type: sql_type_from_arrow(field.data_type()),
+            data_type: sql_type_of_field(field),
             nullable: field.is_nullable(),
         })
         .collect();
@@ -1226,11 +1242,14 @@ fn context_in_view_visible(
     text: Option<&Arc<TextIndexes>>,
     visible: &CatalogAccess,
 ) -> Result<DataFusionContext, SqlError> {
-    let config = SessionConfig::new()
+    let mut config = SessionConfig::new()
         // `information_schema` is RushDB's own (`pg_catalog.rs`), with
         // PostgreSQL's columns.
         .with_information_schema(false)
         .with_target_partitions(1);
+    // `TIMESTAMPTZ` literals are instants in UTC, as datetime columns are;
+    // without a session zone DataFusion plans them as local timestamps.
+    config.options_mut().execution.time_zone = Some("UTC".to_owned());
     let cap = working_set_cap(lmpg);
     let (context, pool) = session_context(&lmpg.store, config, cap)?;
     // Lazy catalog: labels and edge types are materialized only when the
@@ -1360,6 +1379,151 @@ fn bind_parameters(
     }
 }
 
+/// Tracks the property types each column holds while a schema is built:
+/// a column whose values are all of one type that is not JSON's own (a
+/// date, a time, a datetime, a duration, a point), and never an array,
+/// is typed by it ([`typed_schema`]).
+#[derive(Default)]
+pub(crate) struct ColumnTypes(HashMap<String, (Option<LogicalType>, bool)>);
+
+impl ColumnTypes {
+    /// Note that `column` holds values of `state`, in an array or not.
+    pub(crate) fn add(&mut self, column: &str, state: TypeState, array: bool) {
+        let entry = self.0.entry(column.to_owned()).or_insert((None, false));
+        entry.1 |= array;
+        if let TypeState::Known(ty) = state {
+            entry.0 = match entry.0 {
+                None => Some(ty),
+                Some(held) if held == ty => Some(ty),
+                // Two types: the column stays as JSON's rules widen it.
+                Some(_) => Some(LogicalType::Utf8),
+            };
+        }
+    }
+
+    fn typed(&self, column: &str) -> Option<LogicalType> {
+        match self.0.get(column)? {
+            (Some(ty), false) if !ty.json_native() => Some(*ty),
+            _ => None,
+        }
+    }
+}
+
+/// `schema` with each column [`ColumnTypes`] types as SQL reads it: dates
+/// as `Date32`, times of day as nanosecond `Time64` (SQL's `TIME` literals'
+/// unit), local date-times as
+/// microsecond timestamps, datetimes as microsecond timestamps in UTC
+/// (`timestamptz`), durations and points as text marked with their type
+/// ([`TYPE_METADATA`]).
+pub(crate) fn typed_schema(schema: &Schema, types: &ColumnTypes) -> Schema {
+    use arrow::datatypes::{Field, TimeUnit};
+    let fields: Vec<Field> = schema
+        .fields()
+        .iter()
+        .map(|field| {
+            let field = field.as_ref().clone();
+            let Some(ty) = types.typed(field.name()) else {
+                return field;
+            };
+            let marked = |name: &str| {
+                field
+                    .clone()
+                    .with_data_type(DataType::Utf8)
+                    .with_metadata(HashMap::from([(TYPE_METADATA.to_owned(), name.to_owned())]))
+            };
+            match ty {
+                LogicalType::Date => field.with_data_type(DataType::Date32),
+                LogicalType::LocalTime => {
+                    field.with_data_type(DataType::Time64(TimeUnit::Nanosecond))
+                }
+                LogicalType::LocalDateTime => {
+                    field.with_data_type(DataType::Timestamp(TimeUnit::Microsecond, None))
+                }
+                LogicalType::DateTime => field.with_data_type(DataType::Timestamp(
+                    TimeUnit::Microsecond,
+                    Some("UTC".into()),
+                )),
+                LogicalType::Duration => marked("duration"),
+                LogicalType::Point => marked("point"),
+                _ => field,
+            }
+        })
+        .collect();
+    Schema::new_with_metadata(fields, schema.metadata().clone())
+}
+
+/// A cell as a column of `data_type` reads it: a typed value as the
+/// integer Arrow stores for a date (days), a time (nanoseconds) or a
+/// timestamp (microseconds), anything else in its SQL text form
+/// ([`sql_values`]).
+pub(crate) fn sql_cell(value: Json, data_type: &DataType) -> Json {
+    use rushdb_types::value::Scalar;
+    let Some(scalar) = rushdb_types::types::tagged_scalar(&value) else {
+        return sql_values(value);
+    };
+    match (data_type, &scalar) {
+        (DataType::Date32, Scalar::Date(days)) => Json::from(*days),
+        (DataType::Time64(_), Scalar::LocalTime(micros)) => {
+            Json::from(micros.saturating_mul(1_000))
+        }
+        (DataType::Timestamp(_, None), Scalar::LocalDateTime(micros)) => Json::from(*micros),
+        (DataType::Timestamp(_, Some(_)), Scalar::DateTime(instant)) => Json::from(instant.micros),
+        _ => sql_values(value),
+    }
+}
+
+/// The property type a typed column holds ([`typed_schema`]); `None` for
+/// the others.
+pub(crate) fn column_type(field: &arrow::datatypes::Field) -> Option<LogicalType> {
+    match field.metadata().get(TYPE_METADATA).map(String::as_str) {
+        Some("duration") => return Some(LogicalType::Duration),
+        Some("point") => return Some(LogicalType::Point),
+        _ => {}
+    }
+    match field.data_type() {
+        DataType::Date32 => Some(LogicalType::Date),
+        DataType::Time64(_) => Some(LogicalType::LocalTime),
+        DataType::Timestamp(_, None) => Some(LogicalType::LocalDateTime),
+        DataType::Timestamp(_, Some(_)) => Some(LogicalType::DateTime),
+        _ => None,
+    }
+}
+
+/// A value of a date, time or timestamp column (as Arrow's JSON writer
+/// renders it) in the tagged form the write path stores; `None` for a
+/// value of another column type.
+pub(crate) fn typed_sql_value(value: &Json, data_type: &DataType) -> Option<Json> {
+    use rushdb_types::types::{temporal, to_doc_json};
+    use rushdb_types::value::Scalar;
+    let text = value.as_str()?;
+    let scalar = match data_type {
+        DataType::Date32 => Scalar::Date(temporal::parse_date(text)?),
+        DataType::Time64(_) => Scalar::LocalTime(temporal::parse_local_time(text)?),
+        DataType::Timestamp(_, None) => Scalar::LocalDateTime(temporal::parse_local_datetime(
+            text.replace(' ', "T").as_str(),
+        )?),
+        DataType::Timestamp(_, Some(_)) => {
+            Scalar::DateTime(temporal::parse_instant(text.replace(' ', "T").as_str())?)
+        }
+        _ => return None,
+    };
+    Some(to_doc_json(&scalar))
+}
+
+/// Field metadata naming the property type a text column holds when it
+/// is not Arrow's own: `duration` (an `interval`) or `point`.
+pub(crate) const TYPE_METADATA: &str = "rushdb.type";
+
+/// The SQL type of a column: its Arrow type's, or the property type its
+/// metadata names ([`TYPE_METADATA`]).
+pub(crate) fn sql_type_of_field(field: &arrow::datatypes::Field) -> SqlType {
+    match field.metadata().get(TYPE_METADATA).map(String::as_str) {
+        Some("duration") => SqlType::Interval,
+        Some("point") => SqlType::Point,
+        _ => sql_type_from_arrow(field.data_type()),
+    }
+}
+
 pub(crate) fn sql_type_from_arrow(data_type: &DataType) -> SqlType {
     match data_type {
         DataType::Boolean => SqlType::Boolean,
@@ -1382,7 +1546,8 @@ pub(crate) fn sql_type_from_arrow(data_type: &DataType) -> SqlType {
         | DataType::FixedSizeBinary(_) => SqlType::Binary,
         DataType::Date32 | DataType::Date64 => SqlType::Date,
         DataType::Time32(_) | DataType::Time64(_) | DataType::Duration(_) => SqlType::Time,
-        DataType::Timestamp(_, _) => SqlType::Timestamp,
+        DataType::Timestamp(_, None) => SqlType::Timestamp,
+        DataType::Timestamp(_, Some(_)) => SqlType::Timestamptz,
         DataType::List(_)
         | DataType::ListView(_)
         | DataType::LargeList(_)
@@ -1544,6 +1709,30 @@ pub(crate) fn relationship_types_for_tenant(
             .map(|(rel_type, _, _, _)| rel_type)
             .collect(),
     )
+}
+
+/// A row's values as SQL reads them: JSON's own values as they are,
+/// temporal values and durations as ISO 8601 text, points as PostgreSQL
+/// `point` text (`(x,y)`; a 3D point as `GeoJSON` text).
+pub(crate) fn sql_values(value: Json) -> Json {
+    use rushdb_types::value::Scalar;
+    if let Some(scalar) = rushdb_types::types::tagged_scalar(&value) {
+        return Json::String(match &scalar {
+            Scalar::Point(point) if point.z.is_none() => format!("({},{})", point.x, point.y),
+            Scalar::Point(point) => rushdb_types::types::point::to_geojson(*point).to_string(),
+            other => rushdb_types::types::literal_text(other).unwrap_or_default(),
+        });
+    }
+    match value {
+        Json::Array(items) => Json::Array(items.into_iter().map(sql_values).collect()),
+        Json::Object(object) => Json::Object(
+            object
+                .into_iter()
+                .map(|(key, value)| (key, sql_values(value)))
+                .collect(),
+        ),
+        other => other,
+    }
 }
 
 pub(crate) fn externalize_record(value: Json) -> Json {

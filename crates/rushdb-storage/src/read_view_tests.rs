@@ -308,7 +308,10 @@ fn invalid_config_and_failed_open_do_not_leave_cache_charges() {
     std::fs::create_dir(&path).unwrap();
     let store = Store::new_in_memory();
     assert!(store.attach_redb(&path).is_err());
-    assert_eq!(store.resource_budget().snapshot().used, 0);
+    assert_eq!(
+        store.resource_budget().snapshot().used,
+        store.phase_floor_bytes()
+    );
     std::fs::remove_dir(path).unwrap();
 }
 

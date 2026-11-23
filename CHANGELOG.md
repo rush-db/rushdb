@@ -4,14 +4,206 @@ This project follows [Semantic Versioning](https://semver.org/). Release notes
 describe observable engine and protocol changes; migration instructions belong
 in [`docs/manual/operations/upgrading-from-2x.md`](docs/manual/operations/upgrading-from-2x.md).
 
-## Unreleased
+## 3.0.14 — 2026-11-23
+
+### Changed
+
+- **Breaking: dates, times, durations and points are types of their own,
+  and datetimes keep their offset and microseconds.** A property now holds
+  one of ten types: boolean, integer, float, string, `datetime`, `date`,
+  `localtime`, `localdatetime`, `duration` and `point` (see
+  [Properties and types](docs/manual/data-model/properties-and-types.md)).
+  What changes for existing clients:
+  - With type inference on (the default), `"2024-05-01"` is stored as a
+    `date` and `"2024-05-01T10:30:00"` (no zone) as a `localdatetime`; both
+    were datetimes at UTC. `"10:30:00"` becomes a `localtime` and
+    `"P1DT2H"` a `duration`; both were strings. A GeoJSON point object is
+    stored as a `point`; `putRecord` refused it and nested import made it
+    a linked record.
+  - A datetime keeps the offset it was written with and reads back at it
+    (`2024-05-01T12:30:00+02:00`, was `2024-05-01T10:30:00.000Z`), to the
+    microsecond (was the millisecond). Equality, ranges and sorting still
+    compare instants.
+  - Datetimes print with the shortest fraction (`10:30:00Z`, was
+    `10:30:00.000Z`), and a datetime at midnight UTC prints in full
+    (`2024-05-01T00:00:00Z`, was `2024-05-01`).
+  - `$min`/`$max` and `$timeBucket` return values in the property's type
+    as ISO 8601 text (`"2024-05-01T00:00:00Z"`); over datetimes they
+    returned epoch milliseconds.
+  - SQL reads datetimes as `TIMESTAMP WITH TIME ZONE`, local date-times as
+    `TIMESTAMP`, dates as `DATE` and times as `TIME` (datetimes were
+    `BIGINT` epoch milliseconds); durations and points read as ISO 8601 and
+    PostgreSQL point text. Over the PostgreSQL wire they are `timestamptz`,
+    `timestamp`, `date`, `time`, `interval` and `point`, and `timestamptz`
+    values are written at the session's `TimeZone` offset (read as
+    PostgreSQL reads it). A Metabase "UNIX timestamp (milliseconds)" cast on
+    such a field must be removed.
+  - Bolt sends and receives these values as Bolt's `Date`, `LocalTime`,
+    `LocalDateTime`, `DateTime`, `Duration`, `Point2D` and `Point3D`
+    structures; they were strings and maps. A `Time` with an offset or a
+    `DateTimeZoneId` parameter is refused with
+    `Neo.ClientError.Statement.TypeError`.
+  - Cypher values keep their types across writes and reads: eleven more
+    openCypher TCK scenarios pass, and six nanosecond scenarios fewer,
+    since values are kept to the microsecond.
+
+  Integers still compare with datetimes as epoch milliseconds, and `$sum`
+  and `$avg` still add datetimes as epoch milliseconds.
+- **Breaking: the store format is version 7.** At its first start, 3.0.14
+  rewrites the datetimes of a 3.0.13 or earlier store (epoch milliseconds)
+  as microsecond instants, once; a start interrupted part way finishes at
+  the next one. A store opened by 3.0.14 is refused by earlier releases:
+  back it up before upgrading if you may need to roll back.
+- **Breaking: Cypher, GQL, Gremlin and SQL/PGQ run on Grafeo 0.6** (was
+  0.5.44). Until Grafeo 0.6.4 is released, RushDB builds Grafeo's
+  `release/0.6.4` branch with two fixes applied that are not released yet:
+  GrafeoDB/grafeo#807 (named zero-length paths, grouping keys inside maps,
+  long `CREATE` chains) and one that lets `text_match`/`text_score` run on
+  RushDB's text indexes outside a pushed-down `WHERE` (GrafeoDB/grafeo#809).
+  The revision is `546fe7e8` (tag `rushdb-3.0.14` on
+  [rush-db/grafeo](https://github.com/rush-db/grafeo)): Grafeo's
+  `release/0.6.4` at `ab59235d` with those two fixes. Because that revision is not on crates.io, **3.0.14's
+  crates are not published to crates.io**: this release ships as binaries,
+  Docker images, the Helm chart and the Homebrew formula. Publishing to
+  crates.io resumes with the first release on Grafeo 0.6.4. Results that
+  change:
+  - GQL refuses an unbounded quantifier without a path mode or selector, as
+    ISO GQL requires: `MATCH (a)-[:R]->{0,}(b)` (or `-[:R*0..]->`) needs
+    `MATCH TRAIL`, `ACYCLIC`, `SIMPLE`, a selector such as `ANY SHORTEST`,
+    or an upper bound.
+  - The anti-join `OPTIONAL MATCH (a)-[r]->(c) WITH c WHERE r IS NULL`,
+    refused since 3.0.13, works again.
+  - Long `CREATE` scripts run again: Grafeo 0.6 refused more than 128
+    clauses (its plan depth limit); the limit is RushDB's 8,192 clauses.
+  - `RETURN collect([1, 2])` without a `MATCH` runs.
+  - Fixed in Grafeo: `all`/`any`/`none`/`single` over nulls and nested
+    lists, operator precedence, `SKIP`/`LIMIT` after an updating clause no
+    longer limits the updates, `SET`/`REMOVE`/`DELETE` on a null from
+    `OPTIONAL MATCH` does nothing instead of failing, and a variable-length
+    match around a cycle ends.
+  - Ten statements the openCypher TCK requires to fail now run instead of
+    being refused, as on plain Grafeo 0.6: binding a bound node again in
+    `CREATE` or `MERGE`, `length()` of a node or relationship, an aggregate
+    inside a list comprehension, `count(rand())`, and a pattern on the
+    right-hand side of `SET`.
+
+  With the typed values above, the openCypher TCK now passes 2,017 of
+  3,897 scenarios (was 1,653); of the 2,422 in the supported profile,
+  2,017 pass (was 1,653 of 2,403).
+- **Breaking: building RushDB from source needs Rust 1.100** (was 1.91 as
+  the minimum, 1.98.1 pinned), as Grafeo 0.6 does.
+
+### Added
+
+- **Spatial queries.** `$within` matches points within a radius
+  (`{"center": <GeoJSON Point>, "meters": 5000}`, haversine meters for
+  WGS-84) or a box (`{"box": [<south-west>, <north-east>]}`, across the
+  antimeridian too), and `order: {"location": {"$distance": <point>}}`
+  sorts nearest first. An ordered index on a point property answers
+  `$within` from the Hilbert-curve cell ranges covering the region. See
+  [Spatial queries](docs/manual/query/spatial.md).
+- **Typed values over the PostgreSQL wire**: `timestamptz`, `interval` and
+  `point` in both text and binary form, and binary parameters of the
+  temporal types. Times print as PostgreSQL prints them: fractional
+  seconds without trailing zeros, none when whole (`19:00:00+01`, was
+  `19:00:00.000000+01` for `time` and `timestamp`).
+- **Mongo Extended JSON dates**: `{"$date": ...}` (ISO 8601 text,
+  `{"$numberLong": ...}` or epoch milliseconds) is a datetime in filters
+  and writes.
+- **Unique indexes** (#148). `"kind": "unique"` (SQL `CREATE UNIQUE
+  INDEX`, Cypher `CREATE CONSTRAINT … REQUIRE n.p IS UNIQUE`, Mongo
+  `createIndex` with `"unique": true`) refuses a write that would give a
+  second record of the label a value: `409 conflict` with `details:
+  {label, property, recordId}` (not the value), `23505` over PostgreSQL,
+  `Neo.ClientError.Schema.ConstraintValidationFailed` over Bolt. Checked
+  in the commit, so of concurrent writers exactly one succeeds, on every
+  write path. Declaring one on data that repeats a value is refused.
+- **Catalog check** (CHK-1). Records and property-values queries, Mongo
+  statements and SQL reads are checked against the data before they run: a label,
+  property or compared text no record holds comes back in a new
+  `warnings` field of the response, with what the query most likely meant
+  (stored spelling, the property that stores the text, similar names).
+  `context.check: "strict"` refuses such a query (`invalid_request`, the
+  warnings in the error's new `details`); `"off"` skips the check.
+- **Online compaction** (#427). A store file over
+  `compact-max-file-bytes` (1 GiB) is compacted while requests are served:
+  copied, caught up from the WAL and swapped in under a short hold.
+  Before, such a file was left to the offline `rushdb serve --compact`.
+- `scripts/prune-target.py` removes stale build output from a cargo target
+  directory.
+- **Where a request waits.** `rushdb_request_stage_seconds{stage}` splits
+  each HTTP protocol request into reading its body, admission, the blocking
+  worker queue, its tenant's scheduler queue, execution and the handoff
+  back; `rushdb_phase_token_waits_total` and
+  `rushdb_phase_token_wait_seconds_total` count requests that queued for a
+  phase token and how long, by pool. See
+  [Metrics](docs/manual/reference/metrics.md).
+- `scripts/gate.sh fast|full|release` is the project's gate in tiers. Tests
+  run through `scripts/run-tests.py`, one process per test binary: a binary
+  killed for memory fails by name, and memory and time budgets apply. The
+  image smoke test (`scripts/smoke-image.sh`) also runs text and hybrid
+  searches over an index created after a load.
+
+### Performance
+
+- **Unindexed listing filters read resident columns** (L8). A listing
+  filtered on properties no index covers is answered from the resident
+  columns of those properties once they are built, instead of reading
+  every holder's values. On 100,000 records on a single host, compared
+  with 3.0.13, such filters are about 10x faster; filters an index covers
+  are on par. A filter over a property with very many distinct values (a
+  numeric range) is answered as before.
+- **Grouped aggregates over resident columns fold without allocating per
+  row.** A `groupBy` with `$count`, `$sum`, `$avg`, `$min` or `$max` over
+  up to four keys reads each metric straight from its column, so single-
+  key, two-key and multi-metric groupings are faster than in 3.0.13; a
+  grouping behind a filter gains little, and plain counts are unchanged.
+  Answers are bit-identical.
 
 ### Fixed
+
+- **Requests and commits no longer fail when caches fill the memory
+  budget.** Request admission tokens and retained caches (an ANN build's
+  vector cache above all) could take the managed budget to its last byte;
+  every request was then refused with 429 and commits failed, an ingest
+  sometimes with its rollback failing too. They now leave headroom for
+  commits, a few tokens are reserved at start, commits wait briefly for
+  room, and admission is first in, first out. (Under a tight memory limit,
+  32 concurrent searches during a vector bind refused about a third of
+  searches and half the ingest batches; none now.)
+- **A keyword search right after a write finds it within milliseconds.**
+  The `eventual` text applier ran every 250 ms; a write now wakes it.
 
 - **The one-line installer no longer asks for a new shell after linking
   `rushdb`.** When it links `rushdb` into a directory already on `PATH`, it
   now says `rushdb` is ready in this shell; the `export PATH=...` hint is
   printed only when no link was made.
+
+### Known limitations
+
+- **Small indexed pages are about 5% slower than in 3.0.13.** A page of a
+  few hundred records found through an ordered index takes about 30 µs
+  longer: typed values (741b9b22) made each point read of a record's
+  properties fetch more storage pages. A fix is planned for 3.0.15.
+- **Built with an unreleased Grafeo revision; no crates.io packages.** The
+  graph languages run on Grafeo `546fe7e8` (tag `rushdb-3.0.14` on
+  rush-db/grafeo: Grafeo's `release/0.6.4` at `ab59235d` with
+  GrafeoDB/grafeo#807 and the #809 fix), which is not on
+  crates.io, so 3.0.14's crates are not published there: it ships as
+  binaries, Docker images, the Helm chart and the Homebrew formula.
+  Publishing to crates.io resumes with the first release on Grafeo 0.6.4.
+- **Vector graphs stay 16-bit.** An 8-bit ANN graph was about a third
+  faster with half the graph memory on 100,000 OpenAI embeddings, but its
+  recall@10 was lower at small search breadths (0.822 against 0.853 at
+  `ef` 16), so it is not the default. Segments now record their graph's
+  precision, so a later release can change the default without touching
+  existing segments.
+- **An `eventual` text index may not show a write in a search sent at the
+  same moment.** The applier wakes on every write, so a write is
+  searchable within milliseconds, and a search reports what it has not
+  applied yet in `pending`. A client that needs its own writes uses an
+  `immediate` index or repeats the search while `pending` is above 0 (see
+  [Full-text search](docs/manual/indexes-and-search/full-text-search.md#reading-your-own-writes)).
 
 ## 3.0.13 — 2026-11-20
 

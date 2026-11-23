@@ -18,9 +18,12 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 use rushdb_lmpg::reader::TryRead;
 
+use rushdb_types::model::{LogicalType, TypeState};
+use serde_json::Value as Json;
+
 use super::{
-    labels_for, BoundedOwners, LeafScope, OwnerSet, PLANNER_MATERIALIZE_CAP, UNINDEXED_WALKS,
-    UNINDEXED_WALK_THRESHOLD,
+    all_type_states, family_id, labels_for, normalize, property_id, BoundedOwners, LeafScope,
+    OwnerSet, PLANNER_MATERIALIZE_CAP, UNINDEXED_WALKS, UNINDEXED_WALK_THRESHOLD,
 };
 use crate::{access, QueryError};
 
@@ -261,4 +264,63 @@ where
         start = end;
     }
     Ok(())
+}
+
+/// Owners holding a point in `region`, walking the point property's
+/// holders when no index answers it.
+pub(super) fn owners_within<R: TryRead + Sync>(
+    snap: &R,
+    tenant: rushdb_types::ids::TenantId,
+    name: &str,
+    region: &Json,
+    scope: &LeafScope<'_>,
+) -> Result<Option<OwnerSet>, QueryError> {
+    let region = crate::spatial::Region::parse(region).map_err(QueryError::InvalidPredicate)?;
+    let norm = normalize(name);
+    if norm.is_empty() || rushdb_types::value::is_reserved_name(&norm) {
+        return Ok(None);
+    }
+    let Some(fid) = family_id(snap, tenant, &norm)? else {
+        return Ok(Some(OwnerSet::new()));
+    };
+    let mut owners = OwnerSet::new();
+    let Some(pid) = property_id(snap, tenant, fid, LogicalType::Point)? else {
+        return Ok(Some(owners));
+    };
+    let keep = |occ: &access::Occurrence| {
+        matches!(
+            occ.value,
+            rushdb_types::occurrence::OccurrenceValue::Stored {
+                ty: LogicalType::Point
+            }
+        ) && rushdb_types::types::point::decode(&occ.payload).is_some_and(|at| region.contains(at))
+    };
+    if !owners_matching(snap, tenant, pid, scope, &mut owners, &keep)? {
+        return Ok(None);
+    }
+    Ok(Some(owners))
+}
+
+/// Typed definitions of a property family with their type states.
+pub(crate) fn typed_pids<R: TryRead>(
+    snap: &R,
+    tenant: rushdb_types::ids::TenantId,
+    fid: u64,
+) -> Result<Vec<(TypeState, u64)>, QueryError> {
+    use rushdb_lmpg::reader::keys_ext as kx;
+    let mut pids = Vec::new();
+    for state in all_type_states() {
+        let Some(raw) = snap.get(&kx::definition_key(tenant, fid, state))? else {
+            continue;
+        };
+        pids.push((
+            state,
+            u64::from_be_bytes(
+                raw.as_slice()
+                    .try_into()
+                    .map_err(|_| rushdb_storage::StorageError::CorruptLog)?,
+            ),
+        ));
+    }
+    Ok(pids)
 }

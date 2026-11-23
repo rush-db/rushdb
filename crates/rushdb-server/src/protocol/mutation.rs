@@ -118,7 +118,14 @@ impl ProtocolExecutor<'_> {
                                 // `"kind": "text"` (optionally with
                                 // `"consistency": "immediate"`) declares a
                                 // full-text index.
+                                let unique = idx
+                                    .get("unique")
+                                    .and_then(serde_json::Value::as_bool)
+                                    .unwrap_or(false);
                                 let kind = match idx.get("kind").and_then(|v| v.as_str()) {
+                                    None | Some("ordered") if unique => {
+                                        rushdb_language::ddl::DdlKind::Unique
+                                    }
                                     None | Some("ordered") => {
                                         rushdb_language::ddl::DdlKind::Ordered
                                     }
@@ -524,10 +531,11 @@ fn upsert_requested(options: &serde_json::Value) -> bool {
     rushdb_lmpg::import::ImportOptions::from_json(options).upsert_requested()
 }
 
-/// Property values are scalars, nulls or arrays of them. An object (or an
-/// array holding one) is refused up front: nested objects become related
-/// records through ingest, and storing one as a property would either fail
-/// deep in planning or lose it as `"[object Object]"`.
+/// Property values are scalars, nulls, `GeoJSON` points or arrays of them. Any
+/// other object (or an array holding one) is refused up front: nested
+/// objects become related records through ingest, and storing one as a
+/// property would either fail deep in planning or lose it as
+/// `"[object Object]"`.
 pub(super) fn scalar_properties(properties: &serde_json::Value) -> Result<(), ProtocolError> {
     let Some(map) = properties.as_object() else {
         return Err(ProtocolError::new(
@@ -535,11 +543,13 @@ pub(super) fn scalar_properties(properties: &serde_json::Value) -> Result<(), Pr
             "properties must be an object",
         ));
     };
+    let point =
+        |value: &serde_json::Value| rushdb_types::types::point::parse_geojson(value).is_some();
     for (name, value) in map {
-        let nested = value.is_object()
+        let nested = (value.is_object() && !point(value))
             || value
                 .as_array()
-                .is_some_and(|items| items.iter().any(serde_json::Value::is_object));
+                .is_some_and(|items| items.iter().any(|item| item.is_object() && !point(item)));
         if nested {
             return Err(ProtocolError::new(
                 ErrorCode::InvalidRequest,

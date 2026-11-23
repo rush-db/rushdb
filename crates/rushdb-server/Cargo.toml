@@ -72,6 +72,8 @@ uuid = { workspace = true }
 async-trait = "0.1"
 futures = "0.3"
 pgwire = { version = "0.40.7", default-features = false, features = ["server-api-ring", "pg-type-chrono", "pg-type-serde-json"] }
+postgres-types = "0.2.14"
+bytes = "1.12"
 tokio = { version = "1", features = ["macros", "net", "rt-multi-thread", "signal", "sync"] }
 tokio-stream = { version = "0.1", features = ["net"] }
 serde_yml = "0.0.13"
@@ -84,7 +86,7 @@ rushdb-storage = { workspace = true, features = ["test-support"] }
 rushdb-lmpg = { workspace = true, features = ["test-support"] }
 redb = "4.2.0"
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "sync"] }
-tokio-postgres = "0.7"
+tokio-postgres = { version = "0.7", features = ["with-chrono-0_4"] }
 tonic = { version = "0.12", features = ["transport", "codegen", "prost", "tls"] }
 rcgen = "0.13"
 native-tls = "0.2"

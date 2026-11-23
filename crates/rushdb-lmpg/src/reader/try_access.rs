@@ -43,6 +43,8 @@ pub struct Occurrence {
     pub value: OccurrenceValue,
     /// Order-preserving payload of a stored scalar (empty otherwise).
     pub payload: Vec<u8>,
+    /// What the stored value keeps after the payload (a datetime's offset).
+    pub suffix: Vec<u8>,
 }
 
 impl Occurrence {
@@ -57,7 +59,23 @@ impl Occurrence {
             array: value.array,
             value: value.value,
             payload: value.payload.to_vec(),
+            suffix: value.suffix.to_vec(),
         })
+    }
+
+    /// The stored scalar (`None` for a null or the empty-array marker).
+    ///
+    /// # Errors
+    /// Returns [`StorageError::CorruptLog`] if the stored bytes do not
+    /// decode.
+    pub fn scalar(&self) -> Result<Option<rushdb_types::value::Scalar>, StorageError> {
+        let OccurrenceValue::Stored { ty } = self.value else {
+            return Ok(None);
+        };
+        let stored = [self.payload.as_slice(), &self.suffix].concat();
+        rushdb_types::encoding::decode_stored(ty, &stored)
+            .map(Some)
+            .map_err(|_| StorageError::CorruptLog)
     }
 
     /// Canonical value hash.

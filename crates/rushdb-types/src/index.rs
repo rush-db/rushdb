@@ -49,9 +49,19 @@ pub enum IndexKind {
         /// Vector dimensions.
         dimensions: u32,
     },
+    /// An ordered index whose values are unique under the label (#148):
+    /// a write of a value another record of the label holds is refused
+    /// with a conflict. Last, so encodings of the other kinds are unchanged.
+    Unique,
 }
 
 impl IndexKind {
+    /// Whether the index keeps ordered `(value, owner)` entries.
+    #[must_use]
+    pub fn ordered(self) -> bool {
+        matches!(self, Self::Ordered | Self::Unique)
+    }
+
     /// Whether an applier outside the store maintains the index from pending
     /// rows (text and structural), rather than apply-time entries.
     #[must_use]

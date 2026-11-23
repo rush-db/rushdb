@@ -30,7 +30,7 @@ impl MutationBudget {
         // Cover originals, mutable state, delta, and conversion scratch.
         let accepted = self
             .used
-            .fetch_update(Ordering::AcqRel, Ordering::Acquire, |used| {
+            .try_update(Ordering::AcqRel, Ordering::Acquire, |used| {
                 used.checked_add(bytes.checked_mul(4)?)
                     .filter(|next| *next <= self.limit)
             })

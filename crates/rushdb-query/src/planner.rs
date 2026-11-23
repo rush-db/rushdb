@@ -13,7 +13,8 @@ mod leaf_walk;
 mod leaf_walk_tests;
 pub(super) use expansion::{expansions, target_estimate};
 pub use explain::{explain_cardinality, explain_expansion, explain_walk};
-use leaf_walk::{each_presence_owner, owners_matching};
+pub(crate) use leaf_walk::typed_pids;
+use leaf_walk::{each_presence_owner, owners_matching, owners_within};
 
 /// Index-only candidate plan for a `where` conjunction. Eligible positive
 /// leaves (`field == scalar`, `field IN`, `$exists: true`, null, and numeric
@@ -38,6 +39,18 @@ pub(crate) struct IndexPlan {
     /// to evaluate on each candidate instead of the whole `where`. `None`
     /// when there are none.
     pub(super) residual: Option<Expr>,
+}
+
+impl IndexPlan {
+    /// The plan of a set of owners that is the exact answer (no residual).
+    pub(crate) fn exact_owners(ords: impl IntoIterator<Item = u64>) -> Self {
+        Self {
+            ords: ords.into_iter().collect(),
+            exact: true,
+            known_total: None,
+            residual: None,
+        }
+    }
 }
 
 /// Cap on the smallest eligible leaf the planner walks occurrence by
@@ -326,20 +339,22 @@ fn leaf_estimate<R: TryRead>(
         Expr::Or(items) if !items.is_empty() && items.iter().all(is_id_leaf) => {
             Some(items.len() as u64)
         }
-        Expr::Field(FieldPred::IsNull(_, true) | FieldPred::Exists(_, true)) => Some(u64::MAX),
+        Expr::Field(
+            FieldPred::IsNull(_, true) | FieldPred::Exists(_, true) | FieldPred::Within(..),
+        ) => Some(u64::MAX),
         // A bounded estimate from the on-demand value distribution
         // (never surfaced as EXPLAIN's exact field, see `is_range_leaf`).
         Expr::Field(FieldPred::Gt(name, bound)) => {
-            range_leaf_estimate(snap, tenant, name, RangeOp::Gt, *bound)?
+            range_leaf_estimate(snap, tenant, name, RangeOp::Gt, bound)?
         }
         Expr::Field(FieldPred::Gte(name, bound)) => {
-            range_leaf_estimate(snap, tenant, name, RangeOp::Gte, *bound)?
+            range_leaf_estimate(snap, tenant, name, RangeOp::Gte, bound)?
         }
         Expr::Field(FieldPred::Lt(name, bound)) => {
-            range_leaf_estimate(snap, tenant, name, RangeOp::Lt, *bound)?
+            range_leaf_estimate(snap, tenant, name, RangeOp::Lt, bound)?
         }
         Expr::Field(FieldPred::Lte(name, bound)) => {
-            range_leaf_estimate(snap, tenant, name, RangeOp::Lte, *bound)?
+            range_leaf_estimate(snap, tenant, name, RangeOp::Lte, bound)?
         }
         _ => None,
     })
@@ -369,7 +384,7 @@ fn range_leaf_histogram_estimate<R: TryRead>(
     tenant: rushdb_types::ids::TenantId,
     name: &str,
     op: RangeOp,
-    bound: f64,
+    bound: &Json,
 ) -> Result<Option<(u64, u64)>, QueryError> {
     let norm = normalize(name);
     if norm.is_empty() || rushdb_types::value::is_reserved_name(&norm) {
@@ -379,11 +394,7 @@ fn range_leaf_histogram_estimate<R: TryRead>(
         return Ok(None);
     };
     let above = matches!(op, RangeOp::Gt | RangeOp::Gte);
-    for ty in [
-        LogicalType::Int64,
-        LogicalType::Float64,
-        LogicalType::DateTime,
-    ] {
+    for ty in LogicalType::ALL.into_iter().filter(|ty| ty.rangeable()) {
         let Some(pid) = property_id(snap, tenant, fid, ty)? else {
             continue;
         };
@@ -397,19 +408,18 @@ fn range_leaf_histogram_estimate<R: TryRead>(
         else {
             continue;
         };
-        let scalar = match ty {
-            LogicalType::Float64 => Scalar::Float64(bound),
-            LogicalType::Int64 => Scalar::Int64(round_bound(bound, above)),
-            LogicalType::DateTime => Scalar::DateTime(round_bound(bound, above)),
-            LogicalType::Boolean | LogicalType::Utf8 => continue,
+        let Some(range_bound) = RangeBound::of(ty, bound) else {
+            continue;
         };
-        let Ok(enc) = rushdb_types::encoding::encode_order_preserving(ty, &scalar) else {
+        let Ok(enc) =
+            rushdb_types::encoding::encode_order_preserving(ty, &range_bound.edge(ty, above))
+        else {
             continue;
         };
         // Few distinct values is where bucket interpolation is weakest and an
         // exact dictionary sum is cheapest (a partial walk saw too few to know).
         if !hist.partial && hist.distinct <= LOW_CARDINALITY_EXACT_THRESHOLD {
-            let exact = exact_low_cardinality_range_count(snap, tenant, pid, ty, op, bound)?;
+            let exact = exact_low_cardinality_range_count(snap, tenant, pid, ty, op, &range_bound)?;
             return Ok(Some((exact, hist.total())));
         }
         return Ok(Some((hist.estimate(&enc, above), hist.total())));
@@ -428,7 +438,7 @@ fn exact_low_cardinality_range_count<R: TryRead>(
     pid: u64,
     ty: LogicalType,
     op: RangeOp,
-    bound: f64,
+    bound: &RangeBound,
 ) -> Result<u64, QueryError> {
     let tag = rushdb_types::encoding::logical_tag(ty);
     let mut total = 0u64;
@@ -448,7 +458,7 @@ fn exact_low_cardinality_range_count<R: TryRead>(
         let Ok(scalar) = rushdb_types::encoding::decode_order_preserving(ty, payload) else {
             continue;
         };
-        if range_scalar_matches(&scalar, op, bound) {
+        if bound.matches(&scalar, op) {
             total = total.saturating_add(count);
         }
     }
@@ -462,7 +472,7 @@ fn range_leaf_estimate<R: TryRead>(
     tenant: rushdb_types::ids::TenantId,
     name: &str,
     op: RangeOp,
-    bound: f64,
+    bound: &Json,
 ) -> Result<Option<u64>, QueryError> {
     Ok(Some(
         range_leaf_histogram_estimate(snap, tenant, name, op, bound)?
@@ -497,10 +507,10 @@ pub fn explain_range_selectivity<R: TryRead>(
             continue;
         };
         let (name, op, bound) = match pred {
-            FieldPred::Gt(name, bound) => (name, RangeOp::Gt, *bound),
-            FieldPred::Gte(name, bound) => (name, RangeOp::Gte, *bound),
-            FieldPred::Lt(name, bound) => (name, RangeOp::Lt, *bound),
-            FieldPred::Lte(name, bound) => (name, RangeOp::Lte, *bound),
+            FieldPred::Gt(name, bound) => (name, RangeOp::Gt, bound),
+            FieldPred::Gte(name, bound) => (name, RangeOp::Gte, bound),
+            FieldPred::Lt(name, bound) => (name, RangeOp::Lt, bound),
+            FieldPred::Lte(name, bound) => (name, RangeOp::Lte, bound),
             _ => continue,
         };
         if let Some((estimate, total)) =
@@ -613,17 +623,20 @@ fn leaf_owners<R: TryRead + Sync>(
         Expr::Field(FieldPred::IsNull(name, true)) => {
             owners_with_presence(snap, tenant, name, true, labels, owner_limit)
         }
+        Expr::Field(FieldPred::Within(name, region)) => {
+            owners_within(snap, tenant, name, region, scope)
+        }
         Expr::Field(FieldPred::Gt(name, bound)) => {
-            owners_with_range(snap, tenant, name, RangeOp::Gt, *bound, scope)
+            owners_with_range(snap, tenant, name, RangeOp::Gt, bound, scope)
         }
         Expr::Field(FieldPred::Gte(name, bound)) => {
-            owners_with_range(snap, tenant, name, RangeOp::Gte, *bound, scope)
+            owners_with_range(snap, tenant, name, RangeOp::Gte, bound, scope)
         }
         Expr::Field(FieldPred::Lt(name, bound)) => {
-            owners_with_range(snap, tenant, name, RangeOp::Lt, *bound, scope)
+            owners_with_range(snap, tenant, name, RangeOp::Lt, bound, scope)
         }
         Expr::Field(FieldPred::Lte(name, bound)) => {
-            owners_with_range(snap, tenant, name, RangeOp::Lte, *bound, scope)
+            owners_with_range(snap, tenant, name, RangeOp::Lte, bound, scope)
         }
         _ => Ok(None),
     }
@@ -732,7 +745,7 @@ fn owners_with_range<R: TryRead + Sync>(
     tenant: rushdb_types::ids::TenantId,
     name: &str,
     op: RangeOp,
-    bound: f64,
+    bound: &Json,
     scope: &LeafScope<'_>,
 ) -> Result<Option<OwnerSet>, QueryError> {
     let norm = normalize(name);
@@ -743,18 +756,17 @@ fn owners_with_range<R: TryRead + Sync>(
         return Ok(Some(OwnerSet::new()));
     };
     let mut owners = OwnerSet::new();
-    for ty in [
-        LogicalType::Int64,
-        LogicalType::Float64,
-        LogicalType::DateTime,
-    ] {
+    for ty in LogicalType::ALL.into_iter().filter(|ty| ty.rangeable()) {
+        let Some(range_bound) = RangeBound::of(ty, bound) else {
+            continue;
+        };
         let Some(pid) = property_id(snap, tenant, fid, ty)? else {
             continue;
         };
         let keep = |occ: &access::Occurrence| {
             matches!(occ.value, rushdb_types::occurrence::OccurrenceValue::Stored { ty: stored } if stored == ty)
                 && rushdb_types::encoding::decode_order_preserving(ty, &occ.payload)
-                    .is_ok_and(|scalar| range_scalar_matches(&scalar, op, bound))
+                    .is_ok_and(|scalar| range_bound.matches(&scalar, op))
         };
         if !owners_matching(snap, tenant, pid, scope, &mut owners, &keep)? {
             return Ok(None);
@@ -785,28 +797,69 @@ fn round_bound(bound: f64, lower: bool) -> i64 {
     }
 }
 
-pub(super) fn range_scalar_matches(scalar: &Scalar, op: RangeOp, bound: f64) -> bool {
-    // DateTime and integer postings share the exact integer domain. Comparing
-    // them through `f64` would make values above 2^53 collide; the canonical
-    // scalar comparator preserves the integer/float ordering instead.
-    let scalar = match scalar {
-        Scalar::DateTime(value) => Scalar::Int64(*value),
-        other => other.clone(),
-    };
-    let Some(ordering) = rushdb_types::value::scalar_cmp(&scalar, &Scalar::Float64(bound)) else {
-        return false;
-    };
-    match op {
-        RangeOp::Gt => ordering == std::cmp::Ordering::Greater,
-        RangeOp::Gte => matches!(
-            ordering,
-            std::cmp::Ordering::Greater | std::cmp::Ordering::Equal
-        ),
-        RangeOp::Lt => ordering == std::cmp::Ordering::Less,
-        RangeOp::Lte => matches!(
-            ordering,
-            std::cmp::Ordering::Less | std::cmp::Ordering::Equal
-        ),
+/// A range bound (`$gt` … `$lte`) read for one property type: a number for
+/// integers and floats (compared exactly, never through a rounded
+/// integer), else the bound as a value of the type
+/// ([`rushdb_types::types::coerce_literal`]).
+#[derive(Debug, Clone)]
+pub(super) enum RangeBound {
+    /// A bound of the numeric domain.
+    Numeric(f64),
+    /// A bound of the type's own values.
+    Typed(Scalar),
+}
+
+impl RangeBound {
+    /// The bound for values of `ty`; `None` when `ty` has no order or the
+    /// bound names no value of it (those values never match).
+    pub(super) fn of(ty: LogicalType, bound: &Json) -> Option<Self> {
+        if ty.numeric() {
+            #[expect(clippy::cast_precision_loss, reason = "epoch milliseconds, below 2^53")]
+            return bound
+                .as_f64()
+                .or_else(|| rushdb_types::types::epoch_millis_bound(bound).map(|ms| ms as f64))
+                .filter(|f| f.is_finite())
+                .map(Self::Numeric);
+        }
+        if !ty.rangeable() {
+            return None;
+        }
+        rushdb_types::types::tagged_scalar(bound)
+            .filter(|scalar| scalar.logical_type() == ty)
+            .or_else(|| rushdb_types::types::coerce_literal(ty, bound))
+            .map(Self::Typed)
+    }
+
+    /// The value a scan of `ty`'s ordered entries starts (`above`) or ends
+    /// at: an integer bound rounded outward, so the exact check on each
+    /// entry decides.
+    pub(super) fn edge(&self, ty: LogicalType, above: bool) -> Scalar {
+        match self {
+            Self::Numeric(bound) if ty == LogicalType::Int64 => {
+                Scalar::Int64(round_bound(*bound, above))
+            }
+            Self::Numeric(bound) => Scalar::Float64(*bound),
+            Self::Typed(scalar) => scalar.clone(),
+        }
+    }
+
+    /// Whether `scalar` satisfies `op` against the bound.
+    pub(super) fn matches(&self, scalar: &Scalar, op: RangeOp) -> bool {
+        let ordering = match self {
+            Self::Numeric(bound) => {
+                if !matches!(scalar, Scalar::Int64(_) | Scalar::Float64(_)) {
+                    return false;
+                }
+                rushdb_types::value::scalar_cmp(scalar, &Scalar::Float64(*bound))
+            }
+            Self::Typed(bound) => rushdb_types::value::scalar_cmp(scalar, bound),
+        };
+        ordering.is_some_and(|ordering| match op {
+            RangeOp::Gt => ordering == std::cmp::Ordering::Greater,
+            RangeOp::Gte => ordering != std::cmp::Ordering::Less,
+            RangeOp::Lt => ordering == std::cmp::Ordering::Less,
+            RangeOp::Lte => ordering != std::cmp::Ordering::Greater,
+        })
     }
 }
 
@@ -851,19 +904,7 @@ fn property_id<R: TryRead>(
 
 /// Every logical type state a property family may have definitions for.
 pub(super) fn all_type_states() -> Vec<TypeState> {
-    let mut states = vec![TypeState::Unresolved];
-    states.extend(
-        [
-            LogicalType::Boolean,
-            LogicalType::Int64,
-            LogicalType::Float64,
-            LogicalType::Utf8,
-            LogicalType::DateTime,
-        ]
-        .into_iter()
-        .map(TypeState::Known),
-    );
-    states
+    LogicalType::all_type_states()
 }
 
 /// Typed definitions `(pid)` of a property family, every type state.
@@ -1174,23 +1215,31 @@ fn next_presence_owner(
     reason = "the f64 range guards against i64 bounds before narrowing an integral JSON number back to i64"
 )]
 pub(super) fn scalar_variants(value: &Json) -> Option<Vec<(LogicalType, Scalar)>> {
+    // The value as each non-numeric type it can equal: text as a string and
+    // as the temporal values it names, an integer as a datetime (epoch
+    // milliseconds), a tagged value or a GeoJSON point as itself.
+    let typed = || -> Vec<(LogicalType, Scalar)> {
+        if let Some(scalar) = rushdb_types::types::tagged_scalar(value) {
+            return vec![(scalar.logical_type(), scalar)];
+        }
+        LogicalType::ALL
+            .into_iter()
+            .filter(|ty| !ty.numeric())
+            .filter_map(|ty| Some((ty, rushdb_types::types::coerce_literal(ty, value)?)))
+            .collect()
+    };
     match value {
-        // ISO-8601 text also names a datetime instant.
-        Json::String(s) => {
-            let mut out = vec![(LogicalType::Utf8, Scalar::Utf8(s.clone()))];
-            if let Some(ms) = crate::datetime::parse_iso_8601(s) {
-                out.push((LogicalType::DateTime, Scalar::DateTime(ms)));
-            }
-            Some(out)
+        Json::String(_) | Json::Object(_) => {
+            let out = typed();
+            (!out.is_empty()).then_some(out)
         }
         Json::Bool(b) => Some(vec![(LogicalType::Boolean, Scalar::Boolean(*b))]),
         Json::Number(n) => {
-            let mut out = Vec::new();
-            // An integer also probes datetimes, which compare as their epoch
-            // milliseconds.
+            // A number also probes datetimes, which compare with an integer as
+            // its epoch milliseconds.
+            let mut out = typed();
             let push_integer = |out: &mut Vec<(LogicalType, Scalar)>, i: i64| {
                 out.push((LogicalType::Int64, Scalar::Int64(i)));
-                out.push((LogicalType::DateTime, Scalar::DateTime(i)));
             };
             // Prefer the exact i64 representation when the JSON parser kept
             // one, so integers beyond f64's exact range are not rounded.

@@ -15,6 +15,31 @@ fn oracle() -> serde_json::Map<String, Value> {
         .clone()
 }
 
+/// `value` with every ISO 8601 instant text written in UTC milliseconds,
+/// as JavaScript's `Date` writes it: the platform normalizes an instant
+/// cell so, the decoder keeps its text (offset and digits) for type
+/// inference. They agree when they name the same instant.
+fn instants_in_utc(value: Value) -> Value {
+    match value {
+        Value::String(text) => match rushdb_types::types::temporal::parse_instant(&text) {
+            Some(instant) => Value::String(
+                chrono::DateTime::from_timestamp_micros(instant.micros)
+                    .expect("instant in range")
+                    .to_rfc3339_opts(chrono::SecondsFormat::Millis, true),
+            ),
+            None => Value::String(text),
+        },
+        Value::Array(items) => Value::Array(items.into_iter().map(instants_in_utc).collect()),
+        Value::Object(object) => Value::Object(
+            object
+                .into_iter()
+                .map(|(key, value)| (key, instants_in_utc(value)))
+                .collect(),
+        ),
+        other => other,
+    }
+}
+
 #[test]
 fn decoding_reproduces_the_platform_import_case_by_case() {
     let mut checked = 0;
@@ -34,7 +59,11 @@ fn decoding_reproduces_the_platform_import_case_by_case() {
                 format!("CSV parse error: {actual}"),
                 "case {name}"
             ),
-            (None, Ok(rows)) => assert_eq!(case["rows"], Value::Array(rows), "case {name}"),
+            (None, Ok(rows)) => assert_eq!(
+                instants_in_utc(case["rows"].clone()),
+                instants_in_utc(Value::Array(rows)),
+                "case {name}"
+            ),
             (expected, actual) => panic!("case {name}: expected {expected:?}, got {actual:?}"),
         }
         checked += 1;

@@ -28,6 +28,7 @@ use rushdb_protocol::{
 use serde_json::{Map, Value};
 use std::{fmt::Debug, net::TcpListener, sync::Arc};
 
+mod pg_values;
 mod settings;
 mod tls;
 
@@ -710,7 +711,10 @@ fn setting_response<C: ClientInfo>(
     Ok(match settings::apply(c.metadata_mut(), command)? {
         Some(rows) => {
             let f = Arc::new(fields(&rows, format));
-            Response::Query(QueryResponse::new(f.clone(), encode(rows, f)))
+            Response::Query(QueryResponse::new(
+                f.clone(),
+                encode(rows, f, settings::time_zone_offset(c.metadata())),
+            ))
         }
         None => Response::Execution(Tag::new(tag)),
     })
@@ -899,6 +903,7 @@ fn run(
             deadline_ms: (timeout_ms > 0).then_some(timeout_ms),
             query_memory_max_bytes: session.query_memory_max_bytes,
             unindexed_walk_max_owners: session.unindexed_walk_max_owners,
+            check: None,
         },
         operation: if mutation.is_some() {
             Operation::Mutate {
@@ -996,7 +1001,7 @@ fn is_transaction_control(sql: &str) -> bool {
 
 /// The command tag of a SQL statement that runs as a mutation: the DML
 /// subset backed by the native atomic SQL mutation path, and index DDL
-/// (`CREATE [VECTOR] INDEX`, `DROP INDEX`). More complicated SQL remains a
+/// (`CREATE [VECTOR | UNIQUE] INDEX`, `DROP INDEX`). More complicated SQL remains a
 /// typed engine error; this classifier only chooses the canonical protocol
 /// operation.
 fn mutation_tag(sql: &str) -> Option<&'static str> {
@@ -1011,7 +1016,7 @@ fn mutation_tag(sql: &str) -> Option<&'static str> {
         ("UPDATE", _) => Some("UPDATE"),
         ("DELETE", _) => Some("DELETE"),
         ("CREATE", Some("INDEX")) => Some("CREATE INDEX"),
-        ("CREATE", Some("VECTOR")) if words.next().as_deref() == Some("INDEX") => {
+        ("CREATE", Some("VECTOR" | "UNIQUE")) if words.next().as_deref() == Some("INDEX") => {
             Some("CREATE INDEX")
         }
         ("DROP", Some("INDEX")) => Some("DROP INDEX"),
@@ -1066,6 +1071,8 @@ fn portal_parameter(
         Type::FLOAT8 => decode!(f64),
         Type::JSON | Type::JSONB => decode!(Value),
         Type::TEXT | Type::VARCHAR | Type::BPCHAR | Type::NAME | Type::UNKNOWN => decode!(String),
+        // Temporal values arrive as ISO 8601 text, which SQL reads as its
+        // type.
         _ if portal.parameter_format.is_text(index) => {
             let value = portal
                 .parameters
@@ -1074,6 +1081,44 @@ fn portal_parameter(
             Ok(value.as_ref().map_or(Value::Null, |bytes| {
                 Value::String(String::from_utf8_lossy(bytes).into_owned())
             }))
+        }
+        Type::DATE => portal
+            .parameter::<NaiveDate>(index, data_type)
+            .map(|value| value.map_or(Value::Null, |date| Value::String(date.to_string()))),
+        Type::TIME => portal
+            .parameter::<NaiveTime>(index, data_type)
+            .map(|value| {
+                value.map_or(Value::Null, |time| {
+                    Value::String(time.format("%H:%M:%S%.f").to_string())
+                })
+            }),
+        Type::TIMESTAMP => portal
+            .parameter::<NaiveDateTime>(index, data_type)
+            .map(|value| {
+                value.map_or(Value::Null, |at| {
+                    Value::String(at.format("%Y-%m-%dT%H:%M:%S%.f").to_string())
+                })
+            }),
+        Type::TIMESTAMPTZ => portal
+            .parameter::<chrono::DateTime<chrono::FixedOffset>>(index, data_type)
+            .map(|value| {
+                value.map_or(Value::Null, |at| {
+                    Value::String(at.to_rfc3339_opts(chrono::SecondsFormat::AutoSi, true))
+                })
+            }),
+        Type::INTERVAL => {
+            let bytes = portal
+                .parameters
+                .get(index)
+                .ok_or(PgWireError::ParameterIndexOutOfBound(index))?;
+            Ok(match bytes.as_ref() {
+                None => Value::Null,
+                Some(bytes) => Value::String(
+                    pg_values::PgInterval::from_binary(bytes)
+                        .ok_or_else(|| err("22P03", "invalid binary interval"))?
+                        .iso(),
+                ),
+            })
         }
         _ => Err(err(
             "0A000",
@@ -1114,6 +1159,7 @@ fn fields(rows: &[Map<String, Value>], f: &Format) -> Vec<FieldInfo> {
 fn encode(
     rows: Vec<Map<String, Value>>,
     s: Arc<Vec<FieldInfo>>,
+    zone: chrono::FixedOffset,
 ) -> impl futures::Stream<Item = PgWireResult<pgwire::messages::data::DataRow>> {
     let columns = s
         .iter()
@@ -1122,7 +1168,7 @@ fn encode(
     stream::iter(rows.into_iter().map(move |r| {
         let mut e = DataRowEncoder::new(s.clone());
         for (name, data_type) in &columns {
-            encode_value(&mut e, r.get(name).unwrap_or(&Value::Null), data_type)?;
+            encode_value(&mut e, r.get(name).unwrap_or(&Value::Null), data_type, zone)?;
         }
         Ok(e.take_row())
     }))
@@ -1132,7 +1178,12 @@ fn encode(
     clippy::cast_possible_truncation,
     reason = "FLOAT4 columns are PostgreSQL single precision; the JSON f64 representation is deliberately narrowed for that column type"
 )]
-fn encode_value(encoder: &mut DataRowEncoder, value: &Value, data_type: &Type) -> PgWireResult<()> {
+fn encode_value(
+    encoder: &mut DataRowEncoder,
+    value: &Value,
+    data_type: &Type,
+    zone: chrono::FixedOffset,
+) -> PgWireResult<()> {
     if value.is_null() {
         return encoder.encode_field(&None::<String>);
     }
@@ -1184,15 +1235,33 @@ fn encode_value(encoder: &mut DataRowEncoder, value: &Value, data_type: &Type) -
             let value =
                 NaiveTime::parse_from_str(value.as_str().ok_or_else(mismatch)?, "%H:%M:%S%.f")
                     .map_err(|_| mismatch())?;
-            encoder.encode_field(&value)
+            encoder.encode_field(&pg_values::PgTime(value))
         }
         Type::TIMESTAMP => {
             let raw = value.as_str().ok_or_else(mismatch)?;
             let value = NaiveDateTime::parse_from_str(raw, "%Y-%m-%dT%H:%M:%S%.f")
                 .or_else(|_| NaiveDateTime::parse_from_str(raw, "%Y-%m-%d %H:%M:%S%.f"))
                 .map_err(|_| mismatch())?;
-            encoder.encode_field(&value)
+            encoder.encode_field(&pg_values::PgTime(value))
         }
+        Type::TIMESTAMPTZ => {
+            let raw = value.as_str().ok_or_else(mismatch)?;
+            // At the session's time zone (`SET TIME ZONE`). The engine's
+            // parser, not RFC 3339's: it reads signed years (`-0043`).
+            let instant = rushdb_types::types::temporal::parse_instant(raw).ok_or_else(mismatch)?;
+            let value = chrono::DateTime::from_timestamp_micros(instant.micros)
+                .ok_or_else(mismatch)?
+                .with_timezone(&zone);
+            encoder.encode_field(&pg_values::PgTime(value))
+        }
+        Type::INTERVAL => encoder.encode_field(
+            &pg_values::PgInterval::parse(value.as_str().ok_or_else(mismatch)?)
+                .ok_or_else(mismatch)?,
+        ),
+        Type::POINT => encoder.encode_field(
+            &pg_values::PgPoint::parse(value.as_str().ok_or_else(mismatch)?)
+                .ok_or_else(mismatch)?,
+        ),
         _ => {
             let value = value
                 .as_str()
@@ -1237,7 +1306,12 @@ impl SimpleQueryHandler for DbHandler {
             };
             return Ok(vec![Response::Execution(tag)]);
         };
-        let f = if r.is_empty() {
+        // Rows carry JSON values: text can be a date, a timestamp, an
+        // interval or a point, which only the statement's description
+        // tells apart, so a result holding text (or none) is described.
+        let texts = builtin_result_fields(s).is_none()
+            && r.iter().any(|row| row.values().any(Value::is_string));
+        let f = if r.is_empty() || texts {
             let tenant = scope(c, self.multitenant);
             let lmpg = RequestScope::new(&self.node, tenant).lmpg();
             let visible = catalog_access(&lmpg)?;
@@ -1258,7 +1332,7 @@ impl SimpleQueryHandler for DbHandler {
         };
         Ok(vec![Response::Query(QueryResponse::new(
             f.clone(),
-            encode(r, f),
+            encode(r, f, settings::time_zone_offset(c.metadata())),
         ))])
     }
 }
@@ -1311,7 +1385,10 @@ impl ExtendedQueryHandler for DbHandler {
             &p.statement.statement.result_fields,
             &p.result_column_format,
         ));
-        Ok(Response::Query(QueryResponse::new(f.clone(), encode(r, f))))
+        Ok(Response::Query(QueryResponse::new(
+            f.clone(),
+            encode(r, f, settings::time_zone_offset(c.metadata())),
+        )))
     }
     async fn do_describe_statement<C>(
         &self,

@@ -68,7 +68,7 @@ flowchart LR
 
 ## The applier
 
-The text applier runs every 250 ms. For each tenant that has text indexes,
+The text applier runs when a write commits, and every 250 ms. For each tenant that has text indexes,
 and within a time budget per round, it applies pending changes in batches
 of up to 512 records:
 
@@ -85,6 +85,14 @@ If the process crashes between steps 3 and 4, the rows are still pending
 after restart and are applied again. Re-applying is idempotent, because
 each step replaces the record's document with its current text. A tenant
 without text indexes costs one catalog read per round and never commits.
+A batch reads everything it decides from the one snapshot it opened: the
+index definition (whether it is building, ready or dropping, and which
+records it covers), the pending rows and the records. It never uses a
+definition read before that snapshot. A build step commits the records it
+newly covers as pending together with the wider covered range, so a
+definition from before the step would skip those records and then clear
+them as applied. The structural applier follows the same rule.
+
 The applier never pins the WAL.
 
 ## Consistency modes

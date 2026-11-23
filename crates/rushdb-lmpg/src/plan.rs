@@ -2,28 +2,28 @@ use std::collections::{BTreeSet, HashMap};
 
 use rushdb_storage::Txn;
 use rushdb_types::command::{Mutation, Precondition};
-use rushdb_types::encoding::{encode_order_preserving, logical_tag};
+use rushdb_types::encoding::{encode_stored, logical_tag};
 use rushdb_types::ids::{FamilyId, OwnerKind, PropertyId, TenantId};
 use rushdb_types::keys::key;
 use rushdb_types::model::{Cardinality, LogicalType, Nullability, TypeState};
 use rushdb_types::occurrence::{
     OccurrenceRow, OccurrenceValue, PropertyDefinition, PropertyFamily,
 };
-use rushdb_types::value::{infer_scalar, normalize_name};
+use rushdb_types::types::doc_scalar;
+use rushdb_types::value::{normalize_name, Scalar};
 use serde_json::Value as Json;
 
 /// Namespace used for all property families created by the planner.
 pub const DEFAULT_NAMESPACE: &str = "default";
 
-/// One planned write to a property: set, typed datetime, explicit null, or
-/// delete.
+/// One planned write to a property: set, explicit null, or delete.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub enum FieldChange {
-    /// Set the property to the supplied JSON value.
+    /// Set the property to the supplied value: JSON's own boolean, number
+    /// or string, a value of another type in its tagged form
+    /// ([`rushdb_types::types::to_doc_json`], what type inference makes of
+    /// ISO 8601 text and `GeoJSON` points), or an array of either.
     Set(Json),
-    /// Typed datetime write: epoch ms stored as `LogicalType::DateTime`
-    /// (produced by ISO date/datetime inference under suggestTypes).
-    SetDatetime(i64),
     /// Write an explicit null occurrence (distinct from absence).
     ExplicitNull,
     /// Remove all occurrences of the property for the owner.
@@ -41,8 +41,6 @@ pub enum ValuePayload {
     Single(Json),
     /// An ordered array decomposed into element occurrences.
     Array(Vec<Json>),
-    /// Typed datetime element payload (epoch ms).
-    DateTime(i64),
 }
 
 fn single_element(v: &Json) -> Vec<Json> {
@@ -380,12 +378,10 @@ impl<'a> Planner<'a> {
                 self.ensure_definition(family.family_id, TypeState::Unresolved)
             }
             FieldChange::Set(v) => {
-                let (ty, _) =
-                    infer_scalar(v).ok_or_else(|| PlanError::MixedArray(display_name.into()))?;
+                let ty = doc_scalar(v)
+                    .ok_or_else(|| PlanError::MixedArray(display_name.into()))?
+                    .logical_type();
                 self.pick_typed_definition(family.family_id, ty, display_name)
-            }
-            FieldChange::SetDatetime(_) => {
-                self.pick_typed_definition(family.family_id, LogicalType::DateTime, display_name)
             }
             FieldChange::Delete => {
                 if let Some(unres) =
@@ -428,13 +424,7 @@ impl<'a> Planner<'a> {
 
     /// The family's first typed definition declared NOT NULL, if any.
     fn not_null_known(&mut self, fid: u64) -> Result<Option<PropertyDefinition>, PlanError> {
-        for ty in [
-            LogicalType::Boolean,
-            LogicalType::Int64,
-            LogicalType::Float64,
-            LogicalType::Utf8,
-            LogicalType::DateTime,
-        ] {
+        for ty in LogicalType::ALL {
             if let Some(def) = self.definition_exists(fid, TypeState::Known(ty))? {
                 if matches!(def.nullability, Nullability::NotNull) {
                     return Ok(Some(def));
@@ -473,7 +463,7 @@ impl<'a> Planner<'a> {
             }
             if !v.is_array() {
                 if let Some(TypeState::Known(expected)) = Some(def.type_state) {
-                    let inferred = infer_scalar(v).map(|(t, _)| t);
+                    let inferred = doc_scalar(v).map(|scalar| scalar.logical_type());
                     match inferred {
                         Some(t) if t == expected => return Ok(()),
                         Some(LogicalType::Int64) if expected == LogicalType::Float64 => {
@@ -490,20 +480,6 @@ impl<'a> Planner<'a> {
                             })
                         }
                     }
-                }
-            }
-        }
-        // A typed datetime write must still satisfy the definition's resolved
-        // type; without this guard a `SetDatetime` could bypass the mismatch
-        // check that a plain scalar `Set` is subject to.
-        if let FieldChange::SetDatetime(_) = change {
-            if let TypeState::Known(expected) = def.type_state {
-                if expected != LogicalType::DateTime {
-                    return Err(PlanError::TypeMismatch {
-                        field: field.to_string(),
-                        expected: format!("{expected}"),
-                        found: "DateTime".into(),
-                    });
                 }
             }
         }
@@ -540,14 +516,7 @@ impl<'a> Planner<'a> {
             // Created by this batch: nothing committed to delete.
             return Ok(());
         }
-        for ty_state in [
-            TypeState::Unresolved,
-            TypeState::Known(LogicalType::Boolean),
-            TypeState::Known(LogicalType::Int64),
-            TypeState::Known(LogicalType::Float64),
-            TypeState::Known(LogicalType::Utf8),
-            TypeState::Known(LogicalType::DateTime),
-        ] {
+        for ty_state in LogicalType::all_type_states() {
             if let Some(def) = self.definition_exists(family.family_id, ty_state)? {
                 self.stage_delete_owner_property(kind, owner_ord, def.property_id, None)?;
             }
@@ -664,7 +633,6 @@ impl<'a> Planner<'a> {
             ValuePayload::Null => vec![Json::Null],
             ValuePayload::Single(v) => vec![v.clone()],
             ValuePayload::Array(items) => items.iter().flat_map(single_element).collect(),
-            ValuePayload::DateTime(ms) => vec![serde_json::json!(ms)],
         };
         let is_array = matches!(payload, ValuePayload::Array(_));
 
@@ -690,36 +658,23 @@ impl<'a> Planner<'a> {
         for (idx, ev) in elements.iter().enumerate() {
             let elem_ord = if is_array { Some(idx as u64) } else { None };
 
-            let (value_state, enc_opt) = if matches!(payload, ValuePayload::DateTime(_)) {
-                let ty = LogicalType::DateTime;
-                let s = rushdb_types::value::Scalar::DateTime(
-                    ev.as_i64()
-                        .ok_or_else(|| PlanError::MixedArray(field_display.into()))?,
-                );
-                let enc = encode_order_preserving(ty, &s).expect("encodable staged scalar");
-                (OccurrenceValue::Stored { ty }, Some(enc))
-            } else {
-                match ev {
-                    Json::Null => (OccurrenceValue::ExplicitNull, None),
-                    scalar => {
-                        let (ty, s) = infer_scalar(scalar)
-                            .ok_or_else(|| PlanError::MixedArray(field_display.into()))?;
-                        // An integer element of a mixed number array is stored
-                        // in the array's Float64 definition as a float, so the
-                        // definition's entries share one encoding.
-                        let (ty, s) = match (def.type_state, s) {
-                            (
-                                TypeState::Known(LogicalType::Float64),
-                                rushdb_types::value::Scalar::Int64(i),
-                            ) => (
-                                LogicalType::Float64,
-                                rushdb_types::value::Scalar::Float64(int_as_float(i)),
-                            ),
-                            (_, s) => (ty, s),
-                        };
-                        let enc = encode_order_preserving(ty, &s).expect("encodable staged scalar");
-                        (OccurrenceValue::Stored { ty }, Some(enc))
-                    }
+            let (value_state, enc_opt) = match ev {
+                Json::Null => (OccurrenceValue::ExplicitNull, None),
+                value => {
+                    let s = doc_scalar(value)
+                        .ok_or_else(|| PlanError::MixedArray(field_display.into()))?;
+                    // An integer element of a mixed number array is stored
+                    // in the array's Float64 definition as a float, so the
+                    // definition's entries share one encoding.
+                    let s = match (def.type_state, s) {
+                        (TypeState::Known(LogicalType::Float64), Scalar::Int64(i)) => {
+                            Scalar::Float64(int_as_float(i))
+                        }
+                        (_, s) => s,
+                    };
+                    let ty = s.logical_type();
+                    let enc = encode_stored(ty, &s).expect("encodable staged scalar");
+                    (OccurrenceValue::Stored { ty }, Some(enc))
                 }
             };
 
@@ -860,7 +815,7 @@ fn unify_array_type(items: &[Json], field: &str) -> Result<LogicalType, PlanErro
         if it.is_null() {
             continue;
         }
-        let Some((ty, _)) = infer_scalar(it) else {
+        let Some(ty) = doc_scalar(it).map(|scalar| scalar.logical_type()) else {
             return Err(PlanError::MixedArray(field.into()));
         };
         seen = Some(match seen {

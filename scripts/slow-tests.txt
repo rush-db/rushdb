@@ -1,0 +1,2 @@
+# Tests allowed to run over 60 seconds (scripts/run-tests.py), one per line:
+# <test path>  # why it needs the time

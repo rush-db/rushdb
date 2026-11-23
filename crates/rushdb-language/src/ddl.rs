@@ -13,6 +13,9 @@ pub enum DdlKind {
         /// `consistency: 'immediate'` was given.
         immediate: bool,
     },
+    /// Ordered, with unique values under the label (`CREATE CONSTRAINT …
+    /// REQUIRE n.p IS UNIQUE`).
+    Unique,
 }
 
 /// One recognised index statement.
@@ -86,12 +89,44 @@ pub fn parse_index_ddl(statement: &str) -> Option<Result<IndexDdl, String>> {
     if keyword(w.first(), "CREATE") && keyword(w.get(1), "INDEX") {
         return Some(parse_create(statement, 2, DdlKind::Ordered));
     }
+    if keyword(w.first(), "CREATE") && keyword(w.get(1), "CONSTRAINT") {
+        return Some(parse_unique_constraint(statement));
+    }
     if keyword(w.first(), "CREATE") && keyword(w.get(1), "FULLTEXT") && keyword(w.get(2), "INDEX") {
         let upper = statement.to_ascii_uppercase();
         let immediate = upper.contains("CONSISTENCY") && upper.contains("'IMMEDIATE'");
         return Some(parse_create(statement, 3, DdlKind::Fulltext { immediate }));
     }
     None
+}
+
+/// `CREATE CONSTRAINT [name] [IF NOT EXISTS] FOR (n:Label) REQUIRE n.prop
+/// IS UNIQUE`: a unique index, read as the index form
+/// `CREATE INDEX … FOR (n:Label) ON (n.prop)`.
+fn parse_unique_constraint(statement: &str) -> Result<IndexDdl, String> {
+    let malformed = || {
+        "expected CREATE CONSTRAINT [name] [IF NOT EXISTS] FOR (n:Label) REQUIRE n.prop IS UNIQUE"
+            .to_string()
+    };
+    let text = statement.trim().trim_end_matches(';').trim();
+    let upper = text.to_ascii_uppercase();
+    let require_at = upper.find(" REQUIRE ").ok_or_else(malformed)?;
+    let requirement: Vec<&str> = text[require_at + " REQUIRE ".len()..]
+        .split_whitespace()
+        .collect();
+    let property = match requirement.as_slice() {
+        [property, is, unique]
+            if is.eq_ignore_ascii_case("IS") && unique.eq_ignore_ascii_case("UNIQUE") =>
+        {
+            *property
+        }
+        _ => return Err(malformed()),
+    };
+    let as_index = format!(
+        "CREATE INDEX{} ON ({property})",
+        &text["CREATE CONSTRAINT".len()..require_at]
+    );
+    parse_create(&as_index, 2, DdlKind::Unique)
 }
 
 fn parse_create(statement: &str, keywords: usize, kind: DdlKind) -> Result<IndexDdl, String> {
@@ -143,7 +178,9 @@ fn parse_create(statement: &str, keywords: usize, kind: DdlKind) -> Result<Index
     // `(n.prop)`, or `EACH [n.prop]` for a full-text index
     let target = rest[on_at + " ON ".len()..].trim();
     let inner = match kind {
-        DdlKind::Ordered => target.strip_prefix('(').and_then(|p| p.strip_suffix(')')),
+        DdlKind::Ordered | DdlKind::Unique => {
+            target.strip_prefix('(').and_then(|p| p.strip_suffix(')'))
+        }
         DdlKind::Fulltext { .. } => target
             .get(4..)
             .filter(|_| {

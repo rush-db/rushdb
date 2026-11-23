@@ -12,8 +12,6 @@ pub mod command;
 /// Binary codec of [`command::CommitBatch`] for the WAL, outcome payloads
 /// and replication.
 pub mod command_codec;
-/// Canonical date/datetime parsing and formatting helpers.
-pub mod datetime;
 /// Order-preserving byte encodings for the scalar value model.
 pub mod encoding;
 /// Error type shared by the canonical type layer.
@@ -36,6 +34,8 @@ pub mod occurrence;
 pub mod security;
 /// Planner value-distribution summaries (estimates, never results).
 pub mod stats;
+/// The value type registry: names, tags and capabilities of each type.
+pub mod types;
 /// Scalar value model and JSON conversion helpers.
 pub mod value;
 /// Matching a search text against stored values.

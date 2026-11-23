@@ -31,14 +31,14 @@ fn path(name: &str) -> std::path::PathBuf {
 
 /// Locate the compiled `crash_child` example binary (built by the test build).
 fn crash_child_bin() -> std::path::PathBuf {
-    // current_exe is target/{debug,release}/deps/baseline-<hash>. The
-    // example lives at target/{debug,release}/examples/crash_child.
-    let mut path = std::env::current_exe().unwrap();
-    if path.pop() && path.pop() {
-        path.push("examples");
-        path.push("crash_child");
-    }
-    path
+    // The example lives at target/{debug,release}/examples/crash_child; the
+    // test binary somewhere below target/{debug,release} (deps/ or, with
+    // newer Cargo, build/<package>/<hash>/).
+    let exe = std::env::current_exe().unwrap();
+    exe.ancestors()
+        .map(|dir| dir.join("examples").join("crash_child"))
+        .find(|path| path.exists())
+        .unwrap_or_else(|| exe.with_file_name("crash_child"))
 }
 
 fn state_fingerprint(store: &Store) -> u64 {

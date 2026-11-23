@@ -82,6 +82,11 @@ before `skip`/`limit` are applied, so you can page without a separate count.
 To fetch one document, use `"limit": 1`; there is no separate `findOne`
 command.
 
+A `find` or `count` whose collection or filter names a label, property or
+text no record holds still runs, and the response carries `warnings` with
+what it most likely meant; `context.check: "strict"` refuses it instead (see
+[Catalog check](../query/search-queries.md#catalog-check)).
+
 `$text` searches the collection's text index; `{"$meta": "textScore"}`
 projects or sorts by its BM25 score:
 
@@ -173,6 +178,20 @@ in the meantime; retry it.
 
 Mongo-style commands cannot be staged inside a multi-request transaction.
 
+## Dates and typed values
+
+Documents come back with dates, times, datetimes and durations as ISO 8601
+text and points as GeoJSON, as the records API shows them. In filters and
+writes, an Extended JSON date is a datetime: `{"$date": "2024-05-01T10:30:00Z"}`,
+`{"$date": {"$numberLong": "1714559400000"}}` or `{"$date": 1714559400000}`
+(epoch milliseconds). Plain ISO 8601 strings in a filter are read as the
+type of the values they are compared with, as in
+[Filtering](../query/filtering.md#temporal-values).
+
+```json
+{"collection": "Event", "find": {"at": {"$gte": {"$date": "2024-05-01T00:00:00Z"}}}}
+```
+
 ## Index commands
 
 Send index commands with `mutate.statement`:
@@ -180,6 +199,7 @@ Send index commands with `mutate.statement`:
 | Command | Effect |
 |---|---|
 | `{"createIndex": {"collection": "C", "property": "p"}}` | Ordered index named `C_p` (or `name`). |
+| `{"createIndex": {"collection": "C", "property": "p", "unique": true}}` | Unique index: a second document of the collection with the value is refused (see [Unique indexes](../indexes-and-search/indexes.md#unique-indexes)). |
 | `{"createIndex": {"collection": "C", "property": "p", "kind": "text", "consistency": "immediate"}}` | Full-text index. `consistency` defaults to eventual. |
 | `{"createIndex": {"collection": "C", "property": "p", "dimensions": 768, "similarity": "cosine", "name": "c-p"}}` | Vector index (any document with `dimensions`). |
 | `{"dropIndex": {"name": "..."}}` | Drops a declared index of that name, otherwise a vector index. |

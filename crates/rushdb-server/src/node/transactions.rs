@@ -102,16 +102,16 @@ impl RequestScope<'_> {
                     let current = coordinator.get_record(tx_id, target.record_id)?;
                     let named: std::collections::HashSet<String> =
                         fields.iter().map(|(name, _)| name.clone()).collect();
-                    let unnamed: Vec<String> = current["properties"]
-                        .as_object()
-                        .map(|existing| {
-                            existing
-                                .keys()
-                                .filter(|name| !named.contains(*name))
-                                .cloned()
-                                .collect()
-                        })
-                        .unwrap_or_default();
+                    let unnamed: Vec<String> =
+                        current["properties"]
+                            .as_object()
+                            .map_or_default(|existing| {
+                                existing
+                                    .keys()
+                                    .filter(|name| !named.contains(*name))
+                                    .cloned()
+                                    .collect()
+                            });
                     fields.extend(unnamed.into_iter().map(|name| (name, FieldChange::Delete)));
                 }
                 rushdb_lmpg::BatchOp::UpdateFields {

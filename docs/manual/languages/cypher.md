@@ -19,9 +19,9 @@ Cypher database.
 
 > **Note:** Cypher is a release candidate, not full openCypher. The engine
 > reports `noFullOpenCypherTckConformance`. The full openCypher TCK runs in CI:
-> of 3,897 scenarios, 1,494 test features outside the supported profile (see
-> [Conformance](#conformance)), and 1,653 of the remaining 2,403 pass. The
-> other 750 hit known defects of the embedded Grafeo engine, listed below.
+> of 3,897 scenarios, 1,475 test features outside the supported profile (see
+> [Conformance](#conformance)), and 2,017 of the remaining 2,422 pass. The
+> other 405 hit known defects of the embedded Grafeo engine, listed below.
 > Do not rely on behavior this page does not list as supported.
 
 ## Data model mapping
@@ -73,7 +73,16 @@ These cases are part of the tested conformance corpus:
 | Index DDL | `CREATE INDEX FOR (n:FACTION) ON (n.name)`, `DROP INDEX FACTION_name` |
 
 Multi-hop patterns and the standard functions `size`, `date`, `datetime`,
-`toString`, `toUpper`, `abs`, `round`, and `range` also execute.
+`localdatetime`, `localtime`, `duration`, `toString`, `toUpper`, `abs`,
+`round`, and `range` also execute.
+
+Temporal values and durations keep their types: `date('2024-05-01')`
+stored by `CREATE` is a `date` property, read by every other surface as a
+date, and a `date` property read by Cypher is a Cypher date (`d.year`,
+comparisons, `duration` arithmetic). A map that is exactly a GeoJSON point
+(`{type: 'Point', coordinates: [13.4, 52.5]}`) is stored as a point. Over
+HTTP and gRPC, values come back as ISO 8601 text and GeoJSON; over
+[Bolt](../connectivity/bolt.md) as Bolt's temporal and spatial structures.
 
 ## Reading
 
@@ -169,6 +178,7 @@ read.
 
 ```cypher
 CREATE INDEX [name] [IF NOT EXISTS] FOR (n:Label) ON (n.prop)
+CREATE CONSTRAINT [name] [IF NOT EXISTS] FOR (n:Label) REQUIRE n.prop IS UNIQUE
 CREATE FULLTEXT INDEX [name] [IF NOT EXISTS] FOR (n:Label) ON EACH [n.prop]
   [OPTIONS {indexConfig: {consistency: 'immediate'}}]
 DROP INDEX name [IF EXISTS]
@@ -181,7 +191,9 @@ covers one label and one property. See
 [Indexes](../indexes-and-search/indexes.md) and
 [Full-text search](../indexes-and-search/full-text-search.md).
 
-> **Note:** Composite indexes and constraint DDL are not supported.
+`CREATE CONSTRAINT … REQUIRE n.prop IS UNIQUE` creates a unique index: a
+write that would give a second record of the label the same value is
+refused. Composite indexes and the other constraint kinds are not supported.
 
 ## Not supported
 
@@ -193,43 +205,29 @@ one in `limitations`.
 | Nodes without a label or with several (`CREATE ()`, `CREATE (:Person:Employee)`) | Fails with "exactly one label"; nothing is published. | `singlePrimaryLabelPerRecord` |
 | Changing labels (`SET n:Label`, `REMOVE n:Label`) | Fails; nothing is published. Use the native `retypeRecord` mutation. Setting the label a node already has, or removing one it lacks, succeeds with `affected: 0`. | `statementLabelMutationUnavailable` |
 | `CALL` procedures, including APOC | Fails with a typed error. | `noProcedures` |
-| The openCypher temporal type system: `localdatetime`/`localtime`, named time zones, nanosecond precision, week/ordinal/quarter constructors, `truncate`/`between`/`inSeconds` | Fails or returns a different value. `date()`, `time()`, `datetime()` and `duration()` from ISO 8601 text work and return ISO 8601 text. | `limitedTemporalTypes` |
-| Constraints (`CREATE CONSTRAINT ...`) | Fails with a typed error. | |
+| The rest of the openCypher temporal type system: named time zones, a time of day with an offset (`time()` with a zone), nanosecond precision (values are kept to the microsecond), week/ordinal/quarter constructors, `truncate`/`between`/`inSeconds` | Fails or returns a different value. `date()`, `localtime()`, `localdatetime()`, `datetime()` and `duration()` from ISO 8601 text work. | `limitedTemporalTypes` |
+| Cypher spatial functions: `point()`, `point.distance`, `point.withinBBox` | Refused: `Unknown function 'point'`. Pass points as parameters (Bolt `Point2D`/`Point3D`) or as GeoJSON maps, and filter them with the native [`$within`](../query/spatial.md). | — |
+| Constraints other than `IS UNIQUE` on one property (`IS NOT NULL`, `IS NODE KEY`, type constraints, composite keys) | Fails with a typed error. | |
 | Standalone `collect` over a literal (`RETURN collect([1,2])`) | Fails; `collect` aggregates matched rows. | |
 | Write working set | A write holds only what it creates or changes, refused above 100,000 records or 64 MiB of them (not the tenant's size). | |
 | Server-side cursors | Results are materialized; page with `SKIP`/`LIMIT`. | |
 
 ## Known defects
 
-RushDB runs the openCypher implementation of the embedded Grafeo engine
-unchanged. Grafeo deviates from openCypher in the ways below. Each class is
-measured by the TCK on every CI run. Every failure is also rerun on plain
-Grafeo, without RushDB's storage or adapter, and fails there too. They are to
-be reported upstream; RushDB does not patch Grafeo.
+RushDB runs the openCypher implementation of the embedded Grafeo engine,
+with no changes of its own: until Grafeo releases them, it builds two
+upstream fixes on top of Grafeo's release branch (listed in `Cargo.toml`).
+Grafeo deviates from openCypher in the ways below. Each class is measured by
+the TCK on every CI run. Every failure is also rerun on plain Grafeo, without
+RushDB's storage or adapter, and fails there too. They are to be reported upstream.
 
 | Defect | TCK scenarios | What you see |
 |---|---:|---|
-| Invalid statements accepted | 392 | A statement openCypher requires to fail (type errors such as `NOT 'a'`, undefined variables in some positions, invalid argument types) runs and returns a result. |
-| Different result | 102 | Wrong rows, values or null handling in some queries, for example some comparisons of lists or of null, and an empty variable-length interval (`*2..1`) that still expands. |
-| Quantifiers | 91 | `all`/`any`/`none`/`single` give different results when nested, over lists containing nulls, and over some list literals. |
-| Operator precedence | 52 | Some operator combinations evaluate in a different order. |
-| Valid statements refused by the binder | 36 | A `WITH ... WHERE` that reads a variable the `WITH` does not project, `DELETE` of an expression, some `ORDER BY` scopes. |
-| Syntax | 35 | openCypher syntax the parser does not accept, such as keywords as map keys (`{null: 1}`) and `[:T\|:T]`. |
-| Writes on null | 11 | `SET`, `REMOVE` or `DELETE` on a null from `OPTIONAL MATCH` fails with a type mismatch instead of doing nothing. |
-| Internal errors | 10 | Some path and variable-length patterns, and `nodes()`/`relationships()` of an expression, fail with an internal error. |
-| Lazy writes | 10 | `SKIP`/`LIMIT` after an updating clause also limits the updates. |
-| Column names | 9 | Some unaliased columns are named differently from their expression text. |
-| Non-termination | 2 | A variable-length match around a cycle does not end; the request deadline cancels it. |
-
-The anti-join `OPTIONAL MATCH (a)-[r]->(c) WITH c WHERE r IS NULL` is refused
-with `Undefined variable 'r'`. Project the variable the condition reads:
-
-```cypher
-MATCH (a:A)-[:KNOWS]->(b)-->(c)
-OPTIONAL MATCH (a)-[r:KNOWS]->(c)
-WITH c, r WHERE r IS NULL
-RETURN c.name
-```
+| Invalid statements accepted | 367 | A statement openCypher requires to fail (type errors such as `NOT 'a'`, undefined variables in some positions, invalid argument types, binding an already bound variable again in `CREATE` or `MERGE`, `length()` of a node) runs and returns a result. |
+| Syntax | 18 | openCypher syntax the parser does not accept: full `EXISTS { ... }` subqueries, pattern comprehensions (`[p = (n)-->() \| p]`), keywords as map keys (`{null: 1}`), `SET (n).name`, a relationship type named like a keyword (`[:IN]`), the smallest hexadecimal and octal integers. |
+| Column names | 11 | Some unaliased columns are named differently from their expression text (`labels(NULL)`, parenthesized arithmetic). |
+| Valid statements refused | 5 | `DELETE` of an expression other than a variable (an element of a map or list). |
+| Different result | 4 | A variable-length pattern after a fixed hop with mixed directions returns duplicate rows or none. |
 
 ## Conformance
 

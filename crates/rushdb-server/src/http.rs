@@ -919,11 +919,17 @@ pub(crate) fn spawn_index_applier(
     node: std::sync::Weak<Node>,
     period: std::time::Duration,
 ) -> tokio::task::JoinHandle<()> {
+    let wake = node.upgrade().map(|node| node.index_apply_wake());
     tokio::spawn(async move {
+        let Some(wake) = wake else { return };
         let mut interval = tokio::time::interval(period);
         interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
         loop {
-            interval.tick().await;
+            // A write wakes it; the tick catches anything else.
+            tokio::select! {
+                () = wake.notified() => {}
+                _ = interval.tick() => {}
+            }
             let Some(node) = node.upgrade() else {
                 break;
             };
@@ -1362,6 +1368,7 @@ async fn execute(
     headers: HeaderMap,
     body: axum::body::Body,
 ) -> Response {
+    let entered = std::time::Instant::now();
     // C7 (cloud-capacity F8): authenticate from the headers before reading a
     // single body byte, so an unauthenticated caller cannot make the server
     // buffer up to the body limit. Fine-grained (read/write) authorization
@@ -1423,6 +1430,7 @@ async fn execute(
     };
     let request = crate::protocol_http::parse_envelope(&payload);
     drop(payload);
+    let parsed = std::time::Instant::now();
     let (permission, op_kind) = request_route(request.as_ref().ok());
     if !principal.allows(permission) {
         return coded_error(&crate::auth::forbidden(permission));
@@ -1443,11 +1451,14 @@ async fn execute(
     // Keep a stable label before the blocking task moves the request scope.
     let scope_label = scope.clone().unwrap_or_else(|| "-".to_string());
     let started = std::time::Instant::now();
+    let marks = Arc::new(StageMarks::new(started));
+    let task_marks = Arc::clone(&marks);
     // A client that goes away drops this handler's future, and with it the
     // guard, which cancels the work it started: nobody waits for the answer.
     let disconnected = Arc::new(std::sync::atomic::AtomicBool::new(false));
     let _cancel_on_disconnect = CancelOnDrop(Arc::clone(&disconnected));
     let result = tokio::task::spawn_blocking(move || {
+        task_marks.mark(StageMarks::BLOCKING);
         // Deadline-derived cancellation: long-running queries abort with a
         // structured Cancelled error instead of running to completion.
         let is_cancelled = move || {
@@ -1459,7 +1470,8 @@ async fn execute(
         let tenant = node.schedule_key(scope.as_deref());
         let node_for_job = Arc::clone(&node);
         node.schedule_for_tenant(tenant, move || {
-            request.and_then(|request| {
+            task_marks.mark(StageMarks::SCHEDULED);
+            let answer = request.and_then(|request| {
                 crate::protocol_http::execute_cancellable(
                     &node_for_job,
                     scope,
@@ -1467,7 +1479,9 @@ async fn execute(
                     &is_cancelled,
                     (timeout_ms > 0).then_some(timeout_ms),
                 )
-            })
+            });
+            task_marks.mark(StageMarks::EXECUTED);
+            answer
         })
         .map_err(|error| {
             ApiError::Protocol(
@@ -1480,6 +1494,7 @@ async fn execute(
     .await;
     let elapsed = started.elapsed();
     state.node.observe(op_kind, elapsed.as_secs_f64());
+    marks.observe(&state.node, (entered, parsed), elapsed);
     // E4 stall observability: anything at or above the threshold gets a
     // warn line (op kind, scope, elapsed, rows touched, outcome) so benchmark
     // operators can tell slow from stuck without a second measurement channel.
@@ -1511,6 +1526,74 @@ async fn execute(
         Err(error) => {
             tracing::error!(detail = %error, "suppressing internal request error detail");
             internal_error_response()
+        }
+    }
+}
+
+/// When a request's work reached each stage, as nanoseconds after it was
+/// handed to the blocking pool (0: not reached), set from the worker
+/// threads. Read once the answer is back, into
+/// `rushdb_request_stage_seconds`.
+struct StageMarks {
+    started: std::time::Instant,
+    at: [std::sync::atomic::AtomicU64; 3],
+}
+
+impl StageMarks {
+    /// A blocking worker picked the request up.
+    const BLOCKING: usize = 0;
+    /// Its tenant's scheduler ran it.
+    const SCHEDULED: usize = 1;
+    /// Its execution returned.
+    const EXECUTED: usize = 2;
+
+    fn new(started: std::time::Instant) -> Self {
+        Self {
+            started,
+            at: Default::default(),
+        }
+    }
+
+    fn mark(&self, stage: usize) {
+        let nanos = u64::try_from(self.started.elapsed().as_nanos()).unwrap_or(u64::MAX);
+        self.at[stage].store(nanos.max(1), std::sync::atomic::Ordering::Release);
+    }
+
+    /// Observe each stage the request reached: reading and parsing its
+    /// body, its tenant's bulk share (and the checks before the handoff),
+    /// the blocking pool's queue, its tenant's scheduler queue, execution,
+    /// and handing the answer back to the handler.
+    fn observe(
+        &self,
+        node: &Node,
+        (entered, parsed): (std::time::Instant, std::time::Instant),
+        elapsed: std::time::Duration,
+    ) {
+        let secs = |nanos: u64| std::time::Duration::from_nanos(nanos).as_secs_f64();
+        node.observe_stage("body", parsed.duration_since(entered).as_secs_f64());
+        node.observe_stage(
+            "admission",
+            self.started.duration_since(parsed).as_secs_f64(),
+        );
+        let [blocking, scheduled, executed] = self
+            .at
+            .each_ref()
+            .map(|at| at.load(std::sync::atomic::Ordering::Acquire));
+        let total = u64::try_from(elapsed.as_nanos()).unwrap_or(u64::MAX);
+        let mut previous = 0u64;
+        for (stage, at) in [
+            ("blocking_queue", blocking),
+            ("tenant_queue", scheduled),
+            ("execute", executed),
+            ("handoff", total),
+        ] {
+            if at == 0 {
+                // Not reached (refused before it ran): the stages after it
+                // did not happen either.
+                break;
+            }
+            node.observe_stage(stage, secs(at.saturating_sub(previous)));
+            previous = at;
         }
     }
 }
@@ -1886,7 +1969,9 @@ mod p11_tests {
             0,
             None,
         );
-        let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(5);
+        // Generous deadlines: the loops end as soon as the worker has done
+        // its part, and a busy test runner can starve it for seconds.
+        let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(30);
         loop {
             let lost = node.retention_consumer_lost("stalled-replica");
             let retired = node.store().maintenance_counters().0;
@@ -1906,7 +1991,7 @@ mod p11_tests {
         // not stop a tick already running on a blocking thread, whose read
         // view may still be pinned for a moment: wait for that pin to drop
         // instead of sampling once.
-        let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(5);
+        let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(30);
         while node.protected_retention_floor().is_some() {
             assert!(
                 tokio::time::Instant::now() < deadline,
@@ -1920,9 +2005,21 @@ mod p11_tests {
             .acknowledge_retention_consumer("stalled-replica", 2)
             .unwrap_err();
         assert!(refused.oldest_available_lsn > 2);
-        // Resyncing at the oldest retained LSN is accepted.
-        node.acknowledge_retention_consumer("stalled-replica", refused.oldest_available_lsn)
-            .unwrap();
+        // Resyncing at the oldest retained LSN is accepted. A tick of the
+        // aborted worker still running can retire one more commit after
+        // the refusal; a consumer then resyncs at the LSN it is refused with
+        // next, as a replica does.
+        let mut oldest = refused.oldest_available_lsn;
+        for attempt in 0.. {
+            match node.acknowledge_retention_consumer("stalled-replica", oldest) {
+                Ok(()) => break,
+                Err(again) if attempt < 10 => {
+                    assert!(again.oldest_available_lsn > oldest, "refused at {oldest}");
+                    oldest = again.oldest_available_lsn;
+                }
+                Err(again) => panic!("never resynced: {again:?}"),
+            }
+        }
         drop(node);
         std::fs::remove_dir_all(data_dir).ok();
     }

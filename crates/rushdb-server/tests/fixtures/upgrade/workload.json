@@ -8,14 +8,21 @@
       {"rank":1,"body":"the quick brown fox","$vectors":[{"propertyName":"embedding","vector":[0.1,0.9,0.0],"index":"doc-embedding"}]},
       {"rank":2,"body":"a lazy dog sleeps","$vectors":[{"propertyName":"embedding","vector":[0.9,0.1,0.2],"index":"doc-embedding"}]},
       {"rank":3,"body":"quick thinking wins","$vectors":[{"propertyName":"embedding","vector":[0.2,0.8,0.1],"index":"doc-embedding"}]}]}},
-    {"kind":"mutate","mutation":{"kind":"linkRecords","command":{"relationType":"WORKS_AT","source":{"label":"Employee","property":"companyKey"},"target":{"label":"Company","property":"key"}}}}
+    {"kind":"mutate","mutation":{"kind":"linkRecords","command":{"relationType":"WORKS_AT","source":{"label":"Employee","property":"companyKey"},"target":{"label":"Company","property":"key"}}}},
+    {"kind":"ingest","ingest":{"kind":"documents","label":"Event","documents":[
+      {"name":"kickoff","at":"2023-01-02T03:04:05.007Z"},
+      {"name":"launch","at":"2024-05-01T10:15:00.123Z"},
+      {"name":"review","at":"2025-12-31T23:59:59.999Z"}]}}
   ],
   "reads": {
     "employees": {"kind":"query","query":{"kind":"records","query":{"labels":["Employee"],"order":{"name":"asc"}}}},
     "acmeEmployees": {"kind":"query","query":{"kind":"records","query":{"labels":["Employee"],"predicate":{"Company":{"name":"Acme"}},"order":{"name":"asc"}}}},
     "worksAt": {"kind":"query","query":{"kind":"relationships","query":{"relationType":"WORKS_AT"}}},
     "nearest": {"kind":"query","query":{"kind":"vector","query":{"labels":["Doc"],"property":"embedding","index":"doc-embedding","vector":[0.1,0.9,0.0],"mode":"exact","limit":2}}},
-    "quick": {"kind":"query","query":{"kind":"text","index":"docs","query":"quick","limit":10}}
+    "quick": {"kind":"query","query":{"kind":"text","index":"docs","query":"quick","limit":10}},
+    "events": {"kind":"query","query":{"kind":"records","query":{"labels":["Event"],"order":{"at":"asc"}}}},
+    "launchEvent": {"kind":"query","query":{"kind":"records","query":{"labels":["Event"],"predicate":{"at":"2024-05-01T10:15:00.123Z"}}}},
+    "laterEvents": {"kind":"query","query":{"kind":"records","query":{"labels":["Event"],"predicate":{"at":{"$gt":"2024-01-01T00:00:00Z"}},"order":{"at":"asc"}}}}
   },
   "write": {"kind":"ingest","ingest":{"kind":"documents","label":"Employee","documents":[{"name":"Dana","companyKey":2,"age":50}]}}
 }

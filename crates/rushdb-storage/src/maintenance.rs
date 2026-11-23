@@ -35,6 +35,10 @@ pub enum CompactOutcome {
     NotDurable,
     /// The store is shutting down: no compaction starts.
     ShuttingDown,
+    /// An online compaction gave its copy up: a write that bypasses the
+    /// WAL (a receipt sweep, an aborted outcome) landed while it copied.
+    /// The next try starts over.
+    Abandoned,
     /// The file is over the automatic compaction's size cap: rewriting it
     /// would hold every request for minutes. Compact it offline
     /// (`rushdb serve --compact`).
@@ -46,7 +50,120 @@ pub enum CompactOutcome {
     },
 }
 
+/// What [`Store::compact_online`] did.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OnlineCompaction {
+    /// Every store file was rewritten; the commit index reached.
+    Compacted(u64),
+    /// A copy was given up (a shutdown, or a write that bypasses the WAL).
+    Abandoned,
+    /// The store has no file that can be compacted online (in-memory).
+    Unsupported,
+}
+
 impl Store {
+    /// Rewrite every store file compactly while requests keep being served
+    /// (#427), one shard at a time: a snapshot is copied into a new file,
+    /// which catches up with the commits made since from the WAL and then
+    /// replaces the file under a short exclusive hold (see
+    /// `redb_online_compact`). Unlike [`Self::compact`] it does not wait
+    /// for readers or hold the store for the copy, and works at any size.
+    ///
+    /// # Errors
+    /// Returns [`StorageError`] if a copy cannot be written, caught up or
+    /// swapped in; the store file is then unchanged.
+    pub fn compact_online(&self) -> Result<OnlineCompaction, StorageError> {
+        self.check_health()?;
+        let direct = self.direct_writes.load(Ordering::SeqCst);
+        let abandon =
+            || self.maintenance_aborted() || self.direct_writes.load(Ordering::SeqCst) != direct;
+        let mut catch_up = |backend: &dyn crate::StorageBackend, shard: u32, from: u64, to: u64| {
+            self.replay_wal_into(backend, shard, from, to)
+        };
+        // The copies catch up from the WAL: none of it is reclaimed until
+        // they are in.
+        self.wal_floor.store(0, Ordering::SeqCst);
+        let mut outcome = OnlineCompaction::Unsupported;
+        let swapped = (|| {
+            for backend in self.all_backends() {
+                if backend
+                    .compact_online(&mut catch_up, &abandon)
+                    .map_err(StorageError::Durability)?
+                {
+                    outcome = OnlineCompaction::Compacted(self.committed_version());
+                } else if abandon() {
+                    outcome = OnlineCompaction::Abandoned;
+                    break;
+                }
+            }
+            Ok::<_, StorageError>(())
+        })();
+        self.wal_floor.store(u64::MAX, Ordering::SeqCst);
+        swapped?;
+        if let OnlineCompaction::Compacted(_) = outcome {
+            self.compactions.fetch_add(1, Ordering::Relaxed);
+            self.purged_since_compaction.store(0, Ordering::Relaxed);
+            self.last_compacted_file_bytes
+                .store(self.storage_file_bytes().unwrap_or(0), Ordering::Relaxed);
+        }
+        Ok(outcome)
+    }
+
+    /// Apply the WAL's commits of `shard` in `from..=to` to `backend`, with
+    /// the ops the deriver derives against it, as recovery does (resident
+    /// layers already saw these commits).
+    fn replay_wal_into(
+        &self,
+        backend: &dyn crate::StorageBackend,
+        shard: u32,
+        from: u64,
+        to: u64,
+    ) -> Result<(), StorageError> {
+        let records = {
+            let guard = self.health.guard(self.log.lock())?;
+            let Some(log) = guard.as_ref() else {
+                return Ok(());
+            };
+            log.read_from(from).map_err(|error| {
+                StorageError::Durability(format!("read WAL for compaction: {error}"))
+            })?
+        };
+        let deriver = self.deriver();
+        let mut assembler = crate::wal::ChainAssembler::default();
+        for (lsn, raw) in records {
+            let (header, body) = match assembler.feed(&raw, 0).map_err(|error| {
+                StorageError::Durability(format!("reassemble WAL record {lsn}: {error}"))
+            })? {
+                crate::wal::ChainFeed::Pending => continue,
+                crate::wal::ChainFeed::Complete(header, body) => (header, body),
+            };
+            if header.lsn > to {
+                break;
+            }
+            if header.lsn < from || header.shard_id != shard {
+                continue;
+            }
+            let (_, ops, _) = crate::wal::decode_logical_body(header, &body).map_err(|error| {
+                StorageError::Durability(format!("decode WAL record {lsn}: {error}"))
+            })?;
+            let extra = match deriver {
+                Some(_) => {
+                    let before = crate::derive::BackendRead(backend.read_view()?);
+                    Self::derive_ops(deriver.as_ref(), header.lsn, &ops, &before)?
+                }
+                None => Vec::new(),
+            };
+            backend
+                .apply_many(&[crate::backend::CommitOps {
+                    ci: header.lsn,
+                    base: &ops,
+                    derived: &extra,
+                }])
+                .map_err(StorageError::Durability)?;
+        }
+        Ok(())
+    }
+
     /// Reclaim historical versions and ask redb to compact its copy-on-write
     /// pages. In-memory stores only perform logical MVCC reclamation.
     ///
@@ -191,7 +308,9 @@ impl Store {
     /// active segment is always retained.
     fn truncate_log(&self, durable_lsn: u64) -> Result<(), StorageError> {
         let cursor = self.retention_cursor()?;
-        let target = durable_lsn.min(cursor);
+        let target = durable_lsn
+            .min(cursor)
+            .min(self.wal_floor.load(Ordering::SeqCst));
         let mut guard = self.health.guard(self.log.lock())?;
         if let Some(log) = guard.as_mut() {
             // Make appended-but-unsynced records durable before reclaiming any
@@ -316,13 +435,22 @@ impl Store {
         if !grown && !purged {
             return Ok(CompactOutcome::BelowThreshold);
         }
-        // A rewrite holds every request for the time it takes to copy the
-        // file (about 90 s per GB on a 2 GiB container, measured in the
-        // report that led here); past the cap it is an offline operation.
+        // A rewrite in place holds every request for the time it takes to
+        // copy the file (about 90 s per GB on a 2 GiB container, measured in
+        // the report that led here); past the cap the file is rewritten
+        // while it serves instead (#427).
         if let Some(max_bytes) = max_file_bytes.filter(|max| file > *max) {
-            return Ok(CompactOutcome::FileTooLarge {
-                file_bytes: file,
-                max_bytes,
+            tracing::info!(file_bytes = file, "online storage compaction started");
+            return Ok(match self.compact_online()? {
+                OnlineCompaction::Compacted(ci) => CompactOutcome::Compacted(ci),
+                OnlineCompaction::Abandoned if self.maintenance_aborted() => {
+                    CompactOutcome::ShuttingDown
+                }
+                OnlineCompaction::Abandoned => CompactOutcome::Abandoned,
+                OnlineCompaction::Unsupported => CompactOutcome::FileTooLarge {
+                    file_bytes: file,
+                    max_bytes,
+                },
             });
         }
         let deadline = std::time::Instant::now() + COMPACT_BUSY_RETRY;
@@ -610,6 +738,7 @@ impl Store {
         // saw must be there first: one still in the gap would be written
         // back after its purge.
         self.wait_materialized()?;
+        self.direct_writes.fetch_add(1, Ordering::SeqCst);
         {
             let _guard = self.health.guard(self.publish_lock.lock())?;
             for backend in self.all_backends() {

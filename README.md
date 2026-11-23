@@ -330,7 +330,7 @@ Ports, probes, sizing and running as a service: [Deployment](https://docs.rushdb
 | Install script | `curl -fsSL https://rushdb.com/install.sh \| sh` | Linux (glibc 2.28+) and macOS 11+, x86-64 and arm64. `sh -s -- --version v3.0.0` pins a release. |
 | Homebrew | `brew install rush-db/tap/rushdb` | macOS and Linux. `brew services start rushdb` runs it in the background. |
 | Docker | `rushdb/rushdb:3` | `linux/amd64` and `linux/arm64`, also `ghcr.io/rush-db/rushdb`. Tags `3`, `3.0` and exact versions. |
-| Cargo | `cargo binstall rushdb-server` · `cargo install rushdb-server --locked` | `binstall` fetches the release binary; `install` compiles it and needs a C/C++ compiler. |
+| Cargo | `cargo binstall rushdb-server` · `cargo install rushdb-server --locked` | `binstall` fetches the release binary; `install` compiles it and needs a C/C++ compiler. 3.0.14 is not on crates.io (it builds on a Grafeo revision not published there), so Cargo installs 3.0.13; use another channel for 3.0.14. |
 | Release archive | [GitHub releases](https://github.com/rush-db/rushdb/releases) | Archives with SHA-256 checksums, an SPDX SBOM and Sigstore signatures. |
 | Source | `cargo build --release -p rushdb-server --bin rushdb` | Toolchain pinned in `rust-toolchain.toml`. See [Installation](https://docs.rushdb.com/engine/getting-started/installation/). |
 

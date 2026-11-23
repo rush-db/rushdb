@@ -70,6 +70,59 @@ pub(crate) struct SegmentManifest {
     pub input_fingerprint: String,
     pub entries: usize,
     pub dims: u32,
+    /// The scalar of the graph's own copy of each vector. Absent in a
+    /// segment built before 3.0.14, which is F16: it opens and searches as
+    /// it was built until it is rebuilt.
+    #[serde(default)]
+    pub scalar: GraphScalar,
+}
+
+/// The scalar of a segment graph's copy of each vector. Candidates are
+/// reranked exactly against the canonical f32 vectors, so the scalar decides
+/// which candidates are gathered, never a returned score.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub(crate) enum GraphScalar {
+    /// Two bytes per dimension: every segment built so far.
+    #[default]
+    F16,
+    /// One byte per dimension (not built by default yet).
+    I8,
+}
+
+/// The scalar new segments are built with. An I8 graph gathering
+/// `ef + ef / 8` was about a third faster with half the graph memory on
+/// 100,000 text embeddings of 1,536 dimensions, but its recall@10 stayed
+/// below F16's at small breadths (0.822 against 0.853 at ef 16, 0.957
+/// against 0.969 at ef 64), so F16 stays the default; I8 waits for a
+/// widening that keeps recall at every breadth.
+pub(crate) const NEW_GRAPH_SCALAR: GraphScalar = GraphScalar::F16;
+
+impl GraphScalar {
+    /// Bytes per dimension of the graph's copy of a vector.
+    fn bytes_per_dimension(self) -> usize {
+        match self {
+            Self::F16 => 2,
+            Self::I8 => 1,
+        }
+    }
+
+    fn usearch(self) -> usearch::ScalarKind {
+        match self {
+            Self::F16 => usearch::ScalarKind::F16,
+            Self::I8 => usearch::ScalarKind::I8,
+        }
+    }
+
+    /// How many candidates a search of breadth `ef` for `k` gathers: an
+    /// I8 graph walks an eighth wider, so a requested `ef` keeps at least
+    /// the recall it had on an F16 graph.
+    pub(crate) fn breadth(self, k: usize, ef: usize) -> usize {
+        match self {
+            Self::F16 => k.max(ef),
+            Self::I8 => k.max(ef.saturating_add(ef / 8)),
+        }
+    }
 }
 
 /// Fingerprints a segment's entries the same way as
@@ -244,7 +297,11 @@ impl Drop for SegmentFile {
 /// opened (which, mutated per query, raced between concurrent queries).
 const SEARCH_EXPANSION_FLOOR: usize = 1;
 
-fn usearch_options(dims: u32, similarity: Similarity) -> usearch::IndexOptions {
+fn usearch_options(
+    dims: u32,
+    similarity: Similarity,
+    scalar: GraphScalar,
+) -> usearch::IndexOptions {
     usearch::IndexOptions {
         dimensions: dims as usize,
         metric: match similarity {
@@ -252,11 +309,11 @@ fn usearch_options(dims: u32, similarity: Similarity) -> usearch::IndexOptions {
             Similarity::Dot => usearch::MetricKind::IP,
             Similarity::Euclidean => usearch::MetricKind::L2sq,
         },
-        // f16 halves the graph's resident vectors. Candidates are exactly
-        // reranked against the canonical f32 vectors, so quantization can
-        // only affect which candidates are gathered, never the returned
-        // scores.
-        quantization: usearch::ScalarKind::F16,
+        // The graph's resident vectors (see `GraphScalar`). Candidates are
+        // exactly reranked against the canonical f32 vectors, so
+        // quantization can only affect which candidates are gathered, never
+        // the returned scores.
+        quantization: scalar.usearch(),
         connectivity: 0,
         expansion_add: 0,
         expansion_search: SEARCH_EXPANSION_FLOOR,
@@ -322,7 +379,7 @@ where
     } else {
         1
     };
-    let options = usearch_options(dims, similarity);
+    let options = usearch_options(dims, similarity, NEW_GRAPH_SCALAR);
     let index = usearch::Index::new(&options).map_err(|e| engine(&e))?;
     index
         .reserve_capacity_and_threads(len.max(1), threads)
@@ -369,11 +426,11 @@ where
 }
 
 /// Bytes [`build_index`] holds per vector of `dims` while building, and a
-/// built segment's serialized size per vector: the f16 vector, its graph
-/// links and the entry. Checked against real builds by
-/// `build_bytes_estimate_covers_real_segments`.
+/// built segment's serialized size per vector: the graph's copy of the
+/// vector ([`NEW_GRAPH_SCALAR`]), its links and the entry. Checked against
+/// real builds by `build_bytes_estimate_covers_real_segments`.
 pub(crate) fn build_bytes_per_vector(dims: u32) -> usize {
-    (dims as usize) * 2 + 320
+    dims as usize * NEW_GRAPH_SCALAR.bytes_per_dimension() + 320
 }
 
 /// One persisted entry in the `.entries` sidecar: slot, owner kind, owner
@@ -460,7 +517,7 @@ impl FrozenSegment {
             .save_to_buffer(&mut buffer)
             .map_err(|e| VectorError::Engine(e.to_string()))?;
         drop(built);
-        let index = usearch::Index::new(&usearch_options(dims, similarity))
+        let index = usearch::Index::new(&usearch_options(dims, similarity, NEW_GRAPH_SCALAR))
             .map_err(|e| VectorError::Engine(e.to_string()))?;
         // SAFETY: `buffer` is owned by the returned segment, never mutated,
         // and declared after `index`, so it outlives every use of the view.
@@ -471,6 +528,7 @@ impl FrozenSegment {
             input_fingerprint: segment_fingerprint(&entries),
             entries: entries.len(),
             dims,
+            scalar: NEW_GRAPH_SCALAR,
         };
         Ok(FrozenSegment {
             entries,
@@ -519,6 +577,7 @@ impl FrozenSegment {
             input_fingerprint: segment_fingerprint(&entries),
             entries: entries.len(),
             dims,
+            scalar: NEW_GRAPH_SCALAR,
         };
         let manifest_bytes = serde_json::to_vec(&manifest)
             .map_err(|e| VectorError::Engine(format!("segment manifest encode: {e}")))?;
@@ -531,7 +590,7 @@ impl FrozenSegment {
             .and_then(|()| std::fs::rename(&staged_manifest, manifest_path_for(path)))
             .and_then(|()| std::fs::rename(&staged, path))
             .map_err(|e| VectorError::Engine(format!("segment publish: {e}")))?;
-        let index = usearch::Index::new(&usearch_options(dims, similarity))
+        let index = usearch::Index::new(&usearch_options(dims, similarity, NEW_GRAPH_SCALAR))
             .map_err(|e| VectorError::Engine(e.to_string()))?;
         index
             .view(&path.to_string_lossy())
@@ -597,7 +656,8 @@ impl FrozenSegment {
         {
             return Ok(None);
         }
-        let options = usearch_options(dims, similarity);
+        // As it was built: a segment from before 3.0.14 has an F16 graph.
+        let options = usearch_options(dims, similarity, manifest.scalar);
         let Ok(index) = usearch::Index::new(&options) else {
             return Ok(None);
         };
@@ -630,15 +690,14 @@ impl FrozenSegment {
         ef: usize,
         admit: Option<&dyn Fn(usize) -> bool>,
     ) -> Vec<usize> {
+        let breadth = self.manifest.scalar.breadth(k, ef);
         let found = match admit {
-            None => self.index.search(query, k.max(ef)),
+            None => self.index.search(query, breadth),
             Some(admit) => self
                 .index
-                .filtered_search(query, k.max(ef), |key| admit(key as usize)),
+                .filtered_search(query, breadth, |key| admit(key as usize)),
         };
-        found
-            .map(|matches| matches.keys.into_iter().map(|key| key as usize).collect())
-            .unwrap_or_default()
+        found.map_or_default(|matches| matches.keys.into_iter().map(|key| key as usize).collect())
     }
 
     /// This segment's persisted manifest. Not yet surfaced by
@@ -1692,7 +1751,7 @@ mod tests {
             for query in noise(20, 16, 99) {
                 calls.store(0, std::sync::atomic::Ordering::Relaxed);
                 let found = frozen.gather(&query, 10, ef, Some(&admit));
-                assert_eq!(found.len(), ef.max(10));
+                assert_eq!(found.len(), NEW_GRAPH_SCALAR.breadth(10, ef));
                 total += calls.load(std::sync::atomic::Ordering::Relaxed);
             }
             total
@@ -1703,7 +1762,8 @@ mod tests {
     }
 
     /// The default `ef` (128) walks exactly what a search did when the
-    /// breadth was fixed at 128 when the index was opened.
+    /// breadth was fixed when the index was opened: 128 on an F16 graph,
+    /// an eighth wider on an I8 one.
     #[test]
     fn the_default_ef_walks_as_the_fixed_breadth_did() {
         let vectors = noise(4_000, 16, 11);
@@ -1716,7 +1776,7 @@ mod tests {
         .unwrap();
         let fixed = usearch::Index::new(&usearch::IndexOptions {
             expansion_search: 128,
-            ..usearch_options(16, Similarity::Cosine)
+            ..usearch_options(16, Similarity::Cosine, NEW_GRAPH_SCALAR)
         })
         .unwrap();
         let buffer = frozen.buffer.as_ref().unwrap();
@@ -1725,7 +1785,7 @@ mod tests {
         for query in noise(30, 16, 5) {
             for k in [1usize, 10, 128] {
                 let old: Vec<usize> = fixed
-                    .search(&query, k.max(128))
+                    .search(&query, NEW_GRAPH_SCALAR.breadth(k, 128))
                     .unwrap()
                     .keys
                     .into_iter()
@@ -1735,6 +1795,63 @@ mod tests {
             }
         }
         drop(fixed);
+    }
+
+    /// A segment persisted before 3.0.14 (an F16 graph, a manifest without
+    /// `scalar`) reopens as F16 and gathers exactly what that graph gathers
+    /// at the requested breadth; new segments record the default scalar.
+    #[test]
+    fn a_segment_built_before_3_0_14_opens_and_searches_as_f16() {
+        let dims = 16u32;
+        let vectors = noise(2_000, dims as usize, 31);
+        let entries = entries_for(&vectors, 0, 0);
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("seg-0.usearch");
+        // Written as 3.0.13 wrote it.
+        let old = usearch::Index::new(&usearch_options(dims, Similarity::Cosine, GraphScalar::F16))
+            .unwrap();
+        old.reserve(vectors.len()).unwrap();
+        for (key, vector) in vectors.iter().enumerate() {
+            old.add(key as u64, vector).unwrap();
+        }
+        old.save(&path.to_string_lossy()).unwrap();
+        let mut manifest = serde_json::to_value(SegmentManifest {
+            format_version: SEGMENT_FORMAT_VERSION,
+            input_fingerprint: segment_fingerprint(&entries),
+            entries: entries.len(),
+            dims,
+            scalar: GraphScalar::F16,
+        })
+        .unwrap();
+        manifest.as_object_mut().unwrap().remove("scalar");
+        std::fs::write(
+            manifest_path_for(&path),
+            serde_json::to_vec(&manifest).unwrap(),
+        )
+        .unwrap();
+        std::fs::write(entries_path_for(&path), encode_entries(&entries)).unwrap();
+
+        let reopened = FrozenSegment::open(&path, dims, Similarity::Cosine)
+            .unwrap()
+            .expect("a pre-3.0.14 segment opens");
+        assert_eq!(reopened.manifest().scalar, GraphScalar::F16);
+        for query in noise(20, dims as usize, 77) {
+            for (k, ef) in [(10usize, 16usize), (10, 128), (128, 64)] {
+                let want: Vec<usize> = old
+                    .search(&query, k.max(ef))
+                    .unwrap()
+                    .keys
+                    .into_iter()
+                    .map(|key| usize::try_from(key).unwrap())
+                    .collect();
+                assert_eq!(reopened.gather(&query, k, ef, None), want, "k {k} ef {ef}");
+            }
+        }
+        drop(reopened);
+        let rebuilt =
+            FrozenSegment::build_in_memory(entries, ok(&vectors), dims, Similarity::Cosine)
+                .unwrap();
+        assert_eq!(rebuilt.manifest().scalar, NEW_GRAPH_SCALAR);
     }
 
     #[test]

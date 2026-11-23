@@ -461,6 +461,10 @@ pub(crate) struct Gap {
     bound: usize,
 }
 
+/// How long a commit waits for the managed budget to free room when the
+/// gap holds nothing it could wait for instead.
+const ROOM_WAIT: std::time::Duration = std::time::Duration::from_secs(10);
+
 impl Gap {
     pub(crate) fn new(budget: ByteBudget) -> Self {
         let bound = budget.snapshot().limit;
@@ -506,28 +510,39 @@ impl Gap {
 
     /// Wait until the gap has room for a commit of `bytes` (backpressure),
     /// then charge it. A commit larger than the whole bound waits for an
-    /// empty gap and takes all of it.
+    /// empty gap and takes all of it. With nothing in the gap to wait for,
+    /// the managed budget is short: request tokens and caches release bytes
+    /// as requests end, so the commit waits up to [`ROOM_WAIT`] for them
+    /// before it is refused.
     pub(crate) fn reserve(&self, bytes: usize) -> Result<ByteReservation, StorageError> {
         let bytes = bytes.min(self.bound);
         let mut state = self.lock();
+        let mut short_since = None;
         loop {
             if let Some(failure) = &state.failure {
                 return Err(StorageError::Durability(failure.clone()));
             }
-            if let Ok(charge) = self.budget.try_reserve(bytes) {
-                return Ok(charge);
+            let error = match self.budget.try_reserve(bytes) {
+                Ok(charge) => return Ok(charge),
+                Err(error) => error,
+            };
+            if !state.queue.is_empty() {
+                short_since = None;
+                state = self
+                    .changed
+                    .wait(state)
+                    .unwrap_or_else(PoisonError::into_inner);
+                continue;
             }
-            if state.queue.is_empty() {
-                // Nothing to wait for: the budget's parent is exhausted.
-                return self
-                    .budget
-                    .try_reserve(bytes)
-                    .map_err(|error| StorageError::ResourceExhausted(error.to_string()));
+            let since = *short_since.get_or_insert_with(std::time::Instant::now);
+            if since.elapsed() >= ROOM_WAIT {
+                return Err(StorageError::ResourceExhausted(error.to_string()));
             }
             state = self
                 .changed
-                .wait(state)
-                .unwrap_or_else(PoisonError::into_inner);
+                .wait_timeout(state, std::time::Duration::from_millis(5))
+                .unwrap_or_else(PoisonError::into_inner)
+                .0;
         }
     }
 

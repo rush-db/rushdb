@@ -3,8 +3,8 @@
 //!
 //! A column holds, for every member of the label at one snapshot (ascending
 //! ordinals), the cell [`PointFields`](crate::PointFields) reads for it:
-//! absent, null, a boolean, an integer (also a datetime's epoch
-//! milliseconds), a float or a string. Values are copies of the stored
+//! absent, null, a boolean, an integer, a float, a string or a value of
+//! another type (kept by its tagged form). Values are copies of the stored
 //! occurrences, decoded by [`Cell::decode`]; nothing is derived or rounded,
 //! so an aggregate that reads cells from a column folds the same values in
 //! the same order as one that reads them from storage.
@@ -63,6 +63,28 @@ impl std::hash::Hasher for CodeHasher {
 pub(crate) type CodeMap<V> =
     std::collections::HashMap<Vec<(u8, u64)>, V, std::hash::BuildHasherDefault<CodeHasher>>;
 
+/// Group keys a pass folds by code without allocating per row; a grouping
+/// on more keys folds built rows.
+pub(crate) const KEY_CODES: usize = 4;
+
+/// The codes of a row's group keys (unused places stay `(0, 0)`).
+pub(crate) type KeyCodes = [(u8, u64); KEY_CODES];
+
+/// The bound on [`Column::dense_code`]: a group table indexed by dense
+/// codes stays small (a `u32` each, per part).
+pub(crate) const DENSE_CODES: usize = 1 << 16;
+
+/// A cell's number, read from a column without building the cell.
+#[derive(Clone, Copy)]
+pub(crate) enum Number {
+    Int(i64),
+    Float(f64),
+}
+
+/// A map keyed by a row's group-key codes.
+pub(crate) type KeyCodeMap<V> =
+    std::collections::HashMap<KeyCodes, V, std::hash::BuildHasherDefault<CodeHasher>>;
+
 /// One property of one label of one tenant.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub(crate) struct ColumnKey {
@@ -78,6 +100,8 @@ const BOOL: u8 = 2;
 const INT: u8 = 3;
 const FLOAT: u8 = 4;
 const STR: u8 = 5;
+/// A temporal value, duration or point: its tagged JSON form in `dict`.
+const TYPED: u8 = 6;
 
 /// The cells of one property for every member of a label, by ordinal.
 #[derive(Debug, PartialEq)]
@@ -88,6 +112,8 @@ pub(crate) struct Column {
     /// index into `dict`.
     vals: Vec<u64>,
     dict: Vec<String>,
+    /// The longest entry of `dict`: no cell's heap bytes exceed it.
+    longest: usize,
 }
 
 impl Column {
@@ -102,6 +128,9 @@ impl Column {
             STR => Some(Cell::Str(
                 self.dict[usize::try_from(val).unwrap_or_default()].clone(),
             )),
+            TYPED => serde_json::from_str(&self.dict[usize::try_from(val).unwrap_or_default()])
+                .ok()
+                .map(Cell::from_json),
             _ => None,
         }
     }
@@ -109,6 +138,48 @@ impl Column {
     /// The members (ordinals, ascending) whose cells the column holds.
     pub(crate) fn members(&self) -> &[u64] {
         &self.ords
+    }
+
+    /// Member `at`'s number, when it holds an integer or a float, without
+    /// building its cell.
+    pub(crate) fn number(&self, at: usize) -> Option<Number> {
+        let val = self.vals[at];
+        match self.tags[at] {
+            INT => Some(Number::Int(i64::from_ne_bytes(val.to_ne_bytes()))),
+            FLOAT => Some(Number::Float(f64::from_bits(val))),
+            _ => None,
+        }
+    }
+
+    /// Whether member `at`'s cell would be built from a value of another
+    /// type (it is decoded from its tagged form).
+    pub(crate) fn is_typed(&self, at: usize) -> bool {
+        self.tags[at] == TYPED
+    }
+
+    /// Whether member `at` has a cell (`self.cell(at).is_some()`), building
+    /// it only for a value of another type.
+    pub(crate) fn holds(&self, at: usize) -> bool {
+        match self.tags[at] {
+            NULL | BOOL | INT | FLOAT | STR => true,
+            TYPED => self.cell(at).is_some(),
+            _ => false,
+        }
+    }
+
+    /// A small dense code of member `at`'s cell, when it is absent, null, a
+    /// boolean or one of the column's first strings: equal dense codes are
+    /// equal codes ([`Self::code`]), and every one is below [`DENSE_CODES`].
+    pub(crate) fn dense_code(&self, at: usize) -> Option<usize> {
+        let val = usize::try_from(self.vals[at]).ok()?;
+        let dense = match self.tags[at] {
+            ABSENT => 0,
+            NULL => 1,
+            BOOL => 2 + val,
+            STR => 4usize.checked_add(val)?,
+            _ => return None,
+        };
+        (dense < DENSE_CODES).then_some(dense)
     }
 
     /// The raw code of member `at`'s cell: equal codes are equal cells.
@@ -120,9 +191,14 @@ impl Column {
     /// (`Cell::heap_bytes`), without building it.
     pub(crate) fn heap_bytes(&self, at: usize) -> usize {
         match self.tags[at] {
-            STR => self.dict[usize::try_from(self.vals[at]).unwrap_or_default()].len(),
+            STR | TYPED => self.dict[usize::try_from(self.vals[at]).unwrap_or_default()].len(),
             _ => 0,
         }
+    }
+
+    /// The most heap bytes any member's cell holds ([`Self::heap_bytes`]).
+    pub(crate) fn max_heap_bytes(&self) -> usize {
+        self.longest
     }
 
     /// Whether this column holds the same members as `other`.
@@ -133,6 +209,12 @@ impl Column {
     /// The position of `ord`, searching forward from `from` (candidates of
     /// a part ascend, so a cursor rarely moves far).
     pub(crate) fn seek(&self, ord: u64, from: usize) -> Option<usize> {
+        // A walk over the members asks for the next one, or the same.
+        for at in [from, from + 1] {
+            if self.ords.get(at) == Some(&ord) {
+                return Some(at);
+            }
+        }
         let rest = self.ords.get(from..)?;
         // Gallop: most steps are to the next member or a near one.
         let mut step = 1usize;
@@ -154,17 +236,25 @@ impl Column {
             Some(Cell::Bool(b)) => (BOOL, u64::from(b)),
             Some(Cell::Int(i)) => (INT, u64::from_ne_bytes(i.to_ne_bytes())),
             Some(Cell::Float(f)) => (FLOAT, f.to_bits()),
-            Some(Cell::Str(s)) => {
-                let next = self.dict.len() as u64;
-                let code = *strings.entry(s).or_insert_with_key(|s| {
-                    self.dict.push(s.clone());
-                    next
-                });
-                (STR, code)
+            Some(Cell::Str(s)) => (STR, self.intern(s, strings)),
+            Some(Cell::Typed(scalar)) => {
+                // Tagged JSON never equals a plain string's text: the dict
+                // keys stay apart.
+                let text = rushdb_types::types::to_doc_json(&scalar).to_string();
+                (TYPED, self.intern(text, strings))
             }
         };
         self.tags.push(tag);
         self.vals.push(val);
+    }
+
+    fn intern(&mut self, s: String, strings: &mut std::collections::HashMap<String, u64>) -> u64 {
+        let next = self.dict.len() as u64;
+        *strings.entry(s).or_insert_with_key(|s| {
+            self.longest = self.longest.max(s.len());
+            self.dict.push(s.clone());
+            next
+        })
     }
 
     fn bytes(&self) -> usize {
@@ -247,6 +337,7 @@ fn build(key: &ColumnKey, view: &ReadView, cx: &BuildCx) -> Result<Option<Column
         tags: Vec::new(),
         vals: Vec::new(),
         dict: Vec::new(),
+        longest: 0,
     };
     let mut strings = std::collections::HashMap::new();
     loop {
@@ -256,7 +347,7 @@ fn build(key: &ColumnKey, view: &ReadView, cx: &BuildCx) -> Result<Option<Column
             let (_, ord) = rushdb_types::keys::parse_label_member_key(&row.key)
                 .ok_or(StorageError::CorruptLog)?;
             let cell = match crate::point_fields::held(view, key.tenant, ord, &pids)? {
-                Some(occ) => Some(Cell::decode(occ.value, &occ.payload)?),
+                Some(occ) => Some(Cell::decode(occ.value, &occ.payload, &occ.suffix)?),
                 None => None,
             };
             column.ords.push(ord);

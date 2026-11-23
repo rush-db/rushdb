@@ -59,7 +59,8 @@ fn owners_with_value(lmpg: &Lmpg, pid: u64, value: i64) -> Vec<u64> {
     for owner in candidates {
         for occ in access::occurrences_of_owner(&view, TENANT, OwnerKind::Record, owner).unwrap() {
             if occ.pid == pid
-                && rushdb_lmpg::reconstruct::decode_value(occ.value, &occ.payload).unwrap()
+                && rushdb_lmpg::reconstruct::decode_value(occ.value, &occ.payload, &occ.suffix)
+                    .unwrap()
                     == json!(value)
             {
                 owners.push(owner);

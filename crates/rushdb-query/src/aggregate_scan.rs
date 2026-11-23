@@ -389,12 +389,11 @@ impl Shared<'_> {
 }
 
 /// One part's state for folding rows by code: the position in the
-/// columns, the cache from key codes to groups, and the row buffer.
+/// columns and the cache from key codes to groups.
 #[derive(Default)]
 struct Coded {
     from: usize,
-    groups: columns::CodeMap<usize>,
-    row: Vec<Option<Cell>>,
+    groups: crate::aggregate_rows::GroupCache,
 }
 
 /// The context record `ord`'s row folds in: what its alias reads may hold
@@ -431,20 +430,27 @@ fn fold_coded(
         return Ok(None);
     };
     coded.from = at;
-    let row_bytes = row.columns.iter().fold(0usize, |sum, column| {
+    // A row's bytes never exceed the columns' bound: when the bound fits,
+    // so does every row, and the check cannot fail.
+    let bound = row.columns.iter().fold(0usize, |sum, column| {
         sum.saturating_add(std::mem::size_of::<Option<Cell>>())
-            .saturating_add(column.heap_bytes(at))
+            .saturating_add(column.max_heap_bytes())
     });
-    let held = held.saturating_add(row_bytes);
-    Budget::WorkingSet.check(scan.budget, held)?;
-    let row_ctx = row_context(scan, ord, held);
+    if scan
+        .budget
+        .is_some_and(|limit| held.saturating_add(bound) > limit)
+    {
+        let row_bytes = row.columns.iter().fold(0usize, |sum, column| {
+            sum.saturating_add(std::mem::size_of::<Option<Cell>>())
+                .saturating_add(column.heap_bytes(at))
+        });
+        Budget::WorkingSet.check(scan.budget, held.saturating_add(row_bytes))?;
+    }
     groups
         .accumulate_coded(
             (scan.plan, plan_coded),
             (row.columns, at),
             &mut coded.groups,
-            &mut coded.row,
-            &row_ctx,
         )
         .map(Some)
 }
@@ -525,7 +531,7 @@ fn choose_source(
 /// Whether `expr` reads more than the record's own stored properties
 /// (relationships or the record id): such a predicate is not answered from
 /// columns.
-fn reads_beyond_row(expr: &Expr) -> bool {
+pub(crate) fn reads_beyond_row(expr: &Expr) -> bool {
     match expr {
         Expr::And(items) | Expr::Or(items) | Expr::Nor(items) => items.iter().any(reads_beyond_row),
         Expr::Xor(a, b) => reads_beyond_row(a) || reads_beyond_row(b),

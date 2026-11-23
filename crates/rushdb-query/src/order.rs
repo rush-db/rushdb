@@ -58,13 +58,14 @@ pub(crate) enum OrderPath {
 
 /// A property's values in order from its ordered indexes, one per label
 /// holding it. Only for a property stored as one type whose index order is
-/// the sort's order: integers, datetimes (numbers to the sort) or strings.
-/// Its nulls are not indexed; they sort before every number and after
-/// every string.
+/// the sort's order: integers, temporal values, durations or strings. Its
+/// nulls are not indexed; they sort before every number or typed value and
+/// after every string.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct IndexOrder {
     pub(crate) ids: Vec<u32>,
-    /// Numbers (nulls sort before the values) or strings (after).
+    /// Numbers and typed values (nulls sort before them) or strings
+    /// (after).
     pub(crate) numeric: bool,
 }
 
@@ -284,7 +285,7 @@ fn property_plan<R: TryRead>(
 
 /// The ordered indexes that walk the property's values in sort order: one
 /// `Ready` index per label in `holding`, and exactly one typed definition
-/// (integer, datetime or string) holding values there. Floats are left to
+/// (integer, temporal, duration or string) holding values there. Floats are left to
 /// the sort: the index keeps `-0.0` and `0.0` apart, the sort ties them.
 fn index_order<R: TryRead>(
     snap: &R,
@@ -316,9 +317,13 @@ fn index_order<R: TryRead>(
             return Ok(None);
         }
     }
+    // Integers and the ordered non-JSON types (temporal values, durations)
+    // sort after nulls, strings before them. Floats and booleans are left
+    // to the sort; points have no order.
     let numeric = match typed {
-        Some(LogicalType::Int64 | LogicalType::DateTime) => true,
         Some(LogicalType::Utf8) => false,
+        Some(LogicalType::Int64) => true,
+        Some(ty) if ty.ordered() && !ty.json_native() => true,
         _ => return Ok(None),
     };
     let mut ids = Vec::new();

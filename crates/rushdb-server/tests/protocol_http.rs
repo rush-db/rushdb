@@ -26,9 +26,7 @@ fn call_with_token(
         .set_read_timeout(Some(Duration::from_secs(3)))
         .unwrap();
     let payload = body.to_string();
-    let scope_header = scope
-        .map(|value| format!("X-RushDB-Tenant: {value}\r\n"))
-        .unwrap_or_default();
+    let scope_header = scope.map_or_default(|value| format!("X-RushDB-Tenant: {value}\r\n"));
     let request = format!(
         "POST {path} HTTP/1.1\r\nHost: localhost\r\nX-RushDB-Token: {token}\r\nContent-Type: application/json\r\n{scope_header}Content-Length: {}\r\nConnection: close\r\n\r\n{payload}",
         payload.len()

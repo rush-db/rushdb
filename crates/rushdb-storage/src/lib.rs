@@ -40,12 +40,15 @@ pub mod open_repair;
 mod overlay_view;
 pub mod parallel;
 mod persist;
+mod phase;
 mod publish;
 mod read_view;
 mod receipt;
 mod redb_backend;
 pub mod resident;
 pub mod resources;
+use phase::PHASE_FLOOR_TOKENS;
+pub use phase::{PHASE_POOL_NAME, PHASE_TOKEN_BYTES};
 mod temp_path;
 pub mod tenant_dir;
 mod usage;
@@ -55,7 +58,7 @@ pub mod wal;
 mod wal_replay;
 use backend::StorageBackend;
 pub use derive::{DeriveRead, Deriver};
-pub use maintenance::CompactOutcome;
+pub use maintenance::{CompactOutcome, OnlineCompaction};
 pub use observability::{
     BackendLockTimes, CommitObserver, CommitPhase, WriteCounters, WriterHolder, WriterHolds,
     WRITER_HOLD_BOUNDS,
@@ -575,6 +578,11 @@ pub struct Store {
     logical_cache_resources: Option<resources::ByteBudget>,
     /// Shared reservation pool for in-flight query/adapter phases.
     phase_resources: Option<resources::ByteBudget>,
+    /// Queue for a request's phase token from `phase_resources`.
+    phase_admission: Option<Arc<resources::FairAdmission>>,
+    /// A few phase tokens reserved from the managed budget at open, for
+    /// requests that find it exhausted by retained caches.
+    phase_floor: Option<(resources::ByteReservation, Arc<resources::FairAdmission>)>,
     /// Per-adapter attribution children of the two budgets above.
     adapter_budgets: adapter_budgets::AdapterBudgets,
     /// Resident layers and the version table every commit raises.
@@ -686,10 +694,20 @@ pub struct Store {
     last_commit_ms: AtomicU64,
     /// File bytes immediately after the last compaction; growth-ratio gate.
     last_compacted_file_bytes: AtomicU64,
+    /// Whether the store opened in the previous layout format, waiting for
+    /// the data migration that rewrites it (`layout.rs`, v6 to v7).
+    format_migrating: AtomicBool,
     /// Keys erased by purges (tenant purge) since the last compaction: a
     /// purge frees pages without growing the file, so it triggers idle
     /// compaction on its own.
     purged_since_compaction: AtomicU64,
+    /// Writes that go to the backends without the WAL (receipt sweeps,
+    /// aborted-outcome markers): an online compaction's copy, which
+    /// catches up from the WAL, would miss one, so it is given up.
+    direct_writes: AtomicU64,
+    /// No WAL segment past this commit index is reclaimed (`u64::MAX`:
+    /// no floor): an online compaction catches its copy up from them.
+    wal_floor: AtomicU64,
     /// Bytes appended to the WAL, cumulative (see `WriteCounters`).
     wal_bytes_appended: AtomicU64,
     /// Encoded op bytes handed to the backends, cumulative.
@@ -743,23 +761,52 @@ impl Store {
             .child("transaction-staging", config.transaction_pool_bytes)
             .map_err(|e| StorageError::InvalidConfiguration(e.to_string()))?;
         // A zero-sized pool is disabled; otherwise it is capped by the root.
-        let optional_child = |name: &'static str, bytes: usize| {
+        // Request tokens and retained caches leave the last of the managed
+        // budget to commits, which fail where a token waits (it falls back
+        // to the floor below) and a cache only misses.
+        let headroom = config.managed_limit_bytes / 16;
+        let phase_resources = (config.phase_budget_bytes > 0)
+            .then(|| {
+                resources.child_leaving(
+                    PHASE_POOL_NAME,
+                    config.phase_budget_bytes.min(config.managed_limit_bytes),
+                    headroom,
+                )
+            })
+            .transpose()
+            .map_err(|e| StorageError::InvalidConfiguration(e.to_string()))?;
+        // At most the tokens the phase pool itself holds.
+        let floor_tokens = PHASE_FLOOR_TOKENS.min(config.phase_budget_bytes / PHASE_TOKEN_BYTES);
+        let phase_floor = match &phase_resources {
+            Some(_) if floor_tokens > 0 => resources
+                .try_reserve(floor_tokens * PHASE_TOKEN_BYTES)
+                .ok()
+                .map(|floor| {
+                    let pool = resources::ByteBudget::new("query-phase-floor", floor.bytes())
+                        .map_err(|e| StorageError::InvalidConfiguration(e.to_string()))?;
+                    Ok::<_, StorageError>((floor, Arc::new(resources::FairAdmission::new(pool))))
+                })
+                .transpose()?,
+            _ => None,
+        };
+        let retained_child = |name: &'static str, bytes: usize| {
             (bytes > 0)
-                .then(|| resources.child(name, bytes.min(config.managed_limit_bytes)))
+                .then(|| {
+                    resources.child_leaving(name, bytes.min(config.managed_limit_bytes), headroom)
+                })
                 .transpose()
                 .map_err(|e| StorageError::InvalidConfiguration(e.to_string()))
         };
-        let phase_resources = optional_child("query-phases", config.phase_budget_bytes)?;
-        let logical_cache_resources = optional_child("logical-cache", config.logical_cache_bytes)?;
-        let vector_cache = optional_child("vector-cache", config.vector_cache_bytes)?;
+        let logical_cache_resources = retained_child("logical-cache", config.logical_cache_bytes)?;
+        let vector_cache = retained_child("vector-cache", config.vector_cache_bytes)?;
         let adapter_budgets =
             adapter_budgets::AdapterBudgets::new(vector_cache.clone(), phase_resources.as_ref())?;
         let residents = Arc::new(resident::Residents::new(
             &config,
             logical_cache_resources.clone(),
-            optional_child("graph-cache", config.graph_cache_bytes)?,
+            retained_child("graph-cache", config.graph_cache_bytes)?,
             vector_cache,
-            optional_child("column-cache", config.column_cache_bytes)?,
+            retained_child("column-cache", config.column_cache_bytes)?,
         ));
         // The in-memory store is a real `StorageBackend`. `Store` keeps
         // shared handles to the same maps for diagnostics/replay; the backend
@@ -785,6 +832,10 @@ impl Store {
             resources,
             transaction_resources,
             logical_cache_resources,
+            phase_admission: phase_resources
+                .clone()
+                .map(|budget| Arc::new(resources::FairAdmission::new(budget))),
+            phase_floor,
             phase_resources,
             adapter_budgets,
             residents,
@@ -834,7 +885,10 @@ impl Store {
             checkpoint_wait_ms: AtomicU64::new(0),
             last_commit_ms: AtomicU64::new(0),
             last_compacted_file_bytes: AtomicU64::new(0),
+            format_migrating: AtomicBool::new(false),
             purged_since_compaction: AtomicU64::new(0),
+            direct_writes: AtomicU64::new(0),
+            wal_floor: AtomicU64::new(u64::MAX),
             wal_bytes_appended: AtomicU64::new(0),
             applied_bytes: AtomicU64::new(0),
             gaps: RwLock::new(Box::new([])),
@@ -1013,8 +1067,13 @@ impl Store {
         // under the publish lock (27 min at 10M records, SCALE-1).
         self.last_compacted_file_bytes
             .store(self.storage_file_bytes().unwrap_or(0), Ordering::Relaxed);
-        if layout_info.is_none() {
-            layout::create_manifest(path, shard_count).map_err(StorageError::Durability)?;
+        match &layout_info {
+            None => {
+                layout::create_manifest(path, shard_count).map_err(StorageError::Durability)?;
+            }
+            Some(info) => self
+                .format_migrating
+                .store(info.migrating, Ordering::SeqCst),
         }
         self.start_materializers()
     }
@@ -1796,6 +1855,7 @@ impl Store {
     fn persist_ops_local(&self, ops: &[Op], commit_index: u64) -> Result<(), StorageError> {
         self.check_health()?;
         self.check_publisher()?;
+        self.direct_writes.fetch_add(1, Ordering::SeqCst);
         if let Some(backend) = self.primary_backend() {
             backend
                 .apply(ops, commit_index)

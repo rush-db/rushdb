@@ -245,6 +245,61 @@ A request can make each of these bounds stricter with `context.deadlineMs`,
 A query without `limit` returns every match, so always set `limit` on
 listings whose size you do not control.
 
+## Catalog check
+
+The server checks what a query names against the data it reads: every
+label in `labels` and in traversal blocks has records, every property in the
+predicate is carried by records of those labels, and every text compared by
+equality (a bare value, `$eq`, `$ne`, `$in`, `$nin`) is stored in that
+property. The query still runs; when something is missing, the response says
+so in `warnings`, with what the query most likely meant:
+
+```json
+{
+  "protocolVersion": 1,
+  "response": { "kind": "records", "records": [], "total": 0 },
+  "warnings": [
+    { "kind": "unknownValue", "labels": ["Person"], "property": "city", "value": "berlin",
+      "suggestions": [
+        { "value": "Berlin", "reason": "spelling" },
+        { "label": "Venue", "property": "town", "value": "berlin", "reason": "storedIn" }
+      ] }
+  ]
+}
+```
+
+| `kind` | Means | Suggestions |
+|---|---|---|
+| `unknownLabel` | No record carries `label`. | Labels spelled alike (`spelling`). |
+| `unknownProperty` | No record of `labels` carries `property`. | Properties spelled alike, with their label (`spelling`). |
+| `unknownValue` | No record of `labels` stores the text `value` in `property`. | The stored spelling (`spelling`, case ignored), other properties that store the text (`storedIn`), stored values containing it (`contains`). |
+
+A warning's `suggestions` is omitted when there is nothing to suggest, and
+its `reason` is one of `spelling`, `storedIn` and `contains`. A query
+without misses has no `warnings` field. Values compared as other
+types (numbers, dates, datetimes), and texts longer than 96 bytes, are not
+checked. `context.check` chooses what happens:
+
+| `context.check` | Behaviour |
+|---|---|
+| `warn` (default) | Run the query and return `warnings`, checked at the snapshot the query answered from. |
+| `strict` | Refuse a query with a miss before it runs: `invalid_request`, with the warnings in `error.details.warnings`. |
+| `off` | No check. |
+
+The check reads one counter or dictionary row per name and text, and reads
+suggestions only for a miss. Under `warn` it is skipped when the answer
+already shows nothing is missing: a records query on one label whose filter
+has only positive conditions (values, `$eq`, ranges, `$contains`-style
+operators, `$and`, traversal blocks) and that found records could not have
+matched anything if a name or text were missing. A filter with `$in`,
+`$or`, a negation or `$exists`, several labels, and an aggregate without
+`groupBy` are always checked. It covers records and property-values queries,
+Mongo statements (the collection and the filter) and SQL reads (texts
+compared with `=`, `<>`, `IN` or `NOT IN`, placed by table or alias;
+unknown tables and columns already fail with suggestions). Under an enforced
+data-access policy, suggestions list only what the policy lets the caller
+see.
+
 ## Explaining a query
 
 `describe.explain` takes the same document and reports the access path the

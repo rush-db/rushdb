@@ -95,7 +95,7 @@ impl Histogram {
                 return 0;
             }
         }
-        let width = self.min.len().max(self.max.len()).max(bound.len());
+        let width = self.min.len().max(self.max.len()).max(bound.len()).min(16);
         let bidx = fixed_bucket_index(bound);
         let (lo, hi) = fixed_bucket_bounds(width, bidx);
         let bucket_width = hi.saturating_sub(lo).max(1);
@@ -115,15 +115,17 @@ impl Histogram {
     }
 }
 
+/// The leading (most significant) 16 bytes of an order-preserving payload,
+/// right-aligned: longer payloads (durations) are ordered by them first.
 fn encoded_to_u128(bytes: &[u8]) -> u128 {
     let mut buf = [0u8; 16];
     let take = bytes.len().min(16);
-    buf[16 - take..].copy_from_slice(&bytes[bytes.len() - take..]);
+    buf[16 - take..].copy_from_slice(&bytes[..take]);
     u128::from_be_bytes(buf)
 }
 
 fn fixed_bucket_index(encoded: &[u8]) -> usize {
-    let bits = encoded.len().saturating_mul(8);
+    let bits = encoded.len().min(16).saturating_mul(8);
     let shift = bits.saturating_sub(6);
     ((encoded_to_u128(encoded) >> shift) & 0x3F) as usize
 }

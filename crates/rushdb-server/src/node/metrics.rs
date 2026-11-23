@@ -36,6 +36,13 @@ pub struct Metrics {
     storage_log_bytes: prometheus::IntGauge,
     storage_receipt_bytes: prometheus::IntGauge,
     storage_admission_waits: prometheus::IntCounter,
+    /// Requests that queued for a phase token, by pool (`phases`: the
+    /// phase pool was full; `floor`: the managed budget was).
+    phase_token_waits: prometheus::IntCounterVec,
+    /// Seconds those requests spent queued, by pool.
+    phase_token_wait_seconds: prometheus::CounterVec,
+    /// Where a request's time goes, by stage ([`crate::http`] names them).
+    request_stages: prometheus::HistogramVec,
     storage_admission_wait_ms: prometheus::IntCounter,
     storage_checkpoints: prometheus::IntCounter,
     storage_checkpoint_wait_ms: prometheus::IntCounter,
@@ -195,6 +202,21 @@ impl Metrics {
             &self.storage_admission_wait_ms,
             clamp(written.admission_wait_ms),
         );
+        for (pool, admission) in [
+            ("phases", store.phase_admission()),
+            ("floor", store.phase_floor_admission()),
+        ] {
+            let Some(admission) = admission else { continue };
+            let (waits, seconds) = admission.queued_totals();
+            advance(
+                &self.phase_token_waits.with_label_values(&[pool]),
+                clamp(waits),
+            );
+            let counter = self.phase_token_wait_seconds.with_label_values(&[pool]);
+            if seconds > counter.get() {
+                counter.inc_by(seconds - counter.get());
+            }
+        }
         advance(&self.storage_checkpoints, clamp(written.checkpoints));
         advance(
             &self.storage_checkpoint_wait_ms,
@@ -451,6 +473,33 @@ impl Metrics {
             "Cumulative bounded storage admission-lock waits",
         )
         .expect("valid Prometheus metric");
+        let phase_token_waits = prometheus::IntCounterVec::new(
+            prometheus::Opts::new(
+                "rushdb_phase_token_waits_total",
+                "Requests that queued for a phase token, by pool",
+            ),
+            &["pool"],
+        )
+        .expect("valid Prometheus metric");
+        let phase_token_wait_seconds = prometheus::CounterVec::new(
+            prometheus::Opts::new(
+                "rushdb_phase_token_wait_seconds_total",
+                "Seconds requests spent queued for a phase token, by pool",
+            ),
+            &["pool"],
+        )
+        .expect("valid Prometheus metric");
+        let request_stages = prometheus::HistogramVec::new(
+            prometheus::HistogramOpts::new(
+                "rushdb_request_stage_seconds",
+                "Seconds a request spent in each stage: reading its body, waiting for its \
+                 tenant's bulk share, for a blocking worker, for its tenant's scheduler, \
+                 executing, and handing the answer back",
+            )
+            .buckets(BUCKETS.to_vec()),
+            &["stage"],
+        )
+        .expect("valid Prometheus metric");
         let storage_admission_wait_ms = prometheus::IntCounter::new(
             "rushdb_storage_admission_wait_ms_total",
             "Cumulative milliseconds spent waiting for storage admission",
@@ -643,6 +692,9 @@ impl Metrics {
             Box::new(storage_log_bytes.clone()),
             Box::new(storage_receipt_bytes.clone()),
             Box::new(storage_admission_waits.clone()),
+            Box::new(phase_token_waits.clone()),
+            Box::new(phase_token_wait_seconds.clone()),
+            Box::new(request_stages.clone()),
             Box::new(storage_admission_wait_ms.clone()),
             Box::new(storage_checkpoints.clone()),
             Box::new(storage_checkpoint_wait_ms.clone()),
@@ -718,6 +770,9 @@ impl Metrics {
             storage_log_bytes,
             storage_receipt_bytes,
             storage_admission_waits,
+            phase_token_waits,
+            phase_token_wait_seconds,
+            request_stages,
             storage_admission_wait_ms,
             storage_checkpoints,
             storage_checkpoint_wait_ms,
@@ -755,6 +810,13 @@ impl Metrics {
     pub(crate) fn observe(&self, route: &str, seconds: f64) {
         self.requests.with_label_values(&[route]).inc();
         self.duration.with_label_values(&[route]).observe(seconds);
+    }
+
+    /// Record the seconds one request spent in `stage`.
+    pub(crate) fn observe_stage(&self, stage: &str, seconds: f64) {
+        self.request_stages
+            .with_label_values(&[stage])
+            .observe(seconds);
     }
 
     pub(crate) fn observe_rows(&self, route: &str, rows: u64) {

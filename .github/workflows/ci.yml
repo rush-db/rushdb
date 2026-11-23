@@ -18,9 +18,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # 1.98.1
+      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # 1.100.0
         with:
-          toolchain: 1.98.1
+          toolchain: 1.100.0
           components: rustfmt, clippy
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
       - run: cargo fmt --all --check
@@ -45,16 +45,16 @@ jobs:
   # compile, independent of the current-stable lint policy above. `check` only:
   # clippy/fmt are intentionally not run on the MSRV toolchain.
   msrv:
-    name: MSRV (1.91)
+    name: MSRV (1.100)
     runs-on: ubuntu-latest
     env:
       # Overrides rust-toolchain.toml so cargo uses the declared MSRV.
-      RUSTUP_TOOLCHAIN: "1.91"
+      RUSTUP_TOOLCHAIN: "1.100"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # 1.91
+      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # 1.100
         with:
-          toolchain: 1.91
+          toolchain: "1.100"
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
       - run: cargo check --workspace --all-targets --locked
 
@@ -63,9 +63,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # 1.98.1
+      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # 1.100.0
         with:
-          toolchain: 1.98.1
+          toolchain: 1.100.0
           components: clippy
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
       - name: Check server without default features
@@ -86,9 +86,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # 1.98.1
+      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # 1.100.0
         with:
-          toolchain: 1.98.1
+          toolchain: 1.100.0
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
       # Cargo verifies each archive against the dependency versions available
       # to the clean consumer. Keep this as a real verification gate; --no-
@@ -116,23 +116,32 @@ jobs:
       - name: Free runner disk
         run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL && df -h /
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # 1.98.1
+      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # 1.100.0
         with:
-          toolchain: 1.98.1
+          toolchain: 1.100.0
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
-      # A hung test stops the step here; libtest names it in the log
-      # ("has been running for over 60 seconds").
-      - run: cargo test --workspace --no-fail-fast --locked
+      # The same runner as scripts/gate.sh: one process per test binary, so
+      # a binary killed for memory fails by name instead of reading as
+      # passed; a binary over its memory budget or a test over 60 s (not
+      # listed in scripts/slow-tests.txt) fails too.
+      - run: python3 scripts/run-tests.py --log-dir target/test-logs
         timeout-minutes: 90
+      # The runner names a failed binary; its log holds the panic.
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: failure()
+        with:
+          name: test-logs-resident-${{ matrix.resident }}
+          path: target/test-logs
+          retention-days: 14
 
   fault-matrix:
     name: Crash/reopen and memory-disk matrix
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # 1.98.1
+      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # 1.100.0
         with:
-          toolchain: 1.98.1
+          toolchain: 1.100.0
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
       - name: Build the crash harness
         run: cargo build -p rushdb-storage-integration --example crash_child --locked
@@ -148,9 +157,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # 1.98.1
+      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # 1.100.0
         with:
-          toolchain: 1.98.1
+          toolchain: 1.100.0
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
       - name: Run planner differential oracle
         run: cargo test -p rushdb-query --test planner_differential --locked
@@ -162,9 +171,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # 1.98.1
+      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # 1.100.0
         with:
-          toolchain: 1.98.1
+          toolchain: 1.100.0
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
       # Keep the engine's Rust contracts visible as a named gate. The broad
       # workspace job remains useful, but this job makes recovery, LMPG
@@ -180,9 +189,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # 1.98.1
+      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # 1.100.0
         with:
-          toolchain: 1.98.1
+          toolchain: 1.100.0
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
       - name: Fetch the pinned openCypher TCK
         run: |
@@ -246,9 +255,9 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # 1.98.1
+      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # 1.100.0
         with:
-          toolchain: 1.98.1
+          toolchain: 1.100.0
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
       - run: cargo build --release -p rushdb-server --bins
       - run: ./target/release/rushdb --help
@@ -330,9 +339,9 @@ jobs:
         with:
           # The release tags name the published images to upgrade from.
           fetch-depth: 0
-      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # 1.98.1
+      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # 1.100.0
         with:
-          toolchain: 1.98.1
+          toolchain: 1.100.0
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
       - run: cargo build --release --locked -p rushdb-server --bin rushdb
       - name: Upgrade the data directory of every published release

@@ -78,40 +78,15 @@ impl EnvelopeHandler for NodeEnvelopeHandler {
         envelope: RequestEnvelope,
         scope: Option<String>,
     ) -> Result<ResponseEnvelope, ProtocolError> {
-        // A single-tenant node has one keyspace: a transport scope (gRPC
-        // `x-rushdb-tenant`, Bolt HELLO `db`) is refused like the HTTP header,
-        // never served as a separate keyspace.
-        if scope.is_some() && !self.node.multitenant() {
-            return Err(ProtocolError::new(
-                rushdb_protocol::ErrorCode::ScopeMismatch,
-                "tenant scope must be omitted in single-tenant mode",
-            ));
-        }
-        let scope_for_job = scope.clone();
-        let tenant = self.node.schedule_key(scope.as_deref());
-        let started = std::time::Instant::now();
-        let node = Arc::clone(&self.node);
-        let result = self
-            .node
-            .schedule_for_tenant(tenant, move || {
-                let result =
-                    crate::protocol::ProtocolExecutor::new(&node, scope_for_job).execute(envelope);
-                result
-            })
-            .map_err(scheduler_error_to_protocol_error)?;
-        let seconds = started.elapsed().as_secs_f64();
-        // gRPC and Bolt share this handler: observe latency + rows returned.
-        self.node.observe("transport.execute", seconds);
-        if let Ok(resp) = &result {
-            let rows = match &resp.response {
-                rushdb_protocol::Response::Records { records, .. } => records.len() as u64,
-                rushdb_protocol::Response::Rows { rows, .. }
-                | rushdb_protocol::Response::TextHits { rows, .. } => rows.len() as u64,
-                _ => 0,
-            };
-            self.node.observe_rows("transport.execute", rows);
-        }
-        result
+        self.run(envelope, scope, false)
+    }
+
+    fn execute_typed(
+        &self,
+        envelope: RequestEnvelope,
+        scope: Option<String>,
+    ) -> Result<ResponseEnvelope, ProtocolError> {
+        self.run(envelope, scope, true)
     }
 
     fn shutdown_requested(&self) -> bool {
@@ -141,4 +116,51 @@ pub fn bind_grpc(cfg: &ServerConfig, node: Arc<Node>) -> Result<(GrpcServer, u16
         cfg.max_request_bytes,
         tls,
     )
+}
+
+impl NodeEnvelopeHandler {
+    /// Run `envelope`, its rows' typed values left in their tagged form when
+    /// `typed` ([`EnvelopeHandler::execute_typed`]).
+    fn run(
+        &self,
+        envelope: RequestEnvelope,
+        scope: Option<String>,
+        typed: bool,
+    ) -> Result<ResponseEnvelope, ProtocolError> {
+        // A single-tenant node has one keyspace: a transport scope (gRPC
+        // `x-rushdb-tenant`, Bolt HELLO `db`) is refused like the HTTP header,
+        // never served as a separate keyspace.
+        if scope.is_some() && !self.node.multitenant() {
+            return Err(ProtocolError::new(
+                rushdb_protocol::ErrorCode::ScopeMismatch,
+                "tenant scope must be omitted in single-tenant mode",
+            ));
+        }
+        let tenant = self.node.schedule_key(scope.as_deref());
+        let scope_for_job = scope;
+        let started = std::time::Instant::now();
+        let node = Arc::clone(&self.node);
+        let result = self
+            .node
+            .schedule_for_tenant(tenant, move || {
+                let result = crate::protocol::ProtocolExecutor::new(&node, scope_for_job)
+                    .with_typed_rows(typed)
+                    .execute(envelope);
+                result
+            })
+            .map_err(scheduler_error_to_protocol_error)?;
+        let seconds = started.elapsed().as_secs_f64();
+        // gRPC and Bolt share this handler: observe latency + rows returned.
+        self.node.observe("transport.execute", seconds);
+        if let Ok(resp) = &result {
+            let rows = match &resp.response {
+                rushdb_protocol::Response::Records { records, .. } => records.len() as u64,
+                rushdb_protocol::Response::Rows { rows, .. }
+                | rushdb_protocol::Response::TextHits { rows, .. } => rows.len() as u64,
+                _ => 0,
+            };
+            self.node.observe_rows("transport.execute", rows);
+        }
+        result
+    }
 }

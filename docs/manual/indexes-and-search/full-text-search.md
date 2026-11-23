@@ -93,7 +93,7 @@ took its snapshot stays queued, so no update is lost.
 
 | `consistency` | When a search sees a committed write | Cost |
 |---|---|---|
-| `eventual` (default) | After the background applier processes it. The applier runs continuously with a linger of at most 250 ms. | Writes and searches never wait for indexing. |
+| `eventual` (default) | After the background applier processes it: each write wakes the applier, so a small write is searchable within milliseconds (otherwise it runs every 250 ms). A search sent at the same moment can still miss it and says so in `pending`. | Writes and searches never wait for indexing. |
 | `immediate` | Always: a search first applies every queued change up to its snapshot (read-your-writes). | The first search after a burst of writes pays for indexing them. |
 
 > **Note:** An `immediate` search applies at most 32,768 queued changes
@@ -107,6 +107,21 @@ took its snapshot stays queued, so no update is lost.
 indexes of the same name over the resident tenants. Each search also
 reports its index's backlog as `pending`. Text indexes never hold back WAL
 retention, and an index with nothing queued never commits.
+
+### Reading your own writes
+
+An `eventual` index never makes a write or a search wait, so a search sent
+right after a write may not see it yet. A client that needs its own writes
+in the results has two options:
+
+- declare the index `immediate`, so every search first applies what is
+  queued; or
+- keep it `eventual` and repeat the search while the response reports
+  `pending` greater than `0`.
+
+The same holds for an index created over existing records: once
+`describe indexes` reports it `ready`, its records are queued for the
+applier, and a search reports them in `pending` until they are applied.
 
 ## Search
 

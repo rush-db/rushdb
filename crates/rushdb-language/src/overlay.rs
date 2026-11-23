@@ -6,12 +6,21 @@
 //! the layer is dropped.
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::ops::Range;
 use std::sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard};
 
-use grafeo_common::types::{EdgeId, EpochId, NodeId, PropertyKey, TransactionId, Value};
-use grafeo_common::utils::hash::FxHashMap;
-use grafeo_core::graph::lpg::{CompareOp, Edge, Node};
-use grafeo_core::graph::{Direction, GraphStore, GraphStoreMut, GraphStoreSearch};
+use grafeo_common::change::{
+    Before, Change, ChangeMark, DataOp, EdgeImage, Entity, Labels, NodeImage, PendingVersion,
+    Properties,
+};
+use grafeo_common::types::{
+    ArcStr, EdgeId, EpochId, NodeId, PropertyKey, ReadView as GView, TransactionId, Value,
+};
+use grafeo_common::utils::error::Result as GResult;
+use grafeo_core::graph::apply::{Applied, ApplyError, Writer};
+use grafeo_core::graph::lpg::{Edge, Node};
+use grafeo_core::graph::traits::ValueRange;
+use grafeo_core::graph::{BackendTransaction, Direction, GraphBackend, GraphStore};
 use grafeo_core::statistics::Statistics;
 use rushdb_lmpg::reader::try_access as access;
 
@@ -106,24 +115,24 @@ impl OverlayStore {
         self.budget.check()
     }
 
-    fn current_node(&self, id: NodeId) -> Option<Node> {
+    fn current_node(&self, id: NodeId) -> GResult<Option<Node>> {
         if let Some(entry) = self.read_state().nodes.get(&id) {
-            return entry.clone();
+            return Ok(entry.clone());
         }
         if id.as_u64() >= CREATED_BASE {
-            return None;
+            return Ok(None);
         }
-        self.base.get_node(id)
+        self.base.get(|| self.base.try_node(id))
     }
 
-    fn current_edge(&self, id: EdgeId) -> Option<Edge> {
+    fn current_edge(&self, id: EdgeId) -> GResult<Option<Edge>> {
         if let Some(entry) = self.read_state().edges.get(&id) {
-            return entry.clone();
+            return Ok(entry.clone());
         }
         if id.as_u64() >= CREATED_BASE {
-            return None;
+            return Ok(None);
         }
-        self.base.get_edge(id)
+        self.base.get(|| self.base.try_edge(id))
     }
 
     /// Bring base node `id` into the layer; `false` when it does not exist,
@@ -135,7 +144,7 @@ impl OverlayStore {
         if id.as_u64() >= CREATED_BASE || !self.admit_node(state) {
             return false;
         }
-        let Some(node) = self.base.get_node(id) else {
+        let Some(node) = self.base.read(|| self.base.try_node(id)) else {
             return false;
         };
         let header = self.base.read(|| {
@@ -166,7 +175,7 @@ impl OverlayStore {
         if id.as_u64() >= CREATED_BASE {
             return false;
         }
-        let Some(edge) = self.base.get_edge(id) else {
+        let Some(edge) = self.base.read(|| self.base.try_edge(id)) else {
             return false;
         };
         let header = self.base.read(|| {
@@ -198,12 +207,6 @@ impl OverlayStore {
             return false;
         }
         true
-    }
-
-    fn next_id(state: &mut State) -> u64 {
-        let id = state.next_id;
-        state.next_id += 1;
-        id
     }
 
     /// Ids the overlay overrides: the base answer for them is stale.
@@ -387,7 +390,7 @@ impl OverlayStore {
         match state.nodes.get(&id) {
             Some(entry) => entry.clone(),
             None if id.as_u64() >= CREATED_BASE => None,
-            None => self.base.get_node(id),
+            None => self.base.read(|| self.base.try_node(id)),
         }
     }
 
@@ -472,101 +475,109 @@ fn conditions_hold(node: &Node, conditions: &[(&str, Value)]) -> bool {
     })
 }
 
+/// What [`GraphBackend::apply`] answers for a write to something its writer
+/// does not see: nothing changed for a transaction, an error for replay.
+fn unseen(writer: Writer, entity: Entity) -> Result<Applied, ApplyError> {
+    match writer {
+        Writer::Replay { .. } => Err(ApplyError::Missing(entity)),
+        _ => Ok(Applied::Unchanged),
+    }
+}
+
+/// A write that changed what the layer holds, undone from `before`.
+const fn changed(before: Before) -> Applied {
+    Applied::Changed {
+        before,
+        version: PendingVersion::Created,
+    }
+}
+
+/// A refusal the layer already recorded (node bound, byte budget):
+/// [`OverlayStore::check`] reports it once the statement returns.
+fn refused() -> ApplyError {
+    ApplyError::Refused("the statement's working set is full".into())
+}
+
+fn properties_of(properties: &grafeo_common::types::PropertyMap) -> Properties {
+    properties
+        .iter()
+        .map(|(key, value)| (key.clone(), value.clone()))
+        .collect()
+}
+
 impl GraphStore for OverlayStore {
-    fn get_node(&self, id: NodeId) -> Option<Node> {
+    fn node(&self, id: NodeId, _: GView) -> GResult<Option<Node>> {
         self.current_node(id)
     }
-    fn get_edge(&self, id: EdgeId) -> Option<Edge> {
+    fn edge(&self, id: EdgeId, _: GView) -> GResult<Option<Edge>> {
         self.current_edge(id)
     }
-    fn get_node_versioned(&self, id: NodeId, _: EpochId, _: TransactionId) -> Option<Node> {
-        self.current_node(id)
-    }
-    fn get_edge_versioned(&self, id: EdgeId, _: EpochId, _: TransactionId) -> Option<Edge> {
-        self.current_edge(id)
-    }
-    fn get_node_at_epoch(&self, id: NodeId, _: EpochId) -> Option<Node> {
-        self.current_node(id)
-    }
-    fn get_edge_at_epoch(&self, id: EdgeId, _: EpochId) -> Option<Edge> {
-        self.current_edge(id)
-    }
-    fn get_node_property(&self, id: NodeId, key: &PropertyKey) -> Option<Value> {
+    fn node_property(&self, id: NodeId, key: &str, _: GView) -> GResult<Option<Value>> {
         if let Some(entry) = self.read_state().nodes.get(&id) {
-            return entry.as_ref()?.get_property(key.as_str()).cloned();
+            return Ok(entry
+                .as_ref()
+                .and_then(|node| node.get_property(key).cloned()));
         }
         if id.as_u64() >= CREATED_BASE {
-            return None;
+            return Ok(None);
         }
-        self.base.get_node_property(id, key)
+        self.base.get(|| self.base.try_node_property(id, key))
     }
-    fn get_edge_property(&self, id: EdgeId, key: &PropertyKey) -> Option<Value> {
-        self.current_edge(id)?.get_property(key.as_str()).cloned()
+    fn edge_property(&self, id: EdgeId, key: &str, _: GView) -> GResult<Option<Value>> {
+        Ok(self
+            .current_edge(id)?
+            .and_then(|edge| edge.get_property(key).cloned()))
     }
-    fn get_node_property_batch(&self, ids: &[NodeId], key: &PropertyKey) -> Vec<Option<Value>> {
-        ids.iter()
-            .map(|id| self.get_node_property(*id, key))
-            .collect()
+    fn node_labels(&self, id: NodeId, view: GView) -> GResult<Option<Labels>> {
+        if let Some(entry) = self.read_state().nodes.get(&id) {
+            return Ok(entry.as_ref().map(|node| node.labels.clone()));
+        }
+        if id.as_u64() >= CREATED_BASE {
+            return Ok(None);
+        }
+        self.base.node_labels(id, view)
     }
-    fn get_nodes_properties_batch(&self, ids: &[NodeId]) -> Vec<FxHashMap<PropertyKey, Value>> {
-        ids.iter()
-            .map(|id| {
-                self.current_node(*id)
-                    .map(|node| {
-                        node.properties
-                            .iter()
-                            .map(|(k, v)| (k.clone(), v.clone()))
-                            .collect()
-                    })
-                    .unwrap_or_default()
-            })
-            .collect()
+    fn edge_type(&self, id: EdgeId, view: GView) -> GResult<Option<ArcStr>> {
+        if let Some(entry) = self.read_state().edges.get(&id) {
+            return Ok(entry.as_ref().map(|edge| edge.edge_type.clone()));
+        }
+        if id.as_u64() >= CREATED_BASE {
+            return Ok(None);
+        }
+        self.base.edge_type(id, view)
     }
-    fn get_nodes_properties_selective_batch(
+    fn edges(
         &self,
-        ids: &[NodeId],
-        keys: &[PropertyKey],
-    ) -> Vec<FxHashMap<PropertyKey, Value>> {
-        ids.iter()
-            .map(|id| {
-                keys.iter()
-                    .filter_map(|key| self.get_node_property(*id, key).map(|v| (key.clone(), v)))
-                    .collect()
-            })
-            .collect()
-    }
-    fn get_edges_properties_selective_batch(
-        &self,
-        ids: &[EdgeId],
-        keys: &[PropertyKey],
-    ) -> Vec<FxHashMap<PropertyKey, Value>> {
-        ids.iter()
-            .map(|id| {
-                keys.iter()
-                    .filter_map(|key| self.get_edge_property(*id, key).map(|v| (key.clone(), v)))
-                    .collect()
-            })
-            .collect()
-    }
-    fn neighbors(&self, node: NodeId, direction: Direction) -> Vec<NodeId> {
-        self.edges_from(node, direction)
-            .into_iter()
-            .map(|(other, _)| other)
-            .collect()
-    }
-    fn edges_from(&self, node: NodeId, direction: Direction) -> Vec<(NodeId, EdgeId)> {
-        if self.current_node(node).is_none() {
-            return Vec::new();
+        node: NodeId,
+        direction: Direction,
+        types: &[ArcStr],
+        _: GView,
+    ) -> GResult<Vec<(NodeId, EdgeId)>> {
+        if self.current_node(node)?.is_none() {
+            return Ok(Vec::new());
         }
         let mut edges = if node.as_u64() >= CREATED_BASE {
             Vec::new()
         } else {
-            self.base.edges_from(node, direction)
+            self.base
+                .get(|| self.base.try_edges(node, direction, types))?
         };
         let state = self.read_state();
         edges.retain(|(_, edge)| !matches!(state.edges.get(edge), Some(None)));
+        let of_type = |edge: &EdgeId| {
+            types.is_empty()
+                || state.edges.get(edge).is_some_and(|edge| {
+                    edge.as_ref()
+                        .is_some_and(|edge| types.contains(&edge.edge_type))
+                })
+        };
         let added = |map: &HashMap<NodeId, Vec<(NodeId, EdgeId)>>| {
-            map.get(&node).cloned().unwrap_or_default()
+            map.get(&node)
+                .into_iter()
+                .flatten()
+                .filter(|(_, edge)| of_type(edge))
+                .copied()
+                .collect::<Vec<_>>()
         };
         match direction {
             Direction::Outgoing => edges.extend(added(&state.added_out)),
@@ -577,31 +588,25 @@ impl GraphStore for OverlayStore {
             }
             _ => {}
         }
+        drop(state);
         edges.sort_unstable();
         edges.dedup();
-        edges
-    }
-    fn out_degree(&self, node: NodeId) -> usize {
-        self.edges_from(node, Direction::Outgoing).len()
-    }
-    fn in_degree(&self, node: NodeId) -> usize {
-        self.edges_from(node, Direction::Incoming).len()
+        Ok(edges)
     }
     fn has_backward_adjacency(&self) -> bool {
         true
     }
-    fn node_ids(&self) -> Vec<NodeId> {
-        self.corrected(self.base.node_ids(), |_| true)
+    fn node_ids(&self, view: GView) -> GResult<Vec<NodeId>> {
+        Ok(self.corrected(self.base.node_ids(view)?, |_| true))
     }
-    fn nodes_by_label(&self, label: &str) -> Vec<NodeId> {
-        self.corrected(self.base.nodes_by_label(label), |node| {
-            node.has_label(label)
-        })
+    fn nodes_by_label(&self, label: &str, view: GView) -> GResult<Vec<NodeId>> {
+        Ok(
+            self.corrected(self.base.nodes_by_label(label, view)?, |node| {
+                node.has_label(label)
+            }),
+        )
     }
-    fn nodes_by_label_count(&self, label: &str) -> usize {
-        self.nodes_by_label(label).len()
-    }
-    fn node_count(&self) -> usize {
+    fn node_count(&self, view: GView) -> GResult<usize> {
         let state = self.read_state();
         let removed = state
             .original_nodes
@@ -614,9 +619,9 @@ impl GraphStore for OverlayStore {
             .filter(|id| matches!(state.nodes.get(id), Some(Some(_))))
             .count();
         drop(state);
-        (self.base.node_count() + created).saturating_sub(removed)
+        Ok((self.base.node_count(view)? + created).saturating_sub(removed))
     }
-    fn edge_count(&self) -> usize {
+    fn edge_count(&self, view: GView) -> GResult<usize> {
         let state = self.read_state();
         let removed = state
             .original_edges
@@ -629,81 +634,64 @@ impl GraphStore for OverlayStore {
             .filter(|id| matches!(state.edges.get(id), Some(Some(_))))
             .count();
         drop(state);
-        (self.base.edge_count() + created).saturating_sub(removed)
-    }
-    fn edge_type(&self, id: EdgeId) -> Option<grafeo_common::types::ArcStr> {
-        self.current_edge(id).map(|edge| edge.edge_type)
-    }
-    fn edge_type_versioned(
-        &self,
-        id: EdgeId,
-        _: EpochId,
-        _: TransactionId,
-    ) -> Option<grafeo_common::types::ArcStr> {
-        self.edge_type(id)
+        Ok((self.base.edge_count(view)? + created).saturating_sub(removed))
     }
     fn has_property_index(&self, property: &str) -> bool {
         self.base.has_property_index(property)
     }
-    fn find_nodes_by_property(&self, property: &str, value: &Value) -> Vec<NodeId> {
-        self.find_nodes_by_properties(&[(property, value.clone())])
+    fn find_nodes_by_property(
+        &self,
+        property: &str,
+        value: &Value,
+        view: GView,
+    ) -> GResult<Vec<NodeId>> {
+        self.find_nodes_by_properties(&[(property, value.clone())], view)
     }
-    fn find_nodes_by_properties(&self, conditions: &[(&str, Value)]) -> Vec<NodeId> {
-        self.corrected(self.base.find_nodes_by_properties(conditions), |node| {
-            conditions_hold(node, conditions)
-        })
+    fn find_nodes_by_properties(
+        &self,
+        conditions: &[(&str, Value)],
+        view: GView,
+    ) -> GResult<Vec<NodeId>> {
+        Ok(self.corrected(
+            self.base.find_nodes_by_properties(conditions, view)?,
+            |node| conditions_hold(node, conditions),
+        ))
     }
     fn find_nodes_in_range(
         &self,
         property: &str,
-        min: Option<&Value>,
-        max: Option<&Value>,
-        min_inclusive: bool,
-        max_inclusive: bool,
-    ) -> Vec<NodeId> {
-        self.corrected(
-            self.base
-                .find_nodes_in_range(property, min, max, min_inclusive, max_inclusive),
+        range: &ValueRange,
+        view: GView,
+    ) -> GResult<Vec<NodeId>> {
+        Ok(self.corrected(
+            self.base.find_nodes_in_range(property, range, view)?,
             |node| {
-                node.get_property(property).is_some_and(|value| {
-                    LmpgGraphStore::property_matches_range(
-                        value,
-                        min,
-                        max,
-                        min_inclusive,
-                        max_inclusive,
-                    )
-                })
+                node.get_property(property)
+                    .is_some_and(|value| range.contains(value))
             },
-        )
-    }
-    fn node_property_might_match(&self, _: &PropertyKey, _: CompareOp, _: &Value) -> bool {
-        true
-    }
-    fn edge_property_might_match(&self, _: &PropertyKey, _: CompareOp, _: &Value) -> bool {
-        true
+        ))
     }
     fn statistics(&self) -> Arc<Statistics> {
         self.base.statistics()
     }
-    fn estimate_label_cardinality(&self, label: &str) -> f64 {
-        self.base.estimate_label_cardinality(label)
+    fn label_node_estimate(&self, label: &str) -> u64 {
+        self.base.label_node_estimate(label)
     }
-    fn estimate_avg_degree(&self, edge_type: &str, outgoing: bool) -> f64 {
-        self.base.estimate_avg_degree(edge_type, outgoing)
+    fn node_estimate(&self) -> u64 {
+        self.base.node_estimate()
     }
-    fn current_epoch(&self) -> EpochId {
-        self.base.current_epoch()
+    fn committed_epoch(&self) -> EpochId {
+        self.base.committed_epoch()
     }
-    fn all_labels(&self) -> Vec<String> {
-        let mut labels: BTreeSet<String> = self.base.all_labels().into_iter().collect();
+    fn all_labels(&self) -> GResult<Vec<String>> {
+        let mut labels: BTreeSet<String> = self.base.all_labels()?.into_iter().collect();
         for (_, node) in self.touched_nodes() {
             labels.extend(node.iter().flat_map(labels_of));
         }
-        labels.into_iter().collect()
+        Ok(labels.into_iter().collect())
     }
-    fn all_edge_types(&self) -> Vec<String> {
-        let mut types: BTreeSet<String> = self.base.all_edge_types().into_iter().collect();
+    fn all_edge_types(&self) -> GResult<Vec<String>> {
+        let mut types: BTreeSet<String> = self.base.all_edge_types()?.into_iter().collect();
         types.extend(
             self.read_state()
                 .edges
@@ -711,10 +699,10 @@ impl GraphStore for OverlayStore {
                 .flatten()
                 .map(|edge| edge.edge_type.to_string()),
         );
-        types.into_iter().collect()
+        Ok(types.into_iter().collect())
     }
-    fn all_property_keys(&self) -> Vec<String> {
-        let mut keys: BTreeSet<String> = self.base.all_property_keys().into_iter().collect();
+    fn all_property_keys(&self) -> GResult<Vec<String>> {
+        let mut keys: BTreeSet<String> = self.base.all_property_keys()?.into_iter().collect();
         let state = self.read_state();
         for node in state.nodes.values().flatten() {
             keys.extend(node.properties.iter().map(|(key, _)| key.to_string()));
@@ -722,212 +710,417 @@ impl GraphStore for OverlayStore {
         for edge in state.edges.values().flatten() {
             keys.extend(edge.properties.iter().map(|(key, _)| key.to_string()));
         }
-        keys.into_iter().collect()
+        Ok(keys.into_iter().collect())
     }
-}
 
-/// Text search reads the committed snapshot: what the statement itself
-/// writes is not searchable until it commits.
-impl GraphStoreSearch for OverlayStore {
+    // Text search reads the committed snapshot: what the statement itself
+    // writes is not searchable until it commits.
     fn has_text_index(&self, label: &str, property: &str) -> bool {
         self.base.has_text_index(label, property)
     }
-
-    fn score_text(&self, node_id: NodeId, label: &str, property: &str, query: &str) -> Option<f64> {
-        self.base.score_text(node_id, label, property, query)
+    fn score_text(
+        &self,
+        node_id: NodeId,
+        label: &str,
+        property: &str,
+        query: &str,
+        view: GView,
+    ) -> GResult<Option<f64>> {
+        self.base.score_text(node_id, label, property, query, view)
     }
-
     fn text_search(
         &self,
         label: &str,
         property: &str,
         query: &str,
         k: usize,
-    ) -> Vec<(NodeId, f64)> {
-        self.base.text_search(label, property, query, k)
+        view: GView,
+    ) -> GResult<Vec<(NodeId, f64)>> {
+        self.base.text_search(label, property, query, k, view)
     }
-
     fn text_search_with_threshold(
         &self,
         label: &str,
         property: &str,
         query: &str,
         threshold: f64,
-    ) -> Vec<(NodeId, f64)> {
+        view: GView,
+    ) -> GResult<Vec<(NodeId, f64)>> {
         self.base
-            .text_search_with_threshold(label, property, query, threshold)
+            .text_search_with_threshold(label, property, query, threshold, view)
     }
 }
 
-/// Grafeo writes through these (failures surface after execution through
-/// [`OverlayStore::check`]: a refused creation returns an id that resolves
-/// to nothing).
-impl GraphStoreMut for OverlayStore {
-    fn create_node(&self, labels: &[&str]) -> NodeId {
-        let mut state = self.write_state();
-        if !self.admit_node(&mut state)
-            || !self
-                .budget
-                .admit(256usize.saturating_add(labels.iter().map(|label| label.len()).sum()))
-        {
-            return NodeId::new(u64::MAX);
+/// Grafeo writes through these. The layer is the statement's only
+/// transaction, so a commit keeps what was applied (the statement's delta
+/// is read afterwards) and a rollback writes the before-images back.
+/// Refusals of the node bound and the byte budget are recorded first and
+/// surface through [`OverlayStore::check`].
+impl GraphBackend for OverlayStore {
+    fn reserve_node_ids(&self, count: u64) -> Result<Range<u64>, ApplyError> {
+        Ok(Self::reserve(&mut self.write_state(), count))
+    }
+    fn reserve_edge_ids(&self, count: u64) -> Result<Range<u64>, ApplyError> {
+        Ok(Self::reserve(&mut self.write_state(), count))
+    }
+    fn begin(
+        &self,
+        transaction: TransactionId,
+        snapshot: EpochId,
+    ) -> Result<BackendTransaction, ApplyError> {
+        Ok(BackendTransaction::new(transaction, snapshot))
+    }
+    fn apply(&self, op: &DataOp, writer: Writer) -> Result<Applied, ApplyError> {
+        match op {
+            DataOp::CreateNode {
+                id,
+                labels,
+                properties,
+            } => self.apply_create_node(*id, labels, properties),
+            DataOp::CreateEdge {
+                id,
+                src,
+                dst,
+                edge_type,
+                properties,
+            } => self.apply_create_edge(*id, *src, *dst, edge_type, properties),
+            DataOp::DeleteNode { id } => {
+                let mut state = self.write_state();
+                if !self.touch_node(&mut state, *id) {
+                    return unseen(writer, Entity::Node(*id));
+                }
+                let Some(Some(node)) = state.nodes.insert(*id, None) else {
+                    return unseen(writer, Entity::Node(*id));
+                };
+                Ok(changed(Before::Node(Box::new(NodeImage {
+                    labels: node.labels.clone(),
+                    properties: properties_of(&node.properties),
+                }))))
+            }
+            DataOp::DeleteEdge { id } => {
+                let mut state = self.write_state();
+                if !self.touch_edge(&mut state, *id) {
+                    return unseen(writer, Entity::Edge(*id));
+                }
+                let Some(Some(edge)) = state.edges.insert(*id, None) else {
+                    return unseen(writer, Entity::Edge(*id));
+                };
+                if id.as_u64() >= CREATED_BASE {
+                    Self::unlink(&mut state, &edge);
+                }
+                Ok(changed(Before::Edge(Box::new(EdgeImage {
+                    src: edge.src,
+                    dst: edge.dst,
+                    edge_type: edge.edge_type.clone(),
+                    properties: properties_of(&edge.properties),
+                    deleted_with: None,
+                }))))
+            }
+            DataOp::SetNodeProperty { id, key, value } => {
+                if !self.budget.admit(property_bytes(key.as_str(), value)) {
+                    return Err(refused());
+                }
+                self.with_node(*id, writer, |node| {
+                    let before = node.get_property(key.as_str()).cloned();
+                    set_or_remove(&mut node.properties, key, value);
+                    Some(Before::Value(before))
+                })
+            }
+            DataOp::RemoveNodeProperty { id, key } => self.with_node(*id, writer, |node| {
+                node.remove_property(key.as_str())
+                    .map(|before| Before::Value(Some(before)))
+            }),
+            DataOp::SetEdgeProperty { id, key, value } => {
+                if !self.budget.admit(property_bytes(key.as_str(), value)) {
+                    return Err(refused());
+                }
+                self.with_edge(*id, writer, |edge| {
+                    let before = edge.get_property(key.as_str()).cloned();
+                    set_or_remove(&mut edge.properties, key, value);
+                    Some(Before::Value(before))
+                })
+            }
+            DataOp::RemoveEdgeProperty { id, key } => self.with_edge(*id, writer, |edge| {
+                edge.remove_property(key.as_str())
+                    .map(|before| Before::Value(Some(before)))
+            }),
+            DataOp::AddNodeLabel { id, label } => {
+                if !self.budget.admit(64usize.saturating_add(label.len())) {
+                    return Err(refused());
+                }
+                self.with_node(*id, writer, |node| {
+                    if node.has_label(label) {
+                        return None;
+                    }
+                    let before = node.labels.clone();
+                    node.add_label(label.clone());
+                    Some(Before::Labels(before))
+                })
+            }
+            DataOp::RemoveNodeLabel { id, label } => self.with_node(*id, writer, |node| {
+                let before = node.labels.clone();
+                node.remove_label(label).then_some(Before::Labels(before))
+            }),
+            DataOp::InsertTriple { .. } | DataOp::DeleteTriple { .. } => Err(ApplyError::Refused(
+                "a tenant graph holds no RDF triples".into(),
+            )),
         }
-        let id = NodeId::new(Self::next_id(&mut state));
-        state
-            .nodes
-            .insert(id, Some(Node::with_labels(id, labels.iter().copied())));
+    }
+    fn commit(
+        &self,
+        _: BackendTransaction,
+        _: &mut dyn Iterator<Item = &Change>,
+        _: EpochId,
+    ) -> Result<(), ApplyError> {
+        Ok(())
+    }
+    fn rollback(
+        &self,
+        _: BackendTransaction,
+        changes: &mut dyn DoubleEndedIterator<Item = &Change>,
+    ) -> Result<(), ApplyError> {
+        self.undo(changes)
+    }
+    fn rollback_to(
+        &self,
+        _: BackendTransaction,
+        _: ChangeMark,
+        changes_since: &mut dyn DoubleEndedIterator<Item = &Change>,
+    ) -> Result<(), ApplyError> {
+        self.undo(changes_since)
+    }
+    fn collect(&self, _: EpochId) {}
+    fn durable_epoch(&self) -> EpochId {
+        EpochId::INITIAL
+    }
+    fn flush(&self, _: EpochId) -> Result<(), ApplyError> {
+        Ok(())
+    }
+}
+
+/// Set `key` to `value` in `properties`; a null removes it (Cypher and GQL
+/// semantics).
+fn set_or_remove(
+    properties: &mut grafeo_common::types::PropertyMap,
+    key: &PropertyKey,
+    value: &Value,
+) {
+    if value.is_null() {
+        properties.remove(key);
+    } else {
+        properties.insert(key.clone(), value.clone());
+    }
+}
+
+impl OverlayStore {
+    fn reserve(state: &mut State, count: u64) -> Range<u64> {
+        let start = state.next_id;
+        state.next_id = start.saturating_add(count);
+        start..state.next_id
+    }
+
+    fn apply_create_node(
+        &self,
+        id: NodeId,
+        labels: &Labels,
+        properties: &Properties,
+    ) -> Result<Applied, ApplyError> {
+        let mut state = self.write_state();
+        if state.nodes.contains_key(&id) {
+            return Err(ApplyError::Exists(Entity::Node(id)));
+        }
+        let mut node = Node::with_labels(id, labels.iter().cloned());
+        for (key, value) in properties {
+            set_or_remove(&mut node.properties, key, value);
+        }
+        if !self.admit_node(&mut state) || !self.budget.admit(node_bytes(&node)) {
+            return Err(refused());
+        }
+        state.nodes.insert(id, Some(node));
         state.created_nodes.push(id);
-        id
+        Ok(changed(Before::Absent))
     }
-    fn create_node_versioned(&self, labels: &[&str], _: EpochId, _: TransactionId) -> NodeId {
-        self.create_node(labels)
-    }
-    fn create_edge(&self, src: NodeId, dst: NodeId, edge_type: &str) -> EdgeId {
-        if self.current_node(src).is_none()
-            || self.current_node(dst).is_none()
-            || !self.budget.admit(256usize.saturating_add(edge_type.len()))
-        {
-            return EdgeId::new(u64::MAX);
+
+    fn apply_create_edge(
+        &self,
+        id: EdgeId,
+        src: NodeId,
+        dst: NodeId,
+        edge_type: &ArcStr,
+        properties: &Properties,
+    ) -> Result<Applied, ApplyError> {
+        for end in [src, dst] {
+            if self
+                .current_node(end)
+                .map_err(|error| ApplyError::Refused(error.to_string()))?
+                .is_none()
+            {
+                return Err(ApplyError::Missing(Entity::Node(end)));
+            }
+        }
+        let mut edge = Edge::new(id, src, dst, edge_type.clone());
+        for (key, value) in properties {
+            set_or_remove(&mut edge.properties, key, value);
+        }
+        if !self.budget.admit(edge_bytes(&edge)) {
+            return Err(refused());
         }
         let mut state = self.write_state();
-        let id = EdgeId::new(Self::next_id(&mut state));
-        state
-            .edges
-            .insert(id, Some(Edge::new(id, src, dst, edge_type)));
+        if state.edges.contains_key(&id) {
+            return Err(ApplyError::Exists(Entity::Edge(id)));
+        }
+        state.edges.insert(id, Some(edge));
         state.created_edges.push(id);
         state.added_out.entry(src).or_default().push((dst, id));
         state.added_in.entry(dst).or_default().push((src, id));
-        id
+        Ok(changed(Before::Absent))
     }
-    fn create_edge_versioned(
+
+    /// Change node `id` in the layer; `change` answers the before-image, or
+    /// `None` when it changed nothing.
+    fn with_node(
         &self,
-        src: NodeId,
-        dst: NodeId,
-        edge_type: &str,
-        _: EpochId,
-        _: TransactionId,
-    ) -> EdgeId {
-        self.create_edge(src, dst, edge_type)
-    }
-    fn batch_create_edges(&self, edges: &[(NodeId, NodeId, &str)]) -> Vec<EdgeId> {
-        edges
-            .iter()
-            .map(|(src, dst, kind)| self.create_edge(*src, *dst, kind))
-            .collect()
-    }
-    fn delete_node(&self, id: NodeId) -> bool {
+        id: NodeId,
+        writer: Writer,
+        change: impl FnOnce(&mut Node) -> Option<Before>,
+    ) -> Result<Applied, ApplyError> {
         let mut state = self.write_state();
         if !self.touch_node(&mut state, id) {
-            return false;
+            return unseen(writer, Entity::Node(id));
         }
-        state.nodes.insert(id, None);
-        true
-    }
-    fn delete_node_versioned(&self, id: NodeId, _: EpochId, _: TransactionId) -> bool {
-        self.delete_node(id)
-    }
-    fn delete_node_edges(&self, node_id: NodeId) {
-        for (_, edge) in self.edges_from(node_id, Direction::Both) {
-            self.delete_edge(edge);
-        }
-    }
-    fn delete_edge(&self, id: EdgeId) -> bool {
-        let mut state = self.write_state();
-        if id.as_u64() >= CREATED_BASE {
-            let Some(Some(edge)) = state.edges.insert(id, None) else {
-                return false;
-            };
-            let state = &mut *state;
-            for (map, node) in [
-                (&mut state.added_out, edge.src),
-                (&mut state.added_in, edge.dst),
-            ] {
-                if let Some(list) = map.get_mut(&node) {
-                    list.retain(|(_, edge)| *edge != id);
-                }
-            }
-            return true;
-        }
-        if !self.touch_edge(&mut state, id) {
-            return false;
-        }
-        state.edges.insert(id, None);
-        true
-    }
-    fn delete_edge_versioned(&self, id: EdgeId, _: EpochId, _: TransactionId) -> bool {
-        self.delete_edge(id)
-    }
-    /// Setting a property to null removes it (Cypher and GQL semantics).
-    fn set_node_property(&self, id: NodeId, key: &str, value: Value) {
-        if !self.budget.admit(property_bytes(key, &value)) {
-            return;
-        }
-        let mut state = self.write_state();
-        if self.touch_node(&mut state, id) {
-            if let Some(Some(node)) = state.nodes.get_mut(&id) {
-                if value.is_null() {
-                    node.remove_property(key);
-                } else {
-                    node.set_property(key, value);
-                }
-            }
-        }
-    }
-    fn set_edge_property(&self, id: EdgeId, key: &str, value: Value) {
-        if !self.budget.admit(property_bytes(key, &value)) {
-            return;
-        }
-        let mut state = self.write_state();
-        if id.as_u64() >= CREATED_BASE || self.touch_edge(&mut state, id) {
-            if let Some(Some(edge)) = state.edges.get_mut(&id) {
-                if value.is_null() {
-                    edge.remove_property(key);
-                } else {
-                    edge.set_property(key, value);
-                }
-            }
-        }
-    }
-    fn remove_node_property(&self, id: NodeId, key: &str) -> Option<Value> {
-        let mut state = self.write_state();
-        if !self.touch_node(&mut state, id) {
-            return None;
-        }
-        state.nodes.get_mut(&id)?.as_mut()?.remove_property(key)
-    }
-    fn remove_edge_property(&self, id: EdgeId, key: &str) -> Option<Value> {
-        let mut state = self.write_state();
-        if id.as_u64() < CREATED_BASE && !self.touch_edge(&mut state, id) {
-            return None;
-        }
-        state.edges.get_mut(&id)?.as_mut()?.remove_property(key)
-    }
-    fn add_label(&self, node_id: NodeId, label: &str) -> bool {
-        if !self.budget.admit(64usize.saturating_add(label.len())) {
-            return false;
-        }
-        let mut state = self.write_state();
-        if !self.touch_node(&mut state, node_id) {
-            return false;
-        }
-        let Some(Some(node)) = state.nodes.get_mut(&node_id) else {
-            return false;
+        let Some(Some(node)) = state.nodes.get_mut(&id) else {
+            return unseen(writer, Entity::Node(id));
         };
-        if node.has_label(label) {
-            return false;
-        }
-        node.add_label(label);
-        true
+        Ok(change(node).map_or(Applied::Unchanged, changed))
     }
-    fn remove_label(&self, node_id: NodeId, label: &str) -> bool {
+
+    fn with_edge(
+        &self,
+        id: EdgeId,
+        writer: Writer,
+        change: impl FnOnce(&mut Edge) -> Option<Before>,
+    ) -> Result<Applied, ApplyError> {
         let mut state = self.write_state();
-        if !self.touch_node(&mut state, node_id) {
-            return false;
+        if !self.touch_edge(&mut state, id) {
+            return unseen(writer, Entity::Edge(id));
         }
-        state
-            .nodes
-            .get_mut(&node_id)
-            .and_then(Option::as_mut)
-            .is_some_and(|node| node.remove_label(label))
+        let Some(Some(edge)) = state.edges.get_mut(&id) else {
+            return unseen(writer, Entity::Edge(id));
+        };
+        Ok(change(edge).map_or(Applied::Unchanged, changed))
+    }
+
+    /// Drop a created edge from the layer's adjacency.
+    fn unlink(state: &mut State, edge: &Edge) {
+        for (map, node) in [
+            (&mut state.added_out, edge.src),
+            (&mut state.added_in, edge.dst),
+        ] {
+            if let Some(list) = map.get_mut(&node) {
+                list.retain(|(_, id)| *id != edge.id);
+            }
+        }
+    }
+
+    /// Undo `changes`, last to first, from their before-images.
+    fn undo(
+        &self,
+        changes: &mut dyn DoubleEndedIterator<Item = &Change>,
+    ) -> Result<(), ApplyError> {
+        let mut state = self.write_state();
+        while let Some(change) = changes.next_back() {
+            let Change::Data { op, before, .. } = change else {
+                return Err(ApplyError::Refused(
+                    "the layer records no bulk or RDF writes".into(),
+                ));
+            };
+            Self::undo_one(&mut state, op, before)?;
+        }
+        Ok(())
+    }
+
+    fn undo_one(state: &mut State, op: &DataOp, before: &Before) -> Result<(), ApplyError> {
+        let broken = || ApplyError::Refused(format!("no undo for a {} write", op.kind()));
+        match (op, before) {
+            (DataOp::CreateNode { id, .. }, Before::Absent) => {
+                state.nodes.remove(id);
+                state.created_nodes.retain(|created| created != id);
+            }
+            (DataOp::CreateEdge { id, .. }, Before::Absent) => {
+                if let Some(Some(edge)) = state.edges.remove(id) {
+                    Self::unlink(state, &edge);
+                }
+                state.created_edges.retain(|created| created != id);
+            }
+            (DataOp::DeleteNode { id }, Before::Node(image)) => {
+                let mut node = Node::with_labels(*id, image.labels.iter().cloned());
+                for (key, value) in &image.properties {
+                    node.set_property(key.clone(), value.clone());
+                }
+                state.nodes.insert(*id, Some(node));
+            }
+            (DataOp::DeleteEdge { id }, Before::Edge(image)) => {
+                let mut edge = Edge::new(*id, image.src, image.dst, image.edge_type.clone());
+                for (key, value) in &image.properties {
+                    edge.set_property(key.clone(), value.clone());
+                }
+                if id.as_u64() >= CREATED_BASE {
+                    state
+                        .added_out
+                        .entry(edge.src)
+                        .or_default()
+                        .push((edge.dst, *id));
+                    state
+                        .added_in
+                        .entry(edge.dst)
+                        .or_default()
+                        .push((edge.src, *id));
+                }
+                state.edges.insert(*id, Some(edge));
+            }
+            (
+                DataOp::SetNodeProperty { id, key, .. } | DataOp::RemoveNodeProperty { id, key },
+                Before::Value(value),
+            ) => {
+                let node = state
+                    .nodes
+                    .get_mut(id)
+                    .and_then(Option::as_mut)
+                    .ok_or_else(broken)?;
+                set_or_remove(
+                    &mut node.properties,
+                    key,
+                    value.as_ref().unwrap_or(&Value::Null),
+                );
+            }
+            (
+                DataOp::SetEdgeProperty { id, key, .. } | DataOp::RemoveEdgeProperty { id, key },
+                Before::Value(value),
+            ) => {
+                let edge = state
+                    .edges
+                    .get_mut(id)
+                    .and_then(Option::as_mut)
+                    .ok_or_else(broken)?;
+                set_or_remove(
+                    &mut edge.properties,
+                    key,
+                    value.as_ref().unwrap_or(&Value::Null),
+                );
+            }
+            (
+                DataOp::AddNodeLabel { id, .. } | DataOp::RemoveNodeLabel { id, .. },
+                Before::Labels(labels),
+            ) => {
+                let node = state
+                    .nodes
+                    .get_mut(id)
+                    .and_then(Option::as_mut)
+                    .ok_or_else(broken)?;
+                node.labels.clone_from(labels);
+            }
+            _ => return Err(broken()),
+        }
+        Ok(())
     }
 }

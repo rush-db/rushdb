@@ -1,8 +1,12 @@
 use super::*;
+use grafeo_core::graph::Direction;
 use rushdb_lmpg::FieldChange;
 use rushdb_storage::{ReadLimits, Store};
 use rushdb_types::command::{CommitBatch, IsolationMode, Mutation, COMMAND_VERSION};
 use serde_json::json;
+
+/// Every committed write: the adapters read one pinned view.
+const LATEST: grafeo_common::types::ReadView = grafeo_common::types::ReadView::latest();
 
 #[test]
 fn mutation_byte_limit_rejects_fat_properties_and_edges_without_committing() {
@@ -152,10 +156,15 @@ fn pinned_adapter_and_result_reconstruction_survive_writes_deletion_and_gc() {
         graph.delete_relationship(edge).unwrap();
         graph.store.gc(u64::MAX).unwrap();
         assert_eq!(
-            adapter.current_epoch(),
+            adapter.committed_epoch(),
             grafeo_common::types::EpochId::new(view.commit_index())
         );
-        assert_eq!(adapter.out_degree(NodeId::new(source.ordinal)), 1);
+        assert_eq!(
+            adapter
+                .degree(NodeId::new(source.ordinal), Direction::Outgoing, LATEST)
+                .unwrap(),
+            1
+        );
         adapter.check().unwrap();
         for language in [QueryLanguage::Cypher, QueryLanguage::Gql] {
             let result = execute_in_view(
@@ -372,7 +381,7 @@ fn first_storage_failure_is_sticky_and_stops_further_reads() {
                 .unwrap(),
         );
         let adapter = LmpgGraphStore::new(Arc::new(OverlayView::new(view)), graph.tenant, None);
-        assert!(adapter.node_ids().is_empty());
+        assert!(adapter.node_ids(LATEST).is_err());
         assert!(matches!(
             adapter.check(),
             Err(StorageError::ResourceExhausted(_))
@@ -476,18 +485,38 @@ fn planner_statistics_come_from_the_catalog_counters() {
         assert_eq!(statistics.labels["Person"].node_count, 2);
         assert_eq!(statistics.labels["City"].node_count, 1);
         assert_eq!(statistics.edge_types["KNOWS"].edge_count, 1);
-        assert_eq!(store.node_count(), 3);
-        assert_eq!(store.edge_count(), 1);
-        assert_eq!(store.nodes_by_label_count("Person"), 2);
-        assert!((store.estimate_avg_degree("KNOWS", true) - 1.0 / 3.0).abs() < 1e-9);
-        assert_eq!(store.all_edge_types(), vec!["KNOWS".to_string()]);
+        assert_eq!(store.node_count(LATEST).unwrap(), 3);
+        assert_eq!(store.edge_count(LATEST).unwrap(), 1);
+        assert_eq!(store.nodes_by_label_count("Person", LATEST).unwrap(), 2);
+        assert!((statistics.edge_types["KNOWS"].avg_out_degree - 1.0 / 3.0).abs() < 1e-9);
+        assert_eq!(store.all_edge_types().unwrap(), vec!["KNOWS".to_string()]);
     });
 }
 
 /// Equality through declared ordered indexes returns exactly what a label
 /// scan returns, across integer/float coercion, signed zeros, strings,
 /// booleans and arrays, for reads and for writes.
+/// The users a temporal equality literal of
+/// [`indexed_equality_matches_the_label_scan`] finds: an instant equals
+/// itself at any offset; a duration compares by its components (a day is
+/// not 24 hours).
+fn temporal_matches(literal: &str) -> Option<Vec<Json>> {
+    Some(match literal {
+        "datetime('2024-05-01T08:00:00Z')" | "datetime('2024-05-01T10:00:00+02:00')" => {
+            vec![json!({"name": "User10"}), json!({"name": "User11"})]
+        }
+        "date('2024-05-01')" => vec![json!({"name": "User12"})],
+        "duration('P1D')" => vec![json!({"name": "User13"})],
+        "duration('PT24H')" => vec![],
+        _ => return None,
+    })
+}
+
 #[test]
+#[expect(
+    clippy::too_many_lines,
+    reason = "one table of seeded values and literals, checked scanned against indexed"
+)]
 fn indexed_equality_matches_the_label_scan() {
     let values = [
         json!(1),
@@ -500,6 +529,12 @@ fn indexed_equality_matches_the_label_scan() {
         json!([1]),
         json!(5.5),
         json!(0.999_999_999_999_999_9),
+        // Typed values: an instant written at two offsets, a date, a
+        // duration.
+        json!({"__datetime": "2024-05-01T10:00:00+02:00"}),
+        json!({"__datetime": "2024-05-01T08:00:00Z"}),
+        json!({"__date": "2024-05-01"}),
+        json!({"__duration": "P1D"}),
     ];
     let seeded = |indexed: bool| {
         let graph = Lmpg::new(Arc::new(Store::new_in_memory()), TenantId::from_ordinal(70));
@@ -548,7 +583,22 @@ fn indexed_equality_matches_the_label_scan() {
     assert!(!adapter(&scanned).has_property_index("v"));
     assert!(adapter(&indexed).has_property_index("v"));
 
-    for literal in ["1", "1.0", "2", "'1'", "-0.0", "0", "true", "5.5", "3"] {
+    for literal in [
+        "1",
+        "1.0",
+        "2",
+        "'1'",
+        "-0.0",
+        "0",
+        "true",
+        "5.5",
+        "3",
+        "datetime('2024-05-01T08:00:00Z')",
+        "datetime('2024-05-01T10:00:00+02:00')",
+        "date('2024-05-01')",
+        "duration('P1D')",
+        "duration('PT24H')",
+    ] {
         let names = |graph: &Lmpg| {
             execute(
                 graph,
@@ -562,6 +612,10 @@ fn indexed_equality_matches_the_label_scan() {
             .rows
         };
         assert_eq!(names(&scanned), names(&indexed), "n.v = {literal}");
+        let expected = temporal_matches(literal);
+        if let Some(expected) = expected {
+            assert_eq!(names(&indexed), expected, "n.v = {literal}");
+        }
     }
     let touched = |graph: &Lmpg| {
         execute_mutation(
@@ -607,16 +661,22 @@ fn long_statements_run_and_overlong_ones_are_refused_not_crashing() {
 }
 
 /// Grafeo cannot interrupt an operator, so a statement that would never
-/// finish (an unbounded variable-length match around a self-loop) ends
-/// because its reads fail once the request is cancelled.
+/// finish (every trail of a complete graph of ten nodes) ends because its
+/// reads fail once the request is cancelled.
 #[test]
 fn a_statement_that_never_ends_is_cancelled_through_its_reads() {
     let graph = Lmpg::new(Arc::new(Store::new_in_memory()), TenantId::from_ordinal(72));
     execute_mutation(
         &graph,
         QueryLanguage::Cypher,
-        "CREATE (s:Single), (a:A {num: 42}), (b:B {num: 46}), (c:C) \
-         CREATE (s)-[:REL]->(a), (s)-[:REL]->(b), (a)-[:REL]->(c), (b)-[:LOOP]->(b)",
+        "UNWIND range(1, 10) AS i CREATE (:K {i: i})",
+        None,
+    )
+    .unwrap();
+    execute_mutation(
+        &graph,
+        QueryLanguage::Cypher,
+        "MATCH (a:K), (b:K) WHERE a.i < b.i CREATE (a)-[:E]->(b)",
         None,
     )
     .unwrap();
@@ -627,7 +687,7 @@ fn a_statement_that_never_ends_is_cancelled_through_its_reads() {
         &view,
         graph.tenant,
         QueryLanguage::Cypher,
-        "MATCH (a:Single) OPTIONAL MATCH (a)-[*3..]-(b) RETURN count(b)",
+        "MATCH (a:K {i: 1})-[*]-(b) RETURN count(b)",
         None,
         None,
         &|| std::time::Instant::now() > deadline,

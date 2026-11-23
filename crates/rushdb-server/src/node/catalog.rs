@@ -114,13 +114,7 @@ impl RequestScope<'_> {
                 .map_err(|_| "corrupt family signature".to_string())?,
         );
         let mut out = Vec::new();
-        for ty in [
-            LogicalType::Int64,
-            LogicalType::Float64,
-            LogicalType::Utf8,
-            LogicalType::Boolean,
-            LogicalType::DateTime,
-        ] {
+        for ty in LogicalType::CATALOG_ORDER {
             let Some(pid_raw) = view
                 .get(&kx::definition_key(t, fid, TypeState::Known(ty)))
                 .map_err(|e| e.to_string())?
@@ -167,14 +161,8 @@ impl RequestScope<'_> {
                 .try_into()
                 .map_err(|_| "corrupt family signature".to_string())?,
         );
-        let states = [
-            TypeState::Unresolved,
-            TypeState::Known(LogicalType::Int64),
-            TypeState::Known(LogicalType::Float64),
-            TypeState::Known(LogicalType::Utf8),
-            TypeState::Known(LogicalType::Boolean),
-            TypeState::Known(LogicalType::DateTime),
-        ];
+        let states = std::iter::once(TypeState::Unresolved)
+            .chain(LogicalType::CATALOG_ORDER.map(TypeState::Known));
         for state in states {
             let Some(pid_raw) = view
                 .get(&kx::definition_key(t, fid, state))
@@ -283,7 +271,6 @@ impl RequestScope<'_> {
         types: &[rushdb_types::model::LogicalType],
         meter: &mut WorkingSet<'_>,
     ) -> Result<Option<ValueDomainIndex>, String> {
-        use rushdb_types::model::LogicalType;
         use rushdb_types::value::{scalar_cmp, scalar_to_json, Scalar};
         use std::cmp::Ordering;
         let Some(definitions) = self.scalar_definitions_of(view, property, types)? else {
@@ -327,7 +314,7 @@ impl RequestScope<'_> {
                 outcome = Ok(false);
                 break;
             }
-            let numeric = matches!(ty, LogicalType::Int64 | LogicalType::Float64);
+            let numeric = ty.numeric();
             if numeric {
                 any_numeric = true;
             } else {
@@ -405,7 +392,6 @@ impl RequestScope<'_> {
         label: &str,
         definitions: &[(rushdb_types::model::LogicalType, u64)],
     ) -> Result<Option<ValueDomainIndex>, String> {
-        use rushdb_types::model::LogicalType;
         let t = self.tenant();
         let mut held = Vec::new();
         for &(ty, pid) in definitions {
@@ -430,7 +416,7 @@ impl RequestScope<'_> {
                 .map_err(derived)?;
         let distinct = rushdb_lmpg::derived::label_distinct(view, t, OwnerKind::Record, label, pid)
             .map_err(derived)?;
-        let numeric = matches!(ty, LogicalType::Int64 | LogicalType::Float64);
+        let numeric = ty.numeric();
         let (mut min, mut max) = (None, None);
         if numeric {
             if let Some((first, last)) =
@@ -785,7 +771,6 @@ impl RequestScope<'_> {
         label: &str,
         pid: u64,
     ) -> Result<Option<(serde_json::Value, serde_json::Value)>, String> {
-        use rushdb_types::model::LogicalType;
         let Some(ty) = meta
             .values()
             .flatten()
@@ -818,12 +803,7 @@ impl RequestScope<'_> {
                 .ok_or_else(|| "corrupt value dictionary entry".to_string())?;
             let scalar = rushdb_types::encoding::decode_order_preserving(ty, payload)
                 .map_err(|e| e.to_string())?;
-            Ok(Some(match scalar {
-                rushdb_types::value::Scalar::DateTime(ms) if ty == LogicalType::DateTime => {
-                    serde_json::Value::String(rushdb_types::datetime::ms_to_datetime_string(ms))
-                }
-                other => rushdb_types::value::scalar_to_json(&other),
-            }))
+            Ok(Some(rushdb_types::value::scalar_to_json(&scalar)))
         };
         Ok(decode(first)?.zip(decode(last)?))
     }
@@ -972,16 +952,13 @@ impl RequestScope<'_> {
         }
         let siblings_of = |norm: &str, logical: &rushdb_types::model::LogicalType| -> Vec<String> {
             let here = logical_type_name(*logical);
-            sibling_map
-                .get(norm)
-                .map(|types| {
-                    types
-                        .iter()
-                        .filter(|t| t.as_str() != here)
-                        .cloned()
-                        .collect()
-                })
-                .unwrap_or_default()
+            sibling_map.get(norm).map_or_default(|types| {
+                types
+                    .iter()
+                    .filter(|t| t.as_str() != here)
+                    .cloned()
+                    .collect()
+            })
         };
         // E2 entry pagination: slice of the returned entry list, independent
         // of the stats scan window below.
@@ -1149,24 +1126,15 @@ impl RequestScope<'_> {
                     let (_, name) = null_only.iter().find(|(null_pid, _)| null_pid == pid)?;
                     (name.clone(), "null".to_string(), Vec::new())
                 };
-                // Datetimes are stored as epoch milliseconds, which order
-                // by instant; describe them as the records response renders
-                // them.
-                let render = |value: &serde_json::Value| match value.as_i64() {
-                    Some(ms) if value_type == "datetime" => {
-                        serde_json::Value::String(rushdb_types::datetime::ms_to_datetime_string(ms))
-                    }
-                    _ => value.clone(),
-                };
                 Some(rushdb_protocol::PropertyDescription {
                     id: Self::public_property_id(*pid),
                     records_count: s.records_count as u64,
                     label: Some(label.clone()),
                     is_array: s.is_array,
                     sibling_types,
-                    sample_values: s.samples.iter().map(render).collect(),
-                    min: s.min.as_ref().map(render),
-                    max: s.max.as_ref().map(render),
+                    sample_values: s.samples.clone(),
+                    min: s.min.clone(),
+                    max: s.max.clone(),
                     name,
                     value_type,
                 })
@@ -1464,12 +1432,11 @@ fn merge_number_definitions(
     entries: Vec<rushdb_protocol::PropertyDescription>,
     meta: &super::PropertyMetadata,
 ) -> Vec<rushdb_protocol::PropertyDescription> {
-    use rushdb_types::model::LogicalType;
     // Display name -> id of its first numeric definition.
     let canonical: std::collections::HashMap<&str, String> = meta
         .values()
         .flat_map(|defs| defs.iter())
-        .filter(|(_, _, _, logical)| matches!(logical, LogicalType::Int64 | LogicalType::Float64))
+        .filter(|(_, _, _, logical)| logical.numeric())
         .fold(
             std::collections::HashMap::new(),
             |mut first, (pid, name, _, _)| {
@@ -1531,19 +1498,15 @@ fn merge_number_definitions(
     merged
 }
 
-/// A value-dictionary payload of type `ty` as the records response shows it
-/// (datetimes in their stored rendering), or `None` when it does not decode.
+/// A value-dictionary payload of type `ty` in its public form (a datetime
+/// in UTC: the dictionary keeps no offset), or `None` when it does not
+/// decode.
 fn dictionary_value(
     ty: rushdb_types::model::LogicalType,
     payload: &[u8],
 ) -> Option<serde_json::Value> {
     let scalar = rushdb_types::encoding::decode_order_preserving(ty, payload).ok()?;
-    Some(match scalar {
-        rushdb_types::value::Scalar::DateTime(ms) => {
-            serde_json::Value::String(rushdb_types::datetime::ms_to_datetime_string(ms))
-        }
-        scalar => rushdb_types::value::scalar_to_json(&scalar),
-    })
+    Some(rushdb_types::value::scalar_to_json(&scalar))
 }
 
 /// Every known-typed record property of `tenant` at `view`: normalized
