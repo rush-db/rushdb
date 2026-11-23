@@ -4649,6 +4649,39 @@ fn transaction_statement_staging_is_gated_by_language() {
     assert_eq!(err.code, ErrorCode::LanguageDisabled);
 }
 
+/// 3.0.14's client-visible features are negotiable by flag: a client treats
+/// an absent flag as unsupported.
+#[test]
+fn capabilities_advertise_the_3_0_14_features() {
+    let mut cfg = config(false);
+    let node = Node::bootstrap(&mut cfg).unwrap();
+    let described = ProtocolExecutor::new(&node, None)
+        .execute(RequestEnvelope {
+            protocol_version: PROTOCOL_VERSION,
+            request_id: None,
+            context: RequestContext::default(),
+            operation: Operation::Describe {
+                describe: Describe::Capabilities,
+            },
+        })
+        .unwrap();
+    let Response::Capabilities { capabilities } = described.response else {
+        panic!("expected capabilities")
+    };
+    for flag in [
+        "typedTemporalValues",
+        "pointValues",
+        "spatialFilters",
+        "uniqueIndexes",
+        "catalogCheck",
+    ] {
+        assert!(
+            capabilities.iter().any(|c| c == flag),
+            "{flag} is advertised"
+        );
+    }
+}
+
 /// Language gating: searchquery is always on, a disabled language is refused
 /// with `LanguageDisabled`, and an enabled language (mongodb) runs end-to-end.
 #[test]
@@ -4714,16 +4747,6 @@ fn language_gating_enforces_enablement_and_searchquery_always_on() {
     };
     assert!(capabilities.contains(&"language:searchquery".to_string()));
     assert!(!capabilities.iter().any(|c| c.contains("language:mongo")));
-    // 3.0.14's client-visible features are negotiable by flag.
-    for flag in [
-        "typedTemporalValues",
-        "pointValues",
-        "spatialFilters",
-        "uniqueIndexes",
-        "catalogCheck",
-    ] {
-        assert!(capabilities.iter().any(|c| c == flag), "{flag} is advertised");
-    }
 
     // Enable mongodb on a fresh node -> it runs end-to-end (find).
     let mut cfg2 = config(false);
