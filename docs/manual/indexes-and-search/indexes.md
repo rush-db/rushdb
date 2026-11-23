@@ -172,9 +172,13 @@ value (the value itself is never in the error):
   another, so of two concurrent writers of one value exactly one succeeds.
   Every write path is covered: `putRecord`, transactions, ingest and nested
   import, and SQL, Cypher, GQL, Gremlin and Mongo writes.
-- A write sent while the unique index is building can fail with
-  `write_conflict` (SQLSTATE `40001`); retry it: the retry is checked
-  against the index.
+- Until 3.0.15, the rule covers a value already stored only once the
+  build has reached its record. A write sent while the index is
+  `building` can give a second record that value; the build then finds
+  the repeat and drops the index. Declare a unique index before loading
+  the label's data, or wait until `describe.indexes` lists it as `ready`
+  before writing. A write sent during the build can also fail with
+  `write_conflict` (SQLSTATE `40001`); retry it.
 - Values compare as filters do: an integer and the string `"5"` are
   different values, two datetimes of one instant are one value. Records of
   another label may hold the value. A record may hold a value twice in an
