@@ -107,9 +107,9 @@ cargo install rushdb-server --locked    # compiles from source
 compiled from C++ sources. Only `rushdb-server` is meant to be installed; the
 other `rushdb-*` crates are internal components with no stable API.
 
-> **Note:** 3.0.14 is not on crates.io: it builds on a Grafeo revision that
-> is not published there, so Cargo installs 3.0.13. Use the installer, a
-> release archive, Docker, Helm or Homebrew for 3.0.14. Publishing to
+> **Note:** 3.0.14 and 3.0.15 are not on crates.io: they build on a Grafeo
+> revision that is not published there, so Cargo installs 3.0.13. Use the
+> installer, a release archive, Docker, Helm or Homebrew for them. Publishing to
 > crates.io resumes with the first release on a published Grafeo.
 
 ## Release archive

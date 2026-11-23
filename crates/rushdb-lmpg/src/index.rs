@@ -15,7 +15,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use rushdb_storage::{DeriveRead, StorageError, Txn};
 use rushdb_types::command::Mutation;
 use rushdb_types::ids::{OwnerKind, TenantId};
-use rushdb_types::index::{IndexDef, IndexKind, IndexState, TEXT_ALL_PROPERTIES};
+use rushdb_types::index::{DropReason, IndexDef, IndexKind, IndexState, TEXT_ALL_PROPERTIES};
 use rushdb_types::keys::{self as k, key};
 use rushdb_types::model::{LogicalType, TypeState};
 use rushdb_types::occurrence::{decode_occ_value, OccurrenceValue};
@@ -88,7 +88,10 @@ pub(crate) fn expand(
                 .ok_or_else(|| builder(format!("index {name} does not exist")))?;
             let mut def = def_by_id(txn, t, id)?;
             if !matches!(def.state, IndexState::Dropping { .. }) {
-                def.state = IndexState::Dropping { cursor: 0 };
+                def.state = IndexState::Dropping {
+                    cursor: 0,
+                    reason: None,
+                };
                 txn.put(k::index_def_key(t, id), encode_def(&def));
             }
             Ok(())
@@ -160,19 +163,26 @@ fn define(
             .ok_or_else(|| builder("index ids exhausted"))?,
         None => 1,
     };
+    let def = IndexDef {
+        id,
+        name: name.to_owned(),
+        label: label.to_owned(),
+        property,
+        kind,
+        state: IndexState::Building { cursor: 0 },
+    };
+    if kind == IndexKind::Unique {
+        // Every value the label holds is claimed in the declaring commit, so
+        // a write during the build is checked against all of them, not only
+        // those of the records the build has reached.
+        let owners = label_members_after(txn, t, label, 0, None)?;
+        if let Some(holder) = crate::unique::backfill_claims(txn, t, &def, &owners)? {
+            return Err(builder(crate::unique::repeated(txn, t, &def, holder)?));
+        }
+    }
     txn.put(index_seq_key(t), id.to_be_bytes().to_vec());
     txn.put(k::index_name_key(t, name), id.to_be_bytes().to_vec());
-    txn.put(
-        k::index_def_key(t, id),
-        encode_def(&IndexDef {
-            id,
-            name: name.to_owned(),
-            label: label.to_owned(),
-            property,
-            kind,
-            state: IndexState::Building { cursor: 0 },
-        }),
-    );
+    txn.put(k::index_def_key(t, id), encode_def(&def));
     Ok(())
 }
 
@@ -194,11 +204,16 @@ fn backfill(
         None => IndexState::Ready,
     };
     if def.kind == IndexKind::Unique {
-        // The covered records claim their values; two holding one value
-        // mean the index cannot hold: it is dropped instead.
+        // The covered records claim their values (an index declared since
+        // 3.0.15 holds them already; one declared before did not); two
+        // holding one value mean the index cannot hold: it is dropped
+        // instead.
         let owners = label_members_after(txn, t, &def.label, cursor, through)?;
-        if !crate::unique::backfill_claims(txn, t, &def, &owners)? {
-            def.state = IndexState::Dropping { cursor: 0 };
+        if crate::unique::backfill_claims(txn, t, &def, &owners)?.is_some() {
+            def.state = IndexState::Dropping {
+                cursor: 0,
+                reason: Some(DropReason::RepeatedValue),
+            };
         }
     }
     if def.kind.applied() {
@@ -222,7 +237,7 @@ fn drop_step(
     txn: &mut Txn,
 ) -> Result<(), StorageError> {
     let mut def = def_by_id(txn, t, id)?;
-    let IndexState::Dropping { cursor } = def.state else {
+    let IndexState::Dropping { cursor, reason } = def.state else {
         return Err(builder(format!("index {} is not dropping", def.name)));
     };
     if def.kind.applied() {
@@ -239,6 +254,7 @@ fn drop_step(
     if let Some(next) = through {
         def.state = IndexState::Dropping {
             cursor: cursor.max(next),
+            reason,
         };
         txn.put(k::index_def_key(t, id), encode_def(&def));
     } else {
@@ -830,7 +846,10 @@ mod tests {
         assert_eq!(
             coverage_changes(
                 Some(IndexState::Ready),
-                Some(IndexState::Dropping { cursor: 5 })
+                Some(IndexState::Dropping {
+                    cursor: 5,
+                    reason: None
+                })
             ),
             vec![(0, 5)]
         );
@@ -984,7 +1003,7 @@ impl crate::Lmpg {
         };
         let cursor = match def.state {
             IndexState::Ready => return Ok(IndexStep::Idle),
-            IndexState::Building { cursor } | IndexState::Dropping { cursor } => cursor,
+            IndexState::Building { cursor } | IndexState::Dropping { cursor, .. } => cursor,
         };
         let prefix = k::label_member_prefix(self.tenant, &def.label);
         let mut cursor_scan = view

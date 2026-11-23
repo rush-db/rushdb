@@ -262,3 +262,76 @@ fn a_transaction_writing_a_held_value_does_not_commit() {
     .unwrap();
     assert_eq!(users["total"], json!(1), "{users}");
 }
+
+/// A unique index claims every stored value when it is declared: a write
+/// sent while its build is still covering the label's records is refused,
+/// and the index builds.
+#[test]
+fn a_write_during_a_multi_batch_build_is_refused_and_the_index_stays() {
+    let node = node();
+    let rows: Vec<Value> = (0..2_500)
+        .map(|n| json!({"email": format!("u{n}@x")}))
+        .collect();
+    run(
+        &node,
+        &json!({"kind": "ingest", "ingest": {"kind": "documents", "label": "Bulk", "documents": rows}}),
+    )
+    .unwrap();
+    let holder = create(&node, "Bulk", &json!({"email": "a@x"})).unwrap();
+    run(
+        &node,
+        &json!({"kind": "index", "index": {"kind": "create", "definition": {
+            "name": "Bulk_email", "label": "Bulk", "property": "email", "kind": "unique"}}}),
+    )
+    .unwrap();
+    let state = |node: &Node| {
+        let listed = run(
+            node,
+            &json!({"kind": "describe", "describe": {"kind": "indexes"}}),
+        )
+        .unwrap();
+        listed["indexes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|index| index["name"] == "Bulk_email")
+            .map(|index| index["state"].as_str().unwrap().to_owned())
+    };
+    assert_eq!(state(&node).as_deref(), Some("building"));
+    let refused = create(&node, "Bulk", &json!({"email": "a@x"})).unwrap_err();
+    assert_unique_conflict(&refused, "Bulk", "email", &holder);
+    let refused = create(&node, "Bulk", &json!({"email": "u7@x"})).unwrap_err();
+    assert_eq!(
+        refused.code,
+        rushdb_protocol::ErrorCode::Conflict,
+        "{refused:?}"
+    );
+    while node.step_index_builds(std::time::Duration::from_secs(5)) > 0 {}
+    assert_eq!(state(&node).as_deref(), Some("ready"));
+    assert!(create(&node, "Bulk", &json!({"email": "a@x"})).is_err());
+    create(&node, "Bulk", &json!({"email": "new@x"})).unwrap();
+}
+
+/// A value longer than the value dictionary holds (96 bytes) that repeats
+/// is found when the index is declared, not by its build.
+#[test]
+fn a_repeated_long_value_is_refused_at_declaration() {
+    let node = node();
+    let long = "x".repeat(200);
+    create(&node, "Long", &json!({"code": long})).unwrap();
+    let second = create(&node, "Long", &json!({"code": long})).unwrap();
+    let refused = unique(&node, "Long", "code").unwrap_err();
+    assert_eq!(
+        refused.code,
+        rushdb_protocol::ErrorCode::Conflict,
+        "{refused:?}"
+    );
+    assert!(refused.message.contains(&second), "{refused:?}");
+    assert!(!refused.message.contains(&long), "{refused:?}");
+    let listed = run(
+        &node,
+        &json!({"kind": "describe", "describe": {"kind": "indexes"}}),
+    )
+    .unwrap();
+    assert!(listed["indexes"].as_array().unwrap().is_empty(), "{listed}");
+}

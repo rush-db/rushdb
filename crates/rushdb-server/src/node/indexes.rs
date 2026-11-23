@@ -5,7 +5,8 @@
 use std::time::{Duration, Instant};
 
 use rushdb_lmpg::index::{self, IndexStep};
-use rushdb_types::index::{IndexDef, IndexKind, IndexState, TextConsistency};
+use rushdb_types::ids::TenantId;
+use rushdb_types::index::{DropReason, IndexDef, IndexKind, IndexState, TextConsistency};
 
 use super::{Node, RequestScope};
 
@@ -39,6 +40,13 @@ fn describe(def: &IndexDef) -> serde_json::Value {
             out["dimensions"] = dimensions.into();
             out["model"] = rushdb_vector::structural::STRUCTURAL_MODEL.into();
         }
+    }
+    if let IndexState::Dropping {
+        reason: Some(reason),
+        ..
+    } = def.state
+    {
+        out["reason"] = reason.label().into();
     }
     out
 }
@@ -205,7 +213,7 @@ impl Node {
         };
         let mut commits = 0;
         for tenant in tenants {
-            let pending: Vec<(u32, bool)> = match self
+            let pending: Vec<(u32, bool, bool)> = match self
                 .store
                 .read_view()
                 .map_err(|e| e.to_string())
@@ -217,7 +225,9 @@ impl Node {
                     .map(|def| {
                         let text_drop = matches!(def.kind, IndexKind::Text { .. })
                             && matches!(def.state, IndexState::Dropping { .. });
-                        (def.id, text_drop)
+                        let unique_build = def.kind == IndexKind::Unique
+                            && matches!(def.state, IndexState::Building { .. });
+                        (def.id, text_drop, unique_build)
                     })
                     .collect(),
                 Err(error) => {
@@ -231,12 +241,19 @@ impl Node {
             // Only a tenant with work gets an engine handle (constructing one
             // re-installs the store's expander and deriver).
             let lmpg = rushdb_lmpg::Lmpg::new(std::sync::Arc::clone(&self.store), tenant);
-            for (id, text_drop) in pending {
+            for (id, text_drop, mut unique_build) in pending {
                 loop {
                     if started.elapsed() >= budget {
                         return commits;
                     }
-                    match lmpg.index_step(id, INDEX_BUILD_BATCH) {
+                    let step = lmpg.index_step(id, INDEX_BUILD_BATCH);
+                    if unique_build
+                        && matches!(step, Ok(IndexStep::Advanced(_) | IndexStep::Finished))
+                        && self.warn_if_build_dropped(tenant, id)
+                    {
+                        unique_build = false;
+                    }
+                    match step {
                         Ok(IndexStep::Advanced(_)) => commits += 1,
                         Ok(IndexStep::Finished) => {
                             commits += 1;
@@ -258,6 +275,36 @@ impl Node {
             }
         }
         commits
+    }
+
+    /// Warn when a unique index's build step dropped it: two records of the
+    /// label hold one value. Neither the value nor the records are logged.
+    /// Returns whether it was dropped.
+    fn warn_if_build_dropped(&self, tenant: TenantId, id: u32) -> bool {
+        let dropped = self
+            .store
+            .read_view()
+            .map_err(|e| e.to_string())
+            .and_then(|view| index::definitions(&view, tenant).map_err(|e| e.to_string()))
+            .ok()
+            .and_then(|defs| defs.into_iter().find(|def| def.id == id))
+            .filter(|def| {
+                matches!(
+                    def.state,
+                    IndexState::Dropping {
+                        reason: Some(DropReason::RepeatedValue),
+                        ..
+                    }
+                )
+            });
+        if let Some(def) = &dropped {
+            tracing::warn!(
+                %tenant,
+                index = %def.name,
+                "unique index build found a value two records of its label hold; the index is being dropped"
+            );
+        }
+        dropped.is_some()
     }
 }
 
@@ -320,5 +367,33 @@ impl Node {
             }
         }
         applied
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_listed_index_tells_why_the_engine_drops_it() {
+        let mut def = IndexDef {
+            id: 1,
+            name: "User.email.unique".into(),
+            label: "User".into(),
+            property: "email".into(),
+            kind: IndexKind::Unique,
+            state: IndexState::Dropping {
+                cursor: 0,
+                reason: Some(DropReason::RepeatedValue),
+            },
+        };
+        let listed = describe(&def);
+        assert_eq!(listed["state"], "dropping");
+        assert_eq!(listed["reason"], "repeatedValue");
+        def.state = IndexState::Dropping {
+            cursor: 0,
+            reason: None,
+        };
+        assert!(describe(&def).get("reason").is_none());
     }
 }

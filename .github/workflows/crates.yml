@@ -30,7 +30,7 @@ jobs:
           sparse-checkout: scripts
       - run: mv tooling "$RUNNER_TEMP/tooling"
       # A release listed in scripts/crates-io-skip.txt is not published to
-      # crates.io (3.0.14: its Grafeo revision is not on crates.io). The run
+      # crates.io (3.0.14, 3.0.15: their Grafeo revision is not on crates.io). The run
       # stops here and says why.
       - name: Skip releases not published to crates.io
         id: skip

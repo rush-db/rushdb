@@ -13,12 +13,27 @@ use tonic::transport::Channel;
 use tonic::Request;
 
 use rushdb_grpc::BytesEnvelope;
-use std::sync::atomic::{AtomicU16, Ordering};
-
-static GRPC_PORT: AtomicU16 = AtomicU16::new(39010);
+/// A port the system had free a moment ago (gRPC takes a fixed port; another
+/// test may take it first, so `boot` retries).
+fn free_port() -> u16 {
+    std::net::TcpListener::bind("127.0.0.1:0")
+        .and_then(|listener| listener.local_addr())
+        .expect("free port")
+        .port()
+}
 
 fn boot(token: &str) -> (u16, u16, u16) {
-    let grpc_port = GRPC_PORT.fetch_add(1, Ordering::Relaxed);
+    for _ in 0..10 {
+        match try_boot(token, free_port()) {
+            Ok(ports) => return ports,
+            Err(error) if error.contains("Address already in use") => {}
+            Err(error) => panic!("gateway: {error}"),
+        }
+    }
+    panic!("gateway: no free gRPC port in 10 tries");
+}
+
+fn try_boot(token: &str, grpc_port: u16) -> Result<(u16, u16, u16), String> {
     let cfg = ServerConfig {
         port: 0,
         pgwire_port: 0,
@@ -50,11 +65,10 @@ fn boot(token: &str) -> (u16, u16, u16) {
         max_concurrent_requests_per_tenant: 0,
         explicit_flags: std::collections::BTreeSet::new(),
     };
-    let (mut router, http_port, _pgwire, _, mut grpc, bound_grpc, _bolt, _) =
-        new_gateway(cfg, 0).expect("gateway");
+    let (mut router, http_port, _pgwire, _, mut grpc, bound_grpc, _bolt, _) = new_gateway(cfg, 0)?;
     std::thread::spawn(move || router.serve_forever());
     std::thread::spawn(move || grpc.serve_forever());
-    (http_port, bound_grpc, bound_grpc)
+    Ok((http_port, bound_grpc, bound_grpc))
 }
 
 fn http_execute(port: u16, token: &str, envelope: &serde_json::Value) -> (u16, serde_json::Value) {

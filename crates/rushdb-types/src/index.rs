@@ -103,7 +103,29 @@ pub enum IndexState {
     Dropping {
         /// First record ordinal whose entries remain.
         cursor: u64,
+        /// Why the engine dropped it; `None` for a drop asked for.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        reason: Option<DropReason>,
     },
+}
+
+/// Why the engine dropped an index nobody asked to drop.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum DropReason {
+    /// A unique index's build found two records of the label holding one
+    /// value.
+    RepeatedValue,
+}
+
+impl DropReason {
+    /// Wire label (`repeatedValue`).
+    #[must_use]
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::RepeatedValue => "repeatedValue",
+        }
+    }
 }
 
 impl IndexState {
@@ -113,7 +135,7 @@ impl IndexState {
         match self {
             Self::Building { cursor } => (0, cursor),
             Self::Ready => (0, u64::MAX),
-            Self::Dropping { cursor } => (cursor, u64::MAX),
+            Self::Dropping { cursor, .. } => (cursor, u64::MAX),
         }
     }
 
@@ -145,7 +167,36 @@ mod tests {
         let building = IndexState::Building { cursor: 5 };
         assert!(building.covers(0) && building.covers(4) && !building.covers(5));
         assert!(IndexState::Ready.covers(u64::MAX - 1));
-        let dropping = IndexState::Dropping { cursor: 5 };
+        let dropping = IndexState::Dropping {
+            cursor: 5,
+            reason: None,
+        };
         assert!(!dropping.covers(4) && dropping.covers(5));
+    }
+
+    #[test]
+    fn a_drop_reason_is_optional_on_the_wire() {
+        let asked: IndexState = serde_json::from_str(r#"{"state":"dropping","cursor":3}"#).unwrap();
+        assert_eq!(
+            asked,
+            IndexState::Dropping {
+                cursor: 3,
+                reason: None
+            }
+        );
+        assert_eq!(
+            serde_json::to_string(&asked).unwrap(),
+            r#"{"state":"dropping","cursor":3}"#
+        );
+        let dropped = IndexState::Dropping {
+            cursor: 0,
+            reason: Some(DropReason::RepeatedValue),
+        };
+        let text = serde_json::to_string(&dropped).unwrap();
+        assert_eq!(
+            text,
+            r#"{"state":"dropping","cursor":0,"reason":"repeatedValue"}"#
+        );
+        assert_eq!(serde_json::from_str::<IndexState>(&text).unwrap(), dropped);
     }
 }
