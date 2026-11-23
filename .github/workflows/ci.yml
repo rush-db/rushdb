@@ -126,6 +126,13 @@ jobs:
       # listed in scripts/slow-tests.txt) fails too.
       - run: python3 scripts/run-tests.py --log-dir target/test-logs
         timeout-minutes: 90
+      # The runner names a failed binary; its log holds the panic.
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: failure()
+        with:
+          name: test-logs-resident-${{ matrix.resident }}
+          path: target/test-logs
+          retention-days: 14
 
   fault-matrix:
     name: Crash/reopen and memory-disk matrix
