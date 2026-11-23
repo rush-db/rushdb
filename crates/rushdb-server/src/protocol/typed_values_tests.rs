@@ -570,6 +570,18 @@ fn queries_answer_with_warnings_for_names_and_values_no_record_holds() {
             .contains(&json!({"value": "Berlin", "reason": "spelling"})),
         "{value}"
     );
+    // The stored spelling also contains the value: suggested once, as the
+    // spelling.
+    assert_eq!(
+        value["suggestions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|s| s["value"] == "Berlin" && s.get("label").is_none())
+            .count(),
+        1,
+        "{value}"
+    );
     let property = warnings
         .iter()
         .find(|w| w["kind"] == "unknownProperty")

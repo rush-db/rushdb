@@ -215,7 +215,14 @@ impl ProtocolExecutor<'_> {
                     (_, true) => suggestion(None, None, Some(text), "contains"),
                     _ => continue,
                 };
-                if !out.contains(&found) {
+                // A value found both ways is suggested once, with the
+                // first (stronger) reason: the stored spelling also
+                // contains the value it spells.
+                if !out.iter().any(|known: &QueryWarningSuggestion| {
+                    known.label == found.label
+                        && known.property == found.property
+                        && known.value == found.value
+                }) {
                     out.push(found);
                 }
             }
