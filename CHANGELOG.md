@@ -104,7 +104,9 @@ in [`docs/manual/operations/upgrading-from-2x.md`](docs/manual/operations/upgrad
   [Spatial queries](docs/manual/query/spatial.md).
 - **Typed values over the PostgreSQL wire**: `timestamptz`, `interval` and
   `point` in both text and binary form, and binary parameters of the
-  temporal types.
+  temporal types. Times print as PostgreSQL prints them: fractional
+  seconds without trailing zeros, none when whole (`19:00:00+01`, was
+  `19:00:00.000000+01` for `time` and `timestamp`).
 - **Mongo Extended JSON dates**: `{"$date": ...}` (ISO 8601 text,
   `{"$numberLong": ...}` or epoch milliseconds) is a datetime in filters
   and writes.

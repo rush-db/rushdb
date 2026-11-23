@@ -1381,12 +1381,12 @@ async fn typed_values_are_postgresql_types() {
     assert_eq!(row.get("day"), Some("2024-05-01"));
     assert_eq!(row.get("lasts"), Some("1 day 02:00:00"));
     assert_eq!(row.get("place"), Some("(13.4,52.5)"));
-    assert_eq!(row.get("at"), Some("2024-05-01 07:30:00.000000+00"));
+    assert_eq!(row.get("at"), Some("2024-05-01 07:30:00+00"));
     // The session's time zone writes timestamptz values at its offset, read
     // as PostgreSQL reads it: a number is hours east, text POSIX hours west.
     for (zone, expected) in [
-        ("2", "2024-05-01 09:30:00.000000+02"),
-        ("'+02'", "2024-05-01 05:30:00.000000-02"),
+        ("2", "2024-05-01 09:30:00+02"),
+        ("'+02'", "2024-05-01 05:30:00-02"),
     ] {
         client
             .batch_execute(&format!("SET TIME ZONE {zone}"))
@@ -1466,8 +1466,8 @@ async fn signed_years_read_as_their_dates() {
         text,
         [
             Some("-0043-03-15".to_owned()),
-            Some("-0043-03-15 12:00:00.000000".to_owned()),
-            Some("-0043-03-15 12:00:00.000000+00".to_owned()),
+            Some("-0043-03-15 12:00:00".to_owned()),
+            Some("-0043-03-15 12:00:00+00".to_owned()),
         ]
     );
 }

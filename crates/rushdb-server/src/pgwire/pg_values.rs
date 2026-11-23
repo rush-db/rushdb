@@ -1,6 +1,6 @@
 //! PostgreSQL `interval` and `point` values, in both wire formats: the
 //! text PostgreSQL itself writes (`1 year 2 mons 3 days 04:05:06.5`,
-//! `(1.5,2)`) and its binary layout.
+//! `(1.5,2)`) and its binary layout; and times as PostgreSQL prints them.
 
 use std::error::Error;
 
@@ -116,6 +116,73 @@ impl ToSqlText for PgInterval {
     }
 }
 
+/// A `time`, `timestamp` or `timestamptz` printed as PostgreSQL prints it:
+/// fractional seconds without trailing zeros, none when whole
+/// (`19:00:00+01`, `19:00:00.5+01`). The pgwire crate's text (for every
+/// `DateStyle`) always has six digits; the binary form is its own.
+#[derive(Debug)]
+pub(super) struct PgTime<T>(pub(super) T);
+
+impl<T: ToSql> ToSql for PgTime<T> {
+    fn to_sql(&self, ty: &Type, out: &mut BytesMut) -> Result<IsNull, BoxError> {
+        self.0.to_sql(ty, out)
+    }
+
+    fn accepts(ty: &Type) -> bool {
+        T::accepts(ty)
+    }
+
+    to_sql_checked!();
+}
+
+impl<T: ToSqlText> ToSqlText for PgTime<T> {
+    fn to_sql_text(
+        &self,
+        ty: &Type,
+        out: &mut BytesMut,
+        options: &FormatOptions,
+    ) -> Result<IsNull, BoxError> {
+        let mut text = BytesMut::new();
+        let null = self.0.to_sql_text(ty, &mut text, options)?;
+        out.put_slice(&trim_fraction(&text));
+        Ok(null)
+    }
+}
+
+/// `…:SS.ffffff…` with the fraction's trailing zeros dropped, and the dot
+/// when nothing is left. Only a fraction right after `:SS` is touched (a
+/// German date's `25.12.` is not).
+fn trim_fraction(text: &[u8]) -> Vec<u8> {
+    let digit = |at: usize| text.get(at).is_some_and(u8::is_ascii_digit);
+    let mut out = Vec::with_capacity(text.len());
+    let mut at = 0;
+    while at < text.len() {
+        let fraction = at >= 3
+            && text[at] == b'.'
+            && text[at - 3] == b':'
+            && digit(at - 2)
+            && digit(at - 1)
+            && digit(at + 1);
+        if !fraction {
+            out.push(text[at]);
+            at += 1;
+            continue;
+        }
+        let end = (at + 1..=text.len())
+            .find(|&end| !digit(end))
+            .unwrap_or(text.len());
+        let kept = text[at + 1..end]
+            .iter()
+            .rposition(|&d| d != b'0')
+            .map_or(0, |last| last + 1);
+        if kept > 0 {
+            out.extend_from_slice(&text[at..=at + kept]);
+        }
+        at = end;
+    }
+    out
+}
+
 /// A `point`.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(super) struct PgPoint {
@@ -167,6 +234,26 @@ impl ToSqlText for PgPoint {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn times_print_their_fraction_as_postgresql_does() {
+        for (crate_text, postgres) in [
+            ("19:00:00.000000+01", "19:00:00+01"),
+            ("19:00:00.500000+01", "19:00:00.5+01"),
+            ("2026-11-23 19:00:00.000120", "2026-11-23 19:00:00.00012"),
+            ("23.11.2026 19:00:05.000000", "23.11.2026 19:00:05"),
+            (
+                "Mon Nov 23 19:00:00.250000 2026",
+                "Mon Nov 23 19:00:00.25 2026",
+            ),
+            ("12:00:00", "12:00:00"),
+        ] {
+            assert_eq!(
+                String::from_utf8(trim_fraction(crate_text.as_bytes())).unwrap(),
+                postgres
+            );
+        }
+    }
 
     #[test]
     fn intervals_read_as_postgresql_writes_them() {

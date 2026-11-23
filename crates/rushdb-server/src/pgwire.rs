@@ -1235,14 +1235,14 @@ fn encode_value(
             let value =
                 NaiveTime::parse_from_str(value.as_str().ok_or_else(mismatch)?, "%H:%M:%S%.f")
                     .map_err(|_| mismatch())?;
-            encoder.encode_field(&value)
+            encoder.encode_field(&pg_values::PgTime(value))
         }
         Type::TIMESTAMP => {
             let raw = value.as_str().ok_or_else(mismatch)?;
             let value = NaiveDateTime::parse_from_str(raw, "%Y-%m-%dT%H:%M:%S%.f")
                 .or_else(|_| NaiveDateTime::parse_from_str(raw, "%Y-%m-%d %H:%M:%S%.f"))
                 .map_err(|_| mismatch())?;
-            encoder.encode_field(&value)
+            encoder.encode_field(&pg_values::PgTime(value))
         }
         Type::TIMESTAMPTZ => {
             let raw = value.as_str().ok_or_else(mismatch)?;
@@ -1252,7 +1252,7 @@ fn encode_value(
             let value = chrono::DateTime::from_timestamp_micros(instant.micros)
                 .ok_or_else(mismatch)?
                 .with_timezone(&zone);
-            encoder.encode_field(&value)
+            encoder.encode_field(&pg_values::PgTime(value))
         }
         Type::INTERVAL => encoder.encode_field(
             &pg_values::PgInterval::parse(value.as_str().ok_or_else(mismatch)?)
