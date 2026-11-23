@@ -1969,7 +1969,9 @@ mod p11_tests {
             0,
             None,
         );
-        let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(5);
+        // Generous deadlines: the loops end as soon as the worker has done
+        // its part, and a busy test runner can starve it for seconds.
+        let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(30);
         loop {
             let lost = node.retention_consumer_lost("stalled-replica");
             let retired = node.store().maintenance_counters().0;
@@ -1989,7 +1991,7 @@ mod p11_tests {
         // not stop a tick already running on a blocking thread, whose read
         // view may still be pinned for a moment: wait for that pin to drop
         // instead of sampling once.
-        let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(5);
+        let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(30);
         while node.protected_retention_floor().is_some() {
             assert!(
                 tokio::time::Instant::now() < deadline,
@@ -2003,9 +2005,21 @@ mod p11_tests {
             .acknowledge_retention_consumer("stalled-replica", 2)
             .unwrap_err();
         assert!(refused.oldest_available_lsn > 2);
-        // Resyncing at the oldest retained LSN is accepted.
-        node.acknowledge_retention_consumer("stalled-replica", refused.oldest_available_lsn)
-            .unwrap();
+        // Resyncing at the oldest retained LSN is accepted. A tick of the
+        // aborted worker still running can retire one more commit after
+        // the refusal; a consumer then resyncs at the LSN it is refused with
+        // next, as a replica does.
+        let mut oldest = refused.oldest_available_lsn;
+        for attempt in 0.. {
+            match node.acknowledge_retention_consumer("stalled-replica", oldest) {
+                Ok(()) => break,
+                Err(again) if attempt < 10 => {
+                    assert!(again.oldest_available_lsn > oldest, "refused at {oldest}");
+                    oldest = again.oldest_available_lsn;
+                }
+                Err(again) => panic!("never resynced: {again:?}"),
+            }
+        }
         drop(node);
         std::fs::remove_dir_all(data_dir).ok();
     }
