@@ -228,6 +228,7 @@ line `data migration applied` reports the tenants and rows rewritten.
 | Migration | Release | What it rewrites |
 |---|---|---|
 | `0001-binary-vector-bindings` | 3.0.7 | Vector binding rows from JSON documents to the 17-byte binding value. No re-indexing is needed; vectors, slots and ANN segments are unchanged. |
+| `0002-datetime-microseconds` | 3.0.14 | Datetime values from UTC epoch milliseconds to microseconds with the UTC offset, each as the same instant in UTC; the value dictionary and ordered indexes follow. It runs once, on a store still in the 3.0.13 format, which then records format 7: 3.0.13 and earlier refuse the store afterwards, so back it up before upgrading. A start that stopped part way finishes the rest. |
 
 Start time grows with the rows a migration rewrites (one batch of 4,096
 rows per commit), once.
