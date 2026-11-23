@@ -4,6 +4,38 @@ This project follows [Semantic Versioning](https://semver.org/). Release notes
 describe observable engine and protocol changes; migration instructions belong
 in [`docs/manual/operations/upgrading-from-2x.md`](docs/manual/operations/upgrading-from-2x.md).
 
+## 3.0.15 — 2026-11-24
+
+A patch release for unique indexes.
+
+### Fixed
+
+- **A write during a unique index's build could repeat a value.** A value
+  already stored was claimed only once the build reached its record, so a
+  write sent while the index was `building` could give a second record that
+  value, and the build then dropped the index without a word. Declaring a
+  unique index now claims every value of the label in the declaring commit:
+  a write during the build is refused with `409 conflict` like any other,
+  and the index builds. A repeated value is refused at declaration, a value
+  longer than 96 bytes included (the build used to find those).
+- **An index the engine drops says why.** A unique index declared before
+  3.0.15 whose build finds a repeated value is still dropped; while it goes,
+  `describe.indexes` lists it as `dropping` with `reason: "repeatedValue"`,
+  and the server logs a warning naming the index (never the value).
+
+### Changed
+
+- **Declaring a unique index takes longer and holds writes meanwhile.** The
+  declaring commit reads every record of the label: about 2 µs a record,
+  so about 0.1 s for 50,000 records, during which other writes wait.
+  Writes, imports and the build itself run as fast as in 3.0.14.
+
+### Known limitations
+
+- **No crates.io packages.** 3.0.15 builds on the same Grafeo revision as
+  3.0.14, which is not on crates.io: it ships as binaries, Docker images,
+  the Helm chart and the Homebrew formula.
+
 ## 3.0.14 — 2026-11-23
 
 ### Changed

@@ -172,22 +172,25 @@ value (the value itself is never in the error):
   another, so of two concurrent writers of one value exactly one succeeds.
   Every write path is covered: `putRecord`, transactions, ingest and nested
   import, and SQL, Cypher, GQL, Gremlin and Mongo writes.
-- Until 3.0.15, the rule covers a value already stored only once the
-  build has reached its record. A write sent while the index is
-  `building` can give a second record that value; the build then finds
-  the repeat and drops the index. Declare a unique index before loading
-  the label's data, or wait until `describe.indexes` lists it as `ready`
-  before writing. A write sent during the build can also fail with
-  `write_conflict` (SQLSTATE `40001`); retry it.
+- Declaring the index claims every value the label holds in one commit,
+  so a write sent while it is `building` is checked against all of them.
+  That commit reads every record of the label (about 0.1 s for 50,000
+  records), and other writes wait for it. A write sent during the build
+  can fail with `write_conflict` (SQLSTATE `40001`); retry it. (In 3.0.14
+  a stored value was claimed only once the build reached its record, so a
+  write during the build could repeat it and the build then dropped the
+  index.)
 - Values compare as filters do: an integer and the string `"5"` are
   different values, two datetimes of one instant are one value. Records of
   another label may hold the value. A record may hold a value twice in an
   array.
 - Changing or deleting a value releases it for other records.
 - Declaring one on data that already repeats a value is refused with
-  `409 conflict`, naming records that hold repeated values. (A repeated
-  value longer than 96 bytes is found by the build instead, which then drops
-  the index.)
+  `409 conflict`, naming records that hold repeated values.
+- An index the engine drops is listed as `dropping` with a `reason` until
+  it is gone: `repeatedValue` for a unique index declared before 3.0.15
+  whose build found a repeated value. The server logs a warning naming
+  the index.
 - Over PostgreSQL the error is SQLSTATE `23505`; over Bolt
   `Neo.ClientError.Schema.ConstraintValidationFailed`; over gRPC
   `ALREADY_EXISTS`.
