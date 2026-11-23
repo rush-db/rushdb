@@ -172,6 +172,9 @@ value (the value itself is never in the error):
   another, so of two concurrent writers of one value exactly one succeeds.
   Every write path is covered: `putRecord`, transactions, ingest and nested
   import, and SQL, Cypher, GQL, Gremlin and Mongo writes.
+- A write sent while the unique index is building can fail with
+  `write_conflict` (SQLSTATE `40001`); retry it: the retry is checked
+  against the index.
 - Values compare as filters do: an integer and the string `"5"` are
   different values, two datetimes of one instant are one value. Records of
   another label may hold the value. A record may hold a value twice in an
