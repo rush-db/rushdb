@@ -176,14 +176,14 @@ impl UniqueRules {
 }
 
 /// Claim every value of `owners` (records of `def`'s label) for unique index
-/// `def`, as its build covers them. `Ok(false)` when a value is held by two
-/// of them: the index cannot be built.
+/// `def`. `Ok(Some(record))` when a value `record` holds is held by another
+/// record too: the index cannot be built.
 pub(crate) fn backfill_claims(
     txn: &mut Txn,
     t: TenantId,
     def: &IndexDef,
     owners: &[u64],
-) -> Result<bool, StorageError> {
+) -> Result<Option<u64>, StorageError> {
     let pids = crate::index::record_property_pids(txn, t, &def.property)?;
     for &owner in owners {
         for &pid in &pids {
@@ -200,14 +200,30 @@ pub(crate) fn backfill_claims(
             for entry in entries {
                 let key = k::unique_claim_key(t, def.id, &entry);
                 match txn.get(&key)? {
-                    Some(holder) if decode_owner(&holder)? != owner => return Ok(false),
+                    Some(holder) if decode_owner(&holder)? != owner => return Ok(Some(owner)),
                     Some(_) => {}
                     None => txn.put(key, owner.to_be_bytes().to_vec()),
                 }
             }
         }
     }
-    Ok(true)
+    Ok(None)
+}
+
+/// The refusal of a unique index declared on values that repeat: names
+/// `holder`, one of the records holding a repeated value (never the value).
+pub(crate) fn repeated(
+    txn: &Txn,
+    t: TenantId,
+    def: &IndexDef,
+    holder: u64,
+) -> Result<String, StorageError> {
+    Ok(format!(
+        "{UNIQUE_CONFLICT} on `{}`.`{}`: records {} hold values another record of the label holds",
+        def.label,
+        def.property,
+        record_id(txn, t, holder)?
+    ))
 }
 
 /// Remove every claim of unique index `id` (its drop).
@@ -236,15 +252,21 @@ fn record_label(txn: &Txn, t: TenantId, owner: u64) -> Result<Option<String>, St
 
 /// The conflict message: label, property and the holding record's id.
 fn conflict(txn: &Txn, t: TenantId, def: &IndexDef, holder: u64) -> Result<String, StorageError> {
-    let id = txn
-        .get(&k::record_hdr_key(t, holder))?
+    Ok(format!(
+        "{UNIQUE_CONFLICT} on `{}`.`{}`: record {} holds the value",
+        def.label,
+        def.property,
+        record_id(txn, t, holder)?
+    ))
+}
+
+/// A record's id as told in errors (its ordinal when the header is gone).
+fn record_id(txn: &Txn, t: TenantId, owner: u64) -> Result<String, StorageError> {
+    Ok(txn
+        .get(&k::record_hdr_key(t, owner))?
         .and_then(|raw| k::decode_record_hdr(&raw).map(|(id, _)| id))
         .map_or_else(
-            || holder.to_string(),
+            || owner.to_string(),
             |id| uuid::Uuid::from_bytes(id).to_string(),
-        );
-    Ok(format!(
-        "{UNIQUE_CONFLICT} on `{}`.`{}`: record {id} holds the value",
-        def.label, def.property
-    ))
+        ))
 }
