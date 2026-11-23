@@ -37,19 +37,28 @@ pub fn budget() -> usize {
     BUDGET.load(Ordering::SeqCst)
 }
 
-/// The threads helpers run on, started on first use. As many as the host has
-/// cores, or the budget if larger: the lease, not the pool, bounds how many
-/// helpers run at once.
+/// The threads helpers run on, started on first use: as many as the helper
+/// budget ([`set_threads`], from the server's own threads), never the
+/// host's cores. Idle pool threads wake and spin looking for work after
+/// each call, so a pool larger than the threads the server was given
+/// competed with its request threads: on a server pinned to 8 cores, a
+/// 20-thread pool slowed every query of the process by up to 10x for
+/// seconds at a time. A budget raised after the pool started (tests) only
+/// queues the extra helpers.
 fn pool() -> &'static rayon::ThreadPool {
     static POOL: std::sync::OnceLock<rayon::ThreadPool> = std::sync::OnceLock::new();
     POOL.get_or_init(|| {
-        let cores = std::thread::available_parallelism().map_or(1, std::num::NonZero::get);
         rayon::ThreadPoolBuilder::new()
-            .num_threads(cores.max(budget()).max(1))
+            .num_threads(pool_threads(budget()))
             .thread_name(|index| format!("rushdb-part-{index}"))
             .build()
             .expect("the part thread pool starts")
     })
+}
+
+/// Pool threads for a helper budget: one per helper, at least one.
+fn pool_threads(budget: usize) -> usize {
+    budget.max(1)
 }
 
 /// Helper threads lent to one call, returned when dropped.
@@ -186,6 +195,20 @@ pub fn parts_for(units: u64, min_units: u64) -> usize {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The pool has one thread per helper the budget lends, never one per
+    /// host core: a server pinned to fewer cores than the host has must not
+    /// run more spinning pool threads than it was given.
+    #[test]
+    fn the_pool_follows_the_helper_budget_not_the_host() {
+        assert_eq!(pool_threads(7), 7);
+        assert_eq!(pool_threads(0), 1);
+        let cores = std::thread::available_parallelism().map_or(1, std::num::NonZero::get);
+        assert_eq!(
+            pool_threads(cores.saturating_sub(5).max(1)),
+            cores.saturating_sub(5).max(1)
+        );
+    }
 
     /// The budget is process-wide: tests that lend from it run one at a
     /// time.
