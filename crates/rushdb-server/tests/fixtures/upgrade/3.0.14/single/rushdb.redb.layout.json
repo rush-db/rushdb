@@ -1,0 +1,11 @@
+{
+  "magic": "RUSHDB_LAYOUT",
+  "format_version": 7,
+  "database_id": "01a20a4a-98bd-71d2-929e-0fe2e19b6bc2",
+  "tenant_encoding_version": 2,
+  "history_version": 2,
+  "shard_count": 1,
+  "shard_files": [
+    "rushdb.redb"
+  ]
+}
