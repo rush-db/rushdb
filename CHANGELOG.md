@@ -181,6 +181,12 @@ in [`docs/manual/operations/upgrading-from-2x.md`](docs/manual/operations/upgrad
 
 ### Known limitations
 
+- **A write during a unique index's build can repeat a value.** A value
+  already stored is claimed only once the build reaches its record, so a
+  write sent while the index is `building` can give a second record that
+  value; the build then finds the repeat and drops the index. Declare
+  unique indexes before loading data, or wait until the index is `ready`
+  before writing. Fixed in 3.0.15.
 - **Small indexed pages are about 5% slower than in 3.0.13.** A page of a
   few hundred records found through an ordered index takes about 30 µs
   longer: typed values (741b9b22) made each point read of a record's
