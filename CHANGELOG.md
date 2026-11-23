@@ -43,10 +43,9 @@ in [`docs/manual/operations/upgrading-from-2x.md`](docs/manual/operations/upgrad
     structures; they were strings and maps. A `Time` with an offset or a
     `DateTimeZoneId` parameter is refused with
     `Neo.ClientError.Statement.TypeError`.
-  - Cypher values keep their types across writes and reads. The openCypher
-    TCK passes 2,017 of 3,897 scenarios (2,012 on Grafeo 0.6 alone): eleven
-    more, and six nanosecond scenarios fewer, since values are kept to the
-    microsecond.
+  - Cypher values keep their types across writes and reads: eleven more
+    openCypher TCK scenarios pass, and six nanosecond scenarios fewer,
+    since values are kept to the microsecond.
 
   Integers still compare with datetimes as epoch milliseconds, and `$sum`
   and `$avg` still add datetimes as epoch milliseconds.
@@ -88,8 +87,9 @@ in [`docs/manual/operations/upgrading-from-2x.md`](docs/manual/operations/upgrad
     inside a list comprehension, `count(rand())`, and a pattern on the
     right-hand side of `SET`.
 
-  The openCypher TCK now passes 2,012 of 3,897 scenarios (was 1,653); of
-  the 2,417 in the supported profile, 2,012 pass (was 1,653 of 2,403).
+  With the typed values above, the openCypher TCK now passes 2,017 of
+  3,897 scenarios (was 1,653); of the 2,422 in the supported profile,
+  2,017 pass (was 1,653 of 2,403).
 - **Breaking: building RushDB from source needs Rust 1.100** (was 1.91 as
   the minimum, 1.98.1 pinned), as Grafeo 0.6 does.
 
@@ -147,17 +147,18 @@ in [`docs/manual/operations/upgrading-from-2x.md`](docs/manual/operations/upgrad
 - **Unindexed listing filters read resident columns** (L8). A listing
   filtered on properties no index covers is answered from the resident
   columns of those properties once they are built, instead of reading
-  every holder's values. On 200,000 records, a filter on one or two
-  low-cardinality properties lists its first page in about 3 ms instead of
-  26–36 ms (median, measured in both orders against 3.0.13). A filter over
-  a property with very many distinct values (a numeric range over 100,000
-  values) is answered as before.
+  every holder's values. On 100,000 records, a filter on a low-cardinality
+  property answers in 1.3–2.2 ms instead of 25–27 ms, and one matching
+  half the records in 29 ms instead of 100 ms (median, measured in both
+  orders against 3.0.13). A filter over a property with very many distinct
+  values (a numeric range) is answered as before.
 - **Grouped aggregates over resident columns fold without allocating per
   row.** A `groupBy` with `$count`, `$sum`, `$avg`, `$min` or `$max` over
-  up to four keys reads each metric straight from its column. On 200,000
-  records, two-key and multi-metric groupings are 15–35% faster than
-  3.0.13 (median, measured in both orders); a single count and sum is
-  unchanged. Answers are bit-identical.
+  up to four keys reads each metric straight from its column. On 1,000,000
+  records, single-key, two-key and multi-metric groupings are 29–51%
+  faster than 3.0.13 (median, measured in both orders); a grouping behind
+  a filter is about 4% faster, and plain counts are unchanged. Answers are
+  bit-identical.
 
 ### Fixed
 
