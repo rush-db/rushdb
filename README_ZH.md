@@ -309,9 +309,9 @@ print(db.properties.values(role, query="eng")["data"])
 | Docker Compose | [`deploy/templates/docker-compose`](https://github.com/rush-db/rushdb/tree/main/deploy/templates/docker-compose)，另有经 Caddy 提供 HTTPS 的版本 |
 | Kubernetes | [Helm chart](https://github.com/rush-db/rushdb/tree/main/charts/rushdb): `helm install rushdb oci://ghcr.io/rush-db/charts/rushdb --set auth.token="$(openssl rand -hex 32)"` |
 | Linux 虚拟机 | [cloud-init](https://github.com/rush-db/rushdb/tree/main/deploy/templates/cloud-init) 适用于 DigitalOcean、Hetzner、AWS、Google Cloud 和 Azure; [systemd 单元](https://github.com/rush-db/rushdb/tree/main/deploy/templates/systemd) |
-| 平台 | [Fly.io](https://github.com/rush-db/rushdb/tree/main/deploy/templates/fly), [Render](https://github.com/rush-db/rushdb/tree/main/deploy/templates/render), [Coolify](https://github.com/rush-db/rushdb/tree/main/deploy/templates/coolify), [Dokploy](https://github.com/rush-db/rushdb/tree/main/deploy/templates/dokploy) |
+| 平台 | [Fly.io](https://github.com/rush-db/rushdb/tree/main/deploy/templates/fly), [Render](https://github.com/rush-db/rushdb/tree/main/deploy/templates/render), [Coolify](https://github.com/rush-db/rushdb/tree/main/deploy/templates/coolify), [Dokploy](https://github.com/rush-db/rushdb/tree/main/deploy/templates/dokploy), [Railway](https://railway.com/deploy/rushdb) |
 
-[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/rush-db/rushdb)
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/rush-db/rushdb) [![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/rushdb)
 
 端口、探针、容量规划以及作为服务运行：参见 [部署运维](https://docs.rushdb.com/engine/operations/deployment/)。所有方式汇总在一页：
 [docs.rushdb.com/deploy](https://docs.rushdb.com/deploy/)。
