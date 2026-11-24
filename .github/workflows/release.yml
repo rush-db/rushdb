@@ -41,10 +41,14 @@ jobs:
         with:
           ref: ${{ inputs.tag || github.ref }}
       - run: mkdir -p dist
+      # Scan a lockfile cut to what this target's binary ships, not the
+      # workspace Cargo.lock (every platform, dev and build dependencies).
+      - name: Lockfile for this target
+        run: python3 scripts/sbom-lockfile.py ${{ matrix.target }} "$RUNNER_TEMP/sbom"
       - name: Generate source dependency SBOM
         uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0
         with:
-          path: .
+          path: ${{ runner.temp }}/sbom
           format: spdx-json
           output-file: dist/rushdb-${{ matrix.target }}.spdx.json
           upload-artifact: false

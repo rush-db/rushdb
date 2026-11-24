@@ -311,6 +311,28 @@ jobs:
           done
           ./scripts/homebrew-formula.sh v0.0.0 "$RUNNER_TEMP/sums" > "$RUNNER_TEMP/rushdb.rb"
           ruby -c "$RUNNER_TEMP/rushdb.rb"
+      # The release SBOM step, for one target: the per-target lockfile must
+      # hold no Windows crates and scan to an SPDX document with its packages.
+      - name: Per-target SBOM lockfile
+        run: python3 scripts/sbom-lockfile.py aarch64-apple-darwin "$RUNNER_TEMP/sbom"
+      - uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0
+        with:
+          path: ${{ runner.temp }}/sbom
+          format: spdx-json
+          output-file: ${{ runner.temp }}/rushdb.spdx.json
+          upload-artifact: false
+          upload-release-assets: false
+      - name: Check the SBOM
+        run: |
+          python3 - "$RUNNER_TEMP/sbom/Cargo.lock" "$RUNNER_TEMP/rushdb.spdx.json" <<'EOF'
+          import json, sys, tomllib
+          locked = {p["name"] for p in tomllib.load(open(sys.argv[1], "rb"))["package"]}
+          names = [p["name"] for p in json.load(open(sys.argv[2]))["packages"]]
+          windows = [n for n in names if n.startswith(("windows-", "windows_", "winapi"))]
+          assert not windows, f"Windows crates in a macOS SBOM: {windows}"
+          assert locked <= set(names), f"missing from the SBOM: {sorted(locked - set(names))}"
+          print(f"{len(names)} SPDX packages, {len(locked)} crates")
+          EOF
 
   container:
     runs-on: ubuntu-latest
