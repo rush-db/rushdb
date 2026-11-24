@@ -61,7 +61,7 @@ jobs:
             . "$HOME/.cargo/env"
             cargo build --release --locked --target ${{ matrix.target }} -p rushdb-server --bins'
           sudo chown -R "$(id -u):$(id -g)" target
-      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # 1.100.0
+      - uses: dtolnay/rust-toolchain@df2a88e9fe4098bad09cb42c3dec7187f15861fc # 1.100.0
         if: ${{ !matrix.manylinux }}
         with:
           toolchain: 1.100.0
